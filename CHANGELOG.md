@@ -11,6 +11,7 @@ Version history, newest first. It replaces the many fix notes written during dev
 - **Cast distribution**: a "cascade" checkbox on a series or a season (saved with its distribution). Everything below it, seasons and episodes, missing ones included, inherits its cast when enriched, without needing the library listing. The episodes' own cast is kept and comes first. A preview lists the season and episode tags it reaches, and "Appliquer aux épisodes" also refreshes them (and cleans them when the cascade is turned off).
 - **Cast distribution**: the cascade also reaches seasons and episodes whose name has **no identifier**: their inherited cast is written straight into Jellyfin (nothing else of theirs is touched), kept up to date by "Appliquer aux épisodes" and by the daily missing-episodes task, and taken back when the cascade is turned off.
 - **Cast distribution**: "Appliquer aux épisodes" now also refreshes an element whose distribution was emptied entirely, which was skipped before.
+- **JSON paths**: a position in a list can now be written `[0]` (`[0].name` for a list at the root, `results[0].name` for a list inside an object). It makes an API usable when it answers a search URL with a list of one element, notably for people sources, and it applies to every mapped field. A people source that gets a list without `[0]` now says so instead of "no name found".
 
 ## Version 0.0.8 alpha (November 2026)
 

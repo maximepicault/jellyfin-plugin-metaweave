@@ -501,7 +501,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 var person = _fieldMapper.MapToPerson(jsonDoc, source.PersonMappings);
                 if (person == null)
                 {
-                    return (null, "Réponse reçue mais aucun nom trouvé : vérifiez le champ « Nom » de la source de personnes");
+                    return (null, jsonDoc.RootElement.ValueKind == JsonValueKind.Array
+                        ? "Réponse reçue mais aucun nom trouvé : la réponse est une liste, désignez son premier élément avec [0] (par exemple [0].name)"
+                        : "Réponse reçue mais aucun nom trouvé : vérifiez le champ « Nom » de la source de personnes");
                 }
 
                 person.Photo = PreviewMapper.ResolveUrl(person.Photo, source.BaseUrl);

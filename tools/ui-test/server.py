@@ -1,6 +1,6 @@
 """Fake demo API to test the plugin: python3 server.py <base_url> <img_dir> (listens on 0.0.0.0:8765)
 Routes: /series/{id}, /sources/{id}, /sources/{id}/videos (episode list), /videos/{id}, /img/{file}"""
-import json, re, sys, os
+import json, urllib.parse, re, sys, os
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 sys.path.insert(0, os.path.dirname(__file__)); from data import SERIES, OV, PEOPLE
 BASE = sys.argv[1]
@@ -26,6 +26,14 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/img/"):
             f = os.path.join(IMG_DIR, os.path.basename(p))
             return self.send(200, open(f, "rb").read(), "image/jpeg") if os.path.exists(f) else self.send(404, {})
+        # People found through a SEARCH url: the answer is a LIST with one element (root list, or a list inside an object)
+        if p in ("/people-list", "/people-wrapped"):
+            uid = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("user", [""])[0]
+            if uid not in PEOPLE: return self.send(200, [] if p == "/people-list" else {"total": 0, "results": []})
+            name, bio = PEOPLE[uid]
+            if p == "/people-list":
+                return self.send(200, [{"profile": {"displayName": name, "avatar": f"/img/{uid}.jpg", "about": bio}}])
+            return self.send(200, {"total": 1, "results": [{"name": name, "photo": f"/img/{uid}.jpg", "bio": bio}]})
         m = re.fullmatch(r"/people/(\w+)", p)
         if m:
             if m[1] not in PEOPLE: return self.send(404, {"error": "inconnue"})
