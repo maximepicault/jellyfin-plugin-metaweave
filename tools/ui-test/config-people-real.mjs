@@ -32,6 +32,10 @@ const SEED = `(async function(){
   window.__seedBackup = { sources: JSON.parse(JSON.stringify(cfg.Sources || [])) };
   cfg.Sources = (cfg.Sources || []).filter(function(s){ return s.SourceType !== 'People'; });
   cfg.Sources.push({ Name: 'Personnes démo', Prefix: 'pe', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people/{id}', PersonMappings: { Name: 'name', Photo: 'photo', Bio: 'bio' }, Enabled: true, SendOriginReferer: false });
+  // Two people sources whose answer is a LIST (a search url taking the identifier as a parameter): root list, and list inside an object
+  cfg.Sources.push({ Name: 'Personnes liste', Prefix: 'pl', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-list?user={id}', PersonMappings: { Name: '[0].profile.displayName', Photo: '[0].profile.avatar', Bio: '[0].profile.about' }, Enabled: true, SendOriginReferer: false });
+  cfg.Sources.push({ Name: 'Personnes recherche', Prefix: 'pw', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-wrapped?user={id}', PersonMappings: { Name: 'results[0].name', Photo: 'results[0].photo', Bio: 'results[0].bio' }, Enabled: true, SendOriginReferer: false });
+  cfg.Sources.push({ Name: 'Personnes liste sans chemin', Prefix: 'px', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-list?user={id}', PersonMappings: { Name: 'profile.displayName', Photo: '', Bio: '' }, Enabled: true, SendOriginReferer: false });
   await ApiClient.updatePluginConfiguration(pid, cfg);
   async function put(path, body) { await fetch(ApiClient.getUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Emby-Token': tok }, body: JSON.stringify(body) }); }
   await put('CustomMetadata/People', { Version: 1, People: [
@@ -66,6 +70,18 @@ try {
     await until(`!location.hash.includes('login')`); await wait(1500);
   }
   await evalJs(SEED); await wait(500);
+
+  // A people source whose answer is a LIST (search url with the identifier as a parameter): paths with a position, "[0]"
+  const fetchPerson = prefix => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl('CustomMetadata/People/Fetch'),{method:'POST',headers:{'Content-Type':'application/json','X-Emby-Token':ApiClient.accessToken()},body:JSON.stringify({Prefix:${JSON.stringify(prefix)},ExternalId:'p1'})}); return JSON.stringify(await r.json());})()`).then(JSON.parse);
+  const rootList = await fetchPerson('pl');
+  check('list source (root list): name read with [0]', rootList.Name === 'Camille Durand', JSON.stringify(rootList));
+  check('list source (root list): photo and bio read too', !!rootList.Photo && !!rootList.Bio, JSON.stringify(rootList));
+  const wrapped = await fetchPerson('pw');
+  check('list source (list inside an object): name read with results[0]', wrapped.Name === 'Camille Durand', JSON.stringify(wrapped));
+  const noPath = await fetchPerson('px');
+  check('list source without [0]: a clear hint instead of a silent miss', !noPath.Name && /\[0\]/.test(noPath.Error || ''), JSON.stringify(noPath));
+  const plain = await fetchPerson('pe');
+  check('plain object source unchanged', plain.Name === 'Camille Durand', JSON.stringify(plain));
   await send('Page.navigate', { url: `${J}/web/#/configurationpage?name=CustomMetadataPeople` });
   await until(`!!document.querySelector('${P} .pp-item')`, 30000); await wait(1200);
   check('directory loaded', (await evalJs(`document.querySelectorAll('${P} .pp-item').length`)) === 2);

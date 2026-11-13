@@ -11,6 +11,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     /// - "title" → root.title
     /// - "data.video.name" → root.data.video.name
     /// - "metadata.tags" → root.metadata.tags
+    /// - "[0].name" → name of the first element of a root list; "results[0].name" → of the first element of "results"
     /// </summary>
     public static class JsonPathExtractor
     {
@@ -178,7 +179,36 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         /// <summary>
-        /// Walks the JSON tree following the path
+        /// The single place that follows a path ("a.b.c", with positions "[0]" / "items[0]"). False when the path is
+        /// empty or does not exist; JsonFieldMapper uses it too, so every mapped field reads lists the same way.
+        /// </summary>
+        public static bool TryNavigate(JsonElement root, string path, out JsonElement result)
+        {
+            result = default;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            var element = NavigateToElement(root, path);
+            if (!element.HasValue)
+            {
+                return false;
+            }
+
+            result = element.Value;
+            return true;
+        }
+
+        // "name", "name[0]", "[0]" or "name[0][1]": a property (optional) followed by one or more array positions
+        private static readonly System.Text.RegularExpressions.Regex IndexedPart =
+            new System.Text.RegularExpressions.Regex(@"^(?<name>[^\[\]]*)(?<idx>(\[\d+\])+)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        /// <summary>
+        /// Walks the JSON tree following the path. Besides "a.b.c", a position in a list is written
+        /// "[0]" (first element of the root list) or "items[0]" (first element of the list "items"), so
+        /// "[0].name", "results[0].user.name" and "data.items[1].tags" work. "[]" (all the elements) is not handled
+        /// here: the callers that accept it split the path before.
         /// </summary>
         private static JsonElement? NavigateToElement(JsonElement root, string path)
         {
@@ -187,22 +217,37 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 return root;
             }
 
-            var parts = path.Split('.');
             JsonElement current = root;
-
-            foreach (var part in parts)
+            foreach (var part in path.Split('.'))
             {
-                if (current.ValueKind != JsonValueKind.Object)
+                var indexed = IndexedPart.Match(part);
+                var name = indexed.Success ? indexed.Groups["name"].Value : part;
+
+                if (name.Length > 0)
                 {
-                    return null;
+                    if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(name, out var next))
+                    {
+                        return null;
+                    }
+
+                    current = next;
                 }
 
-                if (!current.TryGetProperty(part, out var next))
+                if (!indexed.Success)
                 {
-                    return null;
+                    continue;
                 }
 
-                current = next;
+                foreach (System.Text.RegularExpressions.Capture position in indexed.Groups["idx"].Captures)
+                {
+                    var text = position.Value.Trim('[', ']');
+                    if (current.ValueKind != JsonValueKind.Array || !int.TryParse(text, out var index) || index >= current.GetArrayLength())
+                    {
+                        return null;
+                    }
+
+                    current = current[index];
+                }
             }
 
             return current;

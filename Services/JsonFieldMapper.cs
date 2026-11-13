@@ -742,37 +742,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// </summary>
         /// <returns>true if the path exists, false otherwise</returns>
         private bool TryNavigateToPath(JsonElement element, string path, out JsonElement result)
-        {
-            result = default;
-
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                return false;
-            }
-
-            var parts = path.Split('.');
-            var current = element;
-
-            foreach (var part in parts)
-            {
-                if (current.ValueKind != JsonValueKind.Object)
-                {
-                    // The path cannot be followed (not an object)
-                    return false;
-                }
-
-                if (!current.TryGetProperty(part, out var next))
-                {
-                    // The property does not exist in the JSON
-                    return false;
-                }
-
-                current = next;
-            }
-
-            result = current;
-            return true;
-        }
+            => JsonPathExtractor.TryNavigate(element, path, out result);
 
         /// <summary>
         /// Legacy version for compatibility (throws exceptions)

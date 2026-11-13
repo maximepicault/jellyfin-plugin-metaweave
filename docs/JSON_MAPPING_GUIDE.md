@@ -55,6 +55,20 @@ For `{"metadata": {"content": {"title": "Matrix"}}}`, the path `metadata.content
 
 Paths are **case-sensitive** (`Title` ≠ `title`). Arrays of objects use `array[].field` (one level only): see [GUIDE_TAGS.md](GUIDE_TAGS.md).
 
+### A list that holds a single element (a search URL)
+
+Some APIs answer a search, `/search?user={id}`, with a **list** that contains one element. A position in a list is written
+`[n]` (0 is the first element):
+
+```
+[0].name              → first element of a list at the root:      [ { "name": "Camille" } ]
+results[0].name       → first element of the list "results":     { "results": [ { "name": "Camille" } ] }
+data.items[1].user.id → second element of data.items, then its user.id
+```
+
+It works in every field of every mapping (title, overview, cast, images…), not only for people. `[]` (all the elements)
+and `[0]` (one element) are different notations: do not mix them in the same segment.
+
 ---
 
 ## ⚙️ Where to configure it

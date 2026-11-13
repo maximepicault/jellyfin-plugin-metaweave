@@ -737,11 +737,12 @@
                         <div class="inputContainer cm-span">
                             <label class="inputLabel" for="srcPersonEndpoint">Endpoint d&#x27;une personne *</label>
                             <input is="emby-input" type="text" id="srcPersonEndpoint" data-count="1" />
-                            <div class="cm-hint">{id} est remplacé par l&#x27;identifiant de la personne dans cette API. Par exemple /people/{id}.</div>
+                            <div class="cm-hint">{id} est remplacé par l&#x27;identifiant de la personne dans cette API. Par exemple /people/{id}, ou une recherche : /search?user={id}.</div>
                         </div>
                         <div class="inputContainer">
                             <label class="inputLabel" for="srcPersonName">Nom</label>
                             <input is="emby-input" type="text" id="srcPersonName" data-count="1" />
+                            <div class="cm-hint">Si l&#x27;API répond par une liste (par exemple une recherche qui renvoie un seul élément), désignez son premier élément avec [0] : [0].name pour une liste à la racine, results[0].name pour une liste dans un objet. Les champs ci-dessous suivent la même règle.</div>
                         </div>
                         <div class="inputContainer">
                             <label class="inputLabel" for="srcPersonPhoto">Photo (URL)</label>
