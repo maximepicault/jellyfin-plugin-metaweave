@@ -77,7 +77,7 @@ After creating the repository (Settings):
 
 - **Squash merging only**, with automatic deletion of merged branches:
   ```bash
-  gh repo edit --enable-squash-merge --disable-merge-commit --disable-rebase-merge --delete-branch-on-merge
+  gh repo edit --enable-squash-merge --enable-merge-commit=false --enable-rebase-merge=false --delete-branch-on-merge
   ```
 - **Protect `main`**: pull request required (0 approvals if you work alone), `build` check required, no force-push, no deletion:
   ```bash
