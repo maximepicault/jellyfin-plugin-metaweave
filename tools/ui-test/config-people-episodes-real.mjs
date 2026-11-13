@@ -71,6 +71,11 @@ try {
   await evalJs(`window.confirm = function () { return true; }; true`);   // a real dialog would block the driving
   check('Episodes tab hidden at the start', (await evalJs(`document.querySelector('${P} #ppTabEpisodes').hidden`)) === true);
   await click(`${P} [data-pp-tab="episodes"]`);
+  // The slow library listing is NOT loaded automatically: only "By identifier" and a button are offered
+  check('library not loaded by default', await until(`!!document.querySelector('${P} [data-library-load]')`, 15000));
+  check('library not loaded: no season in the tree', (await evalJs(`document.querySelectorAll('${P} [data-ep-season]').length`)) === 0);
+  check('"By identifier" is the default view', (await evalJs(`!!document.querySelector('${P} #ppIdAdd')`)) === true);
+  await click(`${P} [data-library-load]`);
   check('tree loaded (series and seasons)', await until(`document.querySelectorAll('${P} [data-ep-season]').length >= 4`, 15000));
   check('series listed', (await evalJs(`document.querySelector('${P} #ppEpTree').textContent`)).includes('Les Aventuriers'));
   await shot('E1-episodes-tab-1440');
@@ -114,7 +119,23 @@ try {
   await click(`${P} [data-ep-series]`); await wait(300);
   check('series cast offered', (await evalJs(`!!document.querySelector('${P} [data-ep-open="series:dm-aventuriers"]')`)) === true);
   await click(`${P} [data-ep-open="series:dm-aventuriers"]`); await wait(300);
-  await type(`${P} #ppCastAdd`, 'invité maison'); await click(`${P} [data-cast-add]`); await wait(300);
+  // Autocomplete with a preview, then cascade series -> seasons -> episodes
+  // click() does not focus and a programmatic focus() is silent while the headless window is unfocused: dispatch the event the page listens to
+  await evalJs(`(function(){var i=document.querySelector('${P} #ppCastAdd'); i.dispatchEvent(new FocusEvent('focusin',{bubbles:true})); return true;})()`); await wait(300);
+  const acCount = await evalJs(`document.querySelectorAll('${P} .pp-ac-opt').length + '/' + (document.querySelector('${P} #ppCastSuggest')||{}).hidden`);
+  check('autocomplete: suggestions shown on focus', parseInt(acCount, 10) >= 2, acCount);
+  check('autocomplete: each suggestion has an avatar and a name', (await evalJs(`Array.from(document.querySelectorAll('${P} .pp-ac-opt')).every(function(o){return !!o.querySelector('.pp-avatar') && !!o.querySelector('strong');})`)) === true);
+  await type(`${P} #ppCastAdd`, 'maison');
+  check('autocomplete: filtered by the typed words', (await evalJs(`document.querySelectorAll('${P} .pp-ac-opt').length`)) === 1);
+  check('cascade box enabled (library loaded)', (await evalJs(`var c=document.querySelector('${P} #ppCascade'); !!c && !c.disabled`)) === true);
+  await evalJs(`(function(){var c=document.querySelector('${P} #ppCascade'); c.checked=true; c.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
+  await click(`${P} .pp-ac-opt`); await wait(400);
+  check('autocomplete: click adds the person', (await evalJs(`document.querySelectorAll('${P} .pp-cast-row').length`)) === 1);
+  check('cascade: message announces the children', (await evalJs(`document.querySelector('${P} #ppCastMsg').textContent`)).includes('élément(s)'));
+  await shot('E3-autocomplete-cascade-1440');
+  await click(`${P} [data-ep-season]`); await wait(300);
+  check('cascade: the season got the person', (await evalJs(`document.querySelector('${P} [data-ep-open="season:dm-a1"]').textContent`)).includes('Invité Maison'));
+  check('cascade: an episode got the person', (await evalJs(`document.querySelector('${P} [data-ep-open="episode:dm-a1v3"]').textContent`)).includes('Invité Maison'));
   await click(`${P} [data-ep-mode="ids"]`); await wait(300);
   await type(`${P} #ppIdKey`, 'pas un identifiant'); await click(`${P} #ppIdAdd`); await wait(200);
   check('invalid identifier refused', (await evalJs(`document.querySelector('${P} #ppIdMsg').textContent`)).includes('Format attendu'));
@@ -134,7 +155,7 @@ try {
   await click(`${P} #ppSave`); await wait(1500);
   const typed = await api('CustomMetadata/People/EpisodeCast');
   const typedMap = {}; typed.Episodes.forEach(e => { typedMap[e.Type + ':' + e.Key] = e.Cast.map(c => c.PersonId).join(); });
-  check('saved: series, season and episode', typedMap['series:dm-aventuriers'] === 'manu01' && typedMap['season:dm-a1'] === 'pers01', JSON.stringify(typedMap));
+  check('saved: series, season and episode', typedMap['series:dm-aventuriers'] === 'manu01' && typedMap['season:dm-a1'] === 'pers01,manu01', JSON.stringify(typedMap));
   check('saved: same identifier, two types', typedMap['episode:dv-1234'] === 'pers01' && typedMap['series:dv-1234'] === 'manu01', JSON.stringify(typedMap));
 
   const season2024 = `Array.from(document.querySelectorAll('${P} [data-ep-season]')).find(function(b){return b.textContent.indexOf('Saison 2024')>=0;})`;

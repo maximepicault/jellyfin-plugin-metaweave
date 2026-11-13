@@ -6,7 +6,9 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
-_Nothing yet._
+- **Cast distribution**: adding a person now uses a dropdown with a preview (photo, name, identifiers) filtered as you type, with keyboard navigation, instead of the browser's plain list.
+- **Cast distribution**: the library listing (slow on a large library) is no longer loaded when the tab opens. The tab starts on "Par identifiant", and a "Parcourir la médiathèque" button loads the series, seasons and episodes on demand.
+- **Cast distribution**: new "Ajouter aussi la personne aux saisons et aux épisodes" checkbox on a series or a season, which copies a newly added person down to its children (needs the library to be loaded).
 
 ## Version 0.0.8 alpha (November 2026)
 

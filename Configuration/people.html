@@ -100,6 +100,20 @@
         #CustomMetadataPeoplePage .pp-cast-add { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
         #CustomMetadataPeoplePage .pp-cast-add input { flex: 1 1 220px; }
         #CustomMetadataPeoplePage .pp-cast-add .emby-button { margin: 0; }
+        #CustomMetadataPeoplePage .pp-ac { position: relative; flex: 1 1 260px; }
+        #CustomMetadataPeoplePage .pp-ac input { width: 100%; }
+        #CustomMetadataPeoplePage .pp-ac-list { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); max-height: 320px; overflow: auto; padding: 4px; border: 1px solid var(--pp-border); border-radius: 8px; background: #26292d; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 2px; }
+        #CustomMetadataPeoplePage .pp-ac-list[hidden] { display: none; }
+        #CustomMetadataPeoplePage .pp-ac-opt { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataPeoplePage .pp-ac-opt:hover, #CustomMetadataPeoplePage .pp-ac-opt.active { background: rgba(0, 164, 220, 0.22); }
+        #CustomMetadataPeoplePage .pp-ac-text { min-width: 0; display: flex; flex-direction: column; }
+        #CustomMetadataPeoplePage .pp-ac-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #CustomMetadataPeoplePage .pp-ac-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-ac-none { padding: 8px; font-size: 13px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-cascade { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; cursor: pointer; }
+        #CustomMetadataPeoplePage .pp-cascade input { margin-top: 3px; }
+        #CustomMetadataPeoplePage .pp-cascade[data-off] { opacity: 0.6; cursor: default; }
+        #CustomMetadataPeoplePage .pp-library-box { padding: 10px; border: 1px dashed var(--pp-border); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
         @container (max-width: 700px) { #CustomMetadataPeoplePage .pp-cast-row { grid-template-columns: 40px minmax(0, 1fr) auto; } #CustomMetadataPeoplePage .pp-cast-row .pp-cast-role, #CustomMetadataPeoplePage .pp-cast-row .pp-cast-type { grid-column: 2 / -1; } }
         #CustomMetadataPeoplePage .pp-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(240, 160, 64, 0.55); border-radius: 8px; background: rgba(240, 160, 64, 0.1); color: #f3c88a; line-height: 1.5; }
         #CustomMetadataPeoplePage .pp-warn span { flex: 1 1 320px; }
@@ -454,7 +468,11 @@
 
             // ---- Cast of API series, seasons and episodes (attached to their tag, API unmodified) ----
             // Typed keys: "episode:dm-a1v1", "season:dm-a1", "series:dm-aventuriers" (the same identifier can exist for several types)
-            var epMode = 'library';   // 'library': series/seasons of the library, 'ids': elements typed by identifier
+            var epMode = 'ids';       // 'library': series/seasons of the library (loaded on demand), 'ids': elements typed by identifier
+            var castLoaded = false;   // the small distribution file is loaded (fast); the library is NOT loaded until asked
+            var libraryLoading = false;
+            var cascade = false;      // adding someone to a series/season also adds them to the children (needs the library)
+            var acIndex = -1;         // highlighted suggestion
             var epSeries = null;      // Id of the displayed series (its own cast)
             var TYPE_LABELS = { series: 'Série', season: 'Saison', episode: 'Épisode' };
 
@@ -477,11 +495,18 @@
 
             function renderEpTree() {
                 var box = qs('#ppEpTree');
-                if (!library) { box.innerHTML = '<div class="pp-empty">Chargement…</div>'; return; }
+                if (!castLoaded) { box.innerHTML = '<div class="pp-empty">Chargement…</div>'; return; }
                 var filter = qs('#ppEpSearch').value;
                 var idsCount = Object.keys(episodeCast).filter(function(k) { return castCount(k) > 0; }).length;
                 var html = '<button type="button" class="pp-item" data-ep-mode="ids"' + (epMode === 'ids' ? ' aria-current="true"' : '') + '><span class="pp-item-text"><span class="pp-item-name">Par identifiant</span><span class="pp-item-ids">saisir un {préfixe-id}</span></span>'
                     + (idsCount ? '<span class="pp-count" title="' + idsCount + ' élément(s) avec une distribution">' + idsCount + '</span>' : '') + '</button>';
+                if (!library) {
+                    html += '<div class="pp-library-box">' + (libraryLoading
+                        ? '<span class="pp-hint" style="margin:0;" role="status">Lecture de la médiathèque…</span>'
+                        : '<button is="emby-button" type="button" class="raised" data-library-load="1"><span>Parcourir la médiathèque</span></button><span class="pp-hint" style="margin:0;">Liste les séries, saisons et épisodes qui portent un tag. Peut être long sur une grosse médiathèque : ce n\'est donc pas fait automatiquement.</span>') + '</div>';
+                    box.innerHTML = html;
+                    return;
+                }
                 library.forEach(function(series) {
                     var seasons = series.Seasons.filter(function(season) { return !filter || matchesWords(filter, series.Name + ' ' + season.Name); });
                     if (!seasons.length && filter && !matchesWords(filter, series.Name)) { return; }
@@ -527,7 +552,6 @@
                 opts = opts || {};
                 var open = tk === epOpen;
                 var names = (episodeCast[tk] || []).map(function(c) { var p = byId(c.PersonId); return p ? p.Name : '?'; });
-                var datalist = people.map(function(p) { return '<option value="' + escapeHtml(p.Name) + '"></option>'; }).join('');
                 var html = '<div class="pp-ep' + (open ? ' open' : '') + '"><button type="button" class="pp-ep-head" data-ep-open="' + escapeHtml(tk) + '" aria-expanded="' + open + '">'
                     + (opts.hideNum ? '' : '<span class="pp-ep-num">' + (opts.num == null ? '' : opts.num) + '</span>')
                     + '<span class="pp-ep-main"><span class="pp-ep-title">' + escapeHtml(title) + '</span>'
@@ -537,21 +561,50 @@
                     + (names.length ? '<span class="pp-count">' + names.length + '</span>' : '') + '</button>';
                 if (open) {
                     html += '<div class="pp-ep-body">' + (opts.note ? '<div class="pp-hint" style="margin:0;">' + escapeHtml(opts.note) + '</div>' : '') + castRows(tk)
-                        + '<div class="pp-cast-add"><input type="text" id="ppCastAdd" list="ppCastList" placeholder="' + (people.length ? 'Ajouter une personne : tapez un nom' : 'L\'annuaire est vide : ajoutez des personnes d\'abord') + '" aria-label="Ajouter une personne" autocomplete="off" />'
-                        + '<datalist id="ppCastList">' + datalist + '</datalist>'
+                        + '<div class="pp-cast-add"><div class="pp-ac"><input type="text" id="ppCastAdd" role="combobox" aria-expanded="false" aria-controls="ppCastSuggest" placeholder="' + (people.length ? 'Ajouter une personne : tapez un nom' : 'L\'annuaire est vide : ajoutez des personnes d\'abord') + '" aria-label="Ajouter une personne" autocomplete="off" />'
+                        + '<div class="pp-ac-list" id="ppCastSuggest" role="listbox" hidden></div></div>'
                         + '<button is="emby-button" type="button" class="raised" data-cast-add="1"><span>Ajouter</span></button>'
                         + (typeOf(tk) === 'episode' && opts.inSeason && castCount(tk) ? '<button is="emby-button" type="button" class="raised" data-cast-season="1"><span>Appliquer à toute la saison</span></button>' : '')
                         + (opts.removable ? '<button type="button" class="pp-linkbtn" data-element-remove="1">Retirer cet élément de la liste</button>' : '')
-                        + '</div><div class="pp-hint" id="ppCastMsg" role="status" style="margin:0;color:#f0c080;"></div></div>';
+                        + '</div>' + cascadeBox(tk) + '<div class="pp-hint" id="ppCastMsg" role="status" style="margin:0;color:#f0c080;"></div></div>';
                 }
                 return html + '</div>';
+            }
+
+            // Elements below a series / season, taken from the library (empty while it is not loaded)
+            function childKeys(tk) {
+                var out = [];
+                var type = typeOf(tk), key = keyOf(tk);
+                (library || []).forEach(function(series) {
+                    if (type === 'series' && series.Key && series.Key.toLowerCase() === key) {
+                        series.Seasons.forEach(function(season) {
+                            if (season.Key) { out.push(typedKey('season', season.Key)); }
+                            season.Episodes.forEach(function(ep) { out.push(typedKey('episode', ep.Key)); });
+                        });
+                    }
+                    series.Seasons.forEach(function(season) {
+                        if (type === 'season' && season.Key && season.Key.toLowerCase() === key) {
+                            season.Episodes.forEach(function(ep) { out.push(typedKey('episode', ep.Key)); });
+                        }
+                    });
+                });
+                return out;
+            }
+
+            function cascadeBox(tk) {
+                var type = typeOf(tk);
+                if (type === 'episode') { return ''; }
+                var below = type === 'series' ? 'aux saisons et aux épisodes' : 'aux épisodes';
+                var usable = !!library;
+                return '<label class="pp-cascade"' + (usable ? '' : ' data-off="1"') + '><input type="checkbox" id="ppCascade"' + (cascade && usable ? ' checked' : '') + (usable ? '' : ' disabled') + ' />'
+                    + '<span>Ajouter aussi la personne ' + below + ' de cet élément.' + (usable ? '' : ' <em>Disponible après « Parcourir la médiathèque » (liste de gauche).</em>') + '</span></label>';
             }
 
             function noTagNote() { return 'Ce dossier ne porte pas de tag {préfixe-id} : sa distribution ne peut pas être rattachée.'; }
 
             function renderEpDetail() {
                 var box = qs('#ppEpDetail');
-                if (!library) { box.innerHTML = ''; return; }
+                if (!castLoaded) { box.innerHTML = ''; return; }
                 var html = '';
                 if (epMode === 'ids') {
                     var inLibrary = libraryKeys();
@@ -588,10 +641,63 @@
                         + (seriesTk ? elementRow(seriesTk, 'Distribution de la série', '{' + series.Key + '}', {}) : '<div class="pp-hint" style="margin:0;">' + noTagNote() + '</div>') + '</div>';
                     return;
                 }
-                box.innerHTML = '<div class="pp-empty">' + (library.length ? 'Choisissez une série, une saison, ou « Par identifiant ».' : 'Aucun élément portant un tag de source API dans la médiathèque : utilisez « Par identifiant ».') + '</div>';
+                box.innerHTML = '<div class="pp-empty">' + (!library ? 'Choisissez « Par identifiant », ou parcourez la médiathèque depuis la liste.' : (library.length ? 'Choisissez une série, une saison, ou « Par identifiant ».' : 'Aucun élément portant un tag de source API dans la médiathèque : utilisez « Par identifiant ».')) + '</div>';
             }
 
             function epMessage(text) { var el = qs('#ppCastMsg'); if (el) { el.textContent = text || ''; } }
+
+            // People of the directory matching what is typed, not yet in the open element's cast
+            function suggestions(text) {
+                var already = {};
+                (episodeCast[epOpen] || []).forEach(function(c) { already[c.PersonId] = true; });
+                return people.filter(function(p) { return !already[p.Id] && (!text.trim() || matchesWords(text, p.Name)); })
+                    .sort(function(x, y) { return (x.Name || '').localeCompare(y.Name || ''); });
+            }
+
+            function renderSuggest() {
+                var input = qs('#ppCastAdd'), box = qs('#ppCastSuggest');
+                if (!input || !box) { return; }
+                var list = suggestions(input.value).slice(0, 8);
+                acIndex = list.length ? Math.min(Math.max(acIndex, 0), list.length - 1) : -1;
+                if (!list.length) {
+                    box.innerHTML = '<div class="pp-ac-none">' + (people.length ? (input.value.trim() ? 'Personne de ce nom dans l\'annuaire (ou déjà ajoutée).' : 'Tout l\'annuaire est déjà dans cette distribution.') : 'L\'annuaire est vide.') + '</div>';
+                } else {
+                    box.innerHTML = list.map(function(p, i) {
+                        var ids = (p.Links || []).map(function(l) { return l.Prefix + '-' + l.ExternalId; }).join(' · ');
+                        return '<button type="button" class="pp-ac-opt' + (i === acIndex ? ' active' : '') + '" role="option" data-ac-person="' + p.Id + '" aria-selected="' + (i === acIndex) + '">' + avatar(p)
+                            + '<span class="pp-ac-text"><strong>' + escapeHtml(p.Name || '?') + '</strong>' + (ids ? '<span>' + escapeHtml(ids) + '</span>' : '') + '</span></button>';
+                    }).join('');
+                }
+                box.hidden = false;
+                input.setAttribute('aria-expanded', 'true');
+                box._list = list;
+            }
+
+            function closeSuggest() {
+                var input = qs('#ppCastAdd'), box = qs('#ppCastSuggest');
+                if (box) { box.hidden = true; }
+                if (input) { input.setAttribute('aria-expanded', 'false'); }
+                acIndex = -1;
+            }
+
+            function addPerson(person) {
+                if (!person || !epOpen) { return; }
+                var targets = [epOpen];
+                var box = qs('#ppCascade');
+                cascade = !!(box && box.checked);
+                if (cascade) { targets = targets.concat(childKeys(epOpen)); }
+                var added = 0;
+                targets.forEach(function(tk) {
+                    episodeCast[tk] = episodeCast[tk] || [];
+                    if (!episodeCast[tk].some(function(c) { return c.PersonId === person.Id; })) { episodeCast[tk].push({ PersonId: person.Id, Role: '', Type: 'Actor' }); added++; }
+                });
+                if (!added) { epMessage(person.Name + ' est déjà dans la distribution.'); return; }
+                markEpDirty(targets);
+                renderEpDetail();
+                renderEpTree();
+                epMessage(targets.length > 1 ? person.Name + ' ajouté·e à ' + added + ' élément(s) (cet élément et ceux en dessous).' : '');
+                var again = qs('#ppCastAdd'); if (again) { again.focus(); renderSuggest(); }
+            }
 
             function addEpCast() {
                 var input = qs('#ppCastAdd');
@@ -600,13 +706,7 @@
                 if (!wanted) { input.focus(); return; }
                 var person = people.filter(function(p) { return normalizeName(p.Name) === wanted; })[0];
                 if (!person) { epMessage('« ' + input.value.trim() + ' » n\'est pas dans l\'annuaire.'); return; }
-                episodeCast[epOpen] = episodeCast[epOpen] || [];
-                if (episodeCast[epOpen].some(function(c) { return c.PersonId === person.Id; })) { epMessage(person.Name + ' est déjà dans la distribution.'); return; }
-                episodeCast[epOpen].push({ PersonId: person.Id, Role: '', Type: 'Actor' });
-                markEpDirty();
-                renderEpDetail();
-                renderEpTree();
-                var again = qs('#ppCastAdd'); if (again) { again.focus(); }
+                addPerson(person);
             }
 
             function applyEpToSeason() {
@@ -645,16 +745,33 @@
                 var add = qs('#ppCastAdd'); if (add) { add.focus(); }
             }
 
+            // Fast part: the distribution file only. The library (slow) is loaded when the user asks.
             function loadEpisodesTab() {
-                if (library) { return; }
+                if (castLoaded) { return; }
                 renderEpTree();
-                Promise.all([ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/Library')), ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/EpisodeCast'))]).then(function(results) {
-                    library = results[0] || [];
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/EpisodeCast')).then(function(result) {
                     episodeCast = {};
-                    (results[1].Episodes || []).forEach(function(entry) { episodeCast[typedKey(entry.Type || 'episode', entry.Key)] = (entry.Cast || []).map(function(c) { return { PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }; }); });
+                    (result.Episodes || []).forEach(function(entry) { episodeCast[typedKey(entry.Type || 'episode', entry.Key)] = (entry.Cast || []).map(function(c) { return { PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }; }); });
+                    castLoaded = true;
                     renderEpTree();
                     renderEpDetail();
-                }, function() { qs('#ppEpTree').innerHTML = '<div class="pp-empty">La médiathèque n\'a pas pu être lue.</div>'; });
+                }, function() { qs('#ppEpTree').innerHTML = '<div class="pp-empty">La distribution n\'a pas pu être lue.</div>'; });
+            }
+
+            function loadLibrary() {
+                if (library || libraryLoading) { return; }
+                libraryLoading = true;
+                renderEpTree();
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/Library')).then(function(result) {
+                    library = result || [];
+                    libraryLoading = false;
+                    renderEpTree();
+                    renderEpDetail();
+                }, function() {
+                    libraryLoading = false;
+                    renderEpTree();
+                    epMessage('La médiathèque n\'a pas pu être lue.');
+                });
             }
 
             function showTab(name) {
@@ -671,6 +788,7 @@
 
             qs('#ppEpSearch').addEventListener('input', function() { renderEpTree(); if (epMode === 'ids') { renderEpDetail(); } });
             qs('#ppEpTree').addEventListener('click', function(e) {
+                if (e.target.closest('[data-library-load]')) { loadLibrary(); return; }
                 var mode = e.target.closest('[data-ep-mode]');
                 var series = e.target.closest('[data-ep-series]');
                 var season = e.target.closest('[data-ep-season]');
@@ -684,6 +802,8 @@
             });
             qs('#ppEpDetail').addEventListener('click', function(e) {
                 if (e.target.closest('#ppIdAdd')) { addById(); return; }
+                var opt = e.target.closest('[data-ac-person]');
+                if (opt) { addPerson(byId(opt.getAttribute('data-ac-person'))); return; }
                 var t = e.target.closest('[data-ep-open],[data-cast-add],[data-cast-season],[data-cast-remove],[data-element-remove]');
                 if (!t) { return; }
                 if (t.hasAttribute('data-ep-open')) { var key = t.getAttribute('data-ep-open'); epOpen = epOpen === key ? null : key; renderEpDetail(); return; }
@@ -700,15 +820,30 @@
                 }
                 if (t.hasAttribute('data-cast-remove') && epOpen) { episodeCast[epOpen].splice(parseInt(t.getAttribute('data-cast-remove'), 10), 1); markEpDirty(); renderEpDetail(); renderEpTree(); }
             });
+            qs('#ppEpDetail').addEventListener('mousedown', function(e) { if (e.target.closest('.pp-ac-list')) { e.preventDefault(); } });
+            qs('#ppEpDetail').addEventListener('focusin', function(e) { if (e.target.id === 'ppCastAdd') { acIndex = -1; renderSuggest(); } });
+            qs('#ppEpDetail').addEventListener('focusout', function(e) { if (e.target.id === 'ppCastAdd') { closeSuggest(); } });
             qs('#ppEpDetail').addEventListener('input', function(e) {
+                if (e.target.id === 'ppCastAdd') { acIndex = 0; renderSuggest(); return; }
                 if (epOpen && e.target.hasAttribute('data-cast-role')) { episodeCast[epOpen][parseInt(e.target.getAttribute('data-cast-role'), 10)].Role = e.target.value; markEpDirty(); }
             });
             qs('#ppEpDetail').addEventListener('change', function(e) {
+                if (e.target.id === 'ppCascade') { cascade = e.target.checked; return; }
                 if (epOpen && e.target.hasAttribute('data-cast-type')) { episodeCast[epOpen][parseInt(e.target.getAttribute('data-cast-type'), 10)].Type = e.target.value; markEpDirty(); }
             });
             qs('#ppEpDetail').addEventListener('keydown', function(e) {
+                if (e.target.id === 'ppCastAdd') {
+                    var box = qs('#ppCastSuggest'), list = (box && !box.hidden && box._list) || [];
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        if (box.hidden) { renderSuggest(); return; }
+                        if (list.length) { acIndex = (acIndex + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length; renderSuggest(); }
+                        return;
+                    }
+                    if (e.key === 'Escape') { closeSuggest(); return; }
+                    if (e.key === 'Enter') { e.preventDefault(); if (list.length && acIndex >= 0) { addPerson(list[acIndex]); } else { addEpCast(); } return; }
+                }
                 if (e.key !== 'Enter') { return; }
-                if (e.target.id === 'ppCastAdd') { e.preventDefault(); addEpCast(); }
                 if (e.target.id === 'ppIdKey') { e.preventDefault(); addById(); }
             });
             qs('#ppEpDetail').addEventListener('error', function(e) { if (e.target.tagName === 'IMG') { e.target.parentNode.textContent = '?'; } }, true);
@@ -904,7 +1039,7 @@
 
             qs('#ppCancel').addEventListener('click', function() {
                 if ((dirty || dirtyEp) && !confirm('Abandonner les modifications non enregistrées ?')) { return; }
-                library = null;
+                castLoaded = false;
                 changedPersons = {};
                 changedKeys = {};
                 load();
