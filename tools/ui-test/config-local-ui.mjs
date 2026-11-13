@@ -149,7 +149,10 @@ try {
   await addCast('emile lefevre');
   check('cast: add without accents', (await ev(`document.querySelectorAll('.cm-cast-row').length`)) === 2);
   await addCast('Émile Lefèvre');
-  check('cast: duplicate refused', (await ev(`document.querySelector('#lfCastMsg').textContent`)).includes('déjà') && (await ev(`document.querySelectorAll('.cm-cast-row').length`)) === 2);
+  // The same person may hold another job on the same episode: a second row with the next free job (Actor is taken -> Director)
+  check('cast: the same person can take another job (second row, next free job)', (await ev(`document.querySelectorAll('.cm-cast-row').length`)) === 3 && (await ev(`document.querySelector('[data-cast-type="2"]').value`)) === 'Director');
+  await click('[data-cast-remove="2"]'); await wait(150);
+  check('cast: back to two rows', (await ev(`document.querySelectorAll('.cm-cast-row').length`)) === 2);
   await type('[data-cast-role="0"]', 'Elle-même');
   await ev(`(function(){var s=document.querySelector('[data-cast-type="1"]'); s.value='Director'; s.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
   await addCast('Zoé Martin'); await click('[data-cast-remove="2"]'); await wait(150);
@@ -157,7 +160,7 @@ try {
   // Autocomplete with a preview (photo, name): suggestions on focus, filtered while typing, a click adds the person
   await ev(`document.querySelector('#lfCastAdd').dispatchEvent(new FocusEvent('focusin',{bubbles:true})); true`); await wait(300);
   check('cast autocomplete: suggestions with an avatar and a name', (await ev(`document.querySelectorAll('.cm-ac-opt').length`)) >= 1 && (await ev(`Array.from(document.querySelectorAll('.cm-ac-opt')).every(function(o){return !!o.querySelector('.cm-avatar') && !!o.querySelector('strong');})`)) === true);
-  check('cast autocomplete: people already in the cast are not suggested', (await ev(`Array.from(document.querySelectorAll('.cm-ac-opt strong')).map(function(b){return b.textContent;}).join('|')`)) === 'Zoé Martin');
+  check('cast autocomplete: people already in the cast stay listed with what they already do', (await ev(`Array.from(document.querySelectorAll('.cm-ac-opt')).map(function(o){return o.querySelector('strong').textContent + ':' + (o.querySelector('.cm-ac-text span')||{textContent:''}).textContent;}).join('|')`)).includes('Camille Durand:déjà : Acteur') );
   await type('#lfCastAdd', 'zoe mar');
   check('cast autocomplete: filtered by the typed words, without accents', (await ev(`document.querySelectorAll('.cm-ac-opt').length`)) === 1);
   await shot('L4c-cast-autocomplete-1440');

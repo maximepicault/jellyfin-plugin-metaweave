@@ -94,6 +94,11 @@ try {
   check('ajout par nom', (await evalJs(`document.querySelectorAll('${P} .pp-cast-row').length`)) === 1);
   await type(`${P} #ppCastAdd`, 'inconnu complet'); await click(`${P} [data-cast-add]`); await wait(200);
   check('unknown person refused', (await evalJs(`document.querySelector('${P} #ppCastMsg').textContent`)).includes('pas dans l\'annuaire'));
+  // The same person can hold another job on the same element: a second row with the next free job
+  await type(`${P} #ppCastAdd`, 'camille durand'); await click(`${P} [data-cast-add]`); await wait(300);
+  check('same person, another job: second row with the next free job', (await evalJs(`document.querySelectorAll('${P} .pp-cast-row').length`)) === 2 && (await evalJs(`document.querySelector('${P} [data-cast-type="1"]').value`)) === 'Director');
+  await click(`${P} [data-cast-remove="1"]`); await wait(250);
+  check('same person, another job: back to one row', (await evalJs(`document.querySelectorAll('${P} .pp-cast-row').length`)) === 1);
   await type(`${P} [data-cast-role="0"]`, 'Présentatrice');
   await evalJs(`(function(){var s=document.querySelector('${P} [data-cast-type="0"]'); s.value='GuestStar'; s.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
   await shot('E2-episode-open-1440');
@@ -190,6 +195,21 @@ try {
   await size(412, 900, true); await wait(600);
   await evalJs(`window.scrollTo(0,0); true`); await shot('E3-episodes-mobile');
   await size(1440, 1000);
+  // Server side: a person who is Actor on the series (cascade) and Director on an episode keeps BOTH jobs on that episode
+  const jsonCall = (method, path, body) => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl(${JSON.stringify(path)}),{method:${JSON.stringify(method)},headers:{'Content-Type':'application/json','X-Emby-Token':ApiClient.accessToken()},body:${JSON.stringify(JSON.stringify(body))}}); return r.status;})()`);
+  await jsonCall('PUT', 'CustomMetadata/People/EpisodeCast', { Version: 1, Episodes: [
+    { Type: 'series', Key: 'dm-aventuriers', Cascade: true, Cast: [{ PersonId: 'pers01', Role: 'Rôle série', Type: 'Actor' }] },
+    { Type: 'episode', Key: 'dm-a1v1', Cast: [{ PersonId: 'pers01', Role: 'Rôle épisode', Type: 'Director' }] }] });
+  await jsonCall('POST', 'CustomMetadata/People/Apply', { SeriesKeys: ['dm-aventuriers'], EpisodeKeys: ['dm-a1v1'], ExpandKeys: ['series:dm-aventuriers'] });
+  let twoJobs = false;
+  for (let i = 0; i < 20 && !twoJobs; i++) {
+    const items = await api('Items?Recursive=true&IncludeItemTypes=Episode&Fields=People,Path');
+    const ep = (items.Items || []).filter(x => (x.Path || '').includes('{dm-a1v1}'))[0];
+    const jobs = ep ? (ep.People || []).filter(pp => pp.Name === 'Camille Durand').map(pp => pp.Type + ':' + pp.Role).sort() : [];
+    twoJobs = jobs.length === 2 && jobs.includes('Actor:Rôle série') && jobs.includes('Director:Rôle épisode');
+    if (!twoJobs) { await wait(2000); }
+  }
+  check('cascade: the same person keeps two jobs on an episode (actor from the series, director of its own)', twoJobs);
   console.log(`\n${pass} PASS, ${fail} FAIL`);
   await evalJs(RESTORE);
 } finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) {} process.exit(fail ? 1 : 0); }

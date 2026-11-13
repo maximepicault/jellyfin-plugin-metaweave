@@ -669,10 +669,19 @@
             function epMessage(text) { var el = qs('#ppCastMsg'); if (el) { el.textContent = text || ''; } }
 
             // People of the directory matching what is typed, not yet in the open element's cast
+            // A person may hold several jobs on the same element (actor AND director): one entry per person and job.
+            var JOB_ORDER = ['Actor', 'Director', 'Writer', 'Producer', 'GuestStar', 'Composer', 'Creator', 'Editor'];
+            function heldJobs(list, personId) { return (list || []).filter(function(c) { return c.PersonId === personId; }).map(function(c) { return c.Type || 'Actor'; }); }
+            function nextFreeJob(list, personId) {
+                var held = heldJobs(list, personId);
+                return JOB_ORDER.filter(function(t) { return held.indexOf(t) < 0; })[0] || null;
+            }
+            function jobLabel(type) { var f = CAST_TYPES.filter(function(t) { return t[0] === type; })[0]; return f ? f[1] : type; }
+
+            // People matching what is typed. Someone already in the cast stays listed (with what they already do) as long as
+            // they can still take another job.
             function suggestions(text) {
-                var already = {};
-                (episodeCast[epOpen] || []).forEach(function(c) { already[c.PersonId] = true; });
-                return people.filter(function(p) { return !already[p.Id] && (!text.trim() || matchesWords(text, p.Name)); })
+                return people.filter(function(p) { return nextFreeJob(episodeCast[epOpen], p.Id) && (!text.trim() || matchesWords(text, p.Name)); })
                     .sort(function(x, y) { return (x.Name || '').localeCompare(y.Name || ''); });
             }
 
@@ -686,6 +695,8 @@
                 } else {
                     box.innerHTML = list.map(function(p, i) {
                         var ids = (p.Links || []).map(function(l) { return l.Prefix + '-' + l.ExternalId; }).join(' · ');
+                        var jobs = heldJobs(episodeCast[epOpen], p.Id).map(jobLabel);
+                        if (jobs.length) { ids = (ids ? ids + ' · ' : '') + 'déjà : ' + jobs.join(', '); }
                         return '<button type="button" class="pp-ac-opt' + (i === acIndex ? ' active' : '') + '" role="option" data-ac-person="' + p.Id + '" aria-selected="' + (i === acIndex) + '">' + avatar(p)
                             + '<span class="pp-ac-text"><strong>' + escapeHtml(p.Name || '?') + '</strong>' + (ids ? '<span>' + escapeHtml(ids) + '</span>' : '') + '</span></button>';
                     }).join('');
@@ -705,8 +716,9 @@
             function addPerson(person) {
                 if (!person || !epOpen) { return; }
                 episodeCast[epOpen] = episodeCast[epOpen] || [];
-                if (episodeCast[epOpen].some(function(c) { return c.PersonId === person.Id; })) { epMessage(person.Name + ' est déjà dans la distribution.'); return; }
-                episodeCast[epOpen].push({ PersonId: person.Id, Role: '', Type: 'Actor' });
+                var job = nextFreeJob(episodeCast[epOpen], person.Id);
+                if (!job) { epMessage(person.Name + ' a déjà tous les postes possibles ici.'); return; }
+                episodeCast[epOpen].push({ PersonId: person.Id, Role: '', Type: job });
                 markEpDirty();
                 renderEpDetail();
                 renderEpTree();
@@ -735,7 +747,7 @@
                     var tk = typedKey('episode', e.Key);
                     episodeCast[tk] = episodeCast[tk] || [];
                     source.forEach(function(c) {
-                        if (!episodeCast[tk].some(function(x) { return x.PersonId === c.PersonId; })) { episodeCast[tk].push({ PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }); added++; }
+                        if (!episodeCast[tk].some(function(x) { return x.PersonId === c.PersonId && (x.Type || 'Actor') === (c.Type || 'Actor'); })) { episodeCast[tk].push({ PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }); added++; }
                     });
                 });
                 markEpDirty(hit.season.Episodes.map(function(e) { return typedKey('episode', e.Key); }));
