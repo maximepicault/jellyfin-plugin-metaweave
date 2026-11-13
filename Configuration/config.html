@@ -747,7 +747,12 @@
                         <div class="inputContainer">
                             <label class="inputLabel" for="srcPersonPhoto">Photo (URL)</label>
                             <input is="emby-input" type="text" id="srcPersonPhoto" data-count="1" />
-                            <div class="cm-hint">Une adresse relative est complétée avec l&#x27;URL de base.</div>
+                            <div class="cm-hint">Une adresse complète est utilisée telle quelle. Un chemin (/abc123.jpg) est complété avec le champ ci-dessous, ou avec l&#x27;URL de base de l&#x27;API s&#x27;il est vide.</div>
+                        </div>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcPersonPhotoBase">Adresse des photos (si le chemin est sur un autre serveur)</label>
+                            <input is="emby-input" type="text" id="srcPersonPhotoBase" placeholder="https://images.example.com/p/w185" />
+                            <div class="cm-hint">Le chemin renvoyé par l&#x27;API est ajouté à la suite : https://images.example.com/p/w185 + /abc123.jpg. Pour un autre format, écrivez {value} à l&#x27;endroit du chemin : https://images.example.com/{value}?w=200.</div>
                         </div>
                         <div class="inputContainer cm-span">
                             <label class="inputLabel" for="srcPersonBio">Biographie</label>
@@ -1396,7 +1401,7 @@
                     merged.SourceType = 'People';
                     merged.PersonEndpoint = qs('#srcPersonEndpoint').value.trim() || '/people/{id}';
                     merged.PersonMappings = Object.assign({}, base.PersonMappings || {}, {
-                        Name: qs('#srcPersonName').value.trim(), Photo: qs('#srcPersonPhoto').value.trim(), Bio: qs('#srcPersonBio').value.trim()
+                        Name: qs('#srcPersonName').value.trim(), Photo: qs('#srcPersonPhoto').value.trim(), PhotoBaseUrl: qs('#srcPersonPhotoBase').value.trim(), Bio: qs('#srcPersonBio').value.trim()
                     });
                     merged.EpisodeListEndpoint = '';
                 }
@@ -1671,6 +1676,7 @@
                 qs('#srcPersonEndpoint').value = source.PersonEndpoint || '/people/{id}';
                 qs('#srcPersonName').value = pm.Name || 'name';
                 qs('#srcPersonPhoto').value = pm.Photo || 'photo';
+                qs('#srcPersonPhotoBase').value = pm.PhotoBaseUrl || '';
                 qs('#srcPersonBio').value = pm.Bio || 'bio';
             }
 

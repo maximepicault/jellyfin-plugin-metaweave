@@ -202,8 +202,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
     {
         public string Name { get; set; } = "name";
 
-        /// <summary>URL of the photo (relative = prefixed with BaseUrl)</summary>
+        /// <summary>Path (or URL) of the photo. A path is completed with PhotoBaseUrl, otherwise with the API's BaseUrl</summary>
         public string Photo { get; set; } = "photo";
+
+        /// <summary>
+        /// Where the photo PATH lives when it is not on the API: a prefix ("https://img.example.com/p/w185") or a
+        /// template with {value} ("https://img.example.com/{value}?w=200"). Empty = the API's BaseUrl.
+        /// </summary>
+        public string PhotoBaseUrl { get; set; } = string.Empty;
 
         public string Bio { get; set; } = "bio";
     }

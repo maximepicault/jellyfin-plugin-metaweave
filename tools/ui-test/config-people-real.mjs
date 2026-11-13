@@ -36,6 +36,11 @@ const SEED = `(async function(){
   cfg.Sources.push({ Name: 'Personnes liste', Prefix: 'pl', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-list?user={id}', PersonMappings: { Name: '[0].profile.displayName', Photo: '[0].profile.avatar', Bio: '[0].profile.about' }, Enabled: true, SendOriginReferer: false });
   cfg.Sources.push({ Name: 'Personnes recherche', Prefix: 'pw', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-wrapped?user={id}', PersonMappings: { Name: 'results[0].name', Photo: 'results[0].photo', Bio: 'results[0].bio' }, Enabled: true, SendOriginReferer: false });
   cfg.Sources.push({ Name: 'Personnes liste sans chemin', Prefix: 'px', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-list?user={id}', PersonMappings: { Name: 'profile.displayName', Photo: '', Bio: '' }, Enabled: true, SendOriginReferer: false });
+  // The photo is a path ("/p1.jpg") that lives on another address than the API: prefix form, and {value} template form
+  cfg.Sources.push({ Name: 'Personnes chemin', Prefix: 'pi', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-path/{id}', PersonMappings: { Name: 'name', Photo: 'profile_path', PhotoBaseUrl: 'http://172.17.0.1:8765/img', Bio: 'bio' }, Enabled: true, SendOriginReferer: false });
+  cfg.Sources.push({ Name: 'Personnes gabarit', Prefix: 'pt', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-path/{id}', PersonMappings: { Name: 'name', Photo: 'profile_path', PhotoBaseUrl: 'http://172.17.0.1:8765/img/{value}?size=200', Bio: 'bio' }, Enabled: true, SendOriginReferer: false });
+  cfg.Sources.push({ Name: 'Personnes images en liste', Prefix: 'pg', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-images/{id}', PersonMappings: { Name: '[0].name', Photo: '[0].images[0].file_path', PhotoBaseUrl: 'http://172.17.0.1:8765/img', Bio: '[0].bio' }, Enabled: true, SendOriginReferer: false });
+  cfg.Sources.push({ Name: 'Personnes chemin sans base', Prefix: 'pn', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-path/{id}', PersonMappings: { Name: 'name', Photo: 'profile_path', Bio: 'bio' }, Enabled: true, SendOriginReferer: false });
   await ApiClient.updatePluginConfiguration(pid, cfg);
   async function put(path, body) { await fetch(ApiClient.getUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Emby-Token': tok }, body: JSON.stringify(body) }); }
   await put('CustomMetadata/People', { Version: 1, People: [
@@ -82,6 +87,17 @@ try {
   check('list source without [0]: a clear hint instead of a silent miss', !noPath.Name && /\[0\]/.test(noPath.Error || ''), JSON.stringify(noPath));
   const plain = await fetchPerson('pe');
   check('plain object source unchanged', plain.Name === 'Camille Durand', JSON.stringify(plain));
+  // Photo path completed with another address than the API's
+  const prefixed = await fetchPerson('pi');
+  check('photo path + image address (prefix): joined with one slash', prefixed.Photo === 'http://172.17.0.1:8765/img/p1.jpg', JSON.stringify(prefixed));
+  const templated = await fetchPerson('pt');
+  check('photo path + image address ({value} template)', templated.Photo === 'http://172.17.0.1:8765/img/p1.jpg?size=200', JSON.stringify(templated));
+  const inList = await fetchPerson('pg');
+  check('photo path inside a list of images (and a list answer): first image, completed with the image address', inList.Name === 'Camille Durand' && inList.Photo === 'http://172.17.0.1:8765/img/p1.jpg', JSON.stringify(inList));
+  const noBase = await fetchPerson('pn');
+  check('photo path without image address: completed with the API address (as before)', noBase.Photo === 'http://172.17.0.1:8765/p1.jpg', JSON.stringify(noBase));
+  const plainUrl = await fetchPerson('pe');
+  check('photo that is already an address or relative to the API: unchanged', plainUrl.Photo === 'http://172.17.0.1:8765/img/p1.jpg', JSON.stringify(plainUrl));
   await send('Page.navigate', { url: `${J}/web/#/configurationpage?name=CustomMetadataPeople` });
   await until(`!!document.querySelector('${P} .pp-item')`, 30000); await wait(1200);
   check('directory loaded', (await evalJs(`document.querySelectorAll('${P} .pp-item').length`)) === 2);
