@@ -100,10 +100,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 return key?.ToLowerInvariant();
             }
 
-            var seriesKeys = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Series }, Recursive = true })
-                .GroupBy(i => i.Id).ToDictionary(g => g.Key, g => FolderKey(g.First()));
-            var seasonKeys = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Season }, Recursive = true })
-                .GroupBy(i => i.Id).ToDictionary(g => g.Key, g => FolderKey(g.First()));
+            var seriesItems = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Series }, Recursive = true })
+                .GroupBy(i => i.Id).Select(g => g.First()).ToList();
+            var seasonItems = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Season }, Recursive = true })
+                .GroupBy(i => i.Id).Select(g => g.First()).ToList();
+            var seriesKeys = seriesItems.ToDictionary(i => i.Id, i => FolderKey(i));
+            var seasonKeys = seasonItems.ToDictionary(i => i.Id, i => FolderKey(i));
 
             var result = new List<CastCatalogSeries>();
             foreach (var bySeries in episodes.GroupBy(e => e.SeriesId))
@@ -153,6 +155,31 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     series.Seasons = series.Seasons.OrderBy(s => s.IndexNumber ?? int.MaxValue).ThenBy(s => s.Name).ToList();
                     result.Add(series);
                 }
+            }
+
+            // The catalog started from the episodes: a series or a season that carries a tag but has no episode in the library
+            // (an empty folder, a series whose files are not scanned yet) would never be listed, so its cast could not be set.
+            foreach (var seriesItem in seriesItems.Where(i => seriesKeys[i.Id] != null))
+            {
+                var id = seriesItem.Id.ToString("N");
+                if (!result.Any(s => s.SeriesId == id))
+                {
+                    result.Add(new CastCatalogSeries { Key = seriesKeys[seriesItem.Id], SeriesId = id, Name = seriesItem.Name });
+                }
+            }
+
+            foreach (var seasonItem in seasonItems.Where(i => seasonKeys[i.Id] != null))
+            {
+                var seasonId = seasonItem.Id.ToString("N");
+                var parent = (seasonItem as Season)?.SeriesId ?? Guid.Empty;
+                var series = result.FirstOrDefault(s => s.SeriesId == parent.ToString("N"));
+                if (series == null || series.Seasons.Any(x => x.SeasonId == seasonId))
+                {
+                    continue;
+                }
+
+                series.Seasons.Add(new CastCatalogSeason { Key = seasonKeys[seasonItem.Id], SeasonId = seasonId, Name = seasonItem.Name, IndexNumber = seasonItem.IndexNumber });
+                series.Seasons = series.Seasons.OrderBy(x => x.IndexNumber ?? int.MaxValue).ThenBy(x => x.Name).ToList();
             }
 
             return result.OrderBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
