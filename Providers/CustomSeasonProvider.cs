@@ -28,6 +28,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         private readonly CustomApiClient _apiClient;
         private readonly SourceResolver _sourceResolver;
         private readonly CastOverlayStore _castOverlay;
+        private readonly CastInheritance _inheritance;
         private readonly PeopleStore _people;
 
         public CustomSeasonProvider(
@@ -36,9 +37,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             CustomApiClient apiClient,
             SourceResolver sourceResolver,
             CastOverlayStore castOverlay,
+            CastInheritance inheritance,
             PeopleStore people)
         {
             _castOverlay = castOverlay;
+            _inheritance = inheritance;
             _people = people;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
@@ -153,7 +156,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 result.HasMetadata = true;
 
                 // Season cast: the API one (season mapping) + the cast added in the People screen (by its tag)
-                var overlayCast = _people.ResolveCast(_castOverlay.Get("season", new[] { idWithPrefix }));
+                var overlayCast = _people.ResolveCast(CastInheritance.Combine(
+                    _castOverlay.Get("season", new[] { idWithPrefix }),
+                    _inheritance.ForSeason(info.Path)));
                 CastMapper.AddCast(result, overlayCast.Count > 0 ? MetadataMerger.UnionCast(new[] { metadata.Cast, overlayCast }) : metadata.Cast, _logger);
 
                 _logger.LogInformation(

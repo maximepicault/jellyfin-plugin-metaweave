@@ -87,6 +87,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         [ProducesResponseType(StatusCodes.Status200OK)]
         public ActionResult<CastApplyResult> Apply([FromBody] CastApplyRequest request) => Ok(_apply.Apply(request));
 
+        /// <summary>Tags of the seasons and episodes below one series or season: the preview of its "cascade"</summary>
+        [HttpGet("Children")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public ActionResult<CastChildren> GetChildren([FromQuery] string type, [FromQuery] string key) => Ok(_catalog.Children(type, key));
+
         /// <summary>Series, seasons and episodes of the library that carry an API source tag</summary>
         [HttpGet("Library")]
         [ProducesResponseType(StatusCodes.Status200OK)]

@@ -46,6 +46,7 @@ namespace Jellyfin.Plugin.CustomMetadata
                 sp.GetRequiredService<ILogger<CastOverlayStore>>()));
 
             serviceCollection.AddSingleton<CastCatalog>();
+            serviceCollection.AddSingleton<CastInheritance>();
             serviceCollection.AddSingleton<CastApplyService>();
 
             serviceCollection.AddSingleton<MissingEpisodeService>();

@@ -29,6 +29,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         private readonly SourceResolver _sourceResolver;
         private readonly CastOverlayStore _castOverlay;
         private readonly PeopleStore _people;
+        private readonly CastInheritance _inheritance;
 
         public CustomEpisodeProvider(
             IHttpClientFactory httpClientFactory,
@@ -36,8 +37,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             CustomApiClient apiClient,
             SourceResolver sourceResolver,
             CastOverlayStore castOverlay,
-            PeopleStore people)
+            PeopleStore people,
+            CastInheritance inheritance)
         {
+            _inheritance = inheritance;
             _castOverlay = castOverlay;
             _people = people;
             logger.LogInformation("🎬 [EPISODE PROVIDER] ========== PROVIDER INITIALIZING ==========");
@@ -175,7 +178,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 // without duplicates. On a copy: the response may come from the cache.
                 var overlayKeys = new List<string> { idWithPrefix };
                 overlayKeys.AddRange(GetExtraIds(info, idWithPrefix));
-                var overlayCast = _people.ResolveCast(_castOverlay.Get("episode", overlayKeys));
+                // + cast inherited from the season / series when their distribution is marked "cascade"
+                var overlayCast = _people.ResolveCast(CastInheritance.Combine(
+                    _castOverlay.Get("episode", overlayKeys),
+                    _inheritance.ForEpisode(info.Path, idWithPrefix)));
                 if (overlayCast.Count > 0)
                 {
                     metadata = MetadataMerger.WithExtraCast(metadata, overlayCast);

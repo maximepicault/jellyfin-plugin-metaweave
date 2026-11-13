@@ -20,10 +20,12 @@ namespace Jellyfin.Plugin.CustomMetadata.ScheduledTasks
     public class MissingEpisodesTask : IScheduledTask
     {
         private readonly MissingEpisodeService _service;
+        private readonly CastApplyService _castApply;
 
-        public MissingEpisodesTask(MissingEpisodeService service)
+        public MissingEpisodesTask(MissingEpisodeService service, CastApplyService castApply)
         {
             _service = service;
+            _castApply = castApply;
         }
 
         public string Name => "Détecter les épisodes manquants";
@@ -36,7 +38,15 @@ namespace Jellyfin.Plugin.CustomMetadata.ScheduledTasks
 
         public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
         {
-            return _service.AnalyzeAsync(progress, cancellationToken);
+            return RunAsync(progress, cancellationToken);
+        }
+
+        private async Task RunAsync(IProgress<double> progress, CancellationToken cancellationToken)
+        {
+            await _service.AnalyzeAsync(progress, cancellationToken);
+
+            // Cast cascaded from a series / season onto files that carry no identifier (new files included)
+            await _castApply.SyncUntaggedAsync(cancellationToken);
         }
 
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()

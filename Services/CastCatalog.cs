@@ -35,6 +35,26 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public List<CastCatalogEpisode> Episodes { get; set; } = new List<CastCatalogEpisode>();
     }
 
+    public class CastChildEntry
+    {
+        public string Key { get; set; }
+
+        public string Title { get; set; }
+
+        public bool IsMissing { get; set; }
+    }
+
+    /// <summary>Seasons and episodes (tags) below a series or season</summary>
+    public class CastChildren
+    {
+        /// <summary>The series / season exists in the library</summary>
+        public bool Found { get; set; }
+
+        public List<CastChildEntry> Seasons { get; set; } = new List<CastChildEntry>();
+
+        public List<CastChildEntry> Episodes { get; set; } = new List<CastChildEntry>();
+    }
+
     public class CastCatalogSeries
     {
         /// <summary>Tag of the series (folder) without braces, null if the folder carries none</summary>
@@ -136,6 +156,46 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             return result.OrderBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        }
+
+        /// <summary>
+        /// Tags below ONE series or season (what its "cascade" reaches), without listing the whole library:
+        /// used by the preview next to the cascade checkbox.
+        /// </summary>
+        public CastChildren Children(string type, string key)
+        {
+            var wanted = CastOverlayStore.NormalizeKey(key);
+            var result = new CastChildren();
+            if (wanted.Length == 0)
+            {
+                return result;
+            }
+
+            var kind = string.Equals(type, "series", StringComparison.OrdinalIgnoreCase) ? BaseItemKind.Series : BaseItemKind.Season;
+            var parents = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { kind }, Recursive = true })
+                .Where(i => Keys(i).Any(k => string.Equals(k, wanted, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            result.Found = parents.Count > 0;
+            var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var parent in parents)
+            {
+                var below = kind == BaseItemKind.Series ? new[] { BaseItemKind.Season, BaseItemKind.Episode } : new[] { BaseItemKind.Episode };
+                foreach (var child in _libraryManager.GetItemList(new InternalItemsQuery { AncestorIds = new[] { parent.Id }, IncludeItemTypes = below, Recursive = true }))
+                {
+                    var childKey = Keys(child).FirstOrDefault();
+                    if (childKey == null || !seenKeys.Add(child.GetType().Name + ":" + childKey))
+                    {
+                        continue;
+                    }
+
+                    var entry = new CastChildEntry { Key = childKey.ToLowerInvariant(), Title = child.Name, IsMissing = child.IsVirtualItem };
+                    (child is Episode ? result.Episodes : result.Seasons).Add(entry);
+                }
+            }
+
+            result.Seasons = result.Seasons.OrderBy(s => s.Title, StringComparer.CurrentCultureIgnoreCase).ToList();
+            result.Episodes = result.Episodes.OrderBy(e => e.Key, StringComparer.Ordinal).ToList();
+            return result;
         }
 
         private static string Prefix(string key)

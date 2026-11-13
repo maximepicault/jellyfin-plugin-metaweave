@@ -71,6 +71,11 @@ try {
   await evalJs(`window.confirm = function () { return true; }; true`);   // a real dialog would block the driving
   check('Episodes tab hidden at the start', (await evalJs(`document.querySelector('${P} #ppTabEpisodes').hidden`)) === true);
   await click(`${P} [data-pp-tab="episodes"]`);
+  // The slow library listing is NOT loaded automatically: only "By identifier" and a button are offered
+  check('library not loaded by default', await until(`!!document.querySelector('${P} [data-library-load]')`, 15000));
+  check('library not loaded: no season in the tree', (await evalJs(`document.querySelectorAll('${P} [data-ep-season]').length`)) === 0);
+  check('"By identifier" is the default view', (await evalJs(`!!document.querySelector('${P} #ppIdAdd')`)) === true);
+  await click(`${P} [data-library-load]`);
   check('tree loaded (series and seasons)', await until(`document.querySelectorAll('${P} [data-ep-season]').length >= 4`, 15000));
   check('series listed', (await evalJs(`document.querySelector('${P} #ppEpTree').textContent`)).includes('Les Aventuriers'));
   await shot('E1-episodes-tab-1440');
@@ -114,7 +119,22 @@ try {
   await click(`${P} [data-ep-series]`); await wait(300);
   check('series cast offered', (await evalJs(`!!document.querySelector('${P} [data-ep-open="series:dm-aventuriers"]')`)) === true);
   await click(`${P} [data-ep-open="series:dm-aventuriers"]`); await wait(300);
-  await type(`${P} #ppCastAdd`, 'invité maison'); await click(`${P} [data-cast-add]`); await wait(300);
+  // Autocomplete with a preview, then cascade series -> seasons -> episodes
+  // click() does not focus and a programmatic focus() is silent while the headless window is unfocused: dispatch the event the page listens to
+  await evalJs(`(function(){var i=document.querySelector('${P} #ppCastAdd'); i.dispatchEvent(new FocusEvent('focusin',{bubbles:true})); return true;})()`); await wait(300);
+  const acCount = await evalJs(`document.querySelectorAll('${P} .pp-ac-opt').length + '/' + (document.querySelector('${P} #ppCastSuggest')||{}).hidden`);
+  check('autocomplete: suggestions shown on focus', parseInt(acCount, 10) >= 2, acCount);
+  check('autocomplete: each suggestion has an avatar and a name', (await evalJs(`Array.from(document.querySelectorAll('${P} .pp-ac-opt')).every(function(o){return !!o.querySelector('.pp-avatar') && !!o.querySelector('strong');})`)) === true);
+  await type(`${P} #ppCastAdd`, 'maison');
+  check('autocomplete: filtered by the typed words', (await evalJs(`document.querySelectorAll('${P} .pp-ac-opt').length`)) === 1);
+  await click(`${P} .pp-ac-opt`); await wait(400);
+  check('autocomplete: click adds the person', (await evalJs(`document.querySelectorAll('${P} .pp-cast-row').length`)) === 1);
+  // Cascade = a saved flag on the series, applied to every season/episode below it (no library needed). Preview = the tags it reaches.
+  check('cascade box present on a series and unchecked by default', (await evalJs(`var c=document.querySelector('${P} #ppCascade'); !!c && !c.disabled && !c.checked`)) === true);
+  await evalJs(`(function(){var c=document.querySelector('${P} #ppCascade'); c.checked=true; c.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
+  check('cascade preview lists the season and episode tags', await until(`(function(){var t=(document.querySelector('${P} #ppCascadePreview')||{}).textContent||''; return t.indexOf('{dm-a1}')>=0 && t.indexOf('{dm-a1v3}')>=0;})()`, 10000), await evalJs(`(document.querySelector('${P} #ppCascadePreview')||{}).textContent`));
+  check('cascade preview says how many episodes', (await evalJs(`document.querySelector('${P} #ppCascadePreview').textContent`)).includes('épisode(s)'));
+  await shot('E3-autocomplete-cascade-1440');
   await click(`${P} [data-ep-mode="ids"]`); await wait(300);
   await type(`${P} #ppIdKey`, 'pas un identifiant'); await click(`${P} #ppIdAdd`); await wait(200);
   check('invalid identifier refused', (await evalJs(`document.querySelector('${P} #ppIdMsg').textContent`)).includes('Format attendu'));
@@ -146,6 +166,26 @@ try {
   await shot('E4-apply-notice-1440');
   await click(`${P} #ppApplyBtn`);
   check('update started on episodes', await until(`/épisode\\(s\\) en cours de mise à jour/.test(document.querySelector('${P} #ppApplyText').textContent)`, 10000), await evalJs(`document.querySelector('${P} #ppApplyText').textContent`));
+  const cascadeFlag = (await api('CustomMetadata/People/EpisodeCast')).Episodes.filter(e => e.Type === 'series' && e.Key === 'dm-aventuriers')[0];
+  check('saved: cascade flag on the series', !!cascadeFlag && cascadeFlag.Cascade === true, JSON.stringify(cascadeFlag));
+  // Server side: the episodes below the series inherit its cast once applied (the episode has no entry of its own for this person)
+  let reached = false;
+  for (let i = 0; i < 20 && !reached; i++) {
+    const items = await api('Items?Recursive=true&IncludeItemTypes=Episode&Fields=People,Path');
+    const ep = (items.Items || []).filter(x => (x.Path || '').includes('{dm-a1v3}'))[0];
+    reached = !!ep && (ep.People || []).some(pp => pp.Name === 'Invité Maison');
+    if (!reached) { await wait(2000); }
+  }
+  check('cascade: an episode of the series got the person in Jellyfin', reached);
+  // An episode with NO identifier in its name is never enriched by the plugin: the cast is written straight into Jellyfin
+  let untaggedReached = false;
+  for (let i = 0; i < 20 && !untaggedReached; i++) {
+    const items = await api('Items?Recursive=true&IncludeItemTypes=Episode&Fields=People,Path');
+    const ep = (items.Items || []).filter(x => (x.Path || '').includes('Sans identifiant'))[0];
+    untaggedReached = !!ep && (ep.People || []).some(pp => pp.Name === 'Invité Maison');
+    if (!untaggedReached) { await wait(2000); }
+  }
+  check('cascade: an episode WITHOUT identifier got the person in Jellyfin', untaggedReached);
   await size(1920, 1100); await wait(600); await shot('E6-episodes-1920');
   await size(412, 900, true); await wait(600);
   await evalJs(`window.scrollTo(0,0); true`); await shot('E3-episodes-mobile');
