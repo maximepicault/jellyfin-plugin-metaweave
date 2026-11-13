@@ -107,7 +107,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             foreach (var entry in _overlay.GetCascading("season", season == null ? Array.Empty<string>() : CastCatalog.Keys(season))
                 .Concat(_overlay.GetCascading("series", series == null ? Array.Empty<string>() : CastCatalog.Keys(series))))
             {
-                if (!result.Any(r => string.Equals(r.PersonId, entry.PersonId, StringComparison.OrdinalIgnoreCase)))
+                if (!result.Any(r => LocalSourceStore.SameCastEntry(r, entry)))
                 {
                     result.Add(entry);
                 }
@@ -116,13 +116,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             return result;
         }
 
-        /// <summary>Own entries first, then inherited ones for people not already there</summary>
+        /// <summary>Own entries first, then the inherited ones that are not already there (same person AND same job)</summary>
         public static List<LocalCastEntry> Combine(List<LocalCastEntry> own, List<LocalCastEntry> inherited)
         {
             var result = new List<LocalCastEntry>(own ?? new List<LocalCastEntry>());
             foreach (var entry in inherited ?? new List<LocalCastEntry>())
             {
-                if (!result.Any(r => string.Equals(r.PersonId, entry.PersonId, StringComparison.OrdinalIgnoreCase)))
+                if (!result.Any(r => LocalSourceStore.SameCastEntry(r, entry)))
                 {
                     result.Add(entry);
                 }

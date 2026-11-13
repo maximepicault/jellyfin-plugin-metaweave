@@ -2199,11 +2199,17 @@
             }
 
             // People of the directory that match what is typed and are not already in this episode's cast
+            // A person may hold several jobs on the same episode (actor AND director): one entry per person and job
+            var JOB_ORDER = ['Actor', 'Director', 'Writer', 'Producer', 'GuestStar', 'Composer', 'Creator', 'Editor'];
+            function heldJobs(cast, personId) { return (cast || []).filter(function(c) { return String(c.PersonId).toLowerCase() === String(personId).toLowerCase(); }).map(function(c) { return c.Type || 'Actor'; }); }
+            function nextFreeJob(cast, personId) { var held = heldJobs(cast, personId); return JOB_ORDER.filter(function(t) { return held.indexOf(t) < 0; })[0] || null; }
+            function jobLabel(type) { var f = CAST_TYPES.filter(function(t) { return t[0] === type; })[0]; return f ? f[1] : type; }
+
             function castSuggestions(text) {
                 var hit = localSel ? findNode(localSel) : null;
                 var cast = (hit && hit.node.Cast) || [];
                 return (peopleDir || []).filter(function(p) {
-                    return !cast.some(function(c) { return String(c.PersonId).toLowerCase() === String(p.Id).toLowerCase(); })
+                    return nextFreeJob(cast, p.Id)
                         && (!text.trim() || normalizeName(p.Name).indexOf(normalizeName(text)) >= 0 || normalizeName(text).split(' ').every(function(w) { return normalizeName(p.Name).indexOf(w) >= 0; }));
                 }).sort(function(x, y) { return String(x.Name || '').localeCompare(String(y.Name || '')); });
             }
@@ -2219,6 +2225,8 @@
                     box.innerHTML = list.map(function(p, i) {
                         var photo = p.Photo ? imagePreviewUrl(p.Photo) : '';
                         var ids = (p.Links || []).map(function(l) { return l.Prefix + '-' + l.ExternalId; }).join(' · ');
+                        var jobs = heldJobs((localSel && findNode(localSel) || { node: {} }).node.Cast, p.Id).map(jobLabel);
+                        if (jobs.length) { ids = (ids ? ids + ' · ' : '') + 'déjà : ' + jobs.join(', '); }
                         return '<button type="button" class="cm-ac-opt' + (i === lfAcIndex ? ' active' : '') + '" role="option" data-ac-person="' + escapeHtml(p.Id) + '" aria-selected="' + (i === lfAcIndex) + '">'
                             + '<span class="cm-avatar">' + (photo ? '<img alt="" src="' + escapeHtml(photo) + '" />' : escapeHtml((p.Name || '?').trim().charAt(0).toUpperCase())) + '</span>'
                             + '<span class="cm-ac-text"><strong>' + escapeHtml(p.Name || '?') + '</strong>' + (ids ? '<span>' + escapeHtml(ids) + '</span>' : '') + '</span></button>';
@@ -2248,8 +2256,9 @@
                 var hit = localSel ? findNode(localSel) : null;
                 if (!hit || hit.kind !== 'episode' || !person) { return; }
                 hit.node.Cast = hit.node.Cast || [];
-                if (hit.node.Cast.some(function(c) { return String(c.PersonId).toLowerCase() === String(person.Id).toLowerCase(); })) { castMessage(person.Name + ' est déjà dans la distribution.'); return; }
-                hit.node.Cast.push({ PersonId: person.Id, Role: '', Type: 'Actor' });
+                var job = nextFreeJob(hit.node.Cast, person.Id);
+                if (!job) { castMessage(person.Name + ' a déjà tous les postes possibles ici.'); return; }
+                hit.node.Cast.push({ PersonId: person.Id, Role: '', Type: job });
                 markDirty();
                 renderLocalDetail();
                 var again = qs('#lfCastAdd'); if (again) { again.focus(); openCastSuggest(); }
@@ -2278,7 +2287,7 @@
                 others.forEach(function(e) {
                     e.Cast = e.Cast || [];
                     hit.node.Cast.forEach(function(c) {
-                        if (!e.Cast.some(function(x) { return String(x.PersonId).toLowerCase() === String(c.PersonId).toLowerCase(); })) {
+                        if (!e.Cast.some(function(x) { return String(x.PersonId).toLowerCase() === String(c.PersonId).toLowerCase() && (x.Type || 'Actor') === (c.Type || 'Actor'); })) {
                             e.Cast.push({ PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' });
                             added++;
                         }

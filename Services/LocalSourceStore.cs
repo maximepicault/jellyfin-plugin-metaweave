@@ -395,19 +395,33 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             node.Thumb = Clean(node.Thumb);
         }
 
-        /// <summary>Clean cast: people without duplicates, role trimmed, type = a valid PersonKind (otherwise Actor)</summary>
+        /// <summary>A valid PersonKind name (otherwise Actor)</summary>
+        public static string NormalizeCastType(string type)
+        {
+            return Enum.TryParse<Jellyfin.Data.Enums.PersonKind>(type?.Trim(), true, out var kind) && Enum.IsDefined(kind) && kind != Jellyfin.Data.Enums.PersonKind.Unknown
+                ? kind.ToString()
+                : "Actor";
+        }
+
+        /// <summary>The same person with the same job: two entries like that are one (a person may hold several jobs)</summary>
+        public static bool SameCastEntry(LocalCastEntry a, LocalCastEntry b)
+            => string.Equals(a.PersonId?.Trim(), b.PersonId?.Trim(), StringComparison.OrdinalIgnoreCase)
+               && string.Equals(NormalizeCastType(a.Type), NormalizeCastType(b.Type), StringComparison.Ordinal);
+
+        /// <summary>
+        /// Clean cast: role trimmed, type = a valid PersonKind (otherwise Actor). One entry per person AND job: the same person
+        /// can be actor and director of the same element, but not twice actor.
+        /// </summary>
         public static List<LocalCastEntry> NormalizeCast(IEnumerable<LocalCastEntry> cast)
         {
             return (cast ?? Enumerable.Empty<LocalCastEntry>())
                 .Where(c => !string.IsNullOrWhiteSpace(c?.PersonId))
-                .GroupBy(c => c.PersonId.Trim(), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(c => c.PersonId.Trim().ToLowerInvariant() + "|" + NormalizeCastType(c.Type), StringComparer.Ordinal)
                 .Select(g => new LocalCastEntry
                 {
-                    PersonId = g.Key,
+                    PersonId = g.First().PersonId.Trim(),
                     Role = Clean(HtmlText.Decode(g.First().Role)),
-                    Type = Enum.TryParse<Jellyfin.Data.Enums.PersonKind>(g.First().Type?.Trim(), true, out var kind) && Enum.IsDefined(kind) && kind != Jellyfin.Data.Enums.PersonKind.Unknown
-                        ? kind.ToString()
-                        : "Actor"
+                    Type = NormalizeCastType(g.First().Type)
                 })
                 .ToList();
         }

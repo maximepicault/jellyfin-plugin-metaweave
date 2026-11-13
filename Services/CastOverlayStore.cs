@@ -164,7 +164,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             foreach (var entry in Load().Episodes.Where(e => e.Cascade && wanted.Contains(TypedKey(e.Type, e.Key))))
             {
-                foreach (var cast in (entry.Cast ?? new List<LocalCastEntry>()).Where(c => !result.Any(r => string.Equals(r.PersonId, c.PersonId, StringComparison.OrdinalIgnoreCase))))
+                foreach (var cast in (entry.Cast ?? new List<LocalCastEntry>()).Where(c => !result.Any(r => LocalSourceStore.SameCastEntry(r, c))))
                 {
                     result.Add(cast);
                 }
@@ -193,7 +193,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 if (map.TryGetValue(key, out var entries))
                 {
-                    foreach (var entry in entries.Where(e => !result.Any(r => string.Equals(r.PersonId, e.PersonId, StringComparison.OrdinalIgnoreCase))))
+                    foreach (var entry in entries.Where(e => !result.Any(r => LocalSourceStore.SameCastEntry(r, e))))
                     {
                         result.Add(entry);
                     }
