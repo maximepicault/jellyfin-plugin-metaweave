@@ -160,7 +160,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     if (seen.Add(item.Id))
                     {
-                        episodes.Add(item);
+                        (HandledByProvider(item) ? episodes : direct).Add(item);
                     }
 
                     // A series / season marked "cascade" (or that was, see ExpandKeys): everything below it inherits its cast
@@ -250,8 +250,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 try
                 {
-                    var inherited = item is Season ? _inheritance.ForSeason(item.Path) : _inheritance.ForEpisode(item.Path, null);
-                    var wanted = _people.ResolveCast(inherited).Where(m => !string.IsNullOrWhiteSpace(m.Name)).Select(CastMapper.ToPersonInfo).ToList();
+                    // Its own distribution (the key may be the fallback "jf-…" of an element without tag) + what it inherits
+                    var type = item is Series ? "series" : (item is Season ? "season" : "episode");
+                    var own = _overlay.Get(type, CastCatalog.Keys(item));
+                    var inherited = item is Series ? new List<LocalCastEntry>() : (item is Season ? _inheritance.ForSeason(item.Path) : _inheritance.ForEpisode(item.Path, null));
+                    var wanted = _people.ResolveCast(CastInheritance.Combine(own, inherited)).Where(m => !string.IsNullOrWhiteSpace(m.Name)).Select(CastMapper.ToPersonInfo).ToList();
                     var wantedKeys = wanted.Select(PersonKey).ToHashSet();
                     var added = record.TryGetValue(item.Id.ToString("N"), out var before) ? new HashSet<string>(before) : new HashSet<string>();
                     var existing = _libraryManager.GetPeople(item) ?? new List<PersonInfo>();
@@ -304,13 +307,28 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public System.Threading.Tasks.Task<int> SyncUntaggedAsync(System.Threading.CancellationToken cancellationToken)
         {
             var cascading = _overlay.Load().Episodes.Where(e => e.Cascade && e.Cast != null && e.Cast.Count > 0 && CastOverlayStore.NormalizeType(e.Type) != "episode").ToList();
-            if (cascading.Count == 0)
+            // Elements without any tag that have their own distribution (key "jf-<item id>")
+            var ownIds = _overlay.Load().Episodes
+                .Where(e => e.Cast != null && e.Cast.Count > 0 && CastCatalog.IsSynthetic(e.Key))
+                .Select(e => Guid.TryParseExact(CastOverlayStore.NormalizeKey(e.Key).Substring(CastCatalog.SyntheticPrefix.Length), "N", out var g) ? g : Guid.Empty)
+                .Where(g => g != Guid.Empty)
+                .ToList();
+            if (cascading.Count == 0 && ownIds.Count == 0)
             {
                 return System.Threading.Tasks.Task.FromResult(0);
             }
 
             var direct = new List<BaseItem>();
             var seen = new HashSet<Guid>();
+            foreach (var ownId in ownIds)
+            {
+                var ownItem = _libraryManager.GetItemById(ownId);
+                if ((ownItem is Series || ownItem is Season || ownItem is Episode) && seen.Add(ownItem.Id))
+                {
+                    direct.Add(ownItem);
+                }
+            }
+
             foreach (var (kind, type) in new[] { (BaseItemKind.Series, "series"), (BaseItemKind.Season, "season") })
             {
                 var keys = new HashSet<string>(cascading.Where(e => CastOverlayStore.NormalizeType(e.Type) == type).Select(e => CastOverlayStore.NormalizeKey(e.Key)), StringComparer.OrdinalIgnoreCase);

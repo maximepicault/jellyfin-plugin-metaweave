@@ -159,7 +159,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             // The catalog started from the episodes: a series or a season that carries a tag but has no episode in the library
             // (an empty folder, a series whose files are not scanned yet) would never be listed, so its cast could not be set.
-            foreach (var seriesItem in seriesItems.Where(i => seriesKeys[i.Id] != null))
+            // (only with a real tag: an empty element without identifier, like Jellyfin's "Season Unknown", has nothing to attach to)
+            foreach (var seriesItem in seriesItems.Where(i => seriesKeys[i.Id] != null && !IsSynthetic(seriesKeys[i.Id])))
             {
                 var id = seriesItem.Id.ToString("N");
                 if (!result.Any(s => s.SeriesId == id))
@@ -168,7 +169,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
             }
 
-            foreach (var seasonItem in seasonItems.Where(i => seasonKeys[i.Id] != null))
+            foreach (var seasonItem in seasonItems.Where(i => seasonKeys[i.Id] != null && !IsSynthetic(seasonKeys[i.Id])))
             {
                 var seasonId = seasonItem.Id.ToString("N");
                 var parent = (seasonItem as Season)?.SeriesId ?? Guid.Empty;
@@ -244,7 +245,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             var id = CustomId.Get(item.ProviderIds);
-            return id != null ? new[] { id } : Array.Empty<string>();
+            if (id != null)
+            {
+                return new[] { id };
+            }
+
+            // No tag at all: a stable key derived from the Jellyfin item itself, so that a cast can still be attached to it
+            return item is Series || item is Season || item is Episode ? new[] { SyntheticKey(item) } : Array.Empty<string>();
         }
+
+        /// <summary>
+        /// Key of an element that carries no {prefix-id} tag: "jf-" + its Jellyfin id (stable while the folder or file keeps its path).
+        /// It lets a series, a season or an episode WITHOUT identifier get a cast; that cast is written straight into Jellyfin
+        /// (CastApplyService), since no provider of the plugin ever sees such an element.
+        /// </summary>
+        public static string SyntheticKey(BaseItem item) => SyntheticPrefix + item.Id.ToString("N");
+
+        public const string SyntheticPrefix = "jf-";
+
+        public static bool IsSynthetic(string key)
+            => key != null && System.Text.RegularExpressions.Regex.IsMatch(key.Trim().Trim('{', '}'), "^jf-[0-9a-f]{32}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     }
 }

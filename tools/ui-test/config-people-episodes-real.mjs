@@ -165,7 +165,7 @@ try {
   const season2024 = `Array.from(document.querySelectorAll('${P} [data-ep-season]')).find(function(b){return b.textContent.indexOf('Saison 2024')>=0;})`;
   check('tree: the series shows its cast is clickable', (await evalJs(`document.querySelector('${P} [data-ep-series] .pp-group-sub').textContent`)).includes('Distribution de la série'));
   check('tree: "saison" badge when the season has a cast', (await evalJs(`!!${season2024}.querySelector('.pp-badge')`)) === true);
-  check('tree: season text not truncated', (await evalJs(`${season2024}.querySelector('.pp-item-ids').textContent`)) === '7 épisode(s)');
+  check('tree: season text not truncated', (await evalJs(`${season2024}.querySelector('.pp-item-ids').textContent`)) === '8 épisode(s)');
   // "Appliquer aux épisodes": banner after saving, then update of the affected episodes
   check('"Appliquer aux épisodes" banner shown after saving', (await evalJs(`!document.querySelector('${P} #ppApply').hidden`)) === true);
   await shot('E4-apply-notice-1440');
@@ -210,6 +210,30 @@ try {
     if (!twoJobs) { await wait(2000); }
   }
   check('cascade: the same person keeps two jobs on an episode (actor from the series, director of its own)', twoJobs);
+  // A whole series WITHOUT any identifier is listed too, under a fallback key "jf-<item id>", and gets its cast written into Jellyfin
+  const lib = await api('CustomMetadata/People/Library');
+  const bare = lib.filter(x => x.Name === 'Série sans identifiant')[0];
+  check('library: a series with no identifier at any level is listed', !!bare && /^jf-[0-9a-f]{32}$/.test(bare.Key || ''), JSON.stringify(lib.map(x => x.Name + ':' + x.Key)));
+  check('library: its season and episodes are listed with fallback keys', !!bare && bare.Seasons.length === 1 && /^jf-/.test(bare.Seasons[0].Key || '') && bare.Seasons[0].Episodes.length === 2 && bare.Seasons[0].Episodes.every(e => /^jf-/.test(e.Key)), JSON.stringify(bare));
+  check('library list on screen: the series is an entry of the list', (await evalJs(`Array.from(document.querySelectorAll('${P} [data-ep-series]')).some(function(b){return b.textContent.indexOf('Série sans identifiant')>=0;})`)) === true);
+  if (bare) {
+    const firstEp = bare.Seasons[0].Episodes[0];
+    await jsonCall('PUT', 'CustomMetadata/People/EpisodeCast', { Version: 1, Episodes: [
+      { Type: 'series', Key: bare.Key, Cascade: true, Cast: [{ PersonId: 'pers01', Role: 'Rôle série', Type: 'Actor' }] },
+      { Type: 'episode', Key: firstEp.Key, Cast: [{ PersonId: 'manu01', Role: 'Réal', Type: 'Director' }] }] });
+    await jsonCall('POST', 'CustomMetadata/People/Apply', { SeriesKeys: [bare.Key], EpisodeKeys: [firstEp.Key], ExpandKeys: ['series:' + bare.Key] });
+    let bareOk = false, last = '';
+    for (let i = 0; i < 20 && !bareOk; i++) {
+      const eps = (await api('Items?Recursive=true&IncludeItemTypes=Episode&Fields=People,Path')).Items.filter(x => (x.Path || '').includes('Série sans identifiant'));
+      const ser = (await api('Items?Recursive=true&IncludeItemTypes=Series&Fields=People,Path')).Items.filter(x => (x.Path || '').includes('Série sans identifiant'))[0];
+      const names = it => (it.People || []).map(pp => pp.Name + ':' + pp.Type).sort().join(',');
+      last = JSON.stringify({ ser: ser ? names(ser) : null, eps: eps.map(e => e.Name + '=' + names(e)) });
+      const e1 = eps.filter(e => e.Path.includes('E01'))[0], e2 = eps.filter(e => e.Path.includes('E02'))[0];
+      bareOk = !!e1 && !!e2 && !!ser && names(e1) === 'Camille Durand:Actor,Invité Maison:Director' && names(e2) === 'Camille Durand:Actor' && names(ser) === 'Camille Durand:Actor';
+      if (!bareOk) { await wait(2000); }
+    }
+    check('no identifier at all: the series cast reaches its episodes (cascade), the episode keeps its own director', bareOk, last);
+  }
   console.log(`\n${pass} PASS, ${fail} FAIL`);
   await evalJs(RESTORE);
 } finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) {} process.exit(fail ? 1 : 0); }
