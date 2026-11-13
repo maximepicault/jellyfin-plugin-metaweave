@@ -487,6 +487,12 @@
             var epSeries = null;      // Id of the displayed series (its own cast)
             var TYPE_LABELS = { series: 'Série', season: 'Saison', episode: 'Épisode' };
 
+            // An element WITHOUT any {prefix-id} tag gets a fallback key "jf-<Jellyfin id>": no tag to show, and its cast
+            // is written straight into Jellyfin instead of going through a provider
+            function isSynthetic(key) { return /^jf-[0-9a-f]{32}$/i.test(String(key || '')); }
+            function keyTag(key) { return isSynthetic(key) ? 'sans identifiant' : '{' + key + '}'; }
+            var SYNTHETIC_NOTE = 'Cet élément n\'a pas d\'identifiant {préfixe-id} dans son nom. Sa distribution est donc écrite directement dans Jellyfin au moment de « Appliquer aux épisodes », et suit son dossier ou son fichier : s\'il est renommé ou déplacé, elle est à refaire.';
+
             function typedKey(type, key) { return type + ':' + String(key || '').trim().replace(/^\{|\}$/g, '').toLowerCase(); }
             function typeOf(tk) { return tk.split(':')[0]; }
             function keyOf(tk) { return tk.substring(tk.indexOf(':') + 1); }
@@ -571,7 +577,7 @@
                     + (opts.typeBadge ? '<span class="pp-badge miss">' + TYPE_LABELS[typeOf(tk)] + '</span>' : '')
                     + (names.length ? '<span class="pp-count">' + names.length + '</span>' : '') + '</button>';
                 if (open) {
-                    html += '<div class="pp-ep-body">' + (opts.note ? '<div class="pp-hint" style="margin:0;">' + escapeHtml(opts.note) + '</div>' : '') + castRows(tk)
+                    html += '<div class="pp-ep-body">' + (opts.note ? '<div class="pp-hint" style="margin:0;">' + escapeHtml(opts.note) + '</div>' : '') + (isSynthetic(keyOf(tk)) ? '<div class="pp-hint" style="margin:0;">' + escapeHtml(SYNTHETIC_NOTE) + '</div>' : '') + castRows(tk)
                         + '<div class="pp-cast-add"><div class="pp-ac"><input type="text" id="ppCastAdd" role="combobox" aria-expanded="false" aria-controls="ppCastSuggest" placeholder="' + (people.length ? 'Ajouter une personne : tapez un nom' : 'L\'annuaire est vide : ajoutez des personnes d\'abord') + '" aria-label="Ajouter une personne" autocomplete="off" />'
                         + '<div class="pp-ac-list" id="ppCastSuggest" role="listbox" hidden></div></div>'
                         + '<button is="emby-button" type="button" class="raised" data-cast-add="1"><span>Ajouter</span></button>'
@@ -605,7 +611,7 @@
                 var LIMIT = 40;
                 box.innerHTML = '<span>Sera répercuté sur ' + (typeOf(tk) === 'series' ? seasons.length + ' saison(s) et ' : '') + episodes.length + ' épisode(s) de la médiathèque :</span>'
                     + '<div class="pp-chips">' + chips.slice(0, LIMIT).map(function(c) {
-                        return '<span class="pp-chip ' + c[0] + (c[1].IsMissing ? ' missing' : '') + '" title="' + escapeHtml((c[1].Title || '') + (c[1].IsMissing ? ' (manquant)' : '')) + '">{' + escapeHtml(c[1].Key) + '}</span>';
+                        return '<span class="pp-chip ' + c[0] + (c[1].IsMissing ? ' missing' : '') + '" title="' + escapeHtml((c[1].Title || '') + (c[1].IsMissing ? ' (manquant)' : '')) + '">' + (isSynthetic(c[1].Key) ? escapeHtml(c[1].Title || 'sans identifiant') : '{' + escapeHtml(c[1].Key) + '}') + '</span>';
                     }).join('') + (chips.length > LIMIT ? '<span class="pp-chip">+ ' + (chips.length - LIMIT) + ' autres</span>' : '') + '</div>'
                     + (chips.length ? '' : '<span>Rien en dessous pour le moment.</span>');
             }
@@ -636,7 +642,7 @@
                     keys.forEach(function(tk) {
                         var title = inLibrary[tk];
                         // Title known from the library first (it is what is recognised), the tag as a landmark
-                        html += elementRow(tk, title || '{' + keyOf(tk) + '}', title ? '{' + keyOf(tk) + '}' : 'pas dans la médiathèque pour le moment', { typeBadge: true, removable: true, hideNum: true });
+                        html += elementRow(tk, title || keyTag(keyOf(tk)), title ? keyTag(keyOf(tk)) : (isSynthetic(keyOf(tk)) ? 'élément sans identifiant pas encore chargé : « Parcourir la médiathèque »' : 'pas dans la médiathèque pour le moment'), { typeBadge: true, removable: true, hideNum: true });
                     });
                     box.innerHTML = html + (keys.length ? '' : '<div class="pp-empty">Aucun élément pour le moment.</div>') + '</div>';
                     return;
@@ -645,10 +651,10 @@
                 if (hitSeason) {
                     var seasonTk = hitSeason.season.Key ? typedKey('season', hitSeason.season.Key) : null;
                     html = '<div><h3>' + escapeHtml(hitSeason.season.Name || 'Saison') + '</h3><div class="pp-hint" style="margin:2px 0 0;">' + escapeHtml(hitSeason.series.Name || '') + '</div></div><div class="pp-eps">'
-                        + (seasonTk ? elementRow(seasonTk, 'Distribution de la saison', '{' + hitSeason.season.Key + '}', { typeBadge: false })
+                        + (seasonTk ? elementRow(seasonTk, 'Distribution de la saison', keyTag(hitSeason.season.Key), { typeBadge: false })
                             : '<div class="pp-hint" style="margin:0;">' + noTagNote() + '</div>');
                     hitSeason.season.Episodes.forEach(function(ep) {
-                        html += elementRow(typedKey('episode', ep.Key), ep.Title || ep.Key, ep.Key, { num: ep.IndexNumber, missing: ep.IsMissing, inSeason: true });
+                        html += elementRow(typedKey('episode', ep.Key), ep.Title || keyTag(ep.Key), isSynthetic(ep.Key) ? 'sans identifiant' : ep.Key, { num: ep.IndexNumber, missing: ep.IsMissing, inSeason: true });
                     });
                     box.innerHTML = html + '</div>';
                     return;
@@ -657,7 +663,7 @@
                 if (series) {
                     var seriesTk = series.Key ? typedKey('series', series.Key) : null;
                     box.innerHTML = '<div><h3>' + escapeHtml(series.Name || 'Série') + '</h3><div class="pp-hint" style="margin:2px 0 0;">Distribution de la série elle-même. Choisissez une saison dans la liste pour ses épisodes.</div></div><div class="pp-eps">'
-                        + (seriesTk ? elementRow(seriesTk, 'Distribution de la série', '{' + series.Key + '}', {}) : '<div class="pp-hint" style="margin:0;">' + noTagNote() + '</div>') + '</div>';
+                        + (seriesTk ? elementRow(seriesTk, 'Distribution de la série', keyTag(series.Key), {}) : '<div class="pp-hint" style="margin:0;">' + noTagNote() + '</div>') + '</div>';
                     return;
                 }
                 box.innerHTML = '<div class="pp-empty">' + (!library ? 'Choisissez « Par identifiant », ou parcourez la médiathèque depuis la liste.' : (library.length ? 'Choisissez une série, une saison, ou « Par identifiant ».' : 'Aucun élément portant un tag de source API dans la médiathèque : utilisez « Par identifiant ».')) + '</div>';

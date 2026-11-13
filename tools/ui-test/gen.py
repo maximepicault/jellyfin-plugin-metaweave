@@ -32,3 +32,10 @@ for sid, s in SERIES.items():
 untagged = os.path.join(T, "media", "series", "Les Aventuriers {dm-aventuriers}", "Saison 2024 {dm-a1}", "E08 Sans identifiant.mkv")
 if not os.path.exists(untagged):
     subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=2", "-c:v", "libx264", "-t", "2", untagged], check=True)
+
+# A whole series WITHOUT any {prefix-id} (series, season, episodes): it only gets a cast through the fallback key "jf-<item id>"
+for ep in ("E01 Premier.mkv", "E02 Second.mkv"):
+    out = os.path.join(T, "media", "series", "Série sans identifiant", "Saison 1", ep)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    if not os.path.exists(out):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=2", "-c:v", "libx264", "-t", "2", out], check=True)
