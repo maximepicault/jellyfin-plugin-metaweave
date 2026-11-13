@@ -27,3 +27,8 @@ for sid, s in SERIES.items():
                 out = os.path.join(ndir, f"E{i:02d} {v[0]} {{dm-{nid}v{i}}}.mkv")
                 if not os.path.exists(out):
                     subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=2", "-c:v", "libx264", "-t", "2", out], check=True)
+
+# A real episode WITHOUT any {prefix-id}: our providers never see it, it only gets the cast cascaded from its series/season
+untagged = os.path.join(T, "media", "series", "Les Aventuriers {dm-aventuriers}", "Saison 2024 {dm-a1}", "E08 Sans identifiant.mkv")
+if not os.path.exists(untagged):
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=2", "-c:v", "libx264", "-t", "2", untagged], check=True)

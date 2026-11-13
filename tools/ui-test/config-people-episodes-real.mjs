@@ -177,6 +177,15 @@ try {
     if (!reached) { await wait(2000); }
   }
   check('cascade: an episode of the series got the person in Jellyfin', reached);
+  // An episode with NO identifier in its name is never enriched by the plugin: the cast is written straight into Jellyfin
+  let untaggedReached = false;
+  for (let i = 0; i < 20 && !untaggedReached; i++) {
+    const items = await api('Items?Recursive=true&IncludeItemTypes=Episode&Fields=People,Path');
+    const ep = (items.Items || []).filter(x => (x.Path || '').includes('Sans identifiant'))[0];
+    untaggedReached = !!ep && (ep.People || []).some(pp => pp.Name === 'Invité Maison');
+    if (!untaggedReached) { await wait(2000); }
+  }
+  check('cascade: an episode WITHOUT identifier got the person in Jellyfin', untaggedReached);
   await size(1920, 1100); await wait(600); await shot('E6-episodes-1920');
   await size(412, 900, true); await wait(600);
   await evalJs(`window.scrollTo(0,0); true`); await shot('E3-episodes-mobile');

@@ -32,20 +32,24 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var added = 0;
             foreach (var member in cast.Where(m => !string.IsNullOrWhiteSpace(m.Name)))
             {
-                var kind = ParsePersonKind(member.Type);
-                result.AddPerson(new PersonInfo
-                {
-                    Name = member.Name.Trim(),
-                    Role = member.Role,
-                    Type = kind,
-                    SortOrder = member.Order,
-                    // Jellyfin downloads this photo for the person's page (if it does not already have one)
-                    ImageUrl = Uri.TryCreate(member.Image, UriKind.Absolute, out var photo) && (photo.Scheme == Uri.UriSchemeHttp || photo.Scheme == Uri.UriSchemeHttps) ? member.Image : null
-                });
+                result.AddPerson(ToPersonInfo(member));
                 added++;
             }
 
             logger.LogInformation("🎭 [CAST] Added {Count} people", added);
+        }
+
+        public static PersonInfo ToPersonInfo(CastMember member)
+        {
+            return new PersonInfo
+            {
+                Name = member.Name.Trim(),
+                Role = member.Role,
+                Type = ParsePersonKind(member.Type),
+                SortOrder = member.Order,
+                // Jellyfin downloads this photo for the person's page (if it does not already have one)
+                ImageUrl = Uri.TryCreate(member.Image, UriKind.Absolute, out var photo) && (photo.Scheme == Uri.UriSchemeHttp || photo.Scheme == Uri.UriSchemeHttps) ? member.Image : null
+            };
         }
 
         /// <summary>
