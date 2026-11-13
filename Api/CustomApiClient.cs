@@ -506,7 +506,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                         : "Réponse reçue mais aucun nom trouvé : vérifiez le champ « Nom » de la source de personnes");
                 }
 
-                person.Photo = PreviewMapper.ResolveUrl(person.Photo, source.BaseUrl);
+                person.Photo = PersonPhotoUrl.Resolve(person.Photo, source.PersonMappings?.PhotoBaseUrl, source.BaseUrl);
                 return (person, null);
             }
             catch (JsonException)
@@ -700,7 +700,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                         return result;
                     }
 
-                    result.Person.Photo = PreviewMapper.ResolveUrl(result.Person.Photo, source.BaseUrl);
+                    result.Person.Photo = PersonPhotoUrl.Resolve(result.Person.Photo, source.PersonMappings?.PhotoBaseUrl, source.BaseUrl);
                 }
                 else if (isEpisodeList)
                 {

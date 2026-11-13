@@ -235,10 +235,13 @@ try {
   check('people source: URL visible, endpoint and mapping pre-filled', (await vis('#srcBaseUrl')) && (await ev(`document.querySelector('#srcPersonEndpoint').value`)) === '/people/{id}' && (await ev(`document.querySelector('#srcPersonName').value`)) === 'name');
   check('people source: the test only offers "Personne"', (await ev(`Array.from(document.querySelector('#testItemType').options).filter(function(o){return !o.hidden;}).map(function(o){return o.value;}).join(',')`)) === 'person' && (await ev(`document.querySelector('#testItemType').value`)) === 'person');
   await type('#srcName', 'Personnes démo'); await type('#srcPrefix', 'pe'); await type('#srcBaseUrl', 'http://people.test');
+  check('people source: the image address field is empty by default', (await ev(`document.querySelector('#srcPersonPhotoBase').value`)) === '');
+  await type('#srcPersonPhotoBase', 'https://images.test/p/w185');
   await shot('L8-people-source-1440');
   await click('#sourceForm button[type=submit]'); await wait(600);
   const ps = JSON.parse(await ev(`JSON.stringify(__mock.config.Sources)`)).find(x => x.SourceType === 'People') || {};
   check('people source saved', ps.Prefix === 'pe' && ps.PersonEndpoint === '/people/{id}' && ps.PersonMappings.Photo === 'photo' && ps.BaseUrl === 'http://people.test' && !ps.EpisodeListEndpoint, JSON.stringify(ps));
+  check('people source saved: image address kept', ps.PersonMappings.PhotoBaseUrl === 'https://images.test/p/w185', JSON.stringify(ps.PersonMappings));
   check('card: "Personnes" badge', (await ev(`Array.from(document.querySelectorAll('${P} #sourcesList .cm-kind')).map(function(b){return b.textContent;}).join()`)).includes('Personnes'));
   await click(`${P} #sourcesList .cm-card:nth-child(2) .raised`); await wait(300);
   await click('#btnDeleteSource'); await wait(400);

@@ -6,6 +6,7 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **People sources**: a new optional "Adresse des photos" field for APIs that return the photo as a **path** (`/abc123.jpg`) hosted on another address than the API (an image server). A prefix (`https://images.example.com/p/w185`) or a template with `{value}` (`https://images.example.com/{value}?w=200`). Left empty, a path is still completed with the API's base URL, and a full address is used as it is.
 - **Cast distribution**: adding a person now uses a dropdown with a preview (photo, name, identifiers) filtered as you type, with keyboard navigation, instead of the browser's plain list.
 - **Cast distribution**: the library listing (slow on a large library) is no longer loaded when the tab opens. The tab starts on "Par identifiant", and a "Parcourir la médiathèque" button loads the series, seasons and episodes on demand.
 - **Cast distribution**: a "cascade" checkbox on a series or a season (saved with its distribution). Everything below it, seasons and episodes, missing ones included, inherits its cast when enriched, without needing the library listing. The episodes' own cast is kept and comes first. A preview lists the season and episode tags it reaches, and "Appliquer aux épisodes" also refreshes them (and cleans them when the cascade is turned off).

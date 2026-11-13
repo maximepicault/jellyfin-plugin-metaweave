@@ -34,6 +34,16 @@ class H(BaseHTTPRequestHandler):
             if p == "/people-list":
                 return self.send(200, [{"profile": {"displayName": name, "avatar": f"/img/{uid}.jpg", "about": bio}}])
             return self.send(200, {"total": 1, "results": [{"name": name, "photo": f"/img/{uid}.jpg", "bio": bio}]})
+        # The photo path is inside a LIST of images, and the whole answer is a list too
+        m = re.fullmatch(r"/people-images/(\w+)", p)
+        if m and m[1] in PEOPLE:
+            name, bio = PEOPLE[m[1]]
+            return self.send(200, [{"name": name, "images": [{"file_path": f"/{m[1]}.jpg", "width": 300}, {"file_path": "/other.jpg", "width": 600}], "bio": bio}])
+        # The photo is a PATH ("/p1.jpg"), to be completed with the address of an image server
+        m = re.fullmatch(r"/people-path/(\w+)", p)
+        if m and m[1] in PEOPLE:
+            name, bio = PEOPLE[m[1]]
+            return self.send(200, {"name": name, "profile_path": f"/{m[1]}.jpg", "bio": bio})
         m = re.fullmatch(r"/people/(\w+)", p)
         if m:
             if m[1] not in PEOPLE: return self.send(404, {"error": "inconnue"})
