@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Épisodes manquants</title>
+</head>
+<body>
+<div id="CustomMetadataMissingPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
+    <!-- Styles INSIDE the page: jellyfin-web keeps only this div, a <style> in the <head> would be ignored -->
+    <style>
+        #CustomMetadataMissingPage {
+            --me-surface: rgba(255, 255, 255, 0.04);
+            --me-surface-hover: rgba(255, 255, 255, 0.08);
+            --me-border: rgba(255, 255, 255, 0.12);
+            --me-muted: rgba(255, 255, 255, 0.65);
+            --me-missing: #c0392b;   /* blanc dessus : 5,4:1 */
+            --me-ok: #24734a;        /* blanc dessus : 5,9:1 */
+            --me-warn: #a8620f;      /* white on top: 4.7:1 (the old #d4851f only gave 2.9:1) */
+            --me-warn-text: #f0a040; /* orange text on a dark background */
+            --me-accent: #00a4dc;
+            --me-accent-strong: #00779f; /* button background with white text: 5:1 */
+            --me-link: #33b6e6;
+        }
+        #CustomMetadataMissingPage .me-hidden { display: none !important; }
+        #CustomMetadataMissingPage .me-muted { color: var(--me-muted); }
+        #CustomMetadataMissingPage .me-nowrap { white-space: nowrap; }
+        #CustomMetadataMissingPage .me-sr {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0, 0, 0, 0); border: 0;
+        }
+        #CustomMetadataMissingPage a.me-link { color: var(--me-link); text-decoration: none; }
+        #CustomMetadataMissingPage a.me-link:hover { text-decoration: underline; }
+
+        /* Header: title + actions on one line, state of the last analysis below */
+        .me-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 16px;
+        }
+        .me-head .sectionTitle { margin: 0; }
+        .me-head-actions { margin-left: auto; display: flex; gap: 10px; }
+        .me-head-actions .emby-button { margin: 0; }
+        .me-narrow { display: none; }
+        .me-statusline {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 16px;
+            margin: 8px 0 0;
+            color: var(--me-muted);
+        }
+        .me-linkbtn {
+            background: none;
+            border: 0;
+            padding: 4px 0;
+            color: var(--me-link);
+            font: inherit;
+            cursor: pointer;
+        }
+        .me-linkbtn:hover { text-decoration: underline; }
+        .me-about {
+            max-width: 820px;
+            margin: 10px 0 0;
+            padding: 12px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--me-border);
+            background: var(--me-surface);
+            line-height: 1.5;
+        }
+
+        /* Recap: tiles at level 1, a single line of text in the detail */
+        .me-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin: 18px 0;
+        }
+        .me-summary.me-summary-line { display: block; margin: 10px 0 14px; color: var(--me-muted); }
+        .me-summary-line strong { color: #ff7a6b; font-weight: 600; }
+        .me-summary-line .me-warn { color: var(--me-warn-text); }
+        .me-stat {
+            border: 1px solid var(--me-border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            background: var(--me-surface);
+        }
+        .me-stat-value { font-size: 24px; font-weight: bold; }
+        .me-stat-label { color: var(--me-muted); font-size: 13px; margin-top: 2px; }
+        .me-stat-missing .me-stat-value { color: #ff7a6b; }
+        .me-stat-warn .me-stat-value { color: var(--me-warn-text); }
+
+        /* Fil d'Ariane */
+        .me-crumbs {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            font-size: 15px;
+            margin: 6px 0 10px;
+        }
+        .me-crumbs button {
+            background: none;
+            border: none;
+            color: var(--me-link);
+            cursor: pointer;
+            font: inherit;
+            padding: 2px 0;
+        }
+        .me-crumbs button:hover { text-decoration: underline; }
+        .me-crumbs .me-crumb-current { font-weight: bold; }
+        .me-crumbs .me-sep { color: rgba(255, 255, 255, 0.4); }
+
+        /* Search, sort, filter on one line; search field limited in width */
+        .me-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 20px;
+            align-items: flex-end;
+            margin: 16px 0;
+        }
+        .me-search { margin: 0 !important; flex: 0 1 420px; min-width: 220px; }
+
+        /* Card grid (series, sources) */
+        .me-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 18px;
+        }
+        .me-card {
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+            background: var(--me-surface);
+            border: 1px solid var(--me-border);
+            border-radius: 8px;
+            padding: 0;
+            overflow: hidden;
+            cursor: pointer;
+            color: inherit;
+            font: inherit;
+            transition: transform .12s ease, background .12s ease, border-color .12s ease;
+        }
+        .me-card:hover, .me-card:focus-visible {
+            transform: translateY(-3px);
+            background: var(--me-surface-hover);
+            border-color: var(--me-accent);
+            outline: none;
+        }
+        .me-poster {
+            position: relative;
+            aspect-ratio: 2 / 3;
+            background: rgba(255, 255, 255, 0.06);
+            overflow: hidden;
+        }
+        .me-poster img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .me-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 42px;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.35);
+        }
+        .me-poster .me-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .5);
+        }
+        .me-card-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+        .me-card-title {
+            font-weight: bold;
+            font-size: 15px;
+            line-height: 1.25;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .me-card-sub { color: var(--me-muted); font-size: 13px; line-height: 1.4; }
+        .me-card-sub.me-strong { color: rgba(255, 255, 255, 0.82); }
+
+        .me-badge {
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+            color: #fff;
+        }
+        .me-badge-missing { background: var(--me-missing); }
+        .me-badge-ok { background: var(--me-ok); }
+        .me-badge-error { background: var(--me-warn); }
+
+        /* A single colour: the length already tells the progress */
+        .me-progress {
+            height: 5px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.14);
+            overflow: hidden;
+        }
+        .me-progress > div { height: 100%; background: var(--me-accent); }
+
+        .me-error-text { color: var(--me-warn-text); }
+        .me-card-sub.me-error-text {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .me-chips { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+        .me-chips > span { color: rgba(255, 255, 255, 0.82); }
+
+        /* Source detail: header panel with the main action on the right */
+        .me-detail-head {
+            display: flex;
+            gap: 20px;
+            align-items: stretch;
+            margin: 0;
+            padding: 16px;
+            border: 1px solid var(--me-border);
+            border-radius: 10px;
+            background: var(--me-surface);
+        }
+        .me-detail-head .me-poster { width: 84px; flex-shrink: 0; border-radius: 6px; align-self: flex-start; }
+        .me-detail-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+        .me-detail-info h3 { margin: 0; font-size: 22px; font-weight: 600; }
+        .me-detail-info .me-progress { width: 240px; height: 6px; }
+        .me-detail-action {
+            width: 300px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 8px;
+            text-align: center;
+        }
+        .me-copy-all {
+            height: 46px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            border: 0;
+            border-radius: 6px;
+            background: var(--me-accent-strong);
+            color: #fff;
+            font: inherit;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .me-copy-all:hover { background: #00668a; }
+        .me-copy-all.me-copied { background: var(--me-ok); }
+        .me-detail-action .me-muted { font-size: 13px; }
+
+        /* Episodes: 2 cards per row (1 if there is no room for 2 × 380 px), large thumbnail */
+        .me-episodes {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(max(380px, calc((100% - 20px) / 2)), 1fr));
+            gap: 20px;
+        }
+        .me-episode {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--me-border);
+            border-radius: 10px;
+            background: var(--me-surface);
+            overflow: hidden;
+        }
+        .me-thumb {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .me-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .me-thumb .me-placeholder { font-size: 48px; }
+        .me-thumb .me-duration {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            background: rgba(0, 0, 0, .75);
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 13px;
+        }
+        .me-episode-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 16px; }
+        .me-episode-title { font-weight: bold; font-size: 16px; }
+        .me-episode-title a { color: inherit; text-decoration: none; }
+        .me-episode-title a:hover { text-decoration: underline; }
+        .me-episode-meta { color: var(--me-muted); font-size: 13px; }
+        .me-episode-overview {
+            font-size: 14px;
+            line-height: 1.45;
+            color: rgba(255, 255, 255, 0.82);
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .me-episode-overview.me-empty { color: rgba(255, 255, 255, 0.55); font-style: italic; }
+        .me-filename {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: auto; /* pinned to the bottom: aligned between the cards of a row */
+            padding-top: 6px;
+            min-width: 0;
+        }
+        .me-filename code {
+            flex: 1;
+            min-width: 0;
+            height: 40px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            overflow: hidden;
+            white-space: nowrap;
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: rgba(0, 0, 0, 0.35);
+        }
+        .me-filename code > span { overflow: hidden; text-overflow: ellipsis; }
+        .me-copy {
+            flex-shrink: 0;
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 14px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            color: inherit;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .me-copy:hover { border-color: var(--me-accent); background: rgba(0, 164, 220, 0.15); }
+        .me-copy.me-copied { border-color: #2e8b57; background: rgba(46, 139, 87, 0.3); color: #b9f0cf; }
+        .me-icon { width: 16px; height: 16px; flex-shrink: 0; }
+        .me-copy-all .me-icon { width: 18px; height: 18px; }
+
+        /* Very large screen: 3 columns, otherwise cards wider than 800 px */
+        @media (min-width: 1800px) {
+            .me-episodes { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .me-head-actions { margin-left: 0; width: 100%; }
+            .me-head-actions .emby-button { flex: 1 1 0; min-height: 44px; justify-content: center; text-align: center; }
+            .me-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+            .me-stat { padding: 8px 10px; }
+            .me-stat-value { font-size: 19px; }
+            .me-stat-label { font-size: 12px; line-height: 1.25; }
+            .me-wide { display: none; }
+            .me-narrow { display: inline; }
+            .me-search { flex: 1 1 100%; }
+            .me-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+            .me-episodes { grid-template-columns: 1fr; }
+            .me-detail-head { flex-wrap: wrap; padding: 14px; gap: 14px; }
+            .me-detail-head .me-poster { width: 56px; }
+            .me-detail-info h3 { font-size: 18px; }
+            .me-detail-info .me-progress { width: 100%; }
+            .me-detail-action { width: 100%; }
+            .me-copy-all { height: 48px; }
+            .me-filename code, .me-copy { height: 44px; }
+        }
+    </style>
+    <div data-role="content">
+        <div class="content-primary">
+
+            <div class="me-head">
+                <h2 class="sectionTitle">Épisodes manquants</h2>
+                <a class="me-link" href="#/configurationpage?name=Custom%20Metadata%20Provider">Configuration du plugin</a>
+                <div class="me-head-actions">
+                    <button is="emby-button" type="button" id="btnAnalyzeFull" class="raised" title="Ignore le cache : retélécharge aussi les miniatures et les aperçus de tous les épisodes manquants">
+                        <span class="me-wide">Réanalyser sans cache</span><span class="me-narrow">Sans cache</span>
+                    </button>
+                    <button is="emby-button" type="button" id="btnAnalyze" class="raised button-submit">
+                        <span>Analyser</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="me-statusline">
+                <span id="lblStatus"></span>
+                <button type="button" id="btnAbout" class="me-linkbtn" aria-expanded="false" aria-controls="aboutText">ⓘ À propos de cette page</button>
+            </div>
+            <div id="aboutText" class="fieldDescription me-about me-hidden">
+                Cette page compare la liste d'épisodes renvoyée par chaque source (endpoint « Liste des épisodes ») aux fichiers {préfixe-ID} présents dans vos saisons.
+                Seules les saisons dont le dossier porte le tag d'une source avec cet endpoint configuré sont analysées.
+                « Réanalyser sans cache » retélécharge aussi les miniatures et les aperçus.
+            </div>
+
+            <div class="me-summary" id="summary"></div>
+
+            <nav class="me-crumbs" id="crumbs" aria-label="Fil d'Ariane"></nav>
+            <div id="context"></div>
+
+            <div class="me-toolbar" id="filters">
+                <div class="inputContainer me-search">
+                    <input is="emby-input" type="search" id="txtFilter" label="Rechercher" />
+                </div>
+                <div class="selectContainer" id="sortContainer" style="margin: 0; min-width: 190px;">
+                    <select is="emby-select" id="selSort" label="Trier par">
+                        <option value="missing">Plus de manquants</option>
+                        <option value="name">Nom</option>
+                        <option value="progress">Moins complètes</option>
+                    </select>
+                </div>
+                <label class="checkboxContainer" id="onlyMissingContainer" style="margin: 0 0 8px;">
+                    <input is="emby-checkbox" type="checkbox" id="chkOnlyMissing" checked />
+                    <span id="lblOnlyMissing">Seulement les séries incomplètes</span>
+                </label>
+            </div>
+
+            <span id="liveMsg" class="me-sr" aria-live="polite"></span>
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            var page = document.querySelector('#CustomMetadataMissingPage');
+            var baseUrl = 'CustomMetadata/MissingEpisodes';
+            var lastReport = null;
+            var pollTimer = null;
+            var running = false;
+
+            // Navigation: all series → one series (its sources/seasons) → detail of a source
+            var view = { seriesId: null, seasonId: null };
+            // Text typed as is (case, spaces): compared in lowercase in filterText()
+            var filters = { series: '', season: '', episode: '' };
+            var shownLevel = null;
+            var renderedReportDate;
+
+            var ICON_COPY = '<svg class="me-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a1 1 0 0 1 1-1h10"></path></svg>';
+            var ICON_CHECK = '<svg class="me-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>';
+
+            function filterText(level) {
+                return (filters[level] || '').trim().toLowerCase();
+            }
+
+            function escapeHtml(value) {
+                return String(value === null || value === undefined ? '' : value)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            function formatDate(value, withTime) {
+                if (!value) {
+                    return '';
+                }
+                var date = new Date(value);
+                if (isNaN(date.getTime())) {
+                    return '';
+                }
+                return withTime ? date.toLocaleString() : date.toLocaleDateString();
+            }
+
+            // "il y a 8 min", "il y a 3 h", otherwise the date
+            function formatAgo(value) {
+                var date = new Date(value);
+                if (isNaN(date.getTime())) {
+                    return '';
+                }
+                var minutes = Math.floor((Date.now() - date.getTime()) / 60000);
+                if (minutes < 1) {
+                    return 'à l\'instant';
+                }
+                if (minutes < 60) {
+                    return 'il y a ' + minutes + ' min';
+                }
+                if (minutes < 24 * 60) {
+                    return 'il y a ' + Math.floor(minutes / 60) + ' h';
+                }
+                return 'le ' + date.toLocaleDateString() + ' à ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+
+            // 1 tick = 100 ns; "41:15" (on the thumbnail)
+            function formatDuration(ticks) {
+                if (!ticks) {
+                    return '';
+                }
+                var total = Math.round(ticks / 10000000);
+                var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+                return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
+            }
+
+            // "41 min 15", "1 h 02 min" (in the text)
+            function formatDurationLong(ticks) {
+                var total = Math.round(ticks / 10000000);
+                var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+                if (h) {
+                    return h + ' h ' + String(m).padStart(2, '0') + ' min';
+                }
+                if (m) {
+                    return m + ' min' + (s ? ' ' + String(s).padStart(2, '0') : '');
+                }
+                return s + ' s';
+            }
+
+            function formatTotalDuration(ticks) {
+                var minutes = Math.round(ticks / 600000000);
+                if (minutes < 60) {
+                    return minutes + ' min';
+                }
+                return Math.floor(minutes / 60) + ' h ' + String(minutes % 60).padStart(2, '0');
+            }
+
+            function plural(n, word, pluralWord) {
+                return n + ' ' + (n > 1 ? (pluralWord || word + 's') : word);
+            }
+
+            function imageUrl(itemId, type, maxHeight) {
+                return ApiClient.getImageUrl(itemId, { type: type || 'Primary', maxHeight: maxHeight || 360, quality: 90 });
+            }
+
+            // Jellyfin image with fallback: data-fallback (another image), otherwise the initial / icon underneath
+            function imageHtml(url, placeholder, fallbackUrl) {
+                return '<div class="me-placeholder">' + escapeHtml(placeholder) + '</div>'
+                    + '<img loading="lazy" alt="" src="' + escapeHtml(url) + '"'
+                    + (fallbackUrl ? ' data-fallback="' + escapeHtml(fallbackUrl) + '"' : '') + ' />';
+            }
+
+            function initial(name) {
+                var text = String(name || '?').trim();
+                return text ? text.charAt(0).toUpperCase() : '?';
+            }
+
+            function missingCount(season) {
+                return (season.Missing || []).length;
+            }
+
+            function presentCount(season) {
+                return Math.max(0, (season.ApiCount || 0) - missingCount(season));
+            }
+
+            function progressHtml(present, total) {
+                if (!total) {
+                    return '';
+                }
+                var pct = Math.round(present * 100 / total);
+                return '<div class="me-progress" title="' + pct + ' % présents"><div style="width:' + pct + '%"></div></div>';
+            }
+
+            function badgeHtml(missing, errors) {
+                if (missing > 0) {
+                    return '<span class="me-badge me-badge-missing">' + plural(missing, 'manquant') + '</span>';
+                }
+                if (errors > 0) {
+                    return '<span class="me-badge me-badge-error">⚠ Erreur</span>';
+                }
+                return '<span class="me-badge me-badge-ok">✓ Complète</span>';
+            }
+
+            function sumDuration(episodes) {
+                return episodes.reduce(function (n, e) { return n + (e.RunTimeTicks || 0); }, 0);
+            }
+
+            function latestDate(episodes) {
+                var best = null;
+                episodes.forEach(function (e) {
+                    var d = e.PremiereDate ? new Date(e.PremiereDate) : null;
+                    if (d && !isNaN(d.getTime()) && (!best || d > best)) {
+                        best = d;
+                    }
+                });
+                return best;
+            }
+
+            // "2 / 10 présents · 6 h 00 à ajouter": same vocabulary at every level
+            function presenceText(present, total, ticks) {
+                var parts = [];
+                if (total) {
+                    parts.push('<span class="me-nowrap">' + present + ' / ' + total + ' présents</span>');
+                }
+                if (ticks) {
+                    parts.push('<span class="me-nowrap">' + formatTotalDuration(ticks) + ' à ajouter</span>');
+                }
+                return parts.join(' · ');
+            }
+
+            // Report grouped by series, with each series' totals
+            function groupBySeries(report) {
+                var groups = [];
+                var byId = {};
+                (report.Seasons || []).forEach(function (s) {
+                    var g = byId[s.SeriesId];
+                    if (!g) {
+                        g = byId[s.SeriesId] = { id: s.SeriesId, name: s.SeriesName, seasons: [], missing: 0, present: 0, total: 0, errors: 0, incomplete: 0, episodes: [], firstError: null };
+                        groups.push(g);
+                    }
+                    g.seasons.push(s);
+                    g.missing += missingCount(s);
+                    g.present += presentCount(s);
+                    g.total += s.ApiCount || 0;
+                    g.episodes = g.episodes.concat(s.Missing || []);
+                    if (s.Error) { g.errors++; g.firstError = g.firstError || s.Error; }
+                    if (missingCount(s) > 0) { g.incomplete++; }
+                });
+                return groups;
+            }
+
+            function stat(value, label, cls) {
+                return '<div class="me-stat' + (cls ? ' ' + cls : '') + '"><div class="me-stat-value">' + value + '</div><div class="me-stat-label">' + label + '</div></div>';
+            }
+
+            // Level 1: tiles. Levels 2 and 3: a line of text, we are in the detail
+            function renderSummary(report, compact) {
+                var container = page.querySelector('#summary');
+                container.classList.toggle('me-summary-line', !!compact);
+                if (!report || !report.Seasons || report.Seasons.length === 0) {
+                    container.innerHTML = '';
+                    return;
+                }
+                var groups = groupBySeries(report);
+                var missing = 0, incomplete = 0, errors = 0, ticks = 0;
+                report.Seasons.forEach(function (s) {
+                    missing += missingCount(s);
+                    if (missingCount(s) > 0) { incomplete++; }
+                    if (s.Error) { errors++; }
+                    ticks += sumDuration(s.Missing || []);
+                });
+                var incompleteSeries = groups.filter(function (g) { return g.missing > 0; }).length;
+
+                if (compact) {
+                    var parts = ['<strong>' + plural(missing, 'épisode manquant', 'épisodes manquants') + '</strong>'
+                        + (incompleteSeries ? ' dans ' + plural(incompleteSeries, 'série') : '')];
+                    if (ticks > 0) {
+                        parts.push(formatTotalDuration(ticks) + ' de vidéo à ajouter');
+                    }
+                    if (errors > 0) {
+                        parts.push('<span class="me-warn">' + plural(errors, 'source') + ' en erreur</span>');
+                    }
+                    container.innerHTML = parts.join(' · ');
+                    return;
+                }
+
+                var html = stat(missing, missing > 1 ? 'épisodes manquants' : 'épisode manquant', missing > 0 ? 'me-stat-missing' : '')
+                    + stat(incompleteSeries + ' / ' + groups.length, incompleteSeries > 1 ? 'séries incomplètes' : 'série incomplète')
+                    + stat(incomplete + ' / ' + report.Seasons.length, incomplete > 1 ? 'sources incomplètes' : 'source incomplète');
+                if (ticks > 0) {
+                    html += stat(formatTotalDuration(ticks), 'de vidéo à ajouter');
+                }
+                if (errors > 0) {
+                    html += stat(errors, errors > 1 ? 'sources en erreur' : 'source en erreur', 'me-stat-warn');
+                }
+                container.innerHTML = html;
+            }
+
+            function textMatches(filter, values) {
+                return !filter || values.join(' ').toLowerCase().indexOf(filter) !== -1;
+            }
+
+            function episodeMatches(e, filter) {
+                return textMatches(filter, [e.Title, e.Id, e.IndexNumber, e.Overview]);
+            }
+
+            function seasonMatches(s, filter) {
+                return textMatches(filter, [s.SeasonName, s.SourceName, s.SourceItemId])
+                    || (s.Missing || []).some(function (e) { return episodeMatches(e, filter); });
+            }
+
+            // ---------- Level 1: series ----------
+            function renderSeriesGrid(groups) {
+                var filter = filterText('series');
+                var onlyMissing = page.querySelector('#chkOnlyMissing').checked;
+                var sort = page.querySelector('#selSort').value;
+
+                var shown = groups.filter(function (g) {
+                    if (onlyMissing && g.missing === 0 && g.errors === 0) {
+                        return false;
+                    }
+                    return textMatches(filter, [g.name]) || g.seasons.some(function (s) { return seasonMatches(s, filter); });
+                });
+
+                shown.sort(function (a, b) {
+                    if (sort === 'name') {
+                        return String(a.name || '').localeCompare(String(b.name || ''));
+                    }
+                    if (sort === 'progress') {
+                        var pa = a.total ? a.present / a.total : 1, pb = b.total ? b.present / b.total : 1;
+                        return pa - pb || b.missing - a.missing;
+                    }
+                    return b.missing - a.missing || String(a.name || '').localeCompare(String(b.name || ''));
+                });
+
+                if (shown.length === 0) {
+                    if (filter) {
+                        return '<div class="fieldDescription">Aucune série ne correspond à « ' + escapeHtml(filters.series.trim()) + ' ».</div>';
+                    }
+                    return '<div class="fieldDescription">✓ ' + (onlyMissing ? 'Toutes les séries analysées sont complètes. Décochez « Seulement les séries incomplètes » pour les voir.' : 'Aucune série analysée.') + '</div>';
+                }
+
+                var html = '<div class="me-grid">';
+                shown.forEach(function (g) {
+                    var lines = '';
+                    var ticks = sumDuration(g.episodes);
+                    if (g.total && !(g.errors && g.errors === g.seasons.length)) {
+                        lines += progressHtml(g.present, g.total)
+                            + '<div class="me-card-sub me-strong">' + presenceText(g.present, g.total, ticks) + '</div>';
+                    }
+                    var sub;
+                    if (g.seasons.length > 1) {
+                        sub = plural(g.seasons.length, 'source') + (g.incomplete > 0 ? ', ' + g.incomplete + ' incomplète' + (g.incomplete > 1 ? 's' : '') : '');
+                    } else {
+                        var latest = latestDate(g.episodes);
+                        sub = '1 source' + (latest ? ' · dernier ép. ' + latest.toLocaleDateString() : '');
+                    }
+                    lines += '<div class="me-card-sub">' + sub + '</div>';
+                    if (g.errors === 1) {
+                        lines += '<div class="me-card-sub me-error-text" title="' + escapeHtml(g.firstError) + '">' + escapeHtml(g.firstError) + '</div>';
+                    } else if (g.errors > 1) {
+                        lines += '<div class="me-card-sub me-error-text">' + g.errors + ' sources en erreur</div>';
+                    }
+
+                    html += '<button type="button" class="me-card" data-series="' + escapeHtml(g.id) + '" data-sources="' + g.seasons.length + '">'
+                        + '<div class="me-poster">' + imageHtml(imageUrl(g.id), initial(g.name)) + badgeHtml(g.missing, g.errors) + '</div>'
+                        + '<div class="me-card-body"><div class="me-card-title">' + escapeHtml(g.name) + '</div>' + lines + '</div>'
+                        + '</button>';
+                });
+                return html + '</div>';
+            }
+
+            // ---------- Level 2: sources (seasons) of a series ----------
+            function renderSeasonGrid(group) {
+                var filter = filterText('season');
+                var onlyMissing = page.querySelector('#chkOnlyMissing').checked;
+                var shown = group.seasons.filter(function (s) {
+                    if (onlyMissing && missingCount(s) === 0 && !s.Error) {
+                        return false;
+                    }
+                    return seasonMatches(s, filter);
+                });
+
+                var ticks = sumDuration(group.episodes);
+                var head = '<div class="me-chips" style="margin-bottom: 4px;">'
+                    + (group.missing ? badgeHtml(group.missing, 0) : '')
+                    + '<span>' + presenceText(group.present, group.total, ticks) + '</span>'
+                    + '<span>' + plural(group.seasons.length, 'source') + '</span>'
+                    + '<a class="me-link" href="#/details?id=' + escapeHtml(group.id) + '">Ouvrir la série dans Jellyfin ↗</a>'
+                    + '</div>';
+                var html = '';
+
+                if (shown.length === 0) {
+                    if (filter) {
+                        return { head: head, body: '<div class="fieldDescription">Aucune source ne correspond à « ' + escapeHtml(filters.season.trim()) + ' ».</div>' };
+                    }
+                    return { head: head, body: '<div class="fieldDescription">✓ Toutes les sources de cette série sont complètes. Décochez « Seulement les sources incomplètes » pour les voir.</div>' };
+                }
+
+                html += '<div class="me-grid">';
+                shown.forEach(function (s) {
+                    var missing = missingCount(s);
+                    var lines = '<div class="me-card-sub">' + escapeHtml(s.SourceName) + ' · <code>{' + escapeHtml(s.SourceItemId) + '}</code></div>';
+                    if (s.Error) {
+                        lines += '<div class="me-card-sub me-error-text" title="' + escapeHtml(s.Error) + '">' + escapeHtml(s.Error) + '</div>';
+                    } else if (s.ApiCount) {
+                        lines += progressHtml(presentCount(s), s.ApiCount)
+                            + '<div class="me-card-sub me-strong">' + presenceText(presentCount(s), s.ApiCount, sumDuration(s.Missing || [])) + '</div>';
+                    }
+                    html += '<button type="button" class="me-card" data-season="' + escapeHtml(s.SeasonId) + '">'
+                        + '<div class="me-poster">' + imageHtml(imageUrl(s.SeasonId), initial(s.SeasonName), imageUrl(group.id))
+                        + badgeHtml(missing, s.Error ? 1 : 0) + '</div>'
+                        + '<div class="me-card-body"><div class="me-card-title">' + escapeHtml(s.SeasonName) + '</div>' + lines + '</div>'
+                        + '</button>';
+                });
+                return { head: head, body: html + '</div>' };
+            }
+
+            // File name to give the episode when it is added: "Title {prefix-ID}" (no extension).
+            // The prefix is the part of the season folder's {prefix-ID} before the first "-" (a prefix has no hyphen)
+            function suggestedFileName(episode, season) {
+                var prefix = String(season.SourceItemId || '').split('-')[0];
+                var tag = '{' + (prefix ? prefix + '-' : '') + episode.Id + '}';
+                var title = String(episode.Title || '')
+                    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ') // forbidden characters (Windows / Linux)
+                    .replace(/[{}]/g, '')                       // the tag must remain the only {…} of the name
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .replace(/[. ]+$/, '');                     // Windows refuses a trailing dot or space
+                return title ? title + ' ' + tag : tag;
+            }
+
+            // navigator.clipboard n'existe qu'en HTTPS / localhost : repli sur execCommand (Jellyfin souvent en http://IP)
+            function copyText(text) {
+                if (navigator.clipboard && window.isSecureContext) {
+                    return navigator.clipboard.writeText(text).catch(function () { return legacyCopy(text); });
+                }
+                return legacyCopy(text);
+            }
+
+            function legacyCopy(text) {
+                return new Promise(function (resolve, reject) {
+                    var area = document.createElement('textarea');
+                    area.value = text;
+                    area.setAttribute('readonly', '');
+                    area.style.position = 'fixed';
+                    area.style.opacity = '0';
+                    document.body.appendChild(area);
+                    area.select();
+                    var ok = false;
+                    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+                    document.body.removeChild(area);
+                    if (ok) { resolve(); } else { reject(); }
+                });
+            }
+
+            function announce(text) {
+                var live = page.querySelector('#liveMsg');
+                live.textContent = '';
+                setTimeout(function () { live.textContent = text; }, 50);
+            }
+
+            function copyAllLabel(n) {
+                return n > 1 ? 'Copier les ' + n + ' noms' : 'Copier le nom';
+            }
+
+            // ---------- Level 3: detail of a source ----------
+            function renderSeasonDetail(group, season) {
+                var missing = season.Missing || [];
+                var filter = filterText('episode');
+                var shown = missing.filter(function (e) { return episodeMatches(e, filter); });
+                var ticks = sumDuration(missing);
+
+                var head = '<div class="me-detail-head">'
+                    + '<div class="me-poster">' + imageHtml(imageUrl(season.SeasonId), initial(season.SeasonName), imageUrl(group.id)) + '</div>'
+                    + '<div class="me-detail-info">'
+                    + '<h3>' + escapeHtml(season.SeasonName) + '</h3>'
+                    + '<div class="me-muted">' + escapeHtml(group.name) + ' · ' + escapeHtml(season.SourceName) + ' · <code>{' + escapeHtml(season.SourceItemId) + '}</code></div>';
+                if (season.Error) {
+                    head += '<div class="me-error-text">⚠ ' + escapeHtml(season.Error) + '</div>';
+                } else {
+                    head += '<div class="me-chips">'
+                        + progressHtml(presentCount(season), season.ApiCount)
+                        + (missing.length ? badgeHtml(missing.length, 0) : '')
+                        + '<span>' + presenceText(presentCount(season), season.ApiCount || 0, ticks) + '</span>'
+                        + '</div>';
+                }
+                head += '<div><a class="me-link" href="#/details?id=' + escapeHtml(season.SeasonId) + '">Ouvrir la saison dans Jellyfin ↗</a></div>'
+                    + '</div>';
+                if (shown.length > 0) {
+                    head += '<div class="me-detail-action">'
+                        + '<button type="button" class="me-copy-all" data-copy-all data-count="' + shown.length + '">' + ICON_COPY + '<span>' + copyAllLabel(shown.length) + '</span></button>'
+                        + '<span class="me-muted">' + (shown.length > 1 ? 'Un nom par ligne, prêt à coller' : 'Prêt à coller') + '</span>'
+                        + '</div>';
+                }
+                head += '</div>';
+
+                var html = '';
+                if (missing.length === 0) {
+                    return { head: head, body: '<div class="fieldDescription">' + (season.Error ? 'La liste des épisodes de cette source n\'a pas pu être lue. Vérifiez la source avec « Tester la source » dans la configuration du plugin.' : '✓ Aucun épisode manquant dans cette source.') + '</div>' };
+                }
+                if (shown.length === 0) {
+                    return { head: head, body: '<div class="fieldDescription">Aucun épisode ne correspond à « ' + escapeHtml(filters.episode.trim()) + ' ».</div>' };
+                }
+
+                html += '<div class="me-episodes">';
+                shown.forEach(function (e) {
+                    var number = e.IndexNumber === null || e.IndexNumber === undefined ? '' : 'Épisode ' + escapeHtml(e.IndexNumber) + ' · ';
+                    var title = e.Title ? escapeHtml(e.Title) : '<span class="me-muted">(sans titre)</span>';
+                    if (e.EpisodeId) {
+                        title = '<a href="#/details?id=' + escapeHtml(e.EpisodeId) + '">' + title + '</a>'; // not emby-linkbutton: button style
+                    }
+                    var meta = [];
+                    if (e.PremiereDate) { meta.push(escapeHtml(formatDate(e.PremiereDate))); }
+                    if (e.RunTimeTicks) { meta.push(formatDurationLong(e.RunTimeTicks)); }
+                    var fileName = suggestedFileName(e, season);
+
+                    html += '<div class="me-episode" data-file="' + escapeHtml(fileName) + '">'
+                        + '<div class="me-thumb">'
+                        + (e.EpisodeId ? imageHtml(imageUrl(e.EpisodeId, 'Primary', 360), '🎞') : '<div class="me-placeholder">🎞</div>')
+                        + (e.RunTimeTicks ? '<span class="me-duration">' + formatDuration(e.RunTimeTicks) + '</span>' : '')
+                        + '</div>'
+                        + '<div class="me-episode-info">'
+                        + '<div class="me-episode-title">' + number + title + '</div>'
+                        + (meta.length ? '<div class="me-episode-meta">' + meta.join(' · ') + '</div>' : '')
+                        + (e.Overview
+                            ? '<div class="me-episode-overview">' + escapeHtml(e.Overview) + '</div>'
+                            : '<div class="me-episode-overview me-empty">Pas de résumé dans l\'API</div>')
+                        // last: pinned to the bottom of the card (margin-top: auto), aligned from one card to the next
+                        + '<div class="me-filename" title="Nom à donner au fichier de cet épisode (garder l\'extension : .mkv, .mp4…)">'
+                        + '<code><span>' + escapeHtml(fileName) + '</span></code>'
+                        + '<button type="button" class="me-copy" data-copy="' + escapeHtml(fileName) + '" aria-label="Copier le nom : ' + escapeHtml(fileName) + '">' + ICON_COPY + '<span>Copier</span></button>'
+                        + '</div>'
+                        + '</div></div>';
+                });
+                return { head: head, body: html + '</div>' };
+            }
+
+            function renderCrumbs(group, season) {
+                var crumbs = page.querySelector('#crumbs');
+                if (!group) {
+                    crumbs.innerHTML = '';
+                    return;
+                }
+                var sep = '<span class="me-sep" aria-hidden="true">›</span>';
+                var html = '<button type="button" data-nav="root">← Toutes les séries</button>' + sep;
+                if (season) {
+                    // Series with a single source: no level 2, the series name is not a link
+                    html += (group.seasons.length > 1
+                            ? '<button type="button" data-nav="series">' + escapeHtml(group.name) + '</button>'
+                            : '<span>' + escapeHtml(group.name) + '</span>')
+                        + sep + '<span class="me-crumb-current" aria-current="page">' + escapeHtml(season.SeasonName) + '</span>';
+                } else {
+                    html += '<span class="me-crumb-current" aria-current="page">' + escapeHtml(group.name) + '</span>';
+                }
+                crumbs.innerHTML = html;
+            }
+
+            // Filter fields adapted to the displayed level
+            function syncFilters(level) {
+                var input = page.querySelector('#txtFilter');
+                if (level === shownLevel) {
+                    return; // do not rewrite the field while typing
+                }
+                shownLevel = level;
+                var placeholders = { series: 'Série, source ou épisode', season: 'Source ou épisode', episode: 'Titre ou numéro d\'épisode' };
+                input.value = filters[level];
+                input.setAttribute('placeholder', placeholders[level]);
+                var label = page.querySelector('label[for="txtFilter"]');
+                if (label) {
+                    label.textContent = level === 'episode' ? 'Filtrer les épisodes' : 'Rechercher';
+                }
+                page.querySelector('#lblOnlyMissing').textContent = level === 'season' ? 'Seulement les sources incomplètes' : 'Seulement les séries incomplètes';
+                page.querySelector('#sortContainer').classList.toggle('me-hidden', level !== 'series');
+                page.querySelector('#onlyMissingContainer').classList.toggle('me-hidden', level === 'episode');
+            }
+
+            function currentLevel() {
+                return view.seasonId ? 'episode' : (view.seriesId ? 'season' : 'series');
+            }
+
+            function render() {
+                var container = page.querySelector('#results');
+                var context = page.querySelector('#context');
+                var report = lastReport;
+                page.querySelector('#filters').classList.toggle('me-hidden', !report || !report.Seasons || report.Seasons.length === 0);
+
+                if (!report || !report.Seasons) {
+                    renderSummary(null);
+                    renderCrumbs(null);
+                    context.innerHTML = '';
+                    container.innerHTML = '<div class="fieldDescription">Aucune analyse pour le moment. Cliquez sur « Analyser ».</div>';
+                    return;
+                }
+                if (report.Seasons.length === 0) {
+                    renderSummary(null);
+                    renderCrumbs(null);
+                    context.innerHTML = '';
+                    container.innerHTML = '<div class="fieldDescription">Aucune saison analysée : configurez l\'endpoint « Liste des épisodes » d\'une source, et vérifiez que vos dossiers de saison portent un tag {préfixe-ID}.</div>';
+                    return;
+                }
+
+                var groups = groupBySeries(report);
+                var group = view.seriesId ? groups.filter(function (g) { return g.id === view.seriesId; })[0] : null;
+                var season = group && view.seasonId ? group.seasons.filter(function (s) { return s.SeasonId === view.seasonId; })[0] : null;
+
+                // Element gone after a new analysis: go up one level
+                if (!group) { view.seriesId = null; view.seasonId = null; }
+                if (!season) { view.seasonId = null; }
+                // Series that became single-source: its level 2 no longer makes sense
+                if (group && !season && group.seasons.length === 1) {
+                    view.seriesId = null;
+                    group = null;
+                }
+
+                syncFilters(currentLevel());
+                renderSummary(report, !!group);
+                renderCrumbs(group, season);
+
+                var view3 = season ? renderSeasonDetail(group, season) : (group ? renderSeasonGrid(group) : { head: '', body: renderSeriesGrid(groups) });
+                context.innerHTML = view3.head;
+                container.innerHTML = view3.body;
+            }
+
+            function navigate(seriesId, seasonId) {
+                view.seriesId = seriesId || null;
+                view.seasonId = seasonId || null;
+                // the search of a deeper level starts from scratch
+                filters.episode = '';
+                if (!seriesId) {
+                    filters.season = '';
+                }
+                render();
+                page.querySelector('#crumbs').scrollIntoView({ block: 'nearest' });
+            }
+
+            function setStatus(isRunning, report) {
+                running = isRunning;
+                var label = page.querySelector('#lblStatus');
+                page.querySelector('#btnAnalyze').disabled = isRunning;
+                page.querySelector('#btnAnalyzeFull').disabled = isRunning;
+                label.removeAttribute('title');
+                if (isRunning) {
+                    label.textContent = '⏳ Analyse en cours…';
+                } else if (report && report.GeneratedAt) {
+                    var text = 'Dernière analyse ' + formatAgo(report.GeneratedAt);
+                    var changes = [];
+                    if (report.Created) { changes.push(plural(report.Created, 'épisode ajouté', 'épisodes ajoutés')); }
+                    if (report.Updated) { changes.push(report.Updated + ' mis à jour'); }
+                    if (report.Removed) { changes.push(plural(report.Removed, 'retiré')); }
+                    if (changes.length) {
+                        text += ' · ' + changes.join(', ');
+                    } else if (report.Unchanged) {
+                        text += ' · aucun changement';
+                    }
+                    label.textContent = text;
+                    // The technical detail stays available on hover
+                    label.title = formatDate(report.GeneratedAt, true)
+                        + (report.DurationSeconds ? ' · ' + report.DurationSeconds + ' s' : '')
+                        + ' · ' + (report.Created || 0) + ' ajouté(s), ' + (report.Updated || 0) + ' mis à jour, '
+                        + (report.Unchanged || 0) + ' inchangé(s), ' + (report.Removed || 0) + ' retiré(s)';
+                } else {
+                    label.textContent = 'Aucune analyse pour le moment';
+                }
+            }
+
+            function load() {
+                return ApiClient.getJSON(ApiClient.getUrl(baseUrl)).then(function (data) {
+                    lastReport = data.Report;
+                    setStatus(data.Running, data.Report);
+                    // While following an analysis: redraw only if the report changed
+                    var reportDate = data.Report ? data.Report.GeneratedAt : null;
+                    if (reportDate !== renderedReportDate) {
+                        renderedReportDate = reportDate;
+                        render();
+                    }
+                    return data;
+                });
+            }
+
+            function stopPolling() {
+                if (pollTimer) {
+                    clearInterval(pollTimer);
+                    pollTimer = null;
+                }
+            }
+
+            // After "Analyser", the task starts in the background: the report is re-read
+            // until it is finished (or at most ~10 min)
+            function startPolling(previousDate) {
+                stopPolling();
+                var ticks = 0;
+                var seenRunning = false;
+                pollTimer = setInterval(function () {
+                    ticks++;
+                    load().then(function (data) {
+                        seenRunning = seenRunning || data.Running;
+                        var newDate = data.Report && data.Report.GeneratedAt;
+                        var finished = !data.Running && (seenRunning || newDate !== previousDate);
+                        if (finished || ticks > 200) {
+                            stopPolling();
+                        } else {
+                            setStatus(true, data.Report);
+                        }
+                    });
+                }, 3000);
+            }
+
+            function analyze(full) {
+                var previousDate = lastReport && lastReport.GeneratedAt;
+                setStatus(true, lastReport);
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl(baseUrl + '/Analyze', full ? { full: true } : {}) }).then(function () {
+                    startPolling(previousDate);
+                }, function () {
+                    setStatus(false, lastReport);
+                    Dashboard.alert('Impossible de lancer l\'analyse (voir les logs du serveur).');
+                });
+            }
+
+            // Visual feedback of a copy button, then back to the initial state
+            function flashCopied(button, label, restoreLabel) {
+                button.innerHTML = ICON_CHECK + '<span>' + label + '</span>';
+                button.classList.add('me-copied');
+                clearTimeout(button._timer);
+                button._timer = setTimeout(function () {
+                    button.innerHTML = ICON_COPY + '<span>' + restoreLabel + '</span>';
+                    button.classList.remove('me-copied');
+                }, 2000);
+            }
+
+            page.querySelector('#btnAnalyze').addEventListener('click', function () {
+                analyze(false);
+            });
+
+            page.querySelector('#btnAnalyzeFull').addEventListener('click', function () {
+                if (confirm('Réanalyser sans cache : les miniatures et aperçus de tous les épisodes manquants seront retéléchargés. Cela peut être long. Continuer ?')) {
+                    analyze(true);
+                }
+            });
+
+            page.querySelector('#btnAbout').addEventListener('click', function () {
+                var about = page.querySelector('#aboutText');
+                var open = about.classList.toggle('me-hidden') === false;
+                this.setAttribute('aria-expanded', open ? 'true' : 'false');
+                this.textContent = open ? 'ⓘ Masquer l\'explication' : 'ⓘ À propos de cette page';
+            });
+
+            // Delegated clicks: #context (source header, "Copier les N noms") and #results (cards, episodes)
+            function onResultsClick(e) {
+                var copyButton = e.target.closest('[data-copy]');
+                if (copyButton) {
+                    var text = copyButton.getAttribute('data-copy');
+                    copyText(text).then(function () {
+                        flashCopied(copyButton, 'Copié', 'Copier');
+                        announce('Nom copié : ' + text);
+                    }, function () {
+                        // Copy refused by the browser: select the name for a manual Ctrl+C
+                        var code = copyButton.parentNode.querySelector('code');
+                        var range = document.createRange();
+                        range.selectNodeContents(code);
+                        var sel = window.getSelection();
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                        copyButton.innerHTML = '<span>Ctrl+C pour copier</span>';
+                        announce('Copie refusée par le navigateur : le nom est sélectionné, appuyez sur Ctrl+C.');
+                        clearTimeout(copyButton._timer);
+                        copyButton._timer = setTimeout(function () {
+                            copyButton.innerHTML = ICON_COPY + '<span>Copier</span>';
+                        }, 3000);
+                    });
+                    return;
+                }
+                var copyAll = e.target.closest('[data-copy-all]');
+                if (copyAll) {
+                    // The displayed episodes (respects the filter), one name per line
+                    var names = Array.prototype.map.call(page.querySelectorAll('#results .me-episode[data-file]'), function (el) {
+                        return el.getAttribute('data-file');
+                    });
+                    var count = names.length;
+                    copyText(names.join('\n')).then(function () {
+                        flashCopied(copyAll, plural(count, 'nom copié', 'noms copiés'), copyAllLabel(count));
+                        announce(plural(count, 'nom copié', 'noms copiés') + ' dans le presse-papiers.');
+                    }, function () {
+                        Dashboard.alert('Le navigateur a refusé la copie. Copiez les noms un par un avec Ctrl+C.');
+                    });
+                    return;
+                }
+                if (e.target.closest('a')) {
+                    return;
+                }
+                var seriesCard = e.target.closest('[data-series]');
+                if (seriesCard) {
+                    filters.season = '';
+                    filters.episode = '';
+                    var seriesId = seriesCard.getAttribute('data-series');
+                    // A single source: straight to its episodes, without an intermediate screen of a single card
+                    var group = lastReport ? groupBySeries(lastReport).filter(function (g) { return g.id === seriesId; })[0] : null;
+                    navigate(seriesId, group && group.seasons.length === 1 ? group.seasons[0].SeasonId : null);
+                    return;
+                }
+                var seasonCard = e.target.closest('[data-season]');
+                if (seasonCard) {
+                    navigate(view.seriesId, seasonCard.getAttribute('data-season'));
+                }
+            }
+            page.querySelector('#results').addEventListener('click', onResultsClick);
+            page.querySelector('#context').addEventListener('click', onResultsClick);
+
+            page.querySelector('#crumbs').addEventListener('click', function (e) {
+                var button = e.target.closest('[data-nav]');
+                if (!button) {
+                    return;
+                }
+                if (button.getAttribute('data-nav') === 'root') {
+                    navigate(null, null);
+                } else {
+                    navigate(view.seriesId, null);
+                }
+            });
+
+            // Missing image: fallback image (series poster) then initial / icon
+            function onImageError(e) {
+                var img = e.target;
+                if (!img || img.tagName !== 'IMG') {
+                    return;
+                }
+                var fallback = img.getAttribute('data-fallback');
+                if (fallback) {
+                    img.removeAttribute('data-fallback');
+                    img.src = fallback;
+                } else {
+                    img.classList.add('me-hidden');
+                }
+            }
+            page.querySelector('#results').addEventListener('error', onImageError, true);
+            page.querySelector('#context').addEventListener('error', onImageError, true);
+
+            page.querySelector('#txtFilter').addEventListener('input', function () {
+                filters[currentLevel()] = this.value;
+                render();
+            });
+            page.querySelector('#chkOnlyMissing').addEventListener('change', render);
+            page.querySelector('#selSort').addEventListener('change', render);
+
+            // "il y a N min" stays accurate if the page stays open
+            setInterval(function () {
+                if (!running && lastReport && document.contains(page)) {
+                    setStatus(false, lastReport);
+                }
+            }, 60000);
+
+            page.addEventListener('pageshow', function () {
+                renderedReportDate = undefined;
+                shownLevel = null;
+                Dashboard.showLoadingMsg();
+                load().then(function (data) {
+                    Dashboard.hideLoadingMsg();
+                    if (data.Running) {
+                        startPolling(data.Report && data.Report.GeneratedAt);
+                    }
+                }, function () {
+                    Dashboard.hideLoadingMsg();
+                    page.querySelector('#results').innerHTML = '<div class="fieldDescription">Impossible de charger le rapport. Rechargez la page ; si l\'erreur persiste, consultez les journaux du serveur.</div>';
+                });
+            });
+
+            page.addEventListener('pagehide', stopPolling);
+        })();
+    </script>
+</div>
+</body>
+</html>

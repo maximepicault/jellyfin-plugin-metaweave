@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Pre-commit checks: files that must never be committed, personal data or secrets, large files, script syntax.
+# Enable (once per clone):  git config core.hooksPath .githooks
+# Words to forbid that are specific to YOUR machine (server name, login, path…): one per line in .git/forbidden-words
+# (this file is not versioned and must not be: it would contain exactly what we want to hide).
+set -uo pipefail
+
+problems=0
+fail() { echo "✖ pre-commit: $*" >&2; problems=$((problems + 1)); }
+
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+[ -z "$staged" ] && exit 0
+
+# 1. forbidden files
+while IFS= read -r f; do
+  case "$f" in
+    bin/*|*/bin/*|obj/*|*/obj/*|*.dll|*.pdb|*.user|.claude/settings.local.json|*.log|*__pycache__*)
+      fail "file that must not be committed: $f" ;;
+  esac
+  size=$(git cat-file -s ":$f" 2>/dev/null || echo 0)
+  [ "$size" -gt 1048576 ] && fail "file larger than 1 MB: $f ($((size / 1024)) KB)"
+done <<<"$staged"
+
+# 2. ADDED lines only: personal data and secrets
+added="$(git diff --cached -U0 --diff-filter=ACMR -- . ':(exclude).githooks/*' ':(exclude)LICENSE' | grep -E '^\+[^+]' | sed 's/^+//')"
+check() {  # pattern, explanation
+  if grep -nEi -- "$1" <<<"$added" | grep -vE 'noreply@|git@github\.com|example\.(com|org)|@types/|user@' >/dev/null; then
+    fail "$2"; grep -nEi -- "$1" <<<"$added" | grep -vE 'noreply@|git@github\.com|example\.(com|org)|@types/|user@' | head -3 | sed 's/^/    /' >&2
+  fi
+}
+check '/home/[a-z][a-z0-9_-]+' "personal path (/home/<user>)"
+check '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}' "e-mail address"
+check '(ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY' "token or private key"
+check '(^|[^0-9.])(192\.168\.[0-9]+\.[0-9]+|10\.[0-9]+\.[0-9]+\.[0-9]+)([^0-9]|$)' "private IP address (except 127.0.0.1 and the test bench's 172.17.0.1)"
+if [ -f "$(git rev-parse --git-dir)/forbidden-words" ]; then
+  while IFS= read -r word; do
+    [ -z "$word" ] && continue
+    grep -qiF -- "$word" <<<"$added" && fail "word forbidden by your local list: \"$word\""
+  done < "$(git rev-parse --git-dir)/forbidden-words"
+fi
+
+# 3. syntax of the modified scripts
+while IFS= read -r f; do
+  case "$f" in
+    *.sh|.githooks/*) bash -n "$f" 2>/dev/null || fail "shell syntax error: $f" ;;
+    *.mjs) command -v node >/dev/null && { node --check "$f" 2>/dev/null || fail "JavaScript syntax error: $f"; } ;;
+  esac
+done <<<"$staged"
+
+[ "$problems" -gt 0 ] && { echo "→ $problems problem(s). Fix them, or bypass knowingly with --no-verify." >&2; exit 1; }
+exit 0

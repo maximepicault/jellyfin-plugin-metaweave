@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>Jellyfin.Plugin.CustomMetadata</AssemblyName>
+    <RootNamespace>Jellyfin.Plugin.CustomMetadata</RootNamespace>
+    <Nullable>disable</Nullable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Version du plugin (affichée par Jellyfin). La CI la remplace par celle du tag Git : -p:Version=1.2.3 -->
+    <Version>0.0.8</Version>
+    <AssemblyVersion>$(Version).0</AssemblyVersion>
+    <FileVersion>$(Version).0</FileVersion>
+    <InformationalVersion>$(Version)</InformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Jellyfin dependencies - ExcludeAssets runtime as per official template -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.6">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Jellyfin.Model" Version="10.11.6">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    
+    <!-- Microsoft dependencies - version 9.0.11 required by Jellyfin 10.11.6 -->
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.11" />
+
+    <!-- SkiaSharp : fourni par le serveur Jellyfin (10.11.6 → 3.116.1). Même version exacte que le serveur,
+         sans l'embarquer (ExcludeAssets runtime) : sert à convertir les miniatures portrait en 16:9 -->
+    <PackageReference Include="SkiaSharp" Version="3.116.1">
+      <ExcludeAssets>runtime;native</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ASP.NET Core : contrôleur API de l'écran "Épisodes manquants" (fourni par Jellyfin à l'exécution) -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Configuration web page -->
+    <EmbeddedResource Include="Configuration\*.html" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,13 @@
+[Unit]
+Description=Update the Jellyfin Custom Metadata plugin from GitHub releases
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/custom-metadata-updater.sh
+# Hardening: the script only needs /var/lib and /tmp
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full

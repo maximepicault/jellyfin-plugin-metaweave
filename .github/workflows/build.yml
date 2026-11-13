@@ -1,0 +1,74 @@
+name: Build
+
+# Builds the plugin on every push and every pull request. On a "v1.2.3" tag, publishes a GitHub release with the DLL
+# and its SHA-256 checksum. No connection to the server: the server comes and fetches the release (see deploy/).
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Jellyfin.Plugin.CustomMetadata.csproj | head -n1)"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version invalide : '$VERSION' (attendu : 1.2.3)"; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Compilation (Release)
+        run: dotnet build --configuration Release -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Empreinte SHA-256
+        run: |
+          cd bin/Release/net9.0
+          sha256sum Jellyfin.Plugin.CustomMetadata.dll > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Jellyfin.Plugin.CustomMetadata-${{ steps.version.outputs.version }}
+          path: |
+            bin/Release/net9.0/Jellyfin.Plugin.CustomMetadata.dll
+            bin/Release/net9.0/SHA256SUMS
+
+  release:
+    # Only on a version tag, never on a pull request
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publier la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/Jellyfin.Plugin.CustomMetadata.dll dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME (alpha)" \
+            --generate-notes

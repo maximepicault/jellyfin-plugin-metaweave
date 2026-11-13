@@ -1,0 +1,2309 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Custom Metadata Provider - Configuration</title>
+</head>
+<body>
+<div id="CustomMetadataConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
+    <!-- Styles INSIDE the page: jellyfin-web 10.11 keeps only this div, a <style> in the <head> would be ignored.
+              Everything is prefixed with the page id: this style stays in the document as long as the page is in memory. -->
+    <style>
+        #CustomMetadataConfigPage {
+            --cm-surface: rgba(255, 255, 255, 0.04);
+            --cm-surface-2: rgba(255, 255, 255, 0.07);
+            --cm-border: rgba(255, 255, 255, 0.12);
+            --cm-muted: rgba(255, 255, 255, 0.65);
+            --cm-accent: #00a4dc;
+            --cm-accent-strong: #00779f;
+            --cm-link: #33b6e6;
+            --cm-ok: #3fb27f;
+            --cm-warn: #f0a040;
+            --cm-danger: #ff8a7a;
+        }
+        #CustomMetadataConfigPage form { max-width: none; }
+        #CustomMetadataConfigPage [data-role="content"] { overflow: visible; }
+        #CustomMetadataConfigPage #listView, #CustomMetadataConfigPage #editorView { scroll-margin-top: 72px; }
+        #CustomMetadataConfigPage .cm-hidden, #CustomMetadataConfigPage [hidden] { display: none !important; }
+        #CustomMetadataConfigPage .cm-muted { color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+        #CustomMetadataConfigPage a.cm-link { color: var(--cm-link); text-decoration: none; }
+        #CustomMetadataConfigPage a.cm-link:hover { text-decoration: underline; }
+        #CustomMetadataConfigPage .cm-linkbtn { background: none; border: 0; padding: 6px 0; color: var(--cm-link); font: inherit; font-weight: 600; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-linkbtn:hover { text-decoration: underline; }
+        #CustomMetadataConfigPage .cm-linkbtn:focus-visible, #CustomMetadataConfigPage .cm-tab:focus-visible, #CustomMetadataConfigPage .cm-nav-item:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 2px; }
+
+        /* Switch: an ordinary checkbox (the existing .checked keep working) */
+        #CustomMetadataConfigPage input.cm-switch {
+            -webkit-appearance: none; appearance: none;
+            flex-shrink: 0; position: relative; margin: 0;
+            width: 48px; height: 28px; border: 0; border-radius: 14px;
+            background: #4a4a4a; cursor: pointer; transition: background .15s;
+        }
+        #CustomMetadataConfigPage input.cm-switch::before {
+            content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px;
+            border-radius: 50%; background: #fff; transition: transform .15s;
+        }
+        #CustomMetadataConfigPage input.cm-switch:checked { background: var(--cm-accent-strong); }
+        #CustomMetadataConfigPage input.cm-switch:checked::before { transform: translateX(20px); }
+        #CustomMetadataConfigPage input.cm-switch:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 2px; }
+        #CustomMetadataConfigPage input.cm-switch:disabled { opacity: .5; cursor: default; }
+
+        /* "Setting" row: text + switch, the whole row is clickable */
+        #CustomMetadataConfigPage .cm-rows { border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); margin-bottom: 22px; }
+        #CustomMetadataConfigPage .cm-rows > h3 { margin: 0; padding: 14px 18px; font-size: 16px; font-weight: 700; border-bottom: 1px solid var(--cm-border); }
+        #CustomMetadataConfigPage .cm-row { display: flex; align-items: center; gap: 20px; padding: 14px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); cursor: pointer; }
+        #CustomMetadataConfigPage .cm-row:last-child { border-bottom: 0; }
+        #CustomMetadataConfigPage .cm-row-static { cursor: default; }
+        #CustomMetadataConfigPage .cm-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+        #CustomMetadataConfigPage .cm-row-title { font-weight: 600; }
+        #CustomMetadataConfigPage .cm-row-hint { font-size: 13px; line-height: 1.45; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-row .inputContainer { margin: 0; width: 220px; flex-shrink: 0; }
+
+        /* Page header */
+        #CustomMetadataConfigPage .cm-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+        #CustomMetadataConfigPage .cm-head .sectionTitle { margin: 0; }
+        #CustomMetadataConfigPage .cm-head-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 10px; }
+        #CustomMetadataConfigPage .cm-head-actions .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-lead { margin: 8px 0 0; max-width: 780px; color: var(--cm-muted); line-height: 1.5; }
+        #CustomMetadataConfigPage .cm-lead code, #CustomMetadataConfigPage .cm-nav code, #CustomMetadataConfigPage .cm-tag { font-family: monospace; }
+
+        /* Onglets */
+        #CustomMetadataConfigPage .cm-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 20px 0 22px; border-bottom: 1px solid var(--cm-border); }
+        #CustomMetadataConfigPage .cm-tab-short { display: none; }
+        #CustomMetadataConfigPage .cm-tab {
+            height: 44px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px;
+            background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px;
+            color: var(--cm-muted); font: inherit; font-weight: 600; cursor: pointer;
+        }
+        #CustomMetadataConfigPage .cm-tab[aria-selected="true"] { color: #fff; border-bottom-color: var(--cm-accent); }
+        #CustomMetadataConfigPage .cm-badge { min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
+
+        /* Sources : cartes */
+        #CustomMetadataConfigPage .cm-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-bottom: 18px; }
+        #CustomMetadataConfigPage .cm-toolbar p { margin: 0; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-toolbar .emby-button { margin: 0 0 0 auto; }
+        #CustomMetadataConfigPage .cm-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 20px; }
+        #CustomMetadataConfigPage .cm-card { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); }
+        #CustomMetadataConfigPage .cm-card-head { display: flex; align-items: flex-start; gap: 12px; }
+        #CustomMetadataConfigPage .cm-card-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+        #CustomMetadataConfigPage .cm-card h3 { margin: 0; font-size: 18px; font-weight: 700; }
+        #CustomMetadataConfigPage .cm-url { font-family: monospace; font-size: 13px; color: var(--cm-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #CustomMetadataConfigPage .cm-tag { flex-shrink: 0; padding: 3px 10px; border-radius: 6px; background: var(--cm-surface-2); border: 1px solid var(--cm-border); font-size: 13px; }
+        #CustomMetadataConfigPage .cm-dots { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: rgba(255, 255, 255, 0.82); }
+        #CustomMetadataConfigPage .cm-dots span { display: inline-flex; align-items: center; gap: 6px; }
+        #CustomMetadataConfigPage .cm-dots i { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+        #CustomMetadataConfigPage .cm-dots i.on { background: var(--cm-ok); }
+        #CustomMetadataConfigPage .cm-card.cm-off .cm-dots i.on { background: #6f8f80; }
+        #CustomMetadataConfigPage .cm-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding-top: 14px; border-top: 1px solid var(--cm-border); }
+        #CustomMetadataConfigPage .cm-card-foot .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-inline-switch { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-card.cm-off .cm-inline-switch { color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-add { min-height: 190px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 2px dashed rgba(255, 255, 255, 0.2); border-radius: 10px; background: none; color: var(--cm-muted); font: inherit; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-add:hover, #CustomMetadataConfigPage .cm-add:focus-visible { border-color: var(--cm-accent); color: #fff; outline: none; }
+        #CustomMetadataConfigPage .cm-add strong { font-size: 16px; color: inherit; }
+        #CustomMetadataConfigPage .cm-empty { padding: 22px; border: 1px dashed rgba(255, 255, 255, 0.2); border-radius: 10px; line-height: 1.5; color: var(--cm-muted); }
+
+        /* Warning (legacy configuration) */
+        #CustomMetadataConfigPage .cm-callout { display: flex; gap: 12px; padding: 14px 16px; margin-bottom: 20px; border-radius: 8px; background: rgba(240, 160, 64, 0.1); border: 1px solid rgba(240, 160, 64, 0.4); color: #f3c88a; line-height: 1.5; }
+        #CustomMetadataConfigPage .cm-pane-narrow { max-width: 820px; }
+        #CustomMetadataConfigPage .cm-pane-narrow > .emby-button { margin: 0; }
+
+        /* Source editor */
+        #CustomMetadataConfigPage .cm-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 15px; margin-bottom: 6px; }
+        #CustomMetadataConfigPage .cm-crumbs .cm-sep { color: rgba(255, 255, 255, 0.4); }
+        #CustomMetadataConfigPage .cm-editor-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 20px; }
+        #CustomMetadataConfigPage .cm-editor-head h2 { margin: 0; font-size: 26px; font-weight: 400; }
+        #CustomMetadataConfigPage .cm-editor-head .cm-inline-switch { margin-left: auto; }
+        /* The layout follows the width REALLY available (Jellyfin's side menu open or not), not the window width */
+        #CustomMetadataConfigPage .cm-layout-wrap { container-type: inline-size; }
+        #CustomMetadataConfigPage .cm-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
+        #CustomMetadataConfigPage .cm-layout .cm-nav { grid-row: 1 / span 2; }
+        #CustomMetadataConfigPage .cm-layout .cm-test { grid-column: 2; }
+        @container (min-width: 1020px) {
+            #CustomMetadataConfigPage .cm-layout { grid-template-columns: 220px minmax(0, 1fr) 340px; }
+            #CustomMetadataConfigPage .cm-layout .cm-nav { grid-row: auto; }
+            #CustomMetadataConfigPage .cm-layout .cm-test { grid-column: 3; position: sticky; top: 72px; }
+        }
+        @container (max-width: 760px) {
+            #CustomMetadataConfigPage .cm-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+            #CustomMetadataConfigPage .cm-layout .cm-nav { grid-row: auto; position: static; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: 6px; padding-bottom: 6px; }
+            #CustomMetadataConfigPage .cm-layout .cm-nav-group { display: none; }
+            #CustomMetadataConfigPage .cm-layout .cm-nav-item { width: auto; flex-shrink: 0; min-height: 44px; border: 1px solid var(--cm-border); border-radius: 22px; padding: 0 16px; }
+            #CustomMetadataConfigPage .cm-layout .cm-nav-item[aria-current="page"] { border-color: var(--cm-accent); }
+            #CustomMetadataConfigPage .cm-layout .cm-test { grid-column: 1; }
+        }
+        #CustomMetadataConfigPage .cm-nav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 72px; }
+        #CustomMetadataConfigPage .cm-nav-group { padding: 16px 12px 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+        #CustomMetadataConfigPage .cm-nav-group:first-child { padding-top: 0; }
+        #CustomMetadataConfigPage .cm-nav-item {
+            width: 100%; min-height: 40px; padding: 0 12px; display: flex; align-items: center; gap: 8px; text-align: left;
+            border: 0; border-left: 3px solid transparent; border-radius: 0 6px 6px 0; background: transparent;
+            color: rgba(255, 255, 255, 0.82); font: inherit; cursor: pointer;
+        }
+        #CustomMetadataConfigPage .cm-nav-item:hover { background: rgba(255, 255, 255, 0.06); }
+        #CustomMetadataConfigPage .cm-nav-item > span:first-child { flex: 1; }
+        #CustomMetadataConfigPage .cm-nav-item[aria-current="page"] { border-left-color: var(--cm-accent); background: rgba(0, 164, 220, 0.14); color: #fff; font-weight: 700; }
+        #CustomMetadataConfigPage .cm-count { font-size: 12px; color: var(--cm-muted); white-space: nowrap; }
+        #CustomMetadataConfigPage .cm-count.cm-full { color: var(--cm-ok); }
+        #CustomMetadataConfigPage .cm-pane { display: flex; flex-direction: column; gap: 18px; padding: 22px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); min-width: 0; }
+        #CustomMetadataConfigPage .cm-pane-title { margin: 0; font-size: 20px; font-weight: 600; }
+        #CustomMetadataConfigPage .cm-pane-intro { margin: 4px 0 0; color: var(--cm-muted); line-height: 1.5; }
+        #CustomMetadataConfigPage .cm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px 20px; }
+        #CustomMetadataConfigPage .cm-grid .inputContainer, #CustomMetadataConfigPage .cm-grid .selectContainer, #CustomMetadataConfigPage .cm-grid .cm-selectfield { margin: 0; }
+        #CustomMetadataConfigPage .cm-selectfield .selectContainer { margin: 0; }
+        #CustomMetadataConfigPage .cm-grid .cm-span { grid-column: 1 / -1; }
+        #CustomMetadataConfigPage .cm-grid h4 { grid-column: 1 / -1; margin: 8px 0 -4px; padding-bottom: 8px; border-bottom: 1px solid var(--cm-border); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-grid h4:first-child { margin-top: 0; }
+        #CustomMetadataConfigPage .cm-mono input { font-family: monospace; }
+        #CustomMetadataConfigPage .cm-hint { margin-top: 6px; font-size: 13px; line-height: 1.45; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-header-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        #CustomMetadataConfigPage .cm-header-row .emby-input { flex: 1; min-width: 0; }
+        #CustomMetadataConfigPage .cm-danger { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; margin-top: 8px; padding: 16px; border: 1px solid rgba(255, 107, 91, 0.45); border-radius: 8px; background: rgba(255, 107, 91, 0.06); }
+        #CustomMetadataConfigPage .cm-danger > div { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 3px; }
+        #CustomMetadataConfigPage .cm-danger strong { color: #ff9a8c; }
+        #CustomMetadataConfigPage .cm-danger span { font-size: 13px; line-height: 1.45; color: rgba(255, 255, 255, 0.8); }
+        #CustomMetadataConfigPage .cm-danger .emby-button { margin: 0; background: transparent; border: 1px solid #c0392b; color: #ff9a8c; }
+        #CustomMetadataConfigPage .cm-danger .emby-button:hover { background: rgba(192, 57, 43, 0.25); }
+        #CustomMetadataConfigPage .cm-url-line { font-family: monospace; font-size: 12px; margin-top: 4px; }
+
+        /* Panneau de test */
+        #CustomMetadataConfigPage .cm-test { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); min-width: 0; }
+        #CustomMetadataConfigPage .cm-test h3 { margin: 0; font-size: 16px; font-weight: 700; }
+        #CustomMetadataConfigPage .cm-test p { margin: 3px 0 0; font-size: 13px; line-height: 1.45; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-test .inputContainer, #CustomMetadataConfigPage .cm-test .selectContainer { margin: 0; }
+        #CustomMetadataConfigPage .cm-test .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-test-idle { margin: 0; padding: 14px; border: 1px dashed rgba(255, 255, 255, 0.2); border-radius: 8px; }
+        #CustomMetadataConfigPage .cm-test-status { padding: 10px 12px; border-radius: 6px; line-height: 1.5; overflow-wrap: anywhere; }
+        #CustomMetadataConfigPage .cm-test-status.ok { background: rgba(63, 178, 127, 0.15); }
+        #CustomMetadataConfigPage .cm-test-status.ko { background: rgba(244, 67, 54, 0.15); }
+        #CustomMetadataConfigPage #testResult h4 { margin: 14px 0 6px; font-size: 13px; }
+        #CustomMetadataConfigPage #testResult pre { margin: 0; padding: 10px; border-radius: 6px; background: rgba(0, 0, 0, 0.35); font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow: auto; }
+        #CustomMetadataConfigPage #testResult details { margin-top: 10px; }
+        #CustomMetadataConfigPage #testResult summary { cursor: pointer; color: var(--cm-link); }
+
+        /* Save bar (stays visible while scrolling) */
+        #CustomMetadataConfigPage .cm-savebar {
+            position: sticky; bottom: 0; z-index: 5; margin: 28px -16px 0; padding: 12px 16px;
+            display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px;
+            border-top: 1px solid var(--cm-border); background: #181818;
+        }
+        #CustomMetadataConfigPage .cm-savebar .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-dirty { color: var(--cm-muted); display: inline-flex; align-items: center; gap: 8px; }
+        #CustomMetadataConfigPage .cm-dirty.on { color: #f0c080; }
+        #CustomMetadataConfigPage .cm-dirty.on::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--cm-warn); }
+        #CustomMetadataConfigPage .cm-savebar-actions { margin-left: auto; display: flex; gap: 10px; }
+
+        @media (max-width: 900px) {
+            #CustomMetadataConfigPage .cm-pane { padding: 16px; }
+            #CustomMetadataConfigPage .cm-head-actions { margin-left: 0; }
+            #CustomMetadataConfigPage .cm-tabs { flex-wrap: nowrap; overflow-x: auto; }
+            #CustomMetadataConfigPage .cm-tab { flex-shrink: 0; padding: 0 12px; }
+            #CustomMetadataConfigPage .cm-tab-long { display: none; }
+            #CustomMetadataConfigPage .cm-tab-short { display: inline; }
+            #CustomMetadataConfigPage .cm-row { gap: 14px; padding: 14px; }
+            #CustomMetadataConfigPage .cm-row .inputContainer { width: 140px; }
+            #CustomMetadataConfigPage .cm-card-foot .emby-button { min-height: 44px; }
+            #CustomMetadataConfigPage .cm-savebar-actions { width: 100%; }
+            #CustomMetadataConfigPage .cm-savebar-actions .emby-button { flex: 1 1 0; min-height: 44px; }
+            #CustomMetadataConfigPage .cm-savebar-actions .emby-button { justify-content: center; }
+        }
+        /* Source type (creation) and banner after saving */
+        #CustomMetadataConfigPage .cm-chooser { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; margin: 0 0 22px; }
+        #CustomMetadataConfigPage .cm-choice { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left; padding: 18px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); color: inherit; font: inherit; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-choice:hover, #CustomMetadataConfigPage .cm-choice:focus-visible { border-color: var(--cm-accent); outline: none; }
+        #CustomMetadataConfigPage .cm-choice strong { font-size: 17px; }
+        #CustomMetadataConfigPage .cm-choice span { color: var(--cm-muted); line-height: 1.45; font-size: 14px; }
+        #CustomMetadataConfigPage .cm-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(63, 178, 127, 0.5); border-radius: 8px; background: rgba(63, 178, 127, 0.1); line-height: 1.5; }
+        #CustomMetadataConfigPage .cm-notice span { flex: 1 1 320px; }
+        #CustomMetadataConfigPage .cm-kind { flex-shrink: 0; padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(0, 164, 220, 0.6); color: #7fd3f2; font-size: 12px; font-weight: 700; }
+        #CustomMetadataConfigPage .cm-warnline { color: #f3c88a; padding: 8px 10px; border: 1px solid rgba(240, 160, 64, 0.45); border-radius: 6px; background: rgba(240, 160, 64, 0.08); }
+        #CustomMetadataConfigPage .cm-callout-info { background: rgba(0, 164, 220, 0.08); border-color: rgba(0, 164, 220, 0.4); color: rgba(255, 255, 255, 0.9); }
+
+        /* Local source: only the useful sections are shown */
+        #CustomMetadataConfigPage #editorView[data-source-type="api"] [data-types]:not([data-types~="api"]),
+        #CustomMetadataConfigPage #editorView[data-source-type="local"] [data-types]:not([data-types~="local"]),
+        #CustomMetadataConfigPage #editorView[data-source-type="people"] [data-types]:not([data-types~="people"]) { display: none !important; }
+        @container (min-width: 1020px) {
+            #CustomMetadataConfigPage #editorView[data-source-type="local"] .cm-layout { grid-template-columns: 220px minmax(0, 1fr); }
+        }
+
+        /* Source locale : arbre + fiche */
+        #CustomMetadataConfigPage .cm-local { display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); gap: 20px; align-items: start; }
+        @container (max-width: 900px) { #CustomMetadataConfigPage .cm-local { grid-template-columns: minmax(0, 1fr); } }
+        /* The tree stays visible while a long form is scrolled (only when it sits next to it) */
+        @container (min-width: 901px) { #CustomMetadataConfigPage .cm-tree { position: sticky; top: 72px; } }
+        #CustomMetadataConfigPage .cm-tree { padding: 8px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface-2); max-height: 72vh; overflow: auto; }
+        #CustomMetadataConfigPage .cm-tree ul { list-style: none; margin: 0; padding: 0; }
+        #CustomMetadataConfigPage .cm-tree ul ul { margin-left: 16px; padding-left: 4px; border-left: 1px solid var(--cm-border); }
+        #CustomMetadataConfigPage .cm-t-row { display: flex; align-items: center; }
+        #CustomMetadataConfigPage .cm-t-chev { flex-shrink: 0; width: 30px; min-height: 44px; background: none; border: 0; color: var(--cm-muted); font: inherit; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-t-item { flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 0; border-left: 3px solid transparent; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-t-item:hover { background: rgba(255, 255, 255, 0.06); }
+        #CustomMetadataConfigPage .cm-t-item[aria-current="true"] { background: rgba(0, 164, 220, 0.16); border-left-color: var(--cm-accent); font-weight: 700; }
+        #CustomMetadataConfigPage .cm-t-item .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #CustomMetadataConfigPage .cm-t-item .n { flex-shrink: 0; font-size: 12px; color: var(--cm-muted); font-weight: 400; }
+        #CustomMetadataConfigPage .cm-t-item .n.num { min-width: 22px; text-align: right; }
+        #CustomMetadataConfigPage .cm-t-item .t.untitled { font-style: italic; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-t-add { width: 100%; min-height: 40px; margin: 2px 0 6px; padding: 0 12px; text-align: left; background: none; border: 1px dashed rgba(255, 255, 255, 0.2); border-radius: 6px; color: var(--cm-muted); font: inherit; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-t-add:hover, #CustomMetadataConfigPage .cm-t-add:focus-visible { border-color: var(--cm-accent); color: #fff; outline: none; }
+        #CustomMetadataConfigPage .cm-detail { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding: 20px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); }
+        #CustomMetadataConfigPage .cm-detail h4 { margin: 0; font-size: 18px; font-weight: 600; }
+        #CustomMetadataConfigPage .cm-detail .cm-kicker { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-detail .inputContainer { margin: 0; }
+        #CustomMetadataConfigPage .cm-detail textarea, #CustomMetadataConfigPage .cm-bulk textarea {
+            display: block; width: 100%; box-sizing: border-box; min-height: 96px; padding: 10px 12px; resize: vertical;
+            background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; line-height: 1.45; border: 1px solid transparent; border-radius: 4px;
+        }
+        #CustomMetadataConfigPage .cm-detail textarea:focus, #CustomMetadataConfigPage .cm-bulk textarea:focus { outline: none; border-color: var(--cm-accent); }
+        #CustomMetadataConfigPage .cm-detail .inputLabel { display: block; margin-bottom: 6px; }
+        #CustomMetadataConfigPage .cm-tagbox { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border: 1px solid var(--cm-border); border-radius: 8px; background: var(--cm-surface-2); }
+        #CustomMetadataConfigPage .cm-tagbox > div { flex: 1 1 100%; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+        #CustomMetadataConfigPage .cm-tagbox code { overflow-wrap: anywhere; font-size: 15px; }
+        #CustomMetadataConfigPage .cm-tagbox .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-bulk { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px dashed rgba(255, 255, 255, 0.2); border-radius: 8px; }
+        #CustomMetadataConfigPage .cm-bulk .emby-button { margin: 0; align-self: flex-start; }
+        #CustomMetadataConfigPage .cm-bulk textarea { min-height: 110px; }
+        #CustomMetadataConfigPage .cm-tagbox .emby-button { background: rgba(255, 255, 255, 0.12); }
+        #CustomMetadataConfigPage .cm-detail-empty { padding: 26px; text-align: center; color: var(--cm-muted); line-height: 1.6; }
+        #CustomMetadataConfigPage .cm-detail-empty .emby-button { margin: 14px 0 0; }
+        #CustomMetadataConfigPage .cm-stats { color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-cast { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--cm-border); border-radius: 8px; background: var(--cm-surface-2); }
+        #CustomMetadataConfigPage .cm-cast-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+        #CustomMetadataConfigPage .cm-cast-head h4 { margin: 0; }
+        #CustomMetadataConfigPage .cm-cast-row { display: grid; grid-template-columns: 40px minmax(0, 1.1fr) minmax(0, 1fr) 128px auto; gap: 8px; align-items: center; }
+        #CustomMetadataConfigPage .cm-cast-row .cm-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--cm-surface); object-fit: cover; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--cm-muted); overflow: hidden; }
+        #CustomMetadataConfigPage .cm-cast-row .cm-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        #CustomMetadataConfigPage .cm-cast-row input, #CustomMetadataConfigPage .cm-cast-row select, #CustomMetadataConfigPage .cm-cast-add input { min-height: 40px; box-sizing: border-box; width: 100%; padding: 0 10px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; border: 1px solid transparent; border-radius: 4px; }
+        #CustomMetadataConfigPage .cm-cast-row select option { color: #000; }
+        #CustomMetadataConfigPage .cm-cast-row .cm-cast-name { overflow-wrap: anywhere; font-weight: 600; }
+        #CustomMetadataConfigPage .cm-cast-row .cm-linkbtn { min-height: 40px; white-space: nowrap; }
+        #CustomMetadataConfigPage .cm-cast-add { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+        #CustomMetadataConfigPage .cm-cast-add input { flex: 1 1 240px; }
+        #CustomMetadataConfigPage .cm-cast-add .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-cast-msg { font-size: 13px; color: #f0c080; }
+        @container (max-width: 700px) { #CustomMetadataConfigPage .cm-cast-row { grid-template-columns: 40px minmax(0, 1fr) auto; } #CustomMetadataConfigPage .cm-cast-row .cm-cast-role, #CustomMetadataConfigPage .cm-cast-row .cm-cast-type { grid-column: 2 / -1; } }
+        #CustomMetadataConfigPage .cm-imgrow { display: flex; gap: 16px; align-items: flex-start; }
+        #CustomMetadataConfigPage .cm-imgprev { flex: 0 0 160px; height: 96px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--cm-border); border-radius: 6px; background: var(--cm-surface-2); color: var(--cm-muted); font-size: 12px; text-align: center; }
+        #CustomMetadataConfigPage .cm-imgprev img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        #CustomMetadataConfigPage .cm-imgctl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+        #CustomMetadataConfigPage .cm-imgctl .inputContainer { margin: 0; }
+        #CustomMetadataConfigPage .cm-imgbtns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+        #CustomMetadataConfigPage .cm-imgbtns .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-imgctl .cm-hint { margin: 0; }
+        @container (max-width: 560px) { #CustomMetadataConfigPage .cm-imgrow { flex-direction: column; } #CustomMetadataConfigPage .cm-imgprev { width: 100%; flex-basis: auto; height: 120px; } }
+    </style>
+
+    <div data-role="content">
+        <div class="content-primary">
+
+            <!-- ================= VIEW 1: list of sources and settings ================= -->
+            <div id="listView">
+                <form id="CustomMetadataConfigForm">
+                    <div class="cm-head">
+                        <h2 class="sectionTitle">Custom Metadata Provider</h2>
+                        <div class="cm-head-actions">
+                            <a is="emby-linkbutton" class="raised button-alt" href="#/configurationpage?name=CustomMetadataPeople"><span>Personnes</span></a>
+                            <a is="emby-linkbutton" class="raised button-alt" href="#/configurationpage?name=CustomMetadataMissingEpisodes"><span>Épisodes manquants</span></a>
+                        </div>
+                    </div>
+                    <p class="cm-lead">Complète vos médias avec vos propres API. Un fichier ou un dossier qui porte un tag <code>{préfixe-ID}</code> est envoyé à la source qui a ce préfixe.</p>
+
+                    <div class="cm-tabs" role="tablist" aria-label="Sections de la configuration">
+                        <button type="button" class="cm-tab" role="tab" id="tabSources" data-tab="sources" aria-selected="true" aria-controls="paneSources">Sources <span class="cm-badge" id="tabSourcesCount">0</span></button>
+                        <button type="button" class="cm-tab" role="tab" id="tabSettings" data-tab="settings" aria-selected="false" aria-controls="paneSettings">Réglages</button>
+                        <button type="button" class="cm-tab" role="tab" id="tabLegacy" data-tab="legacy" aria-selected="false" aria-controls="paneLegacy"><span class="cm-tab-long">Configuration héritée</span><span class="cm-tab-short">Héritage</span></button>
+                    </div>
+
+                    <!-- Sources -->
+                    <div id="paneSources" role="tabpanel" aria-labelledby="tabSources" data-tabpane="sources">
+                        <div class="cm-toolbar">
+                            <p>Chaque modification d'une source est enregistrée dès que vous la validez.</p>
+                            <button is="emby-button" type="button" class="raised button-submit" onclick="openAddSourceModal()"><span>Ajouter une source</span></button>
+                        </div>
+                        <div id="postSaveNotice" class="cm-notice" role="status" hidden>
+                            <span id="postSaveText"></span>
+                            <button type="button" class="cm-linkbtn" id="btnNoticeApply">Appliquer aux épisodes</button>
+                            <button type="button" class="cm-linkbtn" id="btnNoticeAnalyze">Analyser maintenant</button>
+                            <button type="button" class="cm-linkbtn" id="btnNoticeClose">Fermer</button>
+                        </div>
+                        <div id="typeChooserWrap" hidden>
+                        <div class="cm-toolbar" style="margin-bottom: 12px;"><strong id="typeChooserTitle">Quel type de source ?</strong><button type="button" class="cm-linkbtn" id="btnCancelChooser" style="margin-left: auto;">Annuler</button></div>
+                        <div id="typeChooser" class="cm-chooser" role="group" aria-labelledby="typeChooserTitle">
+                            <button type="button" class="cm-choice" data-new-type="api"><strong>Source API</strong><span>Les métadonnées viennent d'une API REST : vous indiquez son URL et comment lire ses réponses.</span></button>
+                            <button type="button" class="cm-choice" data-new-type="local"><strong>Source locale</strong><span>Vous saisissez vous-même les séries, saisons et épisodes, y compris ceux que vous n'avez pas encore. Rien n'est perdu quand Jellyfin rafraîchit les métadonnées.</span></button>
+                            <button type="button" class="cm-choice" data-new-type="people"><strong>Source de personnes</strong><span>Une API qui décrit des personnes (nom, photo, bio) : alimente l'annuaire du casting, dans l'écran Personnes.</span></button>
+                        </div>
+                        </div>
+                        <div id="sourcesList" class="cm-cards"></div>
+                    </div>
+
+                    <!-- Settings -->
+                    <div id="paneSettings" role="tabpanel" aria-labelledby="tabSettings" data-tabpane="settings" class="cm-pane-narrow" hidden>
+                        <div class="cm-rows">
+                            <h3>Fonctionnalités</h3>
+                            <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Récupérer les métadonnées</span><span class="cm-row-hint">Titre, synopsis, date, note, tags et genres depuis l'API.</span></span><input type="checkbox" class="cm-switch" id="chkEnableMetadata" /></label>
+                            <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Récupérer les images</span><span class="cm-row-hint">Affiches, fonds, miniatures, logos et bannières.</span></span><input type="checkbox" class="cm-switch" id="chkEnableImages" /></label>
+                            <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Importer le casting</span><span class="cm-row-hint">Acteurs, réalisateurs, scénaristes… (champ « Cast » des mappings).</span></span><input type="checkbox" class="cm-switch" id="chkEnableCasting" /></label>
+                            <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Ajouter les épisodes manquants à la médiathèque</span><span class="cm-row-hint">Crée des épisodes virtuels (grisés) pour ceux que l'API liste mais qui n'ont pas de fichier. Visibles avec le réglage utilisateur « Afficher les épisodes manquants dans les saisons ». Analyse : tâche planifiée « Détecter les épisodes manquants » ou <a class="cm-link" href="#/configurationpage?name=CustomMetadataMissingEpisodes">écran Épisodes manquants</a>.</span></span><input type="checkbox" class="cm-switch" id="chkCreateVirtualEpisodes" /></label>
+                            <div class="cm-row cm-row-static"><label class="cm-row-text" for="txtDefaultSourceName"><span class="cm-row-title">Nom de source par défaut</span><span class="cm-row-hint">Utilisé quand l'API ne renvoie pas de titre et que le dossier ne contient que le tag {PRÉFIXE-ID}.</span></label><div class="inputContainer"><input is="emby-input" type="text" id="txtDefaultSourceName" name="txtDefaultSourceName" aria-label="Nom de source par défaut" /></div></div>
+                        </div>
+                        <div class="cm-rows">
+                            <h3>Cache</h3>
+                            <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Activer le cache</span><span class="cm-row-hint">Évite de surcharger vos API. Recommandé.</span></span><input type="checkbox" class="cm-switch" id="chkEnableCache" /></label>
+                            <div class="cm-row cm-row-static"><label class="cm-row-text" for="txtCacheTTL"><span class="cm-row-title">Durée de conservation (heures)</span><span class="cm-row-hint">Durée pendant laquelle les données sont gardées. 24 h est un bon réglage.</span></label><div class="inputContainer"><input is="emby-input" type="number" id="txtCacheTTL" name="txtCacheTTL" min="1" max="720" aria-label="Durée de conservation en heures" /></div></div>
+                        </div>
+                        <button is="emby-button" type="submit" class="raised button-submit"><span>Enregistrer les réglages</span></button>
+                    </div>
+
+                    <!-- Legacy configuration -->
+                    <div id="paneLegacy" role="tabpanel" aria-labelledby="tabLegacy" data-tabpane="legacy" class="cm-pane-narrow" hidden>
+                        <div class="cm-callout">
+                            <span aria-hidden="true">⚠</span>
+                            <span>Ancienne configuration à une seule source. Elle n'est utilisée que si <strong>aucune source</strong> n'est définie dans l'onglet Sources. Les films (provider Movie) l'utilisent encore.</span>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="txtPatternPrefix">Préfixe</label>
+                            <input is="emby-input" type="text" id="txtPatternPrefix" name="txtPatternPrefix" />
+                            <div class="cm-hint">Par exemple « custom » pour {custom-123}.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="txtApiBaseUrl">URL de l'API</label>
+                            <input is="emby-input" type="text" id="txtApiBaseUrl" name="txtApiBaseUrl" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="txtApiKey">Clé API</label>
+                            <input is="emby-input" type="text" id="txtApiKey" name="txtApiKey" />
+                        </div>
+                        <button is="emby-button" type="submit" class="raised button-submit"><span>Enregistrer les réglages</span></button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ================= VIEW 2: editing a source ================= -->
+            <div id="editorView" hidden>
+                <form id="sourceForm">
+                    <input type="hidden" id="editIndex" value="-1" />
+                    <input type="hidden" id="editType" value="Api" />
+
+                    <nav class="cm-crumbs" aria-label="Fil d'Ariane">
+                        <button type="button" class="cm-linkbtn" id="btnBackToList">← Configuration</button>
+                        <span class="cm-sep" aria-hidden="true">›</span>
+                        <button type="button" class="cm-linkbtn" id="btnBackToSources">Sources</button>
+                        <span class="cm-sep" aria-hidden="true">›</span>
+                        <span aria-current="page" style="font-weight: 700;" id="editorCrumbName">Nouvelle source</span>
+                    </nav>
+                    <div class="cm-editor-head">
+                        <h2 id="modalTitle">Nouvelle source</h2>
+                        <span class="cm-tag" id="editorPrefix">{préfixe-…}</span>
+                        <label class="cm-inline-switch"><span id="lblEnabled">Activée</span><input type="checkbox" class="cm-switch" id="srcEnabled" checked /></label>
+                    </div>
+
+                    <div class="cm-layout-wrap"><div class="cm-layout">
+                        <nav class="cm-nav" aria-label="Sections de la source">
+                    <span class="cm-nav-group">Source</span>
+                    <button type="button" class="cm-nav-item" data-go="general" aria-current="page"><span>Général</span><span class="cm-count" data-count-for="general"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="content" data-types="local"><span>Contenu</span><span class="cm-count" data-count-for="content"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="person" data-types="people"><span>Personne</span><span class="cm-count" data-count-for="person"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="endpoints" data-types="api"><span>Endpoints</span><span class="cm-count" data-count-for="endpoints"></span></button>
+                    <span class="cm-nav-group" data-types="api">Mappings JSON</span>
+                    <button type="button" class="cm-nav-item" data-go="video" data-types="api"><span>Vidéo / épisode</span><span class="cm-count" data-count-for="video"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="season" data-types="api"><span>Source / saison</span><span class="cm-count" data-count-for="season"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="series" data-types="api"><span>Série</span><span class="cm-count" data-count-for="series"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="episodes" data-types="api"><span>Liste des épisodes</span><span class="cm-count" data-count-for="episodes"></span></button>
+                    <span class="cm-nav-group">Avancé</span>
+                    <button type="button" class="cm-nav-item" data-go="network" data-types="api people"><span>Réseau</span><span class="cm-count" data-count-for="network"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="thumbs"><span>Miniatures</span><span class="cm-count" data-count-for="thumbs"></span></button>
+                        </nav>
+                        <div style="min-width: 0;">
+                    <section class="cm-pane" data-section="general" aria-labelledby="paneTitle-general">
+                        <div><h3 class="cm-pane-title" id="paneTitle-general">Général</h3><p class="cm-pane-intro">Identité de la source et clé d&#x27;accès. Le préfixe relie vos fichiers à cette source.</p></div>
+                        <div class="cm-grid">
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcName">Nom de la source *</label>
+                            <input is="emby-input" type="text" id="srcName" required data-count="1" />
+                            <div class="cm-hint">Par exemple « YouTube API » ou « Twitch ».</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPrefix">Préfixe *</label>
+                            <input is="emby-input" type="text" id="srcPrefix" required pattern="[a-zA-Z0-9\-]+" data-count="1" />
+                            <div class="cm-hint">Sans tiret. Il s&#x27;écrit {préfixe-123} dans les noms de vos fichiers et dossiers.</div>
+                            <div class="cm-hint cm-warnline" id="prefixWarn" role="alert" hidden></div>
+                        </div>
+                        <div class="inputContainer cm-span" data-types="api people">
+                            <label class="inputLabel" for="srcBaseUrl">URL de base *</label>
+                            <input is="emby-input" type="url" id="srcBaseUrl" required data-count="1" />
+                            <div class="cm-hint">Par exemple https://api.example.com</div>
+                        </div>
+                        <div class="inputContainer cm-span" data-types="api people">
+                            <label class="inputLabel" for="srcApiKey">Clé API</label>
+                            <input is="emby-input" type="text" id="srcApiKey" />
+                            <div class="cm-hint">Facultative. Envoyée dans l&#x27;en-tête X-API-Key.</div>
+                        </div>
+                        </div>
+                        <div class="cm-callout cm-callout-info" data-types="local">
+                            <span aria-hidden="true">ⓘ</span>
+                            <span><strong>Source locale.</strong> Aucune API : les séries, saisons et épisodes se saisissent dans la section « Contenu » et sont enregistrés par le plugin, pas par Jellyfin. Un rafraîchissement forcé des métadonnées ne les efface donc pas.</span>
+                        </div>
+                        <div class="cm-danger" id="dangerZone">
+                            <div><strong>Supprimer cette source</strong><span id="dangerText">Les médias qui portent son tag ne seront plus enrichis. Les métadonnées déjà enregistrées restent.</span></div>
+                            <button is="emby-button" type="button" class="raised" id="btnDeleteSource"><span>Supprimer…</span></button>
+                        </div>
+                    </section>
+                    <section class="cm-pane cm-mono" data-section="endpoints" aria-labelledby="paneTitle-endpoints" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-endpoints">Endpoints</h3><p class="cm-pane-intro">Chemins appelés sur l&#x27;API. Utilisez {id} à l&#x27;endroit où l&#x27;identifiant doit être inséré.</p></div>
+                        <div class="cm-grid">
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcVideoEndpoint">Vidéos / épisodes</label>
+                            <input is="emby-input" type="text" id="srcVideoEndpoint" placeholder="/videos/{id}" data-count="1" />
+                        </div>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcSourceEndpoint">Sources / saisons</label>
+                            <input is="emby-input" type="text" id="srcSourceEndpoint" placeholder="/sources/{id}" data-count="1" />
+                        </div>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcSeriesEndpoint">Séries</label>
+                            <input is="emby-input" type="text" id="srcSeriesEndpoint" placeholder="/series/{id}" data-count="1" />
+                        </div>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcEpisodeListEndpoint">Liste des épisodes (par source ou saison)</label>
+                            <input is="emby-input" type="text" id="srcEpisodeListEndpoint" placeholder="/sources/{id}/videos" />
+                            <div class="cm-hint">Liste complète des épisodes d&#x27;une source ; {id} = ID du dossier saison. Vide = pas de détection des épisodes manquants.</div>
+                        </div>
+                        </div>
+                    </section>
+                    <section class="cm-pane cm-mono" data-section="video" aria-labelledby="paneTitle-video" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-video">Mappings · Vidéo / épisode</h3><p class="cm-pane-intro">Où trouver chaque information dans la réponse JSON (notation pointée, par exemple data.title). Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée.</p></div>
+                        <div class="cm-grid">
+                        <h4>Texte</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoTitle">Titre</label>
+                            <input is="emby-input" type="text" id="srcVideoTitle" placeholder="title" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoOverview">Synopsis</label>
+                            <input is="emby-input" type="text" id="srcVideoOverview" placeholder="overview" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoDate">Date de sortie</label>
+                            <input is="emby-input" type="text" id="srcVideoDate" placeholder="premiereDate" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoRating">Note</label>
+                            <input is="emby-input" type="text" id="srcVideoRating" placeholder="communityRating" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoSeriesName">Nom de la série</label>
+                            <input is="emby-input" type="text" id="srcVideoSeriesName" placeholder="seriesName" data-count="1" />
+                            <div class="cm-hint">Ajouté comme tag par défaut sur les épisodes.</div>
+                        </div>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcVideoIndex">Numéro d&#x27;épisode</label>
+                            <input is="emby-input" type="text" id="srcVideoIndex" placeholder="indexNumber" data-count="1" />
+                            <div class="cm-hint">Vide = numéro du nom de fichier. Un numéro déjà connu n&#x27;est remplacé qu&#x27;avec « Remplacer toutes les métadonnées » ; jamais appliqué aux épisodes manquants (numérotés automatiquement).</div>
+                        </div>
+                        <div class="cm-selectfield cm-span">
+                            <div class="selectContainer">
+                                <label class="selectLabel" for="srcVideoOverviewList">Si la description est une liste de tags</label>
+                                <select is="emby-select" id="srcVideoOverviewList"><option value="">Ne rien faire</option><option value="tags">L&#x27;ajouter aux tags</option><option value="genres">L&#x27;ajouter aux genres</option></select>
+                            </div>
+                            <div class="cm-hint">Reconnaît « #voyage #montagne » ou « Action, Comédie, Drame » (éléments courts, sans phrase). La description est alors vidée et ses éléments ajoutés à la liste choisie. Une vraie description n&#x27;est pas touchée.</div>
+                        </div>
+                        <h4>Classement</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoTags">Tags (tableau)</label>
+                            <input is="emby-input" type="text" id="srcVideoTags" placeholder="tags" data-count="1" />
+                            <div class="cm-hint">Par exemple tags ou data.genres.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoTagsItemField">Champ de chaque tag</label>
+                            <input is="emby-input" type="text" id="srcVideoTagsItemField" placeholder="label" data-count="1" />
+                            <div class="cm-hint">Champ extrait de chaque élément (label, name…).</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoGenres">Genres (tableau)</label>
+                            <input is="emby-input" type="text" id="srcVideoGenres" placeholder="genres" data-count="1" />
+                            <div class="cm-hint">Par exemple genres ou data.categories.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoGenresItemField">Champ de chaque genre</label>
+                            <input is="emby-input" type="text" id="srcVideoGenresItemField" placeholder="name" data-count="1" />
+                            <div class="cm-hint">Champ extrait de chaque élément (name, label…).</div>
+                        </div>
+                        <h4>Images</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoPoster">Affiche</label>
+                            <input is="emby-input" type="text" id="srcVideoPoster" placeholder="poster" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoBackdrop">Fond</label>
+                            <input is="emby-input" type="text" id="srcVideoBackdrop" placeholder="backdrop" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoThumb">Miniature</label>
+                            <input is="emby-input" type="text" id="srcVideoThumb" placeholder="thumb" data-count="1" />
+                            <div class="cm-hint">Miniature ou vignette de la vidéo.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoLogo">Logo</label>
+                            <input is="emby-input" type="text" id="srcVideoLogo" placeholder="logo" data-count="1" />
+                            <div class="cm-hint">Logo transparent de la série ou de la vidéo.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoImagesArray">Tableau d&#x27;images</label>
+                            <input is="emby-input" type="text" id="srcVideoImagesArray" placeholder="images" data-count="1" />
+                            <div class="cm-hint">Chemin vers un tableau d&#x27;images (images, data.gallery…).</div>
+                        </div>
+                        </div>
+                    </section>
+                    <section class="cm-pane cm-mono" data-section="season" aria-labelledby="paneTitle-season" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-season">Mappings · Source / saison</h3><p class="cm-pane-intro">Où trouver chaque information pour une source ou une saison (une chaîne YouTube, par exemple). Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée.</p></div>
+                        <div class="cm-grid">
+                        <h4>Texte</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcSourceTitle">Titre</label>
+                            <input is="emby-input" type="text" id="srcSourceTitle" placeholder="title" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcSourceOverview">Synopsis</label>
+                            <input is="emby-input" type="text" id="srcSourceOverview" placeholder="overview" data-count="1" />
+                        </div>
+                        <h4>Images</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcSourcePoster">Affiche</label>
+                            <input is="emby-input" type="text" id="srcSourcePoster" placeholder="poster" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcSourceBackdrop">Fond</label>
+                            <input is="emby-input" type="text" id="srcSourceBackdrop" placeholder="backdrop" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcSourceImagesArray">Tableau d&#x27;images</label>
+                            <input is="emby-input" type="text" id="srcSourceImagesArray" placeholder="images" data-count="1" />
+                            <div class="cm-hint">Chemin vers un tableau d&#x27;images.</div>
+                        </div>
+                        </div>
+                    </section>
+                    <section class="cm-pane cm-mono" data-section="series" aria-labelledby="paneTitle-series" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-series">Mappings · Série</h3><p class="cm-pane-intro">Où trouver chaque information pour une série. Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée.</p></div>
+                        <div class="cm-grid">
+                        <h4>Texte</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcSeriesTitle">Titre</label>
+                            <input is="emby-input" type="text" id="srcSeriesTitle" placeholder="title" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcSeriesOverview">Synopsis</label>
+                            <input is="emby-input" type="text" id="srcSeriesOverview" placeholder="overview" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcSeriesStatus">Statut</label>
+                            <input is="emby-input" type="text" id="srcSeriesStatus" placeholder="status" data-count="1" />
+                        </div>
+                        <div class="cm-selectfield cm-span">
+                            <div class="selectContainer">
+                                <label class="selectLabel" for="srcSeriesOverviewList">Si la description est une liste de tags</label>
+                                <select is="emby-select" id="srcSeriesOverviewList"><option value="">Ne rien faire</option><option value="tags">L&#x27;ajouter aux tags</option><option value="genres">L&#x27;ajouter aux genres</option></select>
+                            </div>
+                            <div class="cm-hint">Reconnaît « #voyage #montagne » ou « Action, Comédie, Drame » (éléments courts, sans phrase). La description est alors vidée et ses éléments ajoutés à la liste choisie. Une vraie description n&#x27;est pas touchée.</div>
+                        </div>
+                        <h4>Images</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcSeriesPoster">Affiche</label>
+                            <input is="emby-input" type="text" id="srcSeriesPoster" placeholder="poster" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcSeriesBackdrop">Fond</label>
+                            <input is="emby-input" type="text" id="srcSeriesBackdrop" placeholder="backdrop" data-count="1" />
+                        </div>
+                        </div>
+                    </section>
+                    <section class="cm-pane cm-mono" data-section="episodes" aria-labelledby="paneTitle-episodes" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-episodes">Mappings · Liste des épisodes</h3><p class="cm-pane-intro">Réponse de l&#x27;endpoint « Liste des épisodes ». Les champs de chaque épisode sont relatifs à l&#x27;élément du tableau. Un champ vide reprend la valeur affichée en grisé, sauf le tableau et la pagination.</p></div>
+                        <div class="cm-grid">
+                        <h4>Réponse</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListItemsPath">Tableau d&#x27;épisodes</label>
+                            <input is="emby-input" type="text" id="srcListItemsPath" placeholder="(vide)" data-count="1" />
+                            <div class="cm-hint">Vide si la réponse est directement un tableau. Par exemple data ou data.videos.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListId">Identifiant de l&#x27;épisode</label>
+                            <input is="emby-input" type="text" id="srcListId" placeholder="id" data-count="1" />
+                            <div class="cm-hint">Doit correspondre à l&#x27;ID du nom de fichier : {préfixe-ID}.</div>
+                        </div>
+                        <h4>Données de chaque épisode</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListTitle">Titre</label>
+                            <input is="emby-input" type="text" id="srcListTitle" placeholder="title" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListOverview">Synopsis</label>
+                            <input is="emby-input" type="text" id="srcListOverview" placeholder="overview" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListDate">Date de sortie</label>
+                            <input is="emby-input" type="text" id="srcListDate" placeholder="premiereDate" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListIndex">Numéro d&#x27;épisode</label>
+                            <input is="emby-input" type="text" id="srcListIndex" placeholder="indexNumber" data-count="1" />
+                            <div class="cm-hint">Facultatif : sert à ordonner les épisodes manquants.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListDuration">Durée</label>
+                            <input is="emby-input" type="text" id="srcListDuration" placeholder="duration" data-count="1" />
+                            <div class="cm-hint">Formats : mm:ss (12:34), hh:mm:ss (1:02:03), nombre de secondes (754) ou ISO 8601 (PT12M34S).</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListThumb">Miniature (URL)</label>
+                            <input is="emby-input" type="text" id="srcListThumb" placeholder="thumb" data-count="1" />
+                            <div class="cm-hint">Affichée dans la liste des épisodes de la saison. URL absolue, ou relative (/img/1.jpg) à l&#x27;URL de la source.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListPreview">Aperçu (URL vidéo)</label>
+                            <input is="emby-input" type="text" id="srcListPreview" placeholder="preview.url" data-count="1" />
+                            <div class="cm-hint">Lue via le bouton « Bande-annonce » de la fiche de l&#x27;épisode manquant.</div>
+                        </div>
+                        <h4>Pagination (facultatif)</h4>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcListPageParam">Paramètre de page</label>
+                            <input is="emby-input" type="text" id="srcListPageParam" placeholder="(vide = pas de pagination)" />
+                            <div class="cm-hint">Par exemple page : l&#x27;URL devient ?page=1, ?page=2… jusqu&#x27;à une page vide ou sans nouvel épisode.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListFirstPage">Première page</label>
+                            <input is="emby-input" type="number" id="srcListFirstPage" placeholder="1" min="0" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListMaxPages">Nombre de pages maximum</label>
+                            <input is="emby-input" type="number" id="srcListMaxPages" placeholder="100" min="1" />
+                        </div>
+                        </div>
+                    </section>
+                    <section class="cm-pane" data-section="network" aria-labelledby="paneTitle-network" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-network">Réseau et en-têtes</h3><p class="cm-pane-intro">Comment le plugin se présente à l&#x27;API : délais, nouvelles tentatives, identité du navigateur et en-têtes.</p></div>
+                        <div class="cm-grid">
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcTimeout">Délai par tentative (secondes)</label>
+                            <input is="emby-input" type="number" id="srcTimeout" placeholder="30" min="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcMaxRetries">Nouvelles tentatives</label>
+                            <input is="emby-input" type="number" id="srcMaxRetries" placeholder="2" min="0" max="10" />
+                            <div class="cm-hint">Après un délai dépassé, une erreur réseau ou une réponse 408, 429 ou 5xx. Attente 1 s, 2 s, 4 s… (ou l&#x27;en-tête Retry-After). 0 = une seule tentative.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcMaxConcurrent">Requêtes simultanées maximum</label>
+                            <input is="emby-input" type="number" id="srcMaxConcurrent" placeholder="4" min="0" />
+                            <div class="cm-hint">Évite les rafales pendant un scan (bloquées par Cloudflare &amp; co). 0 = illimité.</div>
+                        </div>
+                        </div>
+                        <div class="cm-rows">
+                        <label class="cm-row">
+                            <span class="cm-row-text"><span class="cm-row-title">User-Agent de navigateur (Chrome)</span><span class="cm-row-hint">Décoché : « Jellyfin.Plugin.CustomMetadata/1.0 ». Certaines protections anti-bot bloquent un client qui se dit Chrome sans en être un.</span></span>
+                            <input type="checkbox" class="cm-switch" id="srcBrowserUserAgent" />
+                        </label>
+                        <label class="cm-row">
+                            <span class="cm-row-text"><span class="cm-row-title">Envoyer Origin et Referer</span><span class="cm-row-hint">Déduits de l&#x27;URL de base. Inutiles pour une API publique ; certains serveurs répondent 403 à un Origin qu&#x27;ils n&#x27;autorisent pas (CORS).</span></span>
+                            <input type="checkbox" class="cm-switch" id="srcOriginReferer" />
+                        </label>
+                        <label class="cm-row">
+                            <span class="cm-row-text"><span class="cm-row-title">Utiliser HTTP/2</span><span class="cm-row-hint">Envoie les pseudo-en-têtes :method, :scheme, :authority, :path comme un navigateur. HTTPS uniquement, repli automatique sur HTTP/1.1.</span></span>
+                            <input type="checkbox" class="cm-switch" id="srcUseHttp2" />
+                        </label>
+                        </div>
+                        <div class="cm-grid">
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcOriginOverride">Origin (remplace la valeur déduite)</label>
+                            <input is="emby-input" type="text" id="srcOriginOverride" />
+                            <div class="cm-hint">Schéma + hôte + port éventuel, sans chemin. Ex : https://www.mon-site.com</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcRefererOverride">Referer (remplace la valeur déduite)</label>
+                            <input is="emby-input" type="text" id="srcRefererOverride" />
+                            <div class="cm-hint">Ex : https://www.mon-site.com/videos/</div>
+                        </div>
+                            <h4>En-têtes HTTP personnalisés</h4>
+                            <div class="cm-span">
+                                <div class="cm-hint" style="margin: 0 0 10px;">Ajoutés à chaque requête de cette source (par exemple Authorization). Ils remplacent les en-têtes par défaut.</div>
+                                <div id="headersList"></div>
+                                <button is="emby-button" type="button" class="raised" onclick="addHeader()"><span>Ajouter un en-tête</span></button>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="cm-pane cm-mono" data-section="person" data-types="people" aria-labelledby="paneTitle-person" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-person">Personne</h3><p class="cm-pane-intro">Comment lire UNE personne dans l&#x27;API. Les personnes se saisissent ensuite par identifiant dans l&#x27;écran <a class="cm-link" href="#/configurationpage?name=CustomMetadataPeople">Personnes</a>. Un champ vide est ignoré.</p></div>
+                        <div class="cm-grid">
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcPersonEndpoint">Endpoint d&#x27;une personne *</label>
+                            <input is="emby-input" type="text" id="srcPersonEndpoint" data-count="1" />
+                            <div class="cm-hint">{id} est remplacé par l&#x27;identifiant de la personne dans cette API. Par exemple /people/{id}.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPersonName">Nom</label>
+                            <input is="emby-input" type="text" id="srcPersonName" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPersonPhoto">Photo (URL)</label>
+                            <input is="emby-input" type="text" id="srcPersonPhoto" data-count="1" />
+                            <div class="cm-hint">Une adresse relative est complétée avec l&#x27;URL de base.</div>
+                        </div>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcPersonBio">Biographie</label>
+                            <input is="emby-input" type="text" id="srcPersonBio" data-count="1" />
+                        </div>
+                        </div>
+                    </section>
+                    <section class="cm-pane" data-section="content" data-types="local" aria-labelledby="paneTitle-content" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-content">Contenu</h3><p class="cm-pane-intro">Séries, saisons et épisodes de cette source. Chaque élément a un tag <code>{préfixe-ID}</code> à mettre dans le nom de son dossier (série, saison) ou de son fichier (épisode). Un épisode sans fichier apparaît comme épisode manquant.</p></div>
+                        <div class="cm-local">
+                            <nav class="cm-tree" id="localTree" aria-label="Contenu de la source"></nav>
+                            <div class="cm-detail" id="localDetail"></div>
+                        </div>
+                    </section>
+                    <section class="cm-pane" data-section="thumbs" aria-labelledby="paneTitle-thumbs" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-thumbs">Miniatures d&#x27;épisodes</h3><p class="cm-pane-intro">Évite que les photos en portrait soient rognées dans les listes d&#x27;épisodes.</p></div>
+                        <div class="cm-rows" style="margin: 0;">
+                        <label class="cm-row">
+                            <span class="cm-row-text"><span class="cm-row-title">Convertir les miniatures portrait en 16:9 (fond flouté)</span><span class="cm-row-hint">Les listes d&#x27;épisodes affichent les miniatures dans un cadre paysage qui rogne les photos en hauteur. Activé : la photo entière est centrée sur un fond flouté d&#x27;elle-même, sur tous les clients. Les images paysage ne sont pas modifiées. Ensuite : « Remplacer les images existantes » sur la série (les épisodes manquants sont convertis à la prochaine analyse).</span></span>
+                            <input type="checkbox" class="cm-switch" id="srcLandscapePortraitThumbs" />
+                        </label>
+                        </div>
+                    </section>
+                        </div>
+                        <aside class="cm-test" aria-labelledby="testTitle" data-types="api people">
+                            <div>
+                                <h3 id="testTitle">Tester la source</h3>
+                                <p>Appelle l'API avec les valeurs du formulaire, même non enregistrées. Sans cache.</p>
+                            </div>
+                            <div class="selectContainer">
+                                <label class="selectLabel" for="testItemType">Type</label>
+                                <select is="emby-select" id="testItemType">
+                                    <option value="person" data-for="people">Personne</option>
+                                    <option value="video" data-for="api">Vidéo / épisode</option>
+                                    <option value="season" data-for="api">Source / saison</option>
+                                    <option value="series" data-for="api">Série</option>
+                                    <option value="episodelist" data-for="api">Liste des épisodes</option>
+                                </select>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel" for="testItemId">Identifiant</label>
+                                <input is="emby-input" type="text" id="testItemId" placeholder="123, mv1-123 ou {mv1-123}" />
+                            </div>
+                            <button is="emby-button" type="button" class="raised button-submit" id="btnTestSource" onclick="testSource()"><span>Tester</span></button>
+                            <div id="testResult" aria-live="polite"><p class="cm-test-idle">Modifiez un mapping, puis testez : le résultat s'affiche ici, sans quitter la page.</p></div>
+                        </aside>
+                    </div></div>
+
+                    <div class="cm-savebar" role="region" aria-label="Enregistrement">
+                        <span class="cm-dirty" id="dirtyState">Aucune modification</span>
+                        <div class="cm-savebar-actions">
+                            <button is="emby-button" type="button" class="raised" id="btnCancelEdit"><span>Annuler</span></button>
+                            <button is="emby-button" type="submit" class="raised button-submit"><span>Enregistrer</span></button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function() {
+            var pluginId = '12345678-1234-1234-1234-123456789abc';
+            var currentConfig = null;
+
+            // Load the configuration
+            document.querySelector('#CustomMetadataConfigPage').addEventListener('pageshow', function() {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function(config) {
+                    currentConfig = config;
+                    
+                    // DEBUG: log of the full config
+                    console.log('🔍 [DEBUG] Config chargée depuis API:', config);
+                    console.log('🔍 [DEBUG] config.Sources:', config.Sources);
+                    if (config.Sources && config.Sources.length > 0) {
+                        console.log('🔍 [DEBUG] Première source:', config.Sources[0]);
+                        console.log('🔍 [DEBUG] CustomHeaders de la première source:', config.Sources[0].CustomHeaders);
+                    }
+                    
+                    // "Importer le casting" switched off: the casts are not sent to Jellyfin (read by the Distribution block)
+                    document.querySelector('#CustomMetadataConfigPage').setAttribute('data-casting', config.EnableCasting === false ? 'off' : 'on');
+
+                    // Config globale
+                    document.querySelector('#txtPatternPrefix').value = config.PatternPrefix || 'custom';
+                    document.querySelector('#txtApiBaseUrl').value = config.ApiBaseUrl || '';
+                    document.querySelector('#txtApiKey').value = config.ApiKey || '';
+                    document.querySelector('#chkEnableMetadata').checked = config.EnableMetadata !== false;
+                    document.querySelector('#chkEnableImages').checked = config.EnableImages !== false;
+                    document.querySelector('#chkEnableCasting').checked = config.EnableCasting !== false;
+                    document.querySelector('#chkCreateVirtualEpisodes').checked = config.CreateVirtualEpisodes !== false;
+                    document.querySelector('#txtDefaultSourceName').value = config.DefaultSourceName || '';
+                    document.querySelector('#chkEnableCache').checked = config.EnableCache !== false;
+                    document.querySelector('#txtCacheTTL').value = config.CacheTTLHours || 24;
+                    
+                    // Show the sources (always on the list: an old editing state no longer makes sense)
+                    renderSourcesList(config.Sources || []);
+                    closeEditor(true);
+                    
+                    Dashboard.hideLoadingMsg();
+                });
+            });
+
+            // Sauvegarde
+            document.querySelector('#CustomMetadataConfigForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                Dashboard.showLoadingMsg();
+                
+                currentConfig.PatternPrefix = document.querySelector('#txtPatternPrefix').value || 'custom';
+                currentConfig.ApiBaseUrl = document.querySelector('#txtApiBaseUrl').value;
+                currentConfig.ApiKey = document.querySelector('#txtApiKey').value;
+                currentConfig.EnableMetadata = document.querySelector('#chkEnableMetadata').checked;
+                currentConfig.EnableImages = document.querySelector('#chkEnableImages').checked;
+                currentConfig.EnableCasting = document.querySelector('#chkEnableCasting').checked;
+                currentConfig.CreateVirtualEpisodes = document.querySelector('#chkCreateVirtualEpisodes').checked;
+                currentConfig.DefaultSourceName = document.querySelector('#txtDefaultSourceName').value;
+                currentConfig.EnableCache = document.querySelector('#chkEnableCache').checked;
+                currentConfig.CacheTTLHours = parseInt(document.querySelector('#txtCacheTTL').value) || 24;
+
+                console.log('🔍 [DEBUG] MAIN SAVE - currentConfig avant envoi à l\'API:', currentConfig);
+                console.log('🔍 [DEBUG] MAIN SAVE - currentConfig.Sources:', currentConfig.Sources);
+                if (currentConfig.Sources && currentConfig.Sources.length > 0) {
+                    console.log('🔍 [DEBUG] MAIN SAVE - Première source:', currentConfig.Sources[0]);
+                    console.log('🔍 [DEBUG] MAIN SAVE - CustomHeaders de la première source:', currentConfig.Sources[0].CustomHeaders);
+                }
+                console.log('🔍 [DEBUG] MAIN SAVE - JSON.stringify(currentConfig):', JSON.stringify(currentConfig, null, 2));
+
+                ApiClient.updatePluginConfiguration(pluginId, currentConfig).then(function() {
+                    console.log('✅ [DEBUG] MAIN SAVE - Configuration sauvegardée avec succès');
+                    Dashboard.processPluginConfigurationUpdateResult();
+                });
+                
+                return false;
+            });
+
+            // Show the list of sources
+            window.renderSourcesList = function(sources) {
+                var container = document.querySelector('#sourcesList');
+                document.querySelector('#tabSourcesCount').textContent = (sources || []).length;
+                if (!sources || sources.length === 0) {
+                    container.innerHTML = '<div class="cm-empty" style="grid-column: 1 / -1;"><strong>Aucune source pour le moment.</strong><br>Ajoutez-en une : une API (préfixe + URL) ou une source locale que vous remplissez vous-même. Les fichiers dont le nom porte <code>{préfixe-ID}</code> seront enrichis.<br><br>'
+                        + '<button is="emby-button" type="button" class="raised button-submit" onclick="openAddSourceModal()"><span>Ajouter une source</span></button></div>';
+                    return;
+                }
+
+                var html = '';
+                sources.forEach(function(source, index) {
+                    var on = source.Enabled !== false;
+                    var isLocal = source.SourceType === 'Local';
+                    var isPeople = source.SourceType === 'People';
+                    var dots = isPeople ? '<span class="cm-stats">Fournit des personnes à l\'annuaire du casting</span>' : isLocal ? '<span class="cm-stats" data-local-stats="' + escapeHtml(source.LocalDataId || '') + '">Contenu saisi dans le plugin</span>' : [
+                        ['Vidéos', source.VideoEndpoint],
+                        ['Saisons', source.SourceEndpoint],
+                        ['Séries', source.SeriesEndpoint],
+                        ['Épisodes manquants', source.EpisodeListEndpoint]
+                    ].map(function(d) { return '<span><i class="' + (d[1] ? 'on' : '') + '"></i>' + d[0] + '</span>'; }).join('');
+                    html += '<article class="cm-card' + (on ? '' : ' cm-off') + '">'
+                        + '<div class="cm-card-head"><div><h3>' + escapeHtml(source.Name || 'Sans nom') + '</h3>'
+                        + (isLocal ? '<span class="cm-url">Source locale</span>' : '<span class="cm-url" title="' + escapeHtml(source.BaseUrl || '') + '">' + escapeHtml(source.BaseUrl || 'URL non configurée') + '</span>') + '</div>'
+                        + (isLocal ? '<span class="cm-kind">Locale</span>' : (isPeople ? '<span class="cm-kind">Personnes</span>' : ''))
+                        + '<span class="cm-tag">{' + escapeHtml(source.Prefix || '?') + '-…}</span></div>'
+                        + '<div class="cm-dots" title="Points verts : endpoints configurés">' + dots + '</div>'
+                        + '<div class="cm-card-foot">'
+                        + '<button is="emby-button" type="button" class="raised" onclick="editSource(' + index + ')"><span>Modifier</span></button>'
+                        + (isLocal ? '' : '<button type="button" class="cm-linkbtn" onclick="editSource(' + index + ', true)">Tester</button>')
+                        + '<label class="cm-inline-switch"><span>' + (on ? 'Activée' : 'Désactivée') + '</span>'
+                        + '<input type="checkbox" class="cm-switch" data-toggle="' + index + '" aria-label="Source ' + escapeHtml(source.Name || '') + ' activée"' + (on ? ' checked' : '') + ' /></label>'
+                        + '</div></article>';
+                });
+                html += '<button type="button" class="cm-add" onclick="openAddSourceModal()"><strong>Ajouter une source</strong><span>Une API, ou une source locale à remplir</span></button>';
+                container.innerHTML = html;
+                loadLocalStats();
+            };
+
+            // Ouvrir modal ajout
+            // Without argument: offers the source type. With 'api' or 'local': opens the editor for a new source of that type
+            window.openAddSourceModal = function(type) {
+                var chooser = document.querySelector('#typeChooserWrap');
+                if (type !== 'api' && type !== 'local' && type !== 'people') {
+                    chooser.hidden = !chooser.hidden;
+                    if (!chooser.hidden) { chooser.scrollIntoView({ block: 'nearest' }); chooser.querySelector('.cm-choice').focus(); }
+                    return;
+                }
+                chooser.hidden = true;
+                openAddSourceForm(type);
+            };
+
+            function openAddSourceForm(type) {
+                editOriginalPrefix = '';
+                localDataId = type === 'local' ? randomHex(16) : '';
+                localContent = type === 'local' ? { Series: [] } : null;
+                localSel = null;
+                localCollapsed = {};
+                document.querySelector('#modalTitle').textContent = 'Nouvelle source';
+                document.querySelector('#editIndex').value = '-1';
+                document.querySelector('#sourceForm').reset();
+                document.querySelector('#srcEnabled').checked = true;
+                
+                // Reset mappings
+                document.querySelector('#srcVideoTitle').value = '';
+                document.querySelector('#srcVideoOverview').value = '';
+                document.querySelector('#srcVideoDate').value = '';
+                document.querySelector('#srcVideoRating').value = '';
+                document.querySelector('#srcVideoSeriesName').value = '';
+                document.querySelector('#srcVideoTags').value = '';
+                document.querySelector('#srcVideoTagsItemField').value = '';
+                document.querySelector('#srcVideoGenres').value = '';
+                document.querySelector('#srcVideoGenresItemField').value = '';
+                document.querySelector('#srcVideoPoster').value = '';
+                document.querySelector('#srcVideoBackdrop').value = '';
+                document.querySelector('#srcVideoThumb').value = '';
+                document.querySelector('#srcVideoLogo').value = '';
+                document.querySelector('#srcVideoIndex').value = '';
+                document.querySelector('#srcVideoOverviewList').value = '';
+                document.querySelector('#srcSeriesOverviewList').value = '';
+
+                document.querySelector('#srcSourceTitle').value = '';
+                document.querySelector('#srcSourceOverview').value = '';
+                document.querySelector('#srcSourcePoster').value = '';
+                document.querySelector('#srcSourceBackdrop').value = '';
+                
+                document.querySelector('#srcSeriesTitle').value = '';
+                document.querySelector('#srcSeriesOverview').value = '';
+                document.querySelector('#srcSeriesStatus').value = '';
+                document.querySelector('#srcSeriesPoster').value = '';
+                document.querySelector('#srcSeriesBackdrop').value = '';
+
+                fillEpisodeListFields('', {});
+                fillNetworkFields({});
+                document.querySelector('#testResult').innerHTML = '';
+
+                // Reset headers
+                customHeaders = [];
+                renderHeaders();
+                
+                applyMappingDefaults();
+                // After the form's reset(), which would put this hidden field back to its original value
+                document.querySelector('#editType').value = type === 'local' ? 'Local' : (type === 'people' ? 'People' : 'Api');
+                if (type === 'people') { fillPersonFields({}); }
+                showEditor(-1);
+            }
+
+            // Edit source
+            window.editSource = function(index, focusTest) {
+                var source = currentConfig.Sources[index];
+                
+                // DEBUG: log of the full source
+                console.log('🔍 [DEBUG] editSource - source complète:', source);
+                console.log('🔍 [DEBUG] editSource - source.CustomHeaders:', source.CustomHeaders);
+                console.log('🔍 [DEBUG] editSource - Type de CustomHeaders:', typeof source.CustomHeaders);
+                console.log('🔍 [DEBUG] editSource - Array.isArray(CustomHeaders):', Array.isArray(source.CustomHeaders));
+                
+                document.querySelector('#modalTitle').textContent = source.Name || 'Source sans nom';
+                document.querySelector('#editIndex').value = index;
+                editOriginalPrefix = source.Prefix || '';
+                document.querySelector('#editType').value = source.SourceType === 'Local' ? 'Local' : (source.SourceType === 'People' ? 'People' : 'Api');
+                fillPersonFields(source);
+                localDataId = source.LocalDataId || '';
+                localContent = null;
+                localSel = null;
+                localCollapsed = {};
+                
+                document.querySelector('#srcName').value = source.Name || '';
+                document.querySelector('#srcPrefix').value = source.Prefix || '';
+                document.querySelector('#srcBaseUrl').value = source.BaseUrl || '';
+                document.querySelector('#srcApiKey').value = source.ApiKey || '';
+                document.querySelector('#srcEnabled').checked = source.Enabled !== false;
+                document.querySelector('#srcVideoEndpoint').value = source.VideoEndpoint || '';
+                document.querySelector('#srcSourceEndpoint').value = source.SourceEndpoint || '';
+                document.querySelector('#srcSeriesEndpoint').value = source.SeriesEndpoint || '';
+                
+                // Video mappings
+                var vm = source.VideoFieldMappings || {};
+                document.querySelector('#srcVideoTitle').value = vm.Title || '';
+                document.querySelector('#srcVideoOverview').value = vm.Overview || '';
+                document.querySelector('#srcVideoDate').value = vm.PremiereDate || '';
+                document.querySelector('#srcVideoRating').value = vm.CommunityRating || '';
+                document.querySelector('#srcVideoSeriesName').value = vm.SeriesName || '';
+                document.querySelector('#srcVideoTags').value = vm.Tags || '';
+                document.querySelector('#srcVideoTagsItemField').value = vm.TagsItemField || '';
+                document.querySelector('#srcVideoGenres').value = vm.Genres || '';
+                document.querySelector('#srcVideoGenresItemField').value = vm.GenresItemField || '';
+                document.querySelector('#srcVideoPoster').value = vm.PosterUrl || '';
+                document.querySelector('#srcVideoBackdrop').value = vm.BackdropUrl || '';
+                document.querySelector('#srcVideoThumb').value = vm.ThumbUrl || '';
+                document.querySelector('#srcVideoLogo').value = vm.LogoUrl || '';
+                document.querySelector('#srcVideoIndex').value = vm.IndexNumber || '';
+                document.querySelector('#srcVideoOverviewList').value = vm.OverviewListTarget || '';
+                document.querySelector('#srcVideoImagesArray').value = vm.ImagesArray || '';
+                
+                // Mappings Sources
+                var sm = source.SourceFieldMappings || {};
+                document.querySelector('#srcSourceTitle').value = sm.Title || '';
+                document.querySelector('#srcSourceOverview').value = sm.Overview || '';
+                document.querySelector('#srcSourcePoster').value = sm.PosterUrl || '';
+                document.querySelector('#srcSourceBackdrop').value = sm.BackdropUrl || '';
+                document.querySelector('#srcSourceImagesArray').value = sm.ImagesArray || '';
+                
+                // Series mappings
+                var sem = source.SeriesFieldMappings || {};
+                document.querySelector('#srcSeriesTitle').value = sem.Title || '';
+                document.querySelector('#srcSeriesOverview').value = sem.Overview || '';
+                document.querySelector('#srcSeriesStatus').value = sem.Status || '';
+                document.querySelector('#srcSeriesPoster').value = sem.PosterUrl || '';
+                document.querySelector('#srcSeriesBackdrop').value = sem.BackdropUrl || '';
+                document.querySelector('#srcSeriesOverviewList').value = sem.OverviewListTarget || '';
+
+                // Episode list
+                fillEpisodeListFields(source.EpisodeListEndpoint, source.EpisodeListMappings || {});
+                fillNetworkFields(source);
+                document.querySelector('#testResult').innerHTML = '';
+
+                // Headers custom
+                customHeaders = source.CustomHeaders || [];
+                console.log('🔍 [DEBUG] editSource - customHeaders après affectation:', customHeaders);
+                console.log('🔍 [DEBUG] editSource - customHeaders.length:', customHeaders.length);
+                
+                renderHeaders();
+                
+                showEditor(index, focusTest);
+                if (source.SourceType === 'Local') { loadLocalContent(); }
+            };
+
+            // Episode list: filling / reading the form
+            // Empty field on save = default value (except array and pagination, where empty has a meaning)
+            function fillEpisodeListFields(endpoint, lm) {
+                document.querySelector('#srcEpisodeListEndpoint').value = endpoint || '';
+                document.querySelector('#srcListItemsPath').value = lm.ItemsPath || '';
+                document.querySelector('#srcListId').value = lm.Id || '';
+                document.querySelector('#srcListTitle').value = lm.Title || '';
+                document.querySelector('#srcListOverview').value = lm.Overview || '';
+                document.querySelector('#srcListDate').value = lm.PremiereDate || '';
+                document.querySelector('#srcListIndex').value = lm.IndexNumber || '';
+                document.querySelector('#srcListDuration').value = lm.Duration || '';
+                document.querySelector('#srcListThumb').value = lm.ThumbUrl || '';
+                document.querySelector('#srcListPreview').value = lm.PreviewUrl || '';
+                document.querySelector('#srcListPageParam').value = lm.PageParameter || '';
+                document.querySelector('#srcListFirstPage').value = (lm.FirstPage === 0 || lm.FirstPage) ? lm.FirstPage : '';
+                document.querySelector('#srcListMaxPages').value = lm.MaxPages || '';
+            }
+
+            function readEpisodeListMappings() {
+                var firstPage = parseInt(document.querySelector('#srcListFirstPage').value, 10);
+                var maxPages = parseInt(document.querySelector('#srcListMaxPages').value, 10);
+                return {
+                    ItemsPath: document.querySelector('#srcListItemsPath').value || '',
+                    Id: document.querySelector('#srcListId').value || 'id',
+                    Title: document.querySelector('#srcListTitle').value || 'title',
+                    Overview: document.querySelector('#srcListOverview').value || 'overview',
+                    PremiereDate: document.querySelector('#srcListDate').value || 'premiereDate',
+                    IndexNumber: document.querySelector('#srcListIndex').value || 'indexNumber',
+                    Duration: document.querySelector('#srcListDuration').value || 'duration',
+                    ThumbUrl: document.querySelector('#srcListThumb').value || 'thumb',
+                    PreviewUrl: document.querySelector('#srcListPreview').value || 'preview.url',
+                    PageParameter: document.querySelector('#srcListPageParam').value || '',
+                    FirstPage: isNaN(firstPage) ? 1 : firstPage,
+                    MaxPages: isNaN(maxPages) || maxPages < 1 ? 100 : maxPages
+                };
+            }
+
+            // Network: empty = default value
+            function fillNetworkFields(source) {
+                document.querySelector('#srcTimeout').value = source.TimeoutSeconds || 30;
+                document.querySelector('#srcMaxRetries').value = (source.MaxRetries === 0 || source.MaxRetries) ? source.MaxRetries : 2;
+                document.querySelector('#srcMaxConcurrent').value = (source.MaxConcurrentRequests === 0 || source.MaxConcurrentRequests) ? source.MaxConcurrentRequests : 4;
+                document.querySelector('#srcBrowserUserAgent').checked = source.SendBrowserUserAgent !== false;
+                document.querySelector('#srcOriginReferer').checked = source.SendOriginReferer !== false;
+                document.querySelector('#srcOriginOverride').value = source.OriginOverride || '';
+                document.querySelector('#srcRefererOverride').value = source.RefererOverride || '';
+                updateOriginRefererFields();
+                document.querySelector('#srcUseHttp2').checked = source.UseHttp2 === true;
+                document.querySelector('#srcLandscapePortraitThumbs').checked = source.LandscapePortraitThumbs === true;
+            }
+
+            // Origin/Referer overrides: editable only if sending is enabled.
+            // The placeholders show the value that will be sent if the field stays empty.
+            function updateOriginRefererFields() {
+                var enabled = document.querySelector('#srcOriginReferer').checked;
+                var baseUrl = (document.querySelector('#srcBaseUrl').value || '').trim();
+                var origin = '';
+                try { origin = baseUrl ? new URL(baseUrl).origin : ''; } catch (e) { origin = ''; }
+                ['#srcOriginOverride', '#srcRefererOverride'].forEach(function(sel) {
+                    document.querySelector(sel).disabled = !enabled;
+                });
+                document.querySelector('#srcOriginOverride').placeholder = origin ? 'Par défaut : ' + origin : '(vide = dérivé de l\'URL de base)';
+                document.querySelector('#srcRefererOverride').placeholder = baseUrl ? 'Par défaut : ' + baseUrl : '(vide = URL de base)';
+            }
+            document.querySelector('#srcOriginReferer').addEventListener('change', updateOriginRefererFields);
+            document.querySelector('#srcBaseUrl').addEventListener('input', updateOriginRefererFields);
+
+            function readInt(selector, defaultValue, min) {
+                var value = parseInt(document.querySelector(selector).value, 10);
+                return isNaN(value) || value < min ? defaultValue : value;
+            }
+
+            function escapeHtml(text) {
+                return String(text === null || text === undefined ? '' : text)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+
+            // Non-empty mapped fields only (readability)
+            function compact(obj) {
+                var out = {};
+                Object.keys(obj || {}).forEach(function(k) {
+                    var v = obj[k];
+                    if (v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)) {
+                        out[k] = v;
+                    }
+                });
+                return out;
+            }
+
+            // Readable duration next to the ticks (1 tick = 100 ns)
+            function compactEpisode(e) {
+                var c = compact(e);
+                if (e && e.RunTimeTicks) {
+                    var total = Math.round(e.RunTimeTicks / 10000000);
+                    var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), sec = total % 60;
+                    c.Duration = (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
+                }
+                return c;
+            }
+
+            function renderTestResult(r) {
+                var ok = r.Success;
+                var html = '<div class="cm-test-status ' + (ok ? 'ok' : 'ko') + '">';
+                html += '<strong>' + (ok ? 'Succès' : 'Échec') + '</strong>';
+                if (r.StatusCode) { html += ' · HTTP ' + r.StatusCode; }
+                html += ' · ' + (r.DurationMs || 0) + ' ms · ' + (r.Attempts || 0) + ' tentative(s)';
+                if (r.HttpVersion) { html += ' · HTTP/' + escapeHtml(r.HttpVersion); }
+                if (r.Url) { html += '<div class="cm-url-line">GET ' + escapeHtml(r.Url).replace(/\//g, '/<wbr>') + '</div>'; }
+                if (r.Error) { html += '<div>' + escapeHtml(r.Error) + '</div>'; }
+                html += '</div>';
+
+                if (r.ErrorBody) {
+                    html += '<h4>Réponse du serveur</h4><pre>' + escapeHtml(r.ErrorBody) + '</pre>';
+                }
+
+                if (r.RequestHeaders && r.RequestHeaders.length) {
+                    html += '<details><summary>En-têtes envoyés (' + r.RequestHeaders.length + ')</summary><pre>' + escapeHtml(r.RequestHeaders.join('\n')) + '</pre></details>';
+                }
+
+                if (r.Person) {
+                    html += '<h4>Personne trouvée</h4><div><strong>' + escapeHtml(r.Person.Name) + '</strong></div>'
+                        + (r.Person.Photo ? '<div style="word-break: break-all;">Photo : ' + escapeHtml(r.Person.Photo) + '</div><img alt="" src="' + escapeHtml(r.Person.Photo) + '" style="max-width: 120px; max-height: 120px; margin-top: 8px; border-radius: 6px;" />' : '<div class="cm-hint">Pas de photo trouvée.</div>')
+                        + (r.Person.Bio ? '<div class="cm-hint">' + escapeHtml(r.Person.Bio) + '</div>' : '');
+                }
+
+                if (r.Metadata) {
+                    html += '<h4>Champs extraits</h4><pre>' + escapeHtml(JSON.stringify(compact(r.Metadata), null, 2)) + '</pre>';
+                    html += '<h4>Images (' + (r.Images || []).length + ')</h4>';
+                    (r.Images || []).forEach(function(img) {
+                        html += '<div style="word-break: break-all;">' + escapeHtml(img.Type) + ' : ' + escapeHtml(img.Url) + '</div>';
+                    });
+                    if (r.ThumbnailChecks && r.ThumbnailChecks.length) {
+                        var enabled = document.querySelector('#srcLandscapePortraitThumbs').checked;
+                        html += '<h4>Miniatures : conversion portrait ' + (enabled ? 'activée' : '<b>désactivée</b> (voir la section Miniatures)') + '</h4>';
+                        r.ThumbnailChecks.forEach(function(c) {
+                            html += '<div style="word-break: break-all;">' + escapeHtml(c) + '</div>';
+                        });
+                    }
+                }
+
+                if (r.Episodes) {
+                    html += '<h4>' + r.EpisodeCount + ' épisode(s)' + (r.EpisodeCount > r.Episodes.length ? ' — ' + r.Episodes.length + ' premiers affichés' : '') + '</h4>';
+                    html += '<pre>' + escapeHtml(JSON.stringify(r.Episodes.map(compactEpisode), null, 2)) + '</pre>';
+                }
+
+                if (r.RawJson) {
+                    var raw = r.RawJson;
+                    try { raw = JSON.stringify(JSON.parse(raw), null, 2); } catch (e) { /* truncated or not JSON: raw */ }
+                    html += '<details><summary>Réponse brute</summary><pre>' + escapeHtml(raw) + '</pre></details>';
+                }
+
+                document.querySelector('#testResult').innerHTML = html;
+            }
+
+            window.testSource = function() {
+                var resultDiv = document.querySelector('#testResult');
+                var id = document.querySelector('#testItemId').value;
+                if (!id) {
+                    resultDiv.innerHTML = '<div class="cm-test-status ko">Saisissez un identifiant à tester.</div>';
+                    document.querySelector('#testItemId').focus();
+                    return;
+                }
+
+                var button = document.querySelector('#btnTestSource');
+                button.disabled = true;
+                resultDiv.innerHTML = '<p class="cm-test-idle">Appel en cours…</p>';
+
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('CustomMetadata/TestSource'),
+                    data: JSON.stringify({
+                        Source: readSourceFromForm(),
+                        ItemType: document.querySelector('#testItemType').value,
+                        Id: id
+                    }),
+                    contentType: 'application/json',
+                    dataType: 'json'
+                }).then(function(result) {
+                    renderTestResult(result);
+                }, function(err) {
+                    var status = err && err.status ? ' (HTTP ' + err.status + ')' : '';
+                    resultDiv.innerHTML = '<div class="cm-test-status ko">Erreur lors de l\'appel au serveur Jellyfin' + status + '</div>';
+                }).then(function() {
+                    button.disabled = false;
+                });
+            };
+
+            // Saves the list of sources on the server side immediately.
+            // Before, adding/editing/deleting a source only changed the page: without clicking
+            // "Sauvegarder" at the bottom, Jellyfin kept the old config (network settings ignored…).
+            // The unsaved fields of the global configuration stay in the form.
+            function persistSources() {
+                Dashboard.showLoadingMsg();
+                ApiClient.updatePluginConfiguration(pluginId, currentConfig).then(function(result) {
+                    Dashboard.processPluginConfigurationUpdateResult(result);
+                }, function() {
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert('❌ Erreur lors de l\'enregistrement de la source');
+                });
+            }
+
+            // Delete a source (returns true if it was deleted)
+            window.deleteSource = function(index) {
+                var source = (currentConfig.Sources || [])[index] || {};
+                var isLocal = source.SourceType === 'Local';
+                if (!confirm('Supprimer la source « ' + (source.Name || 'sans nom') + ' » ?\nLes médias qui portent son tag ne seront plus enrichis.'
+                    + (isLocal ? '\nTout son contenu saisi (séries, saisons, épisodes) sera supprimé.' : '') + ' Cette action est immédiate.')) {
+                    return false;
+                }
+                if (isLocal && source.LocalDataId) {
+                    ApiClient.ajax({ type: 'DELETE', url: ApiClient.getUrl('CustomMetadata/Local/' + source.LocalDataId) });
+                }
+                currentConfig.Sources.splice(index, 1);
+                renderSourcesList(currentConfig.Sources);
+                persistSources();
+                return true;
+            };
+
+            window.closeSourceModal = function() { closeEditor(false); };
+
+            // Custom headers - exposed on window for the inline oninput handlers
+            window.customHeaders = [];
+            
+            window.addHeader = function() {
+                customHeaders.push({ Key: '', Value: '' });
+                renderHeaders();
+                markDirty();
+            };
+            
+            window.removeHeader = function(index) {
+                customHeaders.splice(index, 1);
+                renderHeaders();
+                markDirty();
+            };
+            
+            function renderHeaders() {
+                var html = '';
+                customHeaders.forEach(function(header, index) {
+                    html += '<div class="cm-header-row">'
+                        + '<input is="emby-input" type="text" aria-label="Nom de l\'en-tête" placeholder="Header-Name" value="' + escapeHtml(header.Key || '') + '" oninput="customHeaders[' + index + '].Key = this.value" />'
+                        + '<input is="emby-input" type="text" aria-label="Valeur de l\'en-tête" placeholder="Header-Value" value="' + escapeHtml(header.Value || '') + '" oninput="customHeaders[' + index + '].Value = this.value" />'
+                        + '<button is="emby-button" type="button" class="raised" aria-label="Retirer cet en-tête" onclick="removeHeader(' + index + ')"><span>✕</span></button>'
+                        + '</div>';
+                });
+                document.getElementById('headersList').innerHTML = html || '<div class="cm-hint" style="margin: 0 0 10px;">Aucun en-tête configuré.</div>';
+                if (typeof updateCounts === 'function') { updateCounts(); }
+            }
+
+            // Source as typed in the form (saving and Test button)
+            function readSourceFromFormRaw() {
+                var filteredHeaders = customHeaders.filter(function(h) { return h.Key && h.Value; });
+                return {
+                    Name: document.querySelector('#srcName').value,
+                    Prefix: document.querySelector('#srcPrefix').value,
+                    BaseUrl: document.querySelector('#srcBaseUrl').value,
+                    ApiKey: document.querySelector('#srcApiKey').value || '',
+                    Enabled: document.querySelector('#srcEnabled').checked,
+                    VideoEndpoint: document.querySelector('#srcVideoEndpoint').value || '/videos/{id}',
+                    SourceEndpoint: document.querySelector('#srcSourceEndpoint').value || '/sources/{id}',
+                    SeriesEndpoint: document.querySelector('#srcSeriesEndpoint').value || '/series/{id}',
+                    EpisodeListEndpoint: document.querySelector('#srcEpisodeListEndpoint').value || '',
+                    EpisodeListMappings: readEpisodeListMappings(),
+                    VideoFieldMappings: {
+                        Title: document.querySelector('#srcVideoTitle').value || '',
+                        Overview: document.querySelector('#srcVideoOverview').value || '',
+                        PremiereDate: document.querySelector('#srcVideoDate').value || '',
+                        CommunityRating: document.querySelector('#srcVideoRating').value || '',
+                        SeriesName: document.querySelector('#srcVideoSeriesName').value || '',
+                        Tags: document.querySelector('#srcVideoTags').value || '',
+                        TagsItemField: document.querySelector('#srcVideoTagsItemField').value || '',
+                        Genres: document.querySelector('#srcVideoGenres').value || '',
+                        GenresItemField: document.querySelector('#srcVideoGenresItemField').value || '',
+                        PosterUrl: document.querySelector('#srcVideoPoster').value || '',
+                        BackdropUrl: document.querySelector('#srcVideoBackdrop').value || '',
+                        ThumbUrl: document.querySelector('#srcVideoThumb').value || '',
+                        LogoUrl: document.querySelector('#srcVideoLogo').value || '',
+                        IndexNumber: document.querySelector('#srcVideoIndex').value || '',
+                        OverviewListTarget: document.querySelector('#srcVideoOverviewList').value || ''
+                    },
+                    SourceFieldMappings: {
+                        Title: document.querySelector('#srcSourceTitle').value || '',
+                        Overview: document.querySelector('#srcSourceOverview').value || '',
+                        PosterUrl: document.querySelector('#srcSourcePoster').value || '',
+                        BackdropUrl: document.querySelector('#srcSourceBackdrop').value || ''
+                    },
+                    SeriesFieldMappings: {
+                        Title: document.querySelector('#srcSeriesTitle').value || '',
+                        Overview: document.querySelector('#srcSeriesOverview').value || '',
+                        Status: document.querySelector('#srcSeriesStatus').value || '',
+                        PosterUrl: document.querySelector('#srcSeriesPoster').value || '',
+                        BackdropUrl: document.querySelector('#srcSeriesBackdrop').value || '',
+                        OverviewListTarget: document.querySelector('#srcSeriesOverviewList').value || ''
+                    },
+                    TimeoutSeconds: readInt('#srcTimeout', 30, 1),
+                    MaxRetries: Math.min(readInt('#srcMaxRetries', 2, 0), 10),
+                    MaxConcurrentRequests: readInt('#srcMaxConcurrent', 4, 0),
+                    SendBrowserUserAgent: document.querySelector('#srcBrowserUserAgent').checked,
+                    SendOriginReferer: document.querySelector('#srcOriginReferer').checked,
+                    OriginOverride: document.querySelector('#srcOriginOverride').value.trim(),
+                    RefererOverride: document.querySelector('#srcRefererOverride').value.trim(),
+                    UseHttp2: document.querySelector('#srcUseHttp2').checked,
+                    LandscapePortraitThumbs: document.querySelector('#srcLandscapePortraitThumbs').checked,
+                    CustomHeaders: filteredHeaders
+                };
+                
+            }
+
+            // Source as typed, merged over the existing source: the fields this form does not show
+            // (Cast, ProductionYear, BannerUrl… and any field added later) keep their value instead of
+            // going back to the defaults on every save.
+            function readSourceFromForm() {
+                var raw = readSourceFromFormRaw();
+                var index = parseInt(document.querySelector('#editIndex').value, 10);
+                var base = (index >= 0 && currentConfig && currentConfig.Sources && currentConfig.Sources[index]) || {};
+                raw.VideoFieldMappings.ImagesArray = document.querySelector('#srcVideoImagesArray').value || '';
+                raw.SourceFieldMappings.ImagesArray = document.querySelector('#srcSourceImagesArray').value || '';
+                var merged = Object.assign({}, base, raw);
+                ['VideoFieldMappings', 'SourceFieldMappings', 'SeriesFieldMappings', 'EpisodeListMappings'].forEach(function(key) {
+                    merged[key] = Object.assign({}, base[key] || {}, raw[key]);
+                });
+                if (isLocalForm()) { applyLocalSourceDefaults(merged); }
+                if (isPeopleForm()) {
+                    merged.SourceType = 'People';
+                    merged.PersonEndpoint = qs('#srcPersonEndpoint').value.trim() || '/people/{id}';
+                    merged.PersonMappings = Object.assign({}, base.PersonMappings || {}, {
+                        Name: qs('#srcPersonName').value.trim(), Photo: qs('#srcPersonPhoto').value.trim(), Bio: qs('#srcPersonBio').value.trim()
+                    });
+                    merged.EpisodeListEndpoint = '';
+                }
+                return merged;
+            }
+
+            // Sauvegarder source
+            document.querySelector('#sourceForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                console.log('🔍 [DEBUG] saveSource - customHeaders avant filtrage:', customHeaders);
+                console.log('🔍 [DEBUG] saveSource - customHeaders.length:', customHeaders.length);
+                
+                var source = readSourceFromForm();
+                if (prefixChanged() && !confirm('Changer le préfixe de « ' + editOriginalPrefix + ' » en « ' + source.Prefix + ' » ?\nLes fichiers et dossiers qui portent l\'ancien tag ne seront plus reliés à cette source tant que vous ne les aurez pas renommés.')) {
+                    return;
+                }
+                console.log('🔍 [DEBUG] saveSource - filteredHeaders après filtrage:', source.CustomHeaders);
+
+                console.log('🔍 [DEBUG] saveSource - source.CustomHeaders:', source.CustomHeaders);
+                console.log('🔍 [DEBUG] saveSource - source complet:', source);
+
+                var finish = function() {
+                currentConfig.Sources = currentConfig.Sources || [];
+                
+                var index = parseInt(document.querySelector('#editIndex').value);
+                if (index >= 0) {
+                    // Edit
+                    console.log('🔍 [DEBUG] saveSource - Édition de la source à l\'index:', index);
+                    currentConfig.Sources[index] = source;
+                } else {
+                    // Ajout
+                    console.log('🔍 [DEBUG] saveSource - Ajout d\'une nouvelle source');
+                    currentConfig.Sources.push(source);
+                }
+                
+                console.log('🔍 [DEBUG] saveSource - currentConfig.Sources après update:', currentConfig.Sources);
+
+                renderSourcesList(currentConfig.Sources);
+                closeEditor(true);
+                persistSources();
+                if (source.SourceType === 'Local') { showPostSaveNotice(source.Prefix); }
+                };
+
+                // Local source: the content (series, seasons, episodes) is saved first, then the source
+                if (source.SourceType === 'Local') {
+                    saveLocalContent().then(finish, function() {
+                        Dashboard.alert('❌ Le contenu de la source locale n\'a pas pu être enregistré. Rien n\'a été modifié.');
+                    });
+                } else {
+                    finish();
+                }
+            });
+                    // =====================================================================
+            // Views: list of sources / editing a source
+            // =====================================================================
+            var qs = function(selector) { return document.querySelector(selector); };
+            var dirty = false;
+            var firstInvalidSeen = false;
+            var FIELD_DEFAULTS = {
+                '#srcVideoTitle': 'title', '#srcVideoOverview': 'overview', '#srcVideoDate': 'premiereDate', '#srcVideoRating': 'communityRating',
+                '#srcVideoTags': 'tags', '#srcVideoTagsItemField': 'label', '#srcVideoGenres': 'genres', '#srcVideoGenresItemField': 'name',
+                '#srcVideoPoster': 'poster', '#srcVideoBackdrop': 'backdrop', '#srcVideoThumb': 'thumb', '#srcVideoLogo': 'logo',
+                '#srcVideoIndex': 'indexNumber', '#srcVideoImagesArray': 'images',
+                '#srcSourceTitle': 'title', '#srcSourceOverview': 'overview', '#srcSourcePoster': 'poster', '#srcSourceBackdrop': 'backdrop', '#srcSourceImagesArray': 'images',
+                '#srcSeriesTitle': 'title', '#srcSeriesOverview': 'overview', '#srcSeriesStatus': 'status', '#srcSeriesPoster': 'poster', '#srcSeriesBackdrop': 'backdrop'
+            };
+
+            // A new source starts with the standard paths: an empty field is IGNORED by the plugin,
+            // whereas before it stayed empty behind a placeholder that looked like a default value.
+            function applyMappingDefaults() {
+                Object.keys(FIELD_DEFAULTS).forEach(function(selector) { qs(selector).value = FIELD_DEFAULTS[selector]; });
+            }
+
+            function showTab(name) {
+                Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage [data-tab]'), function(tab) {
+                    tab.setAttribute('aria-selected', tab.getAttribute('data-tab') === name ? 'true' : 'false');
+                });
+                Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage [data-tabpane]'), function(pane) {
+                    pane.hidden = pane.getAttribute('data-tabpane') !== name;
+                });
+            }
+
+            function showSection(name) {
+                Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage .cm-pane'), function(pane) {
+                    pane.hidden = pane.getAttribute('data-section') !== name;
+                });
+                Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage .cm-nav-item'), function(item) {
+                    if (item.getAttribute('data-go') === name) { item.setAttribute('aria-current', 'page'); } else { item.removeAttribute('aria-current'); }
+                });
+            }
+
+            // "11 / 16": fields filled in each section (an empty mapping field is ignored)
+            function updateCounts() {
+                Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage [data-count-for]'), function(span) {
+                    var key = span.getAttribute('data-count-for');
+                    var text = '', full = false, title = '';
+                    if (key === 'network') {
+                        var headers = (window.customHeaders || []).filter(function(h) { return h.Key; }).length;
+                        text = headers ? headers + (headers > 1 ? ' en-têtes' : ' en-tête') : 'Par défaut';
+                    } else if (key === 'content') {
+                        var n = countLocal(localContent);
+                        text = localContent ? n.episodes + (n.episodes > 1 ? ' épisodes' : ' épisode') : '';
+                    } else if (key === 'thumbs') {
+                        text = qs('#srcLandscapePortraitThumbs').checked ? 'Activé' : 'Désactivé';
+                    } else {
+                        var inputs = document.querySelectorAll('#CustomMetadataConfigPage [data-section="' + key + '"] input[data-count]');
+                        var filled = Array.prototype.filter.call(inputs, function(i) { return i.value.trim() !== ''; }).length;
+                        text = filled + ' / ' + inputs.length;
+                        full = filled === inputs.length;
+                        title = filled + ' champ(s) renseigné(s) sur ' + inputs.length + ' : un champ vide est ignoré.';
+                    }
+                    span.textContent = text;
+                    span.classList.toggle('cm-full', full);
+                    if (title) { span.title = title; } else { span.removeAttribute('title'); }
+                });
+            }
+
+            function updateDirtyUi() {
+                var isNew = parseInt(qs('#editIndex').value, 10) < 0;
+                var el = qs('#dirtyState');
+                el.classList.toggle('on', dirty);
+                el.textContent = dirty ? 'Modifications non enregistrées'
+                    : (isNew ? (isLocalForm() ? 'Nouvelle source locale : renseignez le nom et le préfixe, puis ajoutez du contenu.' : isPeopleForm() ? 'Nouvelle source de personnes : renseignez le nom, le préfixe, l\'URL et l\'endpoint.' : 'Nouvelle source : renseignez au moins le nom, le préfixe et l\'URL.') : 'Aucune modification');
+            }
+
+            function markDirty() {
+                dirty = true;
+                updateDirtyUi();
+            }
+
+            // Original prefix of the open source ('' for a new source): changing it breaks the link with the already tagged files
+            var editOriginalPrefix = '';
+
+            function prefixChanged() {
+                var now = qs('#srcPrefix').value.trim().toLowerCase();
+                return !!editOriginalPrefix && !!now && now !== editOriginalPrefix.toLowerCase();
+            }
+
+            function updatePrefixWarning() {
+                var warn = qs('#prefixWarn');
+                var changed = prefixChanged();
+                warn.hidden = !changed;
+                if (changed) {
+                    warn.textContent = 'Attention : les fichiers et dossiers qui portent l\'ancien tag {' + editOriginalPrefix + '-…} ne seront plus reliés à cette source tant que vous ne les aurez pas renommés avec {' + qs('#srcPrefix').value.trim() + '-…}.';
+                }
+            }
+
+            function updateHeaderLive() {
+                updatePrefixWarning();
+                var name = qs('#srcName').value.trim();
+                var prefix = qs('#srcPrefix').value.trim();
+                var fallback = parseInt(qs('#editIndex').value, 10) < 0 ? 'Nouvelle source' : 'Source sans nom';
+                qs('#modalTitle').textContent = name || fallback;
+                qs('#editorCrumbName').textContent = name || fallback;
+                qs('#editorPrefix').textContent = '{' + (prefix || 'préfixe') + '-…}';
+                if (isLocalForm() && typeof renderLocalDetail === 'function' && localContent) { refreshLocalTagLabels(); }
+                qs('#lblEnabled').textContent = qs('#srcEnabled').checked ? 'Activée' : 'Désactivée';
+            }
+
+            // Opens the editor (the fields were already filled by openAddSourceModal / editSource)
+            window.showEditor = function(index, focusTest) {
+                var isNew = !(index >= 0);
+                qs('#listView').hidden = true;
+                qs('#editorView').hidden = false;
+                qs('#dangerZone').hidden = isNew;
+                qs('#editIndex').value = isNew ? '-1' : index;
+                var isLocal = isLocalForm();
+                var type = formType();
+                qs('#editorView').setAttribute('data-source-type', type);
+                // A hidden required field would block the save without saying anything
+                qs('#srcBaseUrl').required = !isLocal;
+                qs('#srcPersonEndpoint').required = type === 'people';
+                // Test: a people source only offers "Personne"
+                var typeSelect = qs('#testItemType');
+                Array.prototype.forEach.call(typeSelect.options, function(option) {
+                    var show = option.getAttribute('data-for') === (type === 'people' ? 'people' : 'api');
+                    option.hidden = !show;
+                    option.disabled = !show;
+                });
+                typeSelect.value = type === 'people' ? 'person' : 'video';
+                qs('#testItemId').placeholder = type === 'people' ? 'Identifiant : 123, pe-123 ou {pe-123}' : '123, mv1-123 ou {mv1-123}';
+                qs('#dangerText').textContent = isLocal
+                    ? 'Les médias qui portent son tag ne seront plus enrichis, et tout le contenu saisi (séries, saisons, épisodes) est supprimé.'
+                    : 'Les médias qui portent son tag ne seront plus enrichis. Les métadonnées déjà enregistrées restent.';
+                dirty = false;
+                showSection('general');
+                if (isLocal) { loadPeopleDirectory(); }
+                renderLocalEditor();
+                updateHeaderLive();
+                updateCounts();
+                updateDirtyUi();
+                qs('#editorView').scrollIntoView({ block: 'start' });
+                if (focusTest) {
+                    qs('#testItemId').focus();
+                } else {
+                    qs('#srcName').focus();
+                }
+            };
+
+            function closeEditor(force) {
+                if (!force && dirty && !confirm('Abandonner les modifications non enregistrées de cette source ?')) {
+                    return false;
+                }
+                dirty = false;
+                localContent = null;
+                qs('#editorView').hidden = true;
+                qs('#listView').hidden = false;
+                qs('#testResult').innerHTML = '<p class="cm-test-idle">Modifiez un mapping, puis testez : le résultat s\'affiche ici, sans quitter la page.</p>';
+                return true;
+            }
+
+            qs('#sourceForm').addEventListener('input', function() { markDirty(); updateCounts(); updateHeaderLive(); });
+            qs('#sourceForm').addEventListener('change', function() { markDirty(); updateCounts(); updateHeaderLive(); });
+
+            // An invalid field in a hidden section cannot receive focus: the browser would block
+            // the save silently. Its section is shown first, then it gets the message.
+            qs('#sourceForm').addEventListener('invalid', function(e) {
+                if (firstInvalidSeen) { return; }
+                firstInvalidSeen = true;
+                setTimeout(function() { firstInvalidSeen = false; }, 0);
+                var pane = e.target.closest('.cm-pane');
+                if (pane) { showSection(pane.getAttribute('data-section')); }
+                setTimeout(function() { e.target.focus(); if (e.target.reportValidity) { e.target.reportValidity(); } }, 0);
+            }, true);
+
+            // Enter in the test field runs the test (not the source save)
+            qs('#testItemId').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); window.testSource(); }
+            });
+
+            qs('#CustomMetadataConfigPage').addEventListener('click', function(e) {
+                var tab = e.target.closest('[data-tab]');
+                if (tab) { showTab(tab.getAttribute('data-tab')); return; }
+                var go = e.target.closest('[data-go]');
+                if (go) { showSection(go.getAttribute('data-go')); qs('#editorView').scrollIntoView({ block: 'start' }); return; }
+            });
+            qs('#btnBackToList').addEventListener('click', function() { closeEditor(false); });
+            qs('#btnBackToSources').addEventListener('click', function() { closeEditor(false); });
+            qs('#btnCancelEdit').addEventListener('click', function() { closeEditor(false); });
+            qs('#btnDeleteSource').addEventListener('click', function() {
+                var index = parseInt(qs('#editIndex').value, 10);
+                if (index >= 0 && window.deleteSource(index)) { closeEditor(true); }
+            });
+
+            // Enabled / Disabled switch of a card: saved immediately, like the rest of the sources
+            qs('#sourcesList').addEventListener('change', function(e) {
+                var toggle = e.target.closest('[data-toggle]');
+                if (!toggle) { return; }
+                var source = currentConfig.Sources[parseInt(toggle.getAttribute('data-toggle'), 10)];
+                source.Enabled = toggle.checked;
+                renderSourcesList(currentConfig.Sources);
+                persistSources();
+            });
+
+            // =====================================================================
+            // Local source: series → seasons → episodes typed in the plugin
+            // =====================================================================
+            var localContent = null;      // { Series: [ { Id, Title, …, Seasons: [ { …, Episodes: [ … ] } ] } ] }
+            var localDataId = '';
+            var localSel = null;          // Id of the selected element
+            var localCollapsed = {};      // Id → true when the element is collapsed in the tree
+            var ID_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+            function isLocalForm() { return qs('#editType').value === 'Local'; }
+            function isPeopleForm() { return qs('#editType').value === 'People'; }
+            function formType() { return isLocalForm() ? 'local' : (isPeopleForm() ? 'people' : 'api'); }
+
+            // People source: endpoint and mapping of ONE person (standard values if the source has none)
+            function fillPersonFields(source) {
+                var pm = source.PersonMappings || {};
+                qs('#srcPersonEndpoint').value = source.PersonEndpoint || '/people/{id}';
+                qs('#srcPersonName').value = pm.Name || 'name';
+                qs('#srcPersonPhoto').value = pm.Photo || 'photo';
+                qs('#srcPersonBio').value = pm.Bio || 'bio';
+            }
+
+            function randomHex(len) {
+                var out = '';
+                for (var i = 0; i < len; i++) { out += Math.floor(Math.random() * 16).toString(16); }
+                return out;
+            }
+
+            function usedIds() {
+                var used = {};
+                ((localContent && localContent.Series) || []).forEach(function(s) {
+                    used[s.Id] = true;
+                    (s.Seasons || []).forEach(function(season) {
+                        used[season.Id] = true;
+                        (season.Episodes || []).forEach(function(e) { used[e.Id] = true; });
+                    });
+                });
+                return used;
+            }
+
+            // Same alphabet as the server; unique within the source. The server keeps valid ids.
+            function newNodeId() {
+                var used = usedIds(), id;
+                do {
+                    id = '';
+                    for (var i = 0; i < 6; i++) { id += ID_ALPHABET.charAt(Math.floor(Math.random() * ID_ALPHABET.length)); }
+                } while (used[id]);
+                return id;
+            }
+
+            function countLocal(content) {
+                var n = { series: 0, seasons: 0, episodes: 0 };
+                ((content && content.Series) || []).forEach(function(s) {
+                    n.series++;
+                    (s.Seasons || []).forEach(function(season) { n.seasons++; n.episodes += (season.Episodes || []).length; });
+                });
+                return n;
+            }
+
+            function plural(n, one, many) { return n + ' ' + (n > 1 ? many : one); }
+
+            // "2 séries · 3 saisons · 14 épisodes" on the local source cards
+            function loadLocalStats() {
+                Array.prototype.forEach.call(document.querySelectorAll('#sourcesList [data-local-stats]'), function(span) {
+                    var id = span.getAttribute('data-local-stats');
+                    if (!id) { return; }
+                    ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Local/' + id)).then(function(content) {
+                        var n = countLocal(content);
+                        span.textContent = n.episodes + n.seasons + n.series === 0
+                            ? 'Aucun contenu pour le moment'
+                            : plural(n.series, 'série', 'séries') + ' · ' + plural(n.seasons, 'saison', 'saisons') + ' · ' + plural(n.episodes, 'épisode', 'épisodes');
+                    });
+                });
+            }
+
+            function loadLocalContent() {
+                renderLocalEditor();
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Local/' + localDataId)).then(function(content) {
+                    content.Series = content.Series || [];
+                    localContent = content;
+                    renderLocalEditor();
+                }, function() {
+                    qs('#localTree').innerHTML = '<p class="cm-hint">Le contenu n\'a pas pu être chargé. Fermez l\'éditeur et réessayez : rien ne sera enregistré tant qu\'il n\'est pas chargé.</p>';
+                });
+            }
+
+            function saveLocalContent() {
+                if (!localContent) { return Promise.resolve(); }
+                return ApiClient.ajax({
+                    type: 'PUT',
+                    url: ApiClient.getUrl('CustomMetadata/Local/' + localDataId),
+                    data: JSON.stringify(localContent),
+                    contentType: 'application/json',
+                    dataType: 'json'
+                }).then(function(saved) {
+                    saved.Series = saved.Series || [];
+                    localContent = saved;
+                });
+            }
+
+            // A local source has imposed endpoints and mappings (the plugin serves the JSON itself)
+            function applyLocalSourceDefaults(source) {
+                var fields = { Title: 'title', Overview: 'overview', PremiereDate: 'premiereDate', CommunityRating: 'communityRating',
+                    Tags: 'tags', TagsItemField: 'label', Genres: 'genres', GenresItemField: 'name', SeriesName: '', IndexNumber: 'indexNumber',
+                    PosterUrl: 'poster', BackdropUrl: 'backdrop', ThumbUrl: 'thumb', LogoUrl: 'logo', BannerUrl: 'banner', ImagesArray: '', OverviewListTarget: '' };
+                source.SourceType = 'Local';
+                source.LocalDataId = localDataId;
+                source.BaseUrl = 'local://local';
+                source.ApiKey = '';
+                source.VideoEndpoint = '/videos/{id}';
+                source.SourceEndpoint = '/sources/{id}';
+                source.SeriesEndpoint = '/series/{id}';
+                source.EpisodeListEndpoint = '/sources/{id}/videos';
+                source.SendOriginReferer = false;
+                source.VideoFieldMappings = Object.assign({}, source.VideoFieldMappings, fields);
+                source.SourceFieldMappings = Object.assign({}, source.SourceFieldMappings, fields);
+                source.SeriesFieldMappings = Object.assign({}, source.SeriesFieldMappings, fields);
+                source.EpisodeListMappings = Object.assign({}, source.EpisodeListMappings, {
+                    ItemsPath: '', Id: 'id', Title: 'title', Overview: 'overview', PremiereDate: 'premiereDate', IndexNumber: 'indexNumber',
+                    Duration: 'duration', ThumbUrl: 'thumb', PreviewUrl: 'preview.url', PageParameter: ''
+                });
+                return source;
+            }
+
+            // ---- Recherche et tri ----
+            function findNode(id) {
+                var found = null;
+                ((localContent && localContent.Series) || []).forEach(function(s) {
+                    if (s.Id === id) { found = { kind: 'series', node: s, list: localContent.Series }; }
+                    (s.Seasons || []).forEach(function(season) {
+                        if (season.Id === id) { found = { kind: 'season', node: season, parent: s, list: s.Seasons }; }
+                        (season.Episodes || []).forEach(function(e) {
+                            if (e.Id === id) { found = { kind: 'episode', node: e, parent: season, grand: s, list: season.Episodes }; }
+                        });
+                    });
+                });
+                return found;
+            }
+
+            // Episodes sorted by number (no number at the end, entry order kept)
+            function sortedEpisodes(season) {
+                return (season.Episodes || []).map(function(e, i) { return { e: e, i: i }; }).sort(function(a, b) {
+                    var na = a.e.IndexNumber == null ? 1e9 : a.e.IndexNumber, nb = b.e.IndexNumber == null ? 1e9 : b.e.IndexNumber;
+                    return na - nb || a.i - b.i;
+                }).map(function(x) { return x.e; });
+            }
+
+            function pad2(n) { return n == null ? '' : (n < 10 ? '0' : '') + n; }
+            function currentPrefix() { return qs('#srcPrefix').value.trim() || 'préfixe'; }
+            function tagOf(node) { return '{' + currentPrefix() + '-' + node.Id + '}'; }
+
+            // "Title {prefix-ID}" without the characters forbidden in a file name (same rule as the missing-episodes screen)
+            function suggestedName(node) {
+                var title = String(node.Title || '')
+                    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ')
+                    .replace(/[{}]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .replace(/[. ]+$/, '');
+                return title ? title + ' ' + tagOf(node) : tagOf(node);
+            }
+
+            // ---- Arbre ----
+            function renderLocalTree() {
+                var tree = qs('#localTree');
+                if (!localContent) { tree.innerHTML = '<p class="cm-hint" style="margin: 8px;">Chargement…</p>'; return; }
+                var html = '<ul>';
+                localContent.Series.forEach(function(s) {
+                    var open = !localCollapsed[s.Id];
+                    html += '<li>' + treeRow(s, open, 'série', (s.Seasons || []).length + ' s.');
+                    if (open) {
+                        html += '<ul>';
+                        (s.Seasons || []).forEach(function(season) {
+                            var openSeason = !localCollapsed[season.Id];
+                            html += '<li>' + treeRow(season, openSeason, 'saison', (season.Episodes || []).length + ' ép.');
+                            if (openSeason) {
+                                html += '<ul>';
+                                sortedEpisodes(season).forEach(function(e) {
+                                    html += '<li><div class="cm-t-row"><button type="button" class="cm-t-item" data-node="' + e.Id + '"' + (localSel === e.Id ? ' aria-current="true"' : '') + '>'
+                                        + '<span class="n num">' + escapeHtml(pad2(e.IndexNumber)) + '</span>'
+                                        + '<span class="t' + (e.Title ? '' : ' untitled') + '">' + escapeHtml(e.Title || 'Épisode sans titre') + '</span></button></div></li>';
+                                });
+                                html += '<li><button type="button" class="cm-t-add" data-add="episode" data-parent="' + season.Id + '">＋ Épisode</button></li></ul>';
+                            }
+                            html += '</li>';
+                        });
+                        html += '<li><button type="button" class="cm-t-add" data-add="season" data-parent="' + s.Id + '">＋ Saison</button></li></ul>';
+                    }
+                    html += '</li>';
+                });
+                html += '</ul><button type="button" class="cm-t-add" data-add="series">＋ Série</button>';
+                tree.innerHTML = html;
+            }
+
+            function treeRow(node, open, kindLabel, count) {
+                return '<div class="cm-t-row"><button type="button" class="cm-t-chev" data-toggle-node="' + node.Id + '" aria-expanded="' + open + '" aria-label="' + (open ? 'Replier' : 'Déplier') + ' ' + kindLabel + ' ' + escapeHtml(node.Title || '') + '">' + (open ? '▾' : '▸') + '</button>'
+                    + '<button type="button" class="cm-t-item" data-node="' + node.Id + '"' + (localSel === node.Id ? ' aria-current="true"' : '') + '>'
+                    + '<span class="t' + (node.Title ? '' : ' untitled') + '">' + escapeHtml(node.Title || (kindLabel === 'série' ? 'Série sans titre' : 'Saison sans titre')) + '</span><span class="n">' + count + '</span></button></div>';
+            }
+
+            // ---- Fiche ----
+            function inputField(label, field, value, opts) {
+                opts = opts || {};
+                return '<div class="inputContainer' + (opts.span ? ' cm-span' : '') + '"><label class="inputLabel" for="lf-' + field + '">' + label + '</label>'
+                    + '<input is="emby-input" type="' + (opts.type || 'text') + '" id="lf-' + field + '" data-f="' + field + '" value="' + escapeHtml(value == null ? '' : value) + '"'
+                    + (opts.placeholder ? ' placeholder="' + escapeHtml(opts.placeholder) + '"' : '') + (opts.min != null ? ' min="' + opts.min + '"' : '') + ' />'
+                    + (opts.hint ? '<div class="cm-hint">' + opts.hint + '</div>' : '') + '</div>';
+            }
+
+            // Image: preview, file uploaded to the plugin ("local://img/…", read without network) or web address
+            function isLocalImage(value) { return typeof value === 'string' && value.indexOf('local://img/') === 0; }
+
+            function imagePreviewUrl(value) {
+                if (!value) { return ''; }
+                if (isLocalImage(value)) {
+                    var parts = value.substring('local://img/'.length).split('/');
+                    return ApiClient.getUrl('CustomMetadata/Local/' + parts[0] + '/Image/' + parts[1], { api_key: ApiClient.accessToken() });
+                }
+                return value;
+            }
+
+            function imageField(label, field, value, hint) {
+                var local = isLocalImage(value);
+                var src = imagePreviewUrl(value);
+                return '<div class="inputContainer cm-span cm-imgfield" data-img-field="' + field + '"><span class="inputLabel">' + label + '</span>'
+                    + '<div class="cm-imgrow"><div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
+                    + '<div class="cm-imgctl">'
+                    + '<div class="inputContainer"><input is="emby-input" type="text" id="lf-' + field + '" data-f="' + field + '" aria-label="' + label + ' : adresse web"'
+                    + ' value="' + escapeHtml(local ? '' : (value || '')) + '" placeholder="' + (local ? 'Fichier envoyé au plugin' : 'Adresse web (https://…)') + '"' + (local ? ' disabled' : '') + ' /></div>'
+                    + '<div class="cm-imgbtns"><button is="emby-button" type="button" class="raised" data-upload="' + field + '"><span>Envoyer un fichier…</span></button>'
+                    + (value ? '<button type="button" class="cm-linkbtn" data-clear-img="' + field + '">Retirer</button>' : '')
+                    + '<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-file="' + field + '" hidden /></div>'
+                    + (hint ? '<div class="cm-hint">' + hint + '</div>' : '')
+                    + '</div></div></div>';
+            }
+
+            function areaField(label, field, value) {
+                return '<div class="inputContainer cm-span"><label class="inputLabel" for="lf-' + field + '">' + label + '</label>'
+                    + '<textarea id="lf-' + field + '" data-f="' + field + '" rows="4">' + escapeHtml(value || '') + '</textarea></div>';
+            }
+
+            function renderLocalDetail() {
+                var box = qs('#localDetail');
+                if (!localContent) { box.innerHTML = ''; return; }
+                var hit = localSel ? findNode(localSel) : null;
+                if (!hit) {
+                    var empty = localContent.Series.length === 0;
+                    box.innerHTML = '<div class="cm-detail-empty">'
+                        + (empty ? '<strong>Cette source est vide.</strong><br>Commencez par une série : ses saisons et ses épisodes viendront ensuite.<br><button is="emby-button" type="button" class="raised button-submit" data-add="series"><span>Ajouter une série</span></button>'
+                            : 'Choisissez un élément dans l\'arbre pour le modifier,<br>ou ajoutez-en avec les boutons « ＋ ».')
+                        + '</div>';
+                    return;
+                }
+
+                var n = hit.node, kind = hit.kind;
+                var kindLabel = kind === 'series' ? 'Série' : (kind === 'season' ? 'Saison' : 'Épisode');
+                var where = kind === 'episode' ? 'du fichier de l\'épisode' : (kind === 'season' ? 'du dossier de la saison' : 'du dossier de la série');
+                var html = '<div><div class="cm-kicker">' + kindLabel + '</div><h4>' + escapeHtml(n.Title || (kindLabel + ' sans titre')) + '</h4></div>'
+                    + '<div class="cm-tagbox"><div><span class="cm-hint" style="margin:0;">Tag à mettre dans le nom ' + where + '</span><code class="cm-tag" id="lfTag">' + escapeHtml(tagOf(n)) + '</code></div>'
+                    + '<button is="emby-button" type="button" class="raised" data-copy="tag"><span>Copier le tag</span></button>'
+                    + '<button is="emby-button" type="button" class="raised" data-copy="name"><span>Copier le nom</span></button></div>'
+                    + '<div class="cm-grid">'
+                    + inputField('Titre', 'Title', n.Title, { span: true })
+                    + areaField('Résumé', 'Overview', n.Overview)
+                    + inputField('Date de sortie', 'PremiereDate', n.PremiereDate, { placeholder: 'AAAA-MM-JJ' });
+                if (kind === 'episode') {
+                    html += inputField('Numéro', 'IndexNumber', n.IndexNumber, { type: 'number', min: 0, hint: 'Détermine l\'ordre dans la saison.' })
+                        + inputField('Durée', 'Duration', n.Duration, { placeholder: '24:30', hint: 'mm:ss, hh:mm:ss ou secondes.' });
+                }
+                html += inputField('Tags', 'Tags', (n.Tags || []).join(', '), { span: true, hint: 'Séparés par des virgules.' })
+                    + inputField('Genres', 'Genres', (n.Genres || []).join(', '), { span: true, hint: 'Séparés par des virgules.' })
+                    + '<h4 class="cm-kicker" style="grid-column: 1 / -1; margin: 8px 0 -4px;">Images</h4>';
+                if (kind === 'episode') {
+                    html += imageField('Miniature', 'Thumb', n.Thumb, 'Affichée dans la liste des épisodes de la saison. Envoyez un fichier ou indiquez une adresse web.')
+                        + inputField('Vidéo d\'aperçu', 'PreviewUrl', n.PreviewUrl, { span: true, hint: 'Adresse web. Épisodes manquants uniquement : devient la bande-annonce de l\'épisode.' });
+                } else {
+                    html += imageField('Affiche', 'Poster', n.Poster) + imageField('Image de fond', 'Backdrop', n.Backdrop);
+                    if (kind === 'series') {
+                        html += imageField('Logo', 'Logo', n.Logo) + imageField('Bannière', 'Banner', n.Banner);
+                    }
+                }
+                html += '</div>';
+                if (kind === 'episode') { html += castBlock(n); }
+
+                if (kind === 'season') {
+                    html += '<div class="cm-bulk"><div><strong>Ajouter plusieurs épisodes</strong><div class="cm-hint">Un titre par ligne. Les numéros suivent les épisodes existants.</div></div>'
+                        + '<textarea id="lfBulk" rows="5" aria-label="Titres des épisodes à ajouter, un par ligne"></textarea>'
+                        + '<button is="emby-button" type="button" class="raised" data-bulk="' + n.Id + '"><span>Ajouter ces épisodes</span></button></div>';
+                }
+
+                var children = kind === 'series' ? (n.Seasons || []).length : (kind === 'season' ? (n.Episodes || []).length : 0);
+                html += '<div class="cm-danger"><div><strong>Supprimer ' + (kind === 'episode' ? 'cet épisode' : (kind === 'season' ? 'cette saison' : 'cette série')) + '</strong>'
+                    + '<span>' + (children ? 'Son contenu (' + children + (kind === 'series' ? ' saison(s)' : ' épisode(s)') + ') est supprimé avec elle. ' : '') + 'Pris en compte à l\'enregistrement.</span></div>'
+                    + '<button is="emby-button" type="button" class="raised" data-del="' + n.Id + '"><span>Supprimer…</span></button></div>';
+                qs('#localDetail').innerHTML = html;
+            }
+
+            function renderLocalEditor() {
+                renderLocalTree();
+                renderLocalDetail();
+                updateCounts();
+            }
+
+            // The prefix is typed in "Général": the tags shown in the form follow
+            function refreshLocalTagLabels() {
+                var tag = qs('#lfTag');
+                var hit = localSel ? findNode(localSel) : null;
+                if (tag && hit) { tag.textContent = tagOf(hit.node); }
+            }
+
+            function selectNode(id) {
+                localSel = id;
+                // The parents of the chosen element are expanded
+                var hit = findNode(id);
+                if (hit && hit.parent) { delete localCollapsed[hit.parent.Id]; }
+                if (hit && hit.grand) { delete localCollapsed[hit.grand.Id]; }
+                renderLocalTree();
+                renderLocalDetail();
+            }
+
+            function focusTitle() {
+                var title = qs('#lf-Title');
+                if (title) { title.focus(); }
+            }
+
+            function addNode(kind, parentId) {
+                var node = { Id: newNodeId(), Title: '', Overview: '', PremiereDate: '', Tags: [], Genres: [] };
+                if (kind === 'series') {
+                    node.Seasons = [];
+                    localContent.Series.push(node);
+                } else if (kind === 'season') {
+                    node.Episodes = [];
+                    findNode(parentId).node.Seasons.push(node);
+                } else {
+                    var season = findNode(parentId).node;
+                    node.IndexNumber = (season.Episodes || []).reduce(function(max, e) { return Math.max(max, e.IndexNumber || 0); }, 0) + 1;
+                    season.Episodes.push(node);
+                }
+                markDirty();
+                selectNode(node.Id);
+                focusTitle();
+            }
+
+            function bulkAdd(seasonId) {
+                var season = findNode(seasonId).node;
+                var lines = qs('#lfBulk').value.split(/\r?\n/).map(function(l) { return decodeEntities(l).trim(); }).filter(Boolean);
+                if (!lines.length) { qs('#lfBulk').focus(); return; }
+                var next = (season.Episodes || []).reduce(function(max, e) { return Math.max(max, e.IndexNumber || 0); }, 0) + 1;
+                lines.forEach(function(title) {
+                    season.Episodes.push({ Id: newNodeId(), Title: title, Overview: '', PremiereDate: '', Tags: [], Genres: [], IndexNumber: next++ });
+                });
+                markDirty();
+                localCollapsed[seasonId] = false;
+                renderLocalEditor();
+            }
+
+            function deleteNode(id) {
+                var hit = findNode(id);
+                if (!hit) { return; }
+                var label = (hit.node.Title || 'sans titre');
+                var extra = hit.kind === 'series' ? '\nSes saisons et leurs épisodes sont supprimés avec elle.' : (hit.kind === 'season' ? '\nSes épisodes sont supprimés avec elle.' : '');
+                if (!confirm('Supprimer « ' + label + ' » ?' + extra + '\nPris en compte à l\'enregistrement de la source.')) { return; }
+                hit.list.splice(hit.list.indexOf(hit.node), 1);
+                localSel = null;
+                markDirty();
+                renderLocalEditor();
+            }
+
+            function copyLocal(text, button) {
+                var done = function() {
+                    var span = button.querySelector('span');
+                    var previous = span.textContent;
+                    span.textContent = 'Copié';
+                    setTimeout(function() { span.textContent = previous; }, 1400);
+                };
+                // navigator.clipboard n'existe qu'en HTTPS / localhost : repli sur execCommand (Jellyfin souvent en http://IP)
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(done, function() { legacyCopyLocal(text) && done(); });
+                } else if (legacyCopyLocal(text)) {
+                    done();
+                }
+            }
+
+            function legacyCopyLocal(text) {
+                var area = document.createElement('textarea');
+                area.value = text;
+                area.setAttribute('readonly', '');
+                area.style.position = 'fixed';
+                area.style.opacity = '0';
+                document.body.appendChild(area);
+                area.select();
+                var ok = false;
+                try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+                document.body.removeChild(area);
+                return ok;
+            }
+
+            // "Q&amp;A" pasted from a web page → "Q&A" (the server does the same on save)
+            function decodeEntities(text) {
+                if (text.indexOf('&') < 0) { return text; }
+                var box = document.createElement('textarea');
+                box.innerHTML = text;
+                return box.value;
+            }
+
+            function splitList(text) {
+                return String(text || '').split(',').map(function(t) { return t.trim(); }).filter(Boolean);
+            }
+
+            // Typed in the form: writes directly into the element; the tree follows (title, number)
+            qs('#localDetail').addEventListener('input', function(e) {
+                var f = e.target.getAttribute && e.target.getAttribute('data-f');
+                var hit = localSel ? findNode(localSel) : null;
+                if (!f || !hit) { return; }
+                var value = e.target.value;
+                if (f === 'Tags' || f === 'Genres') { hit.node[f] = splitList(value); }
+                else if (f === 'IndexNumber') { hit.node[f] = value === '' ? null : Math.max(0, parseInt(value, 10) || 0); }
+                else { hit.node[f] = value; }
+                if (f === 'Title' || f === 'IndexNumber') {
+                    var heading = qs('#localDetail h4');
+                    if (heading && f === 'Title') { heading.textContent = value || (hit.kind === 'series' ? 'Série' : (hit.kind === 'season' ? 'Saison' : 'Épisode')) + ' sans titre'; }
+                    renderLocalTree();
+                }
+            });
+
+            // Web address typed: the preview follows when the field loses focus
+            qs('#localDetail').addEventListener('change', function(e) {
+                var t = e.target;
+                if (t.hasAttribute && t.hasAttribute('data-file')) { uploadImage(t.getAttribute('data-file'), t.files && t.files[0]); t.value = ''; return; }
+                var box = t.closest && t.closest('[data-img-field]');
+                var hit = localSel ? findNode(localSel) : null;
+                if (box && hit && t.hasAttribute('data-f')) { renderLocalDetail(); }
+            });
+
+            // Image not found or unreadable: say so in place of the preview
+            qs('#localDetail').addEventListener('error', function(e) {
+                if (e.target.tagName === 'IMG' && e.target.closest('.cm-imgprev')) {
+                    e.target.parentNode.textContent = 'Aperçu impossible';
+                }
+            }, true);
+
+            function uploadImage(field, file) {
+                var hit = localSel ? findNode(localSel) : null;
+                if (!file || !hit) { return; }
+                if (file.size > 8 * 1024 * 1024) { Dashboard.alert('Image trop lourde : 8 Mo au maximum.'); return; }
+                var button = qs('#localDetail [data-upload="' + field + '"] span');
+                if (button) { button.textContent = 'Envoi…'; }
+                // fetch and not ApiClient.ajax: jellyfin-web's ajax does not pass a raw file through as is
+                fetch(ApiClient.getUrl('CustomMetadata/Local/' + localDataId + '/Image', { node: hit.node.Id }), {
+                    method: 'POST',
+                    headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() },
+                    body: file
+                }).then(function(response) {
+                    if (!response.ok) { throw new Error('HTTP ' + response.status); }
+                    return response.json();
+                }).then(function(result) {
+                    hit.node[field] = result.Url;
+                    markDirty();
+                    renderLocalDetail();
+                }, function() {
+                    Dashboard.alert('Image refusée : JPEG, PNG, WebP ou GIF, 8 Mo au maximum.');
+                    renderLocalDetail();
+                });
+            }
+
+            // ---- Cast of an episode: people of the directory (People screen) ----
+            var peopleDir = null;
+            var CAST_TYPES = [['Actor', 'Acteur'], ['GuestStar', 'Invité'], ['Director', 'Réalisateur'], ['Writer', 'Scénariste'], ['Producer', 'Producteur'], ['Composer', 'Compositeur'], ['Creator', 'Créateur'], ['Editor', 'Monteur']];
+
+            function loadPeopleDirectory() {
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People')).then(function(dir) {
+                    peopleDir = dir.People || [];
+                    var hit = localSel ? findNode(localSel) : null;
+                    if (hit && hit.kind === 'episode') { renderLocalDetail(); }
+                }, function() { peopleDir = []; });
+            }
+
+            function personById(id) {
+                return (peopleDir || []).filter(function(p) { return String(p.Id).toLowerCase() === String(id).toLowerCase(); })[0] || null;
+            }
+
+            function normalizeName(text) {
+                return String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            }
+
+            function castBlock(episode) {
+                var cast = episode.Cast || [];
+                var html = '<div class="cm-cast"><div class="cm-cast-head"><h4 class="cm-kicker" style="margin:0;">Distribution</h4>'
+                    + '<span class="cm-hint" style="margin:0;">Personnes de l\'annuaire. <a class="cm-link" href="#/configurationpage?name=CustomMetadataPeople">Gérer les personnes</a></span></div>';
+                cast.forEach(function(entry, i) {
+                    var person = personById(entry.PersonId);
+                    var photo = person && person.Photo ? imagePreviewUrl(person.Photo) : '';
+                    var typeOptions = CAST_TYPES.map(function(t) { return '<option value="' + t[0] + '"' + (t[0] === entry.Type ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('');
+                    html += '<div class="cm-cast-row"><span class="cm-avatar">' + (photo ? '<img alt="" src="' + escapeHtml(photo) + '" />' : '?') + '</span>'
+                        + '<span class="cm-cast-name">' + escapeHtml(person ? person.Name : '(personne supprimée)') + '</span>'
+                        + '<input class="cm-cast-role" type="text" data-cast-role="' + i + '" value="' + escapeHtml(entry.Role || '') + '" placeholder="Rôle" aria-label="Rôle de ' + escapeHtml(person ? person.Name : 'la personne') + '" />'
+                        + '<select class="cm-cast-type" data-cast-type="' + i + '" aria-label="Type de ' + escapeHtml(person ? person.Name : 'la personne') + '">' + typeOptions + '</select>'
+                        + '<button type="button" class="cm-linkbtn" data-cast-remove="' + i + '" aria-label="Retirer ' + escapeHtml(person ? person.Name : 'la personne') + '">Retirer</button></div>';
+                });
+                if (!cast.length) { html += '<div class="cm-hint" style="margin:0;">Personne pour le moment.</div>'; }
+                var known = (peopleDir || []).filter(function(p) { return !cast.some(function(c) { return String(c.PersonId).toLowerCase() === String(p.Id).toLowerCase(); }); });
+                if (qs('#CustomMetadataConfigPage').getAttribute('data-casting') === 'off') {
+                    html += '<div class="cm-cast-msg" role="alert">Le casting est désactivé : cette distribution ne sera pas envoyée à Jellyfin tant que « Importer le casting » (onglet Réglages) est coupé.</div>';
+                }
+                html += '<div class="cm-cast-add"><input type="text" id="lfCastAdd" list="lfCastList" placeholder="' + (peopleDir && !peopleDir.length ? 'Aucune personne dans l\'annuaire : ajoutez-en dans l\'écran Personnes' : 'Ajouter une personne : tapez un nom') + '" aria-label="Ajouter une personne à la distribution" autocomplete="off" />'
+                    + '<datalist id="lfCastList">' + known.map(function(p) { return '<option value="' + escapeHtml(p.Name) + '"></option>'; }).join('') + '</datalist>'
+                    + '<button is="emby-button" type="button" class="raised" data-cast-add="1"><span>Ajouter</span></button>'
+                    + (cast.length ? '<button is="emby-button" type="button" class="raised" data-cast-season="1"><span>Appliquer à toute la saison</span></button>' : '')
+                    + '</div><div class="cm-cast-msg" id="lfCastMsg" role="status"></div></div>';
+                return html;
+            }
+
+            function castMessage(text) { var el = qs('#lfCastMsg'); if (el) { el.textContent = text || ''; } }
+
+            function addCastFromInput() {
+                var hit = localSel ? findNode(localSel) : null;
+                var input = qs('#lfCastAdd');
+                if (!hit || hit.kind !== 'episode' || !input) { return; }
+                var wanted = normalizeName(input.value);
+                if (!wanted) { input.focus(); return; }
+                var person = (peopleDir || []).filter(function(p) { return normalizeName(p.Name) === wanted; })[0];
+                if (!person) { castMessage('« ' + input.value.trim() + ' » n\'est pas dans l\'annuaire. Ajoutez-la d\'abord dans l\'écran Personnes.'); return; }
+                hit.node.Cast = hit.node.Cast || [];
+                if (hit.node.Cast.some(function(c) { return String(c.PersonId).toLowerCase() === String(person.Id).toLowerCase(); })) { castMessage(person.Name + ' est déjà dans la distribution.'); return; }
+                hit.node.Cast.push({ PersonId: person.Id, Role: '', Type: 'Actor' });
+                markDirty();
+                renderLocalDetail();
+                var again = qs('#lfCastAdd'); if (again) { again.focus(); }
+            }
+
+            // Copies this episode's cast to the other episodes of the season (without touching what they already have)
+            function applyCastToSeason() {
+                var hit = localSel ? findNode(localSel) : null;
+                if (!hit || hit.kind !== 'episode') { return; }
+                var others = (hit.parent.Episodes || []).filter(function(e) { return e !== hit.node; });
+                if (!others.length) { castMessage('Cette saison n\'a pas d\'autre épisode.'); return; }
+                if (!confirm('Ajouter cette distribution aux ' + others.length + ' autre(s) épisode(s) de la saison ?\nLes personnes déjà présentes sur un épisode ne sont pas modifiées.')) { return; }
+                var added = 0;
+                others.forEach(function(e) {
+                    e.Cast = e.Cast || [];
+                    hit.node.Cast.forEach(function(c) {
+                        if (!e.Cast.some(function(x) { return String(x.PersonId).toLowerCase() === String(c.PersonId).toLowerCase(); })) {
+                            e.Cast.push({ PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' });
+                            added++;
+                        }
+                    });
+                });
+                markDirty();
+                castMessage(added + ' ajout(s) sur ' + others.length + ' épisode(s).');
+            }
+
+            qs('#localDetail').addEventListener('input', function(e) {
+                var hit = localSel ? findNode(localSel) : null;
+                if (!hit || !hit.node.Cast) { return; }
+                if (e.target.hasAttribute('data-cast-role')) { hit.node.Cast[parseInt(e.target.getAttribute('data-cast-role'), 10)].Role = e.target.value; }
+            });
+            qs('#localDetail').addEventListener('change', function(e) {
+                var hit = localSel ? findNode(localSel) : null;
+                if (hit && hit.node.Cast && e.target.hasAttribute('data-cast-type')) { hit.node.Cast[parseInt(e.target.getAttribute('data-cast-type'), 10)].Type = e.target.value; }
+                if (e.target.id === 'lfCastAdd') { /* choosing in the list adds nothing: the button or Enter does */ }
+            });
+            qs('#localDetail').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && e.target.id === 'lfCastAdd') { e.preventDefault(); addCastFromInput(); }
+            });
+
+            // Enter in a field of the form must not save the source
+            qs('#localDetail').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
+            });
+
+            function onLocalClick(e) {
+                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-upload],[data-clear-img],[data-cast-remove],[data-cast-add],[data-cast-season]');
+                if (!target || !localContent) { return; }
+                if (target.hasAttribute('data-node')) { selectNode(target.getAttribute('data-node')); return; }
+                if (target.hasAttribute('data-toggle-node')) {
+                    var id = target.getAttribute('data-toggle-node');
+                    localCollapsed[id] = !localCollapsed[id];
+                    renderLocalTree();
+                    return;
+                }
+                if (target.hasAttribute('data-add')) { addNode(target.getAttribute('data-add'), target.getAttribute('data-parent')); return; }
+                if (target.hasAttribute('data-bulk')) { bulkAdd(target.getAttribute('data-bulk')); return; }
+                if (target.hasAttribute('data-del')) { deleteNode(target.getAttribute('data-del')); return; }
+                if (target.hasAttribute('data-cast-add')) { addCastFromInput(); return; }
+                if (target.hasAttribute('data-cast-season')) { applyCastToSeason(); return; }
+                if (target.hasAttribute('data-cast-remove')) {
+                    var holder = localSel ? findNode(localSel) : null;
+                    if (holder && holder.node.Cast) { holder.node.Cast.splice(parseInt(target.getAttribute('data-cast-remove'), 10), 1); markDirty(); renderLocalDetail(); }
+                    return;
+                }
+                if (target.hasAttribute('data-upload')) {
+                    var picker = qs('#localDetail [data-file="' + target.getAttribute('data-upload') + '"]');
+                    if (picker) { picker.click(); }
+                    return;
+                }
+                if (target.hasAttribute('data-clear-img')) {
+                    var owner = localSel ? findNode(localSel) : null;
+                    if (owner) { owner.node[target.getAttribute('data-clear-img')] = ''; markDirty(); renderLocalDetail(); }
+                    return;
+                }
+                if (target.hasAttribute('data-copy')) {
+                    var hit = localSel ? findNode(localSel) : null;
+                    if (hit) { copyLocal(target.getAttribute('data-copy') === 'tag' ? tagOf(hit.node) : suggestedName(hit.node), target); }
+                }
+            }
+            qs('#localTree').addEventListener('click', onLocalClick);
+            qs('#localDetail').addEventListener('click', onLocalClick);
+
+            // ---- Type choice and banner after saving ----
+            qs('#btnCancelChooser').addEventListener('click', function() { qs('#typeChooserWrap').hidden = true; });
+            qs('#typeChooser').addEventListener('click', function(e) {
+                var choice = e.target.closest('[data-new-type]');
+                if (choice) { window.openAddSourceModal(choice.getAttribute('data-new-type')); }
+            });
+
+            var lastSavedLocalPrefix = '';
+
+            function showPostSaveNotice(prefix) {
+                qs('#postSaveText').textContent = 'Source locale enregistrée. Les épisodes déclarés sans fichier apparaissent après l\'analyse des épisodes manquants. Pour les épisodes déjà enrichis (fichiers présents, distribution), « Appliquer aux épisodes » les met à jour sans toucher au reste de la série.';
+                qs('#postSaveNotice').hidden = false;
+                qs('#btnNoticeAnalyze').disabled = false;
+                qs('#btnNoticeApply').disabled = false;
+                lastSavedLocalPrefix = prefix || '';
+            }
+            qs('#btnNoticeApply').addEventListener('click', function() {
+                var button = qs('#btnNoticeApply');
+                button.disabled = true;
+                ApiClient.ajax({
+                    type: 'POST', url: ApiClient.getUrl('CustomMetadata/People/Apply'),
+                    data: JSON.stringify({ PersonIds: [], EpisodeKeys: [], Prefixes: [lastSavedLocalPrefix] }),
+                    contentType: 'application/json', dataType: 'json'
+                }).then(function(result) {
+                    qs('#postSaveText').textContent = result.Queued
+                        ? result.Queued + ' épisode(s) en cours de mise à jour par Jellyfin' + (result.Missing ? ' (dont ' + result.Missing + ' manquant(s))' : '') + '.'
+                        : 'Aucun épisode de la médiathèque n\'est concerné pour le moment.';
+                }, function() {
+                    qs('#postSaveText').textContent = 'La mise à jour n\'a pas pu être lancée.';
+                    button.disabled = false;
+                });
+            });
+            qs('#btnNoticeClose').addEventListener('click', function() { qs('#postSaveNotice').hidden = true; });
+            qs('#btnNoticeAnalyze').addEventListener('click', function() {
+                var button = qs('#btnNoticeAnalyze');
+                button.disabled = true;
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('CustomMetadata/MissingEpisodes/Analyze') }).then(function() {
+                    qs('#postSaveText').textContent = 'Analyse lancée. Le résultat s\'affiche sur l\'écran « Épisodes manquants ».';
+                }, function() {
+                    qs('#postSaveText').textContent = 'L\'analyse n\'a pas pu être lancée (une analyse est peut-être déjà en cours).';
+                    button.disabled = false;
+                });
+            });
+        })();
+    </script>
+</div>
+</body>
+</html>

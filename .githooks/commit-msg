@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Checks the message format: Conventional Commits, in English.
+#   type(scope)!: subject     — type: feat fix docs refactor perf test build ci chore revert
+# Enable (once per clone):  git config core.hooksPath .githooks
+set -uo pipefail
+first="$(grep -vE '^\s*(#|$)' "$1" | head -n1)"
+
+case "$first" in Merge\ *|Revert\ *|fixup!\ *|squash!\ *) exit 0 ;; esac
+
+re='^(feat|fix|docs|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._-]+\))?!?: [^ ].*$'
+if ! [[ "$first" =~ $re ]]; then
+  cat >&2 <<MSG
+✖ commit-msg: expected format "type(scope): subject", in English.
+  types:   feat fix docs refactor perf test build ci chore revert
+  example: fix(season): read the tag from the folder name
+  got:     $first
+MSG
+  exit 1
+fi
+if [ "${#first}" -gt 72 ]; then
+  echo "✖ commit-msg: the first line is ${#first} characters long (72 maximum)." >&2; exit 1
+fi
+exit 0

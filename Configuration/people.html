@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Personnes</title>
+</head>
+<body>
+<div id="CustomMetadataPeoplePage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select">
+    <!-- Styles INSIDE the page: jellyfin-web keeps only this div, a <style> in the <head> would be ignored. Everything is prefixed with the page id. -->
+    <style>
+        #CustomMetadataPeoplePage {
+            --pp-surface: rgba(255, 255, 255, 0.04);
+            --pp-surface-2: rgba(255, 255, 255, 0.07);
+            --pp-border: rgba(255, 255, 255, 0.12);
+            --pp-muted: rgba(255, 255, 255, 0.65);
+            --pp-accent: #00a4dc;
+            --pp-link: #33b6e6;
+            --pp-ok: #3fb27f;
+            --pp-warn: #f0a040;
+        }
+        #CustomMetadataPeoplePage [data-role="content"] { overflow: visible; }
+        #CustomMetadataPeoplePage [hidden] { display: none !important; }
+        #CustomMetadataPeoplePage .pp-wrap { container-type: inline-size; }
+        #CustomMetadataPeoplePage a.pp-link, #CustomMetadataPeoplePage .pp-linkbtn { color: var(--pp-link); text-decoration: none; background: none; border: 0; padding: 6px 0; font: inherit; font-weight: 600; cursor: pointer; }
+        #CustomMetadataPeoplePage a.pp-link:hover, #CustomMetadataPeoplePage .pp-linkbtn:hover { text-decoration: underline; }
+        #CustomMetadataPeoplePage .pp-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+        #CustomMetadataPeoplePage h2 { margin: 0 0 4px; font-size: 26px; font-weight: 400; }
+        #CustomMetadataPeoplePage .pp-lead { margin: 0 0 20px; max-width: 800px; color: var(--pp-muted); line-height: 1.5; }
+        #CustomMetadataPeoplePage .pp-hint { margin-top: 6px; font-size: 13px; line-height: 1.45; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-add { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; padding: 16px 18px; border: 1px solid var(--pp-border); border-radius: 10px; background: var(--pp-surface); }
+        #CustomMetadataPeoplePage .pp-add h3 { margin: 0; font-size: 16px; font-weight: 700; }
+        #CustomMetadataPeoplePage .pp-add-row { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; }
+        #CustomMetadataPeoplePage .pp-add-row .inputContainer, #CustomMetadataPeoplePage .pp-add-row .selectContainer { margin: 0; min-width: 180px; flex: 1 1 200px; }
+        #CustomMetadataPeoplePage .pp-add-row .emby-button { margin: 0; }
+        #CustomMetadataPeoplePage .pp-found { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 12px; border: 1px solid var(--pp-border); border-radius: 8px; background: var(--pp-surface-2); }
+        #CustomMetadataPeoplePage .pp-found .pp-avatar { width: 56px; height: 56px; }
+        #CustomMetadataPeoplePage .pp-found-text { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+        #CustomMetadataPeoplePage .pp-found-actions { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+        #CustomMetadataPeoplePage .pp-found-actions .emby-button { margin: 0; }
+        #CustomMetadataPeoplePage .pp-msg { padding: 10px 12px; border-radius: 6px; line-height: 1.5; background: rgba(240, 160, 64, 0.12); border: 1px solid rgba(240, 160, 64, 0.4); }
+        #CustomMetadataPeoplePage .pp-msg.ok { background: rgba(63, 178, 127, 0.12); border-color: rgba(63, 178, 127, 0.45); }
+        #CustomMetadataPeoplePage .pp-layout { display: grid; grid-template-columns: minmax(250px, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+        @container (max-width: 860px) { #CustomMetadataPeoplePage .pp-layout { grid-template-columns: minmax(0, 1fr); } }
+        #CustomMetadataPeoplePage .pp-list { border: 1px solid var(--pp-border); border-radius: 10px; background: var(--pp-surface-2); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+        #CustomMetadataPeoplePage .pp-list .inputContainer { margin: 0; }
+        #CustomMetadataPeoplePage .pp-items { max-height: 68vh; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+        #CustomMetadataPeoplePage .pp-item { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 10px; border: 0; border-left: 3px solid transparent; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataPeoplePage .pp-item:hover { background: rgba(255, 255, 255, 0.06); }
+        #CustomMetadataPeoplePage .pp-item[aria-current="true"] { background: rgba(0, 164, 220, 0.16); border-left-color: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-item-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; flex: 1; }
+        #CustomMetadataPeoplePage .pp-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        #CustomMetadataPeoplePage .pp-item-ids { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--pp-muted); font-family: monospace; }
+        #CustomMetadataPeoplePage .pp-badge { flex-shrink: 0; padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(240, 160, 64, 0.6); color: #f3c88a; font-size: 11px; font-weight: 700; }
+        #CustomMetadataPeoplePage .pp-avatar { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: var(--pp-surface); display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        #CustomMetadataPeoplePage .pp-empty { padding: 22px; line-height: 1.6; color: var(--pp-muted); text-align: center; }
+        #CustomMetadataPeoplePage .pp-detail { display: flex; flex-direction: column; gap: 20px; min-width: 0; max-width: 980px; box-sizing: border-box; padding: 22px; border: 1px solid var(--pp-border); border-radius: 10px; background: var(--pp-surface); }
+        #CustomMetadataPeoplePage .pp-detail h3 { margin: 0; font-size: 20px; font-weight: 600; }
+        #CustomMetadataPeoplePage .pp-detail h4 { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-detail .inputContainer { margin: 0; }
+        #CustomMetadataPeoplePage .pp-detail .inputLabel { display: block; margin-bottom: 6px; }
+        #CustomMetadataPeoplePage .pp-detail textarea { display: block; width: 100%; box-sizing: border-box; min-height: 96px; padding: 10px 12px; resize: vertical; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; line-height: 1.45; border: 1px solid transparent; border-radius: 4px; }
+        #CustomMetadataPeoplePage .pp-detail textarea:focus { outline: none; border-color: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-photo { display: flex; gap: 16px; align-items: flex-start; }
+        #CustomMetadataPeoplePage .pp-photo .pp-avatar { flex-basis: 110px; width: 110px; height: 110px; font-size: 28px; }
+        #CustomMetadataPeoplePage .pp-photo-ctl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+        #CustomMetadataPeoplePage .pp-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+        #CustomMetadataPeoplePage .pp-btns .emby-button { margin: 0; }
+        #CustomMetadataPeoplePage .pp-links { display: flex; flex-direction: column; gap: 10px; }
+        #CustomMetadataPeoplePage .pp-link-row { display: grid; grid-template-columns: minmax(170px, 250px) minmax(120px, 1fr) auto; gap: 10px; align-items: center; }
+        #CustomMetadataPeoplePage .pp-link-row input, #CustomMetadataPeoplePage .pp-link-row select { min-height: 40px; box-sizing: border-box; width: 100%; padding: 0 10px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; border: 1px solid transparent; border-radius: 4px; }
+        #CustomMetadataPeoplePage .pp-link-row select option { color: #000; }
+        #CustomMetadataPeoplePage .pp-link-actions { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+        @container (max-width: 640px) { #CustomMetadataPeoplePage .pp-link-row { grid-template-columns: minmax(0, 1fr); } #CustomMetadataPeoplePage .pp-photo { flex-direction: column; } }
+        #CustomMetadataPeoplePage .pp-danger { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 14px 16px; border: 1px solid rgba(255, 107, 91, 0.45); border-radius: 8px; background: rgba(255, 107, 91, 0.06); }
+        #CustomMetadataPeoplePage .pp-danger > div { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.45; }
+        #CustomMetadataPeoplePage .pp-danger strong { color: #ff9a8c; font-size: 14px; }
+        #CustomMetadataPeoplePage .pp-danger .emby-button { margin: 0; background: transparent; border: 1px solid #c0392b; color: #ff9a8c; }
+        #CustomMetadataPeoplePage .pp-tabs { display: flex; gap: 4px; margin: 0 0 20px; border-bottom: 1px solid var(--pp-border); }
+        #CustomMetadataPeoplePage .pp-tab { height: 44px; padding: 0 16px; background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; color: var(--pp-muted); font: inherit; font-weight: 600; cursor: pointer; }
+        #CustomMetadataPeoplePage .pp-tab[aria-selected="true"] { color: #fff; border-bottom-color: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-group { padding: 10px 10px 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pp-muted); display: flex; justify-content: space-between; gap: 8px; }
+        #CustomMetadataPeoplePage .pp-group-btn { width: 100%; box-sizing: border-box; border: 0; border-left: 3px solid transparent; background: none; font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pp-muted); cursor: pointer; text-align: left; align-items: center; min-height: 40px; }
+        #CustomMetadataPeoplePage .pp-group-btn:hover { background: rgba(255, 255, 255, 0.06); }
+        #CustomMetadataPeoplePage .pp-group-btn[aria-current="true"] { background: rgba(0, 164, 220, 0.16); border-left-color: var(--pp-accent); color: #fff; }
+        #CustomMetadataPeoplePage .pp-count { flex-shrink: 0; min-width: 22px; padding: 1px 7px; border-radius: 10px; background: rgba(63, 178, 127, 0.2); color: #8fd9b7; font-size: 12px; font-weight: 700; text-align: center; }
+        #CustomMetadataPeoplePage .pp-eps { display: flex; flex-direction: column; gap: 8px; }
+        #CustomMetadataPeoplePage .pp-ep { border: 1px solid var(--pp-border); border-radius: 8px; background: var(--pp-surface-2); }
+        #CustomMetadataPeoplePage .pp-ep-head { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 12px; width: 100%; box-sizing: border-box; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataPeoplePage .pp-ep-num { flex: 0 0 28px; text-align: right; color: var(--pp-muted); font-size: 13px; }
+        #CustomMetadataPeoplePage .pp-ep-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        #CustomMetadataPeoplePage .pp-ep-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        #CustomMetadataPeoplePage .pp-ep-sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-ep.open { border-color: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-ep-body { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+        #CustomMetadataPeoplePage .pp-badge.miss { border-color: rgba(0, 164, 220, 0.6); color: #7fd3f2; }
+        #CustomMetadataPeoplePage .pp-cast-row { display: grid; grid-template-columns: 40px minmax(0, 1.1fr) minmax(0, 1fr) 128px auto; gap: 8px; align-items: center; }
+        #CustomMetadataPeoplePage .pp-cast-row input, #CustomMetadataPeoplePage .pp-cast-row select, #CustomMetadataPeoplePage .pp-cast-add input { min-height: 40px; box-sizing: border-box; width: 100%; padding: 0 10px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; border: 1px solid transparent; border-radius: 4px; }
+        #CustomMetadataPeoplePage .pp-cast-row select option { color: #000; }
+        #CustomMetadataPeoplePage .pp-cast-name { overflow-wrap: anywhere; font-weight: 600; }
+        #CustomMetadataPeoplePage .pp-cast-add { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+        #CustomMetadataPeoplePage .pp-cast-add input { flex: 1 1 220px; }
+        #CustomMetadataPeoplePage .pp-cast-add .emby-button { margin: 0; }
+        @container (max-width: 700px) { #CustomMetadataPeoplePage .pp-cast-row { grid-template-columns: 40px minmax(0, 1fr) auto; } #CustomMetadataPeoplePage .pp-cast-row .pp-cast-role, #CustomMetadataPeoplePage .pp-cast-row .pp-cast-type { grid-column: 2 / -1; } }
+        #CustomMetadataPeoplePage .pp-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(240, 160, 64, 0.55); border-radius: 8px; background: rgba(240, 160, 64, 0.1); color: #f3c88a; line-height: 1.5; }
+        #CustomMetadataPeoplePage .pp-warn span { flex: 1 1 320px; }
+        #CustomMetadataPeoplePage .pp-group-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        #CustomMetadataPeoplePage .pp-group-sub { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-apply { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(63, 178, 127, 0.5); border-radius: 8px; background: rgba(63, 178, 127, 0.1); line-height: 1.5; }
+        #CustomMetadataPeoplePage .pp-apply span { flex: 1 1 320px; }
+        #CustomMetadataPeoplePage .pp-apply .emby-button { margin: 0; }
+        #CustomMetadataPeoplePage .pp-savebar { position: sticky; bottom: 0; z-index: 5; margin: 24px -16px 0; padding: 12px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; border-top: 1px solid var(--pp-border); background: #181818; }
+        #CustomMetadataPeoplePage .pp-savebar .emby-button { margin: 0; }
+        #CustomMetadataPeoplePage .pp-dirty { color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-dirty.on { color: #f0c080; }
+        #CustomMetadataPeoplePage .pp-dirty.on::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--pp-warn); }
+        #CustomMetadataPeoplePage .pp-actions { margin-left: auto; display: flex; gap: 10px; }
+        @media (max-width: 900px) { #CustomMetadataPeoplePage .pp-actions { width: 100%; } #CustomMetadataPeoplePage .pp-actions .emby-button { flex: 1 1 0; min-height: 44px; } }
+    </style>
+
+    <div data-role="content">
+        <div class="content-primary">
+            <div class="pp-wrap">
+                <nav class="pp-crumbs" aria-label="Fil d'Ariane">
+                    <a class="pp-link" href="#/configurationpage?name=Custom%20Metadata%20Provider">← Configuration du plugin</a>
+                </nav>
+                <h2>Personnes</h2>
+                <p class="pp-lead">L'annuaire du casting, commun à toutes les sources. Chaque personne peut venir d'une ou plusieurs API (un identifiant par source) ou être saisie à la main. Elles s'ajoutent ensuite à la distribution des épisodes : dans la source pour une source locale, dans l'onglet « Distribution des épisodes d'API » pour une source API.</p>
+
+                <div class="pp-warn" id="ppCastOff" role="alert" hidden>
+                    <span>Le casting est <strong>désactivé</strong> dans les réglages du plugin : les personnes et les distributions ne sont pas envoyées à Jellyfin tant que « Importer le casting » est coupé.</span>
+                    <a class="pp-link" href="#/configurationpage?name=Custom%20Metadata%20Provider">Ouvrir les réglages</a>
+                </div>
+
+                <div class="pp-apply" id="ppApply" role="status" hidden>
+                    <span id="ppApplyText"></span>
+                    <button is="emby-button" type="button" class="raised button-submit" id="ppApplyBtn"><span>Appliquer aux épisodes</span></button>
+                    <button type="button" class="pp-linkbtn" id="ppApplyLater">Plus tard</button>
+                </div>
+
+                <div class="pp-tabs" role="tablist" aria-label="Sections">
+                    <button type="button" class="pp-tab" role="tab" id="ppTabBtnDir" data-pp-tab="directory" aria-selected="true">Annuaire</button>
+                    <button type="button" class="pp-tab" role="tab" id="ppTabBtnEp" data-pp-tab="episodes" aria-selected="false">Distribution des épisodes d'API</button>
+                </div>
+
+                <div id="ppTabDirectory">
+                <section class="pp-add" aria-labelledby="ppAddTitle">
+                    <h3 id="ppAddTitle">Ajouter une personne</h3>
+                    <div class="pp-add-row" id="ppFromSource">
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="ppAddSource">Source de personnes</label>
+                            <select is="emby-select" id="ppAddSource"></select>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="ppAddId">Identifiant dans cette source</label>
+                            <input is="emby-input" type="text" id="ppAddId" placeholder="123, pe-123 ou {pe-123}" />
+                        </div>
+                        <button is="emby-button" type="button" class="raised button-submit" id="ppFetch"><span>Récupérer</span></button>
+                        <button is="emby-button" type="button" class="raised" id="ppAddManual"><span>Saisie manuelle</span></button>
+                    </div>
+                    <div class="pp-hint" id="ppNoSource" hidden>Aucune source de personnes n'est configurée. <a class="pp-link" href="#/configurationpage?name=Custom%20Metadata%20Provider">Ajoutez-en une</a> (type « Source de personnes »), ou utilisez la saisie manuelle.</div>
+                    <div id="ppFound" aria-live="polite"></div>
+                </section>
+
+                <div class="pp-layout">
+                    <div class="pp-list">
+                        <div class="inputContainer"><input is="emby-input" type="search" id="ppSearch" placeholder="Rechercher une personne" aria-label="Rechercher une personne" /></div>
+                        <div class="pp-items" id="ppItems"></div>
+                    </div>
+                    <div class="pp-detail" id="ppDetail" aria-live="polite"></div>
+                </div>
+                </div>
+
+                <div id="ppTabEpisodes" hidden>
+                    <p class="pp-lead" style="margin-bottom: 16px;">Ajoutez une distribution aux épisodes qui viennent d'une source API (ceux d'une source locale se règlent dans la source). L'API n'est pas modifiée : la distribution est rattachée au tag de l'épisode et s'ajoute à son casting éventuel, sans doublon.</p>
+                    <div class="pp-layout">
+                        <div class="pp-list">
+                            <div class="inputContainer"><input is="emby-input" type="search" id="ppEpSearch" placeholder="Rechercher (série, saison, identifiant)" aria-label="Rechercher une série, une saison ou un identifiant" /></div>
+                            <div class="pp-items" id="ppEpTree"></div>
+                        </div>
+                        <div class="pp-detail" id="ppEpDetail" aria-live="polite"></div>
+                    </div>
+                </div>
+
+                <div class="pp-savebar" role="region" aria-label="Enregistrement">
+                    <span class="pp-dirty" id="ppDirty">Aucune modification</span>
+                    <div class="pp-actions">
+                        <button is="emby-button" type="button" class="raised" id="ppCancel"><span>Annuler les modifications</span></button>
+                        <button is="emby-button" type="button" class="raised button-submit" id="ppSave"><span>Enregistrer</span></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function() {
+            var pluginId = '12345678-1234-1234-1234-123456789abc';
+            var IMAGES_ID = 'people-directory';
+            var page = document.querySelector('#CustomMetadataPeoplePage');
+            var qs = function(selector) { return page.querySelector(selector); };
+            var library = null;       // series → seasons → episodes of the library (API source tags)
+            var episodeCast = {};     // episode tag → [ { PersonId, Role, Type } ]
+            var dirtyEp = false;
+            var changedPersons = {};  // people modified since the last application to the episodes
+            var changedKeys = {};     // API episodes whose cast changed
+            var applying = false;
+            var epSeason = null;      // Id of the displayed season
+            var epOpen = null;        // key of the episode whose cast is open
+            var CAST_TYPES = [['Actor', 'Acteur'], ['GuestStar', 'Invité'], ['Director', 'Réalisateur'], ['Writer', 'Scénariste'], ['Producer', 'Producteur'], ['Composer', 'Compositeur'], ['Creator', 'Créateur'], ['Editor', 'Monteur']];
+            var people = [];          // directory being edited
+            var sources = [];         // people sources (configuration)
+            var selected = null;      // Id of the selected person
+            var dirty = false;
+            var ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+            function escapeHtml(text) {
+                return String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+
+            function normalizeName(text) {
+                return String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            }
+
+            // Word search: every typed word must be found somewhere in the text ("aventuriers 2024" finds "Les Aventuriers · Saison 2024")
+            function matchesWords(query, text) {
+                var words = normalizeName(query).split(' ').filter(Boolean);
+                var haystack = normalizeName(text);
+                return words.every(function(word) { return haystack.indexOf(word) >= 0; });
+            }
+
+            function newId() {
+                var used = {};
+                people.forEach(function(p) { used[p.Id] = true; });
+                var id;
+                do {
+                    id = '';
+                    for (var i = 0; i < 6; i++) { id += ALPHABET.charAt(Math.floor(Math.random() * ALPHABET.length)); }
+                } while (used[id]);
+                return id;
+            }
+
+            function byId(id) { return people.filter(function(p) { return p.Id === id; })[0] || null; }
+
+            function photoSrc(value) {
+                if (!value) { return ''; }
+                if (value.indexOf('local://img/') === 0) {
+                    var file = value.substring(value.lastIndexOf('/') + 1);
+                    return ApiClient.getUrl('CustomMetadata/Local/' + IMAGES_ID + '/Image/' + file, { api_key: ApiClient.accessToken() });
+                }
+                return value;
+            }
+
+            function avatar(person) {
+                var src = photoSrc(person.Photo);
+                var initial = (person.Name || '?').trim().charAt(0).toUpperCase();
+                return '<span class="pp-avatar">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : escapeHtml(initial)) + '</span>';
+            }
+
+            function showDirty() {
+                var el = qs('#ppDirty');
+                var any = dirty || dirtyEp;
+                el.textContent = any ? 'Modifications non enregistrées' : 'Aucune modification';
+                el.classList.toggle('on', any);
+            }
+
+            // markDirty(id): the person `id` (or the open person) changed: the episodes that contain them must be updated
+            function markDirty(personId) {
+                dirty = true;
+                var id = personId || selected;
+                if (id) { changedPersons[id] = true; }
+                showDirty();
+            }
+            // markEpDirty(keys): cast modified on these episodes (by default the open episode)
+            function markEpDirty(keys) {
+                dirtyEp = true;
+                (keys || (epOpen ? [epOpen] : [])).forEach(function(k) { changedKeys[k] = true; });
+                showDirty();
+            }
+
+            function clearDirty() {
+                dirty = false;
+                dirtyEp = false;
+                showDirty();
+            }
+
+            function duplicateNames() {
+                var count = {};
+                people.forEach(function(p) { var k = normalizeName(p.Name); if (k) { count[k] = (count[k] || 0) + 1; } });
+                return count;
+            }
+
+            // ---- Liste ----
+            function renderList() {
+                var filter = normalizeName(qs('#ppSearch').value);
+                var dups = duplicateNames();
+                var shown = people.slice().sort(function(a, b) { return String(a.Name).localeCompare(String(b.Name), 'fr'); }).filter(function(p) {
+                    return !filter || matchesWords(filter, p.Name + ' ' + (p.Links || []).map(function(l) { return l.Prefix + '-' + l.ExternalId; }).join(' '));
+                });
+                if (!people.length) {
+                    qs('#ppItems').innerHTML = '<div class="pp-empty">L\'annuaire est vide.<br>Ajoutez une personne depuis une source ou à la main.</div>';
+                    return;
+                }
+                if (!shown.length) { qs('#ppItems').innerHTML = '<div class="pp-empty">Aucune personne ne correspond.</div>'; return; }
+                qs('#ppItems').innerHTML = shown.map(function(p) {
+                    var ids = (p.Links || []).map(function(l) { return l.Prefix + '-' + l.ExternalId; }).join(' · ');
+                    var dup = dups[normalizeName(p.Name)] > 1;
+                    return '<button type="button" class="pp-item" data-person="' + p.Id + '"' + (p.Id === selected ? ' aria-current="true"' : '') + '>' + avatar(p)
+                        + '<span class="pp-item-text"><span class="pp-item-name">' + escapeHtml(p.Name || 'Sans nom') + '</span><span class="pp-item-ids">' + escapeHtml(ids || 'saisie manuelle') + '</span></span>'
+                        + (dup ? '<span class="pp-badge" title="Une autre fiche porte le même nom">doublon</span>' : '') + '</button>';
+                }).join('');
+            }
+
+            // ---- Fiche ----
+            function sourceOptions(current) {
+                var known = sources.map(function(s) { return s.Prefix; });
+                var all = known.slice();
+                if (current && all.map(function(x) { return x.toLowerCase(); }).indexOf(String(current).toLowerCase()) < 0) { all.push(current); }
+                return all.map(function(prefix) {
+                    var s = sources.filter(function(x) { return String(x.Prefix).toLowerCase() === String(prefix).toLowerCase(); })[0];
+                    return '<option value="' + escapeHtml(prefix) + '"' + (String(prefix).toLowerCase() === String(current).toLowerCase() ? ' selected' : '') + '>' + escapeHtml(s ? s.Name + ' (' + prefix + ')' : prefix + ' (source absente)') + '</option>';
+                }).join('');
+            }
+
+            function renderDetail() {
+                var person = selected ? byId(selected) : null;
+                var box = qs('#ppDetail');
+                if (!person) {
+                    box.innerHTML = '<div class="pp-empty">' + (people.length ? 'Choisissez une personne dans la liste pour la modifier.' : 'Rien à modifier pour le moment.') + '</div>';
+                    return;
+                }
+                var src = photoSrc(person.Photo);
+                var local = person.Photo && person.Photo.indexOf('local://img/') === 0;
+                var html = '<h3>' + escapeHtml(person.Name || 'Nouvelle personne') + '</h3>'
+                    + '<div class="inputContainer"><label class="inputLabel" for="ppName">Nom</label><input is="emby-input" type="text" id="ppName" data-f="Name" value="' + escapeHtml(person.Name) + '" /></div>'
+                    + '<div><h4>Photo</h4><div class="pp-photo">' + avatar(person)
+                    + '<div class="pp-photo-ctl"><div class="inputContainer"><input is="emby-input" type="text" data-f="Photo" aria-label="Photo : adresse web" value="' + escapeHtml(local ? '' : (person.Photo || '')) + '" placeholder="' + (local ? 'Fichier envoyé au plugin' : 'Adresse web (https://…)') + '"' + (local ? ' disabled' : '') + ' /></div>'
+                    + '<div class="pp-btns"><button is="emby-button" type="button" class="raised" data-upload="1"><span>Envoyer un fichier…</span></button>'
+                    + (person.Photo ? '<button type="button" class="pp-linkbtn" data-clear-photo="1">Retirer</button>' : '')
+                    + '<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-file="1" hidden /></div></div></div></div>'
+                    + '<div class="inputContainer"><label class="inputLabel" for="ppBio">Biographie</label><textarea id="ppBio" data-f="Bio" rows="4">' + escapeHtml(person.Bio || '') + '</textarea></div>'
+                    + '<div><h4>Identifiants dans les sources</h4><div class="pp-links">';
+                (person.Links || []).forEach(function(link, i) {
+                    html += '<div class="pp-link-row"><select data-link-prefix="' + i + '" aria-label="Source">' + sourceOptions(link.Prefix) + '</select>'
+                        + '<input type="text" data-link-id="' + i + '" value="' + escapeHtml(link.ExternalId) + '" aria-label="Identifiant" />'
+                        + '<span class="pp-link-actions"><button type="button" class="pp-linkbtn" data-link-fill="' + i + '">Compléter</button>'
+                        + '<button type="button" class="pp-linkbtn" data-link-overwrite="' + i + '">Écraser avec l\'API</button>'
+                        + '<button type="button" class="pp-linkbtn" data-link-remove="' + i + '">Retirer</button></span></div>';
+                });
+                if (!(person.Links || []).length) { html += '<div class="pp-hint" style="margin:0;">Aucun identifiant : fiche saisie à la main.</div>'; }
+                html += '</div><div class="pp-btns" style="margin-top:10px;"><button is="emby-button" type="button" class="raised" data-link-add="1"' + (sources.length ? '' : ' disabled') + '><span>Ajouter un identifiant</span></button></div>'
+                    + '<div class="pp-hint">« Compléter » ne remplit que les champs vides. « Écraser avec l\'API » remplace le nom, la photo et la bio par ceux de la source.</div>'
+                    + '<div class="pp-msg" id="ppLinkMsg" hidden role="status"></div></div>'
+                    + '<div class="pp-danger"><div><strong>Supprimer cette personne</strong><span>Elle disparaît de l\'annuaire et des distributions qui la contiennent, à l\'enregistrement.</span></div>'
+                    + '<button is="emby-button" type="button" class="raised" data-delete="1"><span>Supprimer…</span></button></div>';
+                box.innerHTML = html;
+            }
+
+            function select(id) { selected = id; renderList(); renderDetail(); }
+
+            function linkMessage(text, ok) {
+                var el = qs('#ppLinkMsg');
+                if (!el) { return; }
+                el.hidden = !text;
+                el.className = 'pp-msg' + (ok ? ' ok' : '');
+                el.textContent = text || '';
+            }
+
+            // ---- People source: fetching ----
+            function fetchPerson(prefix, externalId) {
+                return ApiClient.ajax({
+                    type: 'POST', url: ApiClient.getUrl('CustomMetadata/People/Fetch'),
+                    data: JSON.stringify({ Prefix: prefix, ExternalId: externalId }), contentType: 'application/json', dataType: 'json'
+                });
+            }
+
+            function showFound(result) {
+                var box = qs('#ppFound');
+                if (result.Error) { box.innerHTML = '<div class="pp-msg">' + escapeHtml(result.Error) + '</div>'; return; }
+                var match = result.MatchPersonId ? byId(result.MatchPersonId) : null;
+                var tag = result.Prefix + '-' + result.ExternalId;
+                var html = '<div class="pp-found">' + avatar({ Name: result.Name, Photo: result.Photo })
+                    + '<div class="pp-found-text"><strong>' + escapeHtml(result.Name) + '</strong><span class="pp-item-ids">' + escapeHtml(tag) + '</span>'
+                    + (result.Bio ? '<span class="pp-hint" style="margin:0;">' + escapeHtml(result.Bio.length > 160 ? result.Bio.slice(0, 160) + '…' : result.Bio) + '</span>' : '') + '</div>';
+                if (match) {
+                    var alreadyLinked = (match.Links || []).some(function(l) { return l.Prefix.toLowerCase() === result.Prefix.toLowerCase() && l.ExternalId.toLowerCase() === result.ExternalId.toLowerCase(); });
+                    html += '<div class="pp-found-text"><span class="pp-msg ok">' + (alreadyLinked ? 'Déjà dans l\'annuaire : « ' : 'Même nom que la fiche « ') + escapeHtml(match.Name) + ' ».</span></div>'
+                        + '<div class="pp-found-actions">'
+                        + (alreadyLinked ? '' : '<button is="emby-button" type="button" class="raised button-submit" data-found-merge="1"><span>Ajouter l\'identifiant à cette fiche</span></button>')
+                        + '<button type="button" class="pp-linkbtn" data-found-open="' + match.Id + '">Ouvrir la fiche</button></div>';
+                } else {
+                    html += '<div class="pp-found-actions"><button is="emby-button" type="button" class="raised button-submit" data-found-add="1"><span>Ajouter à l\'annuaire</span></button></div>';
+                }
+                html += '<button type="button" class="pp-linkbtn" data-found-cancel="1">Annuler</button></div>';
+                box.innerHTML = html;
+                box._result = result;
+            }
+
+            function addFromResult(result) {
+                var person = { Id: newId(), Name: result.Name, Photo: result.Photo || '', Bio: result.Bio || '', Links: [{ Prefix: result.Prefix, ExternalId: result.ExternalId }] };
+                people.push(person);
+                markDirty();
+                qs('#ppFound').innerHTML = '';
+                qs('#ppAddId').value = '';
+                select(person.Id);
+            }
+
+            function mergeResult(result) {
+                var match = byId(result.MatchPersonId);
+                if (!match) { return; }
+                match.Links = match.Links || [];
+                match.Links.push({ Prefix: result.Prefix, ExternalId: result.ExternalId });
+                if (!match.Photo && result.Photo) { match.Photo = result.Photo; }
+                if (!match.Bio && result.Bio) { match.Bio = result.Bio; }
+                markDirty(match.Id);
+                qs('#ppFound').innerHTML = '';
+                qs('#ppAddId').value = '';
+                select(match.Id);
+            }
+
+            function applyFetched(person, result, overwrite) {
+                var changed = [];
+                [['Name', result.Name], ['Photo', result.Photo], ['Bio', result.Bio]].forEach(function(pair) {
+                    if (pair[1] && (overwrite || !person[pair[0]])) {
+                        if (person[pair[0]] !== pair[1]) { person[pair[0]] = pair[1]; changed.push(pair[0] === 'Name' ? 'nom' : (pair[0] === 'Photo' ? 'photo' : 'bio')); }
+                    }
+                });
+                return changed;
+            }
+
+            // ---- Uploaded photo ----
+            function uploadPhoto(file) {
+                var person = selected ? byId(selected) : null;
+                if (!file || !person) { return; }
+                if (file.size > 8 * 1024 * 1024) { Dashboard.alert('Image trop lourde : 8 Mo au maximum.'); return; }
+                var label = qs('#ppDetail [data-upload] span');
+                if (label) { label.textContent = 'Envoi…'; }
+                fetch(ApiClient.getUrl('CustomMetadata/Local/' + IMAGES_ID + '/Image', { node: person.Id }), {
+                    method: 'POST',
+                    headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() },
+                    body: file
+                }).then(function(response) {
+                    if (!response.ok) { throw new Error('HTTP ' + response.status); }
+                    return response.json();
+                }).then(function(result) {
+                    person.Photo = result.Url;
+                    markDirty();
+                    renderList();
+                    renderDetail();
+                }, function() {
+                    Dashboard.alert('Image refusée : JPEG, PNG, WebP ou GIF, 8 Mo au maximum.');
+                    renderDetail();
+                });
+            }
+
+            // ---- Cast of API series, seasons and episodes (attached to their tag, API unmodified) ----
+            // Typed keys: "episode:dm-a1v1", "season:dm-a1", "series:dm-aventuriers" (the same identifier can exist for several types)
+            var epMode = 'library';   // 'library': series/seasons of the library, 'ids': elements typed by identifier
+            var epSeries = null;      // Id of the displayed series (its own cast)
+            var TYPE_LABELS = { series: 'Série', season: 'Saison', episode: 'Épisode' };
+
+            function typedKey(type, key) { return type + ':' + String(key || '').trim().replace(/^\{|\}$/g, '').toLowerCase(); }
+            function typeOf(tk) { return tk.split(':')[0]; }
+            function keyOf(tk) { return tk.substring(tk.indexOf(':') + 1); }
+            function castCount(tk) { return (episodeCast[tk] || []).length; }
+
+            function libraryKeys() {
+                var map = {};
+                (library || []).forEach(function(series) {
+                    if (series.Key) { map[typedKey('series', series.Key)] = series.Name; }
+                    series.Seasons.forEach(function(season) {
+                        if (season.Key) { map[typedKey('season', season.Key)] = (series.Name || '') + ' · ' + (season.Name || ''); }
+                        season.Episodes.forEach(function(ep) { map[typedKey('episode', ep.Key)] = ep.Title; });
+                    });
+                });
+                return map;
+            }
+
+            function renderEpTree() {
+                var box = qs('#ppEpTree');
+                if (!library) { box.innerHTML = '<div class="pp-empty">Chargement…</div>'; return; }
+                var filter = qs('#ppEpSearch').value;
+                var idsCount = Object.keys(episodeCast).filter(function(k) { return castCount(k) > 0; }).length;
+                var html = '<button type="button" class="pp-item" data-ep-mode="ids"' + (epMode === 'ids' ? ' aria-current="true"' : '') + '><span class="pp-item-text"><span class="pp-item-name">Par identifiant</span><span class="pp-item-ids">saisir un {préfixe-id}</span></span>'
+                    + (idsCount ? '<span class="pp-count" title="' + idsCount + ' élément(s) avec une distribution">' + idsCount + '</span>' : '') + '</button>';
+                library.forEach(function(series) {
+                    var seasons = series.Seasons.filter(function(season) { return !filter || matchesWords(filter, series.Name + ' ' + season.Name); });
+                    if (!seasons.length && filter && !matchesWords(filter, series.Name)) { return; }
+                    var seriesTk = series.Key ? typedKey('series', series.Key) : null;
+                    html += '<button type="button" class="pp-group pp-group-btn" data-ep-series="' + series.SeriesId + '"' + (epMode === 'library' && epSeries === series.SeriesId && !epSeason ? ' aria-current="true"' : '') + '>'
+                        + '<span class="pp-group-text"><span>' + escapeHtml(series.Name || 'Sans série') + '</span><span class="pp-group-sub">' + (seriesTk ? 'Distribution de la série ›' : 'Série sans tag') + '</span></span>'
+                        + (seriesTk && castCount(seriesTk) ? '<span class="pp-count" title="Distribution de la série">' + castCount(seriesTk) + '</span>' : '') + '</button>';
+                    seasons.forEach(function(season) {
+                        var withCast = season.Episodes.filter(function(e) { return castCount(typedKey('episode', e.Key)) > 0; }).length;
+                        var seasonOwn = season.Key ? castCount(typedKey('season', season.Key)) : 0;
+                        html += '<button type="button" class="pp-item" data-ep-season="' + season.SeasonId + '"' + (epMode === 'library' && season.SeasonId === epSeason ? ' aria-current="true"' : '') + '>'
+                            + '<span class="pp-item-text"><span class="pp-item-name">' + escapeHtml(season.Name || 'Saison') + '</span><span class="pp-item-ids">' + season.Episodes.length + ' épisode(s)</span></span>'
+                            + (seasonOwn ? '<span class="pp-badge miss" title="Cette saison a sa propre distribution">saison</span>' : '')
+                            + (withCast ? '<span class="pp-count" title="' + withCast + ' épisode(s) avec une distribution">' + withCast + '</span>' : '') + '</button>';
+                    });
+                });
+                box.innerHTML = html;
+            }
+
+            function findSeason(id) {
+                var found = null;
+                (library || []).forEach(function(series) { series.Seasons.forEach(function(season) { if (season.SeasonId === id) { found = { series: series, season: season }; } }); });
+                return found;
+            }
+
+            function castRows(tk) {
+                var entries = episodeCast[tk] || [];
+                var html = '';
+                entries.forEach(function(entry, i) {
+                    var person = byId(entry.PersonId);
+                    var typeOptions = CAST_TYPES.map(function(t) { return '<option value="' + t[0] + '"' + (t[0] === entry.Type ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('');
+                    html += '<div class="pp-cast-row">' + avatar(person || { Name: '?' })
+                        + '<span class="pp-cast-name">' + escapeHtml(person ? person.Name : '(personne supprimée)') + '</span>'
+                        + '<input class="pp-cast-role" type="text" data-cast-role="' + i + '" value="' + escapeHtml(entry.Role || '') + '" placeholder="Rôle" aria-label="Rôle de ' + escapeHtml(person ? person.Name : 'la personne') + '" />'
+                        + '<select class="pp-cast-type" data-cast-type="' + i + '" aria-label="Type de ' + escapeHtml(person ? person.Name : 'la personne') + '">' + typeOptions + '</select>'
+                        + '<button type="button" class="pp-linkbtn" data-cast-remove="' + i + '" style="white-space:nowrap;">Retirer</button></div>';
+                });
+                return html || '<div class="pp-hint" style="margin:0;">Aucune personne pour le moment.</div>';
+            }
+
+            // A collapsible row: an element (series, season or episode) and its cast
+            function elementRow(tk, title, subtitle, opts) {
+                opts = opts || {};
+                var open = tk === epOpen;
+                var names = (episodeCast[tk] || []).map(function(c) { var p = byId(c.PersonId); return p ? p.Name : '?'; });
+                var datalist = people.map(function(p) { return '<option value="' + escapeHtml(p.Name) + '"></option>'; }).join('');
+                var html = '<div class="pp-ep' + (open ? ' open' : '') + '"><button type="button" class="pp-ep-head" data-ep-open="' + escapeHtml(tk) + '" aria-expanded="' + open + '">'
+                    + (opts.hideNum ? '' : '<span class="pp-ep-num">' + (opts.num == null ? '' : opts.num) + '</span>')
+                    + '<span class="pp-ep-main"><span class="pp-ep-title">' + escapeHtml(title) + '</span>'
+                    + '<span class="pp-ep-sum">' + escapeHtml(names.length ? names.join(', ') : 'Pas de distribution') + ' · ' + escapeHtml(subtitle) + '</span></span>'
+                    + (opts.missing ? '<span class="pp-badge miss">manquant</span>' : '')
+                    + (opts.typeBadge ? '<span class="pp-badge miss">' + TYPE_LABELS[typeOf(tk)] + '</span>' : '')
+                    + (names.length ? '<span class="pp-count">' + names.length + '</span>' : '') + '</button>';
+                if (open) {
+                    html += '<div class="pp-ep-body">' + (opts.note ? '<div class="pp-hint" style="margin:0;">' + escapeHtml(opts.note) + '</div>' : '') + castRows(tk)
+                        + '<div class="pp-cast-add"><input type="text" id="ppCastAdd" list="ppCastList" placeholder="' + (people.length ? 'Ajouter une personne : tapez un nom' : 'L\'annuaire est vide : ajoutez des personnes d\'abord') + '" aria-label="Ajouter une personne" autocomplete="off" />'
+                        + '<datalist id="ppCastList">' + datalist + '</datalist>'
+                        + '<button is="emby-button" type="button" class="raised" data-cast-add="1"><span>Ajouter</span></button>'
+                        + (typeOf(tk) === 'episode' && opts.inSeason && castCount(tk) ? '<button is="emby-button" type="button" class="raised" data-cast-season="1"><span>Appliquer à toute la saison</span></button>' : '')
+                        + (opts.removable ? '<button type="button" class="pp-linkbtn" data-element-remove="1">Retirer cet élément de la liste</button>' : '')
+                        + '</div><div class="pp-hint" id="ppCastMsg" role="status" style="margin:0;color:#f0c080;"></div></div>';
+                }
+                return html + '</div>';
+            }
+
+            function noTagNote() { return 'Ce dossier ne porte pas de tag {préfixe-id} : sa distribution ne peut pas être rattachée.'; }
+
+            function renderEpDetail() {
+                var box = qs('#ppEpDetail');
+                if (!library) { box.innerHTML = ''; return; }
+                var html = '';
+                if (epMode === 'ids') {
+                    var inLibrary = libraryKeys();
+                    var search = qs('#ppEpSearch').value;
+                    var keys = Object.keys(episodeCast).sort().filter(function(tk) { return !search || matchesWords(search, keyOf(tk) + ' ' + (TYPE_LABELS[typeOf(tk)] || '') + ' ' + (inLibrary[tk] || '')); });
+                    html = '<div><h3>Par identifiant</h3><div class="pp-hint" style="margin:2px 0 0;">Rattachez des personnes à un élément en saisissant son tag, même s\'il n\'est pas (encore) dans la médiathèque. Le type fait partie de la clé : le même identifiant peut exister pour une série et pour un épisode.</div></div>'
+                        + '<div class="pp-add-row"><div class="selectContainer"><label class="selectLabel" for="ppIdType">Type d\'élément</label><select is="emby-select" id="ppIdType"><option value="episode">Épisode</option><option value="season">Saison</option><option value="series">Série</option></select></div>'
+                        + '<div class="inputContainer"><label class="inputLabel" for="ppIdKey">Identifiant</label><input is="emby-input" type="text" id="ppIdKey" placeholder="{dv-1234}" /></div>'
+                        + '<button is="emby-button" type="button" class="raised button-submit" id="ppIdAdd"><span>Ajouter</span></button></div><div class="pp-hint" id="ppIdMsg" role="status" style="margin:0;color:#f0c080;"></div><div class="pp-eps">';
+                    keys.forEach(function(tk) {
+                        var title = inLibrary[tk];
+                        // Title known from the library first (it is what is recognised), the tag as a landmark
+                        html += elementRow(tk, title || '{' + keyOf(tk) + '}', title ? '{' + keyOf(tk) + '}' : 'pas dans la médiathèque pour le moment', { typeBadge: true, removable: true, hideNum: true });
+                    });
+                    box.innerHTML = html + (keys.length ? '' : '<div class="pp-empty">Aucun élément pour le moment.</div>') + '</div>';
+                    return;
+                }
+                var hitSeason = epSeason ? findSeason(epSeason) : null;
+                if (hitSeason) {
+                    var seasonTk = hitSeason.season.Key ? typedKey('season', hitSeason.season.Key) : null;
+                    html = '<div><h3>' + escapeHtml(hitSeason.season.Name || 'Saison') + '</h3><div class="pp-hint" style="margin:2px 0 0;">' + escapeHtml(hitSeason.series.Name || '') + '</div></div><div class="pp-eps">'
+                        + (seasonTk ? elementRow(seasonTk, 'Distribution de la saison', '{' + hitSeason.season.Key + '}', { typeBadge: false })
+                            : '<div class="pp-hint" style="margin:0;">' + noTagNote() + '</div>');
+                    hitSeason.season.Episodes.forEach(function(ep) {
+                        html += elementRow(typedKey('episode', ep.Key), ep.Title || ep.Key, ep.Key, { num: ep.IndexNumber, missing: ep.IsMissing, inSeason: true });
+                    });
+                    box.innerHTML = html + '</div>';
+                    return;
+                }
+                var series = epSeries ? (library || []).filter(function(s) { return s.SeriesId === epSeries; })[0] : null;
+                if (series) {
+                    var seriesTk = series.Key ? typedKey('series', series.Key) : null;
+                    box.innerHTML = '<div><h3>' + escapeHtml(series.Name || 'Série') + '</h3><div class="pp-hint" style="margin:2px 0 0;">Distribution de la série elle-même. Choisissez une saison dans la liste pour ses épisodes.</div></div><div class="pp-eps">'
+                        + (seriesTk ? elementRow(seriesTk, 'Distribution de la série', '{' + series.Key + '}', {}) : '<div class="pp-hint" style="margin:0;">' + noTagNote() + '</div>') + '</div>';
+                    return;
+                }
+                box.innerHTML = '<div class="pp-empty">' + (library.length ? 'Choisissez une série, une saison, ou « Par identifiant ».' : 'Aucun élément portant un tag de source API dans la médiathèque : utilisez « Par identifiant ».') + '</div>';
+            }
+
+            function epMessage(text) { var el = qs('#ppCastMsg'); if (el) { el.textContent = text || ''; } }
+
+            function addEpCast() {
+                var input = qs('#ppCastAdd');
+                if (!input || !epOpen) { return; }
+                var wanted = normalizeName(input.value);
+                if (!wanted) { input.focus(); return; }
+                var person = people.filter(function(p) { return normalizeName(p.Name) === wanted; })[0];
+                if (!person) { epMessage('« ' + input.value.trim() + ' » n\'est pas dans l\'annuaire.'); return; }
+                episodeCast[epOpen] = episodeCast[epOpen] || [];
+                if (episodeCast[epOpen].some(function(c) { return c.PersonId === person.Id; })) { epMessage(person.Name + ' est déjà dans la distribution.'); return; }
+                episodeCast[epOpen].push({ PersonId: person.Id, Role: '', Type: 'Actor' });
+                markEpDirty();
+                renderEpDetail();
+                renderEpTree();
+                var again = qs('#ppCastAdd'); if (again) { again.focus(); }
+            }
+
+            function applyEpToSeason() {
+                var hit = epSeason ? findSeason(epSeason) : null;
+                if (!hit || !epOpen) { return; }
+                var source = episodeCast[epOpen] || [];
+                var others = hit.season.Episodes.filter(function(e) { return typedKey('episode', e.Key) !== epOpen; });
+                if (!others.length) { epMessage('Cette saison n\'a pas d\'autre épisode.'); return; }
+                if (!confirm('Ajouter cette distribution aux ' + others.length + ' autre(s) épisode(s) de la saison ?\nLes personnes déjà présentes sur un épisode ne sont pas modifiées.')) { return; }
+                var added = 0;
+                others.forEach(function(e) {
+                    var tk = typedKey('episode', e.Key);
+                    episodeCast[tk] = episodeCast[tk] || [];
+                    source.forEach(function(c) {
+                        if (!episodeCast[tk].some(function(x) { return x.PersonId === c.PersonId; })) { episodeCast[tk].push({ PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }); added++; }
+                    });
+                });
+                markEpDirty(hit.season.Episodes.map(function(e) { return typedKey('episode', e.Key); }));
+                renderEpTree();
+                epMessage(added + ' ajout(s) sur ' + others.length + ' épisode(s).');
+            }
+
+            // "Par identifiant": creates the element if it does not exist, then opens it
+            function addById() {
+                var type = qs('#ppIdType').value;
+                var key = qs('#ppIdKey').value.trim().replace(/^\{|\}$/g, '').trim().toLowerCase();
+                var msg = qs('#ppIdMsg');
+                if (!/^[\w\-]+-[\w\-]+$/.test(key)) { msg.textContent = 'Format attendu : {préfixe-identifiant}, par exemple {dv-1234}.'; qs('#ppIdKey').focus(); return; }
+                var tk = typedKey(type, key);
+                if (!episodeCast[tk]) { episodeCast[tk] = []; }
+                qs('#ppEpSearch').value = '';   // an active filter would hide the element that was just added
+                epOpen = tk;
+                msg.textContent = '';
+                renderEpDetail();
+                renderEpTree();
+                var add = qs('#ppCastAdd'); if (add) { add.focus(); }
+            }
+
+            function loadEpisodesTab() {
+                if (library) { return; }
+                renderEpTree();
+                Promise.all([ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/Library')), ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/EpisodeCast'))]).then(function(results) {
+                    library = results[0] || [];
+                    episodeCast = {};
+                    (results[1].Episodes || []).forEach(function(entry) { episodeCast[typedKey(entry.Type || 'episode', entry.Key)] = (entry.Cast || []).map(function(c) { return { PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }; }); });
+                    renderEpTree();
+                    renderEpDetail();
+                }, function() { qs('#ppEpTree').innerHTML = '<div class="pp-empty">La médiathèque n\'a pas pu être lue.</div>'; });
+            }
+
+            function showTab(name) {
+                Array.prototype.forEach.call(page.querySelectorAll('[data-pp-tab]'), function(b) { b.setAttribute('aria-selected', b.getAttribute('data-pp-tab') === name ? 'true' : 'false'); });
+                qs('#ppTabDirectory').hidden = name !== 'directory';
+                qs('#ppTabEpisodes').hidden = name !== 'episodes';
+                if (name === 'episodes') { loadEpisodesTab(); renderEpDetail(); }
+            }
+
+            page.addEventListener('click', function(e) {
+                var tab = e.target.closest('[data-pp-tab]');
+                if (tab) { showTab(tab.getAttribute('data-pp-tab')); }
+            });
+
+            qs('#ppEpSearch').addEventListener('input', function() { renderEpTree(); if (epMode === 'ids') { renderEpDetail(); } });
+            qs('#ppEpTree').addEventListener('click', function(e) {
+                var mode = e.target.closest('[data-ep-mode]');
+                var series = e.target.closest('[data-ep-series]');
+                var season = e.target.closest('[data-ep-season]');
+                if (!mode && !series && !season) { return; }
+                epOpen = null;
+                if (mode) { epMode = 'ids'; epSeason = null; epSeries = null; }
+                else if (season) { epMode = 'library'; epSeason = season.getAttribute('data-ep-season'); var hit = findSeason(epSeason); epSeries = hit ? hit.series.SeriesId : null; }
+                else { epMode = 'library'; epSeason = null; epSeries = series.getAttribute('data-ep-series'); }
+                renderEpTree();
+                renderEpDetail();
+            });
+            qs('#ppEpDetail').addEventListener('click', function(e) {
+                if (e.target.closest('#ppIdAdd')) { addById(); return; }
+                var t = e.target.closest('[data-ep-open],[data-cast-add],[data-cast-season],[data-cast-remove],[data-element-remove]');
+                if (!t) { return; }
+                if (t.hasAttribute('data-ep-open')) { var key = t.getAttribute('data-ep-open'); epOpen = epOpen === key ? null : key; renderEpDetail(); return; }
+                if (t.hasAttribute('data-cast-add')) { addEpCast(); return; }
+                if (t.hasAttribute('data-cast-season')) { applyEpToSeason(); return; }
+                if (t.hasAttribute('data-element-remove') && epOpen) {
+                    if ((episodeCast[epOpen] || []).length && !confirm('Retirer la distribution de cet élément ?')) { return; }
+                    markEpDirty([epOpen]);
+                    delete episodeCast[epOpen];
+                    epOpen = null;
+                    renderEpDetail();
+                    renderEpTree();
+                    return;
+                }
+                if (t.hasAttribute('data-cast-remove') && epOpen) { episodeCast[epOpen].splice(parseInt(t.getAttribute('data-cast-remove'), 10), 1); markEpDirty(); renderEpDetail(); renderEpTree(); }
+            });
+            qs('#ppEpDetail').addEventListener('input', function(e) {
+                if (epOpen && e.target.hasAttribute('data-cast-role')) { episodeCast[epOpen][parseInt(e.target.getAttribute('data-cast-role'), 10)].Role = e.target.value; markEpDirty(); }
+            });
+            qs('#ppEpDetail').addEventListener('change', function(e) {
+                if (epOpen && e.target.hasAttribute('data-cast-type')) { episodeCast[epOpen][parseInt(e.target.getAttribute('data-cast-type'), 10)].Type = e.target.value; markEpDirty(); }
+            });
+            qs('#ppEpDetail').addEventListener('keydown', function(e) {
+                if (e.key !== 'Enter') { return; }
+                if (e.target.id === 'ppCastAdd') { e.preventDefault(); addEpCast(); }
+                if (e.target.id === 'ppIdKey') { e.preventDefault(); addById(); }
+            });
+            qs('#ppEpDetail').addEventListener('error', function(e) { if (e.target.tagName === 'IMG') { e.target.parentNode.textContent = '?'; } }, true);
+
+            // ---- Events ----
+            qs('#ppSearch').addEventListener('input', renderList);
+
+            qs('#ppItems').addEventListener('click', function(e) {
+                var item = e.target.closest('[data-person]');
+                if (item) { select(item.getAttribute('data-person')); }
+            });
+
+            qs('#ppDetail').addEventListener('input', function(e) {
+                var person = selected ? byId(selected) : null;
+                if (!person) { return; }
+                var f = e.target.getAttribute('data-f');
+                if (f) {
+                    person[f] = e.target.value;
+                    markDirty();
+                    if (f === 'Name') { qs('#ppDetail h3').textContent = e.target.value || 'Nouvelle personne'; renderList(); }
+                    return;
+                }
+                if (e.target.hasAttribute('data-link-id')) { person.Links[parseInt(e.target.getAttribute('data-link-id'), 10)].ExternalId = e.target.value.trim(); markDirty(); }
+            });
+
+            qs('#ppDetail').addEventListener('change', function(e) {
+                var person = selected ? byId(selected) : null;
+                if (!person) { return; }
+                if (e.target.hasAttribute('data-file')) { uploadPhoto(e.target.files && e.target.files[0]); e.target.value = ''; return; }
+                if (e.target.hasAttribute('data-link-prefix')) { person.Links[parseInt(e.target.getAttribute('data-link-prefix'), 10)].Prefix = e.target.value; markDirty(); return; }
+                if (e.target.getAttribute('data-f') === 'Photo') { renderList(); renderDetail(); }
+            });
+
+            qs('#ppDetail').addEventListener('error', function(e) {
+                if (e.target.tagName === 'IMG') { e.target.parentNode.textContent = '?'; }
+            }, true);
+
+            qs('#ppDetail').addEventListener('click', function(e) {
+                var person = selected ? byId(selected) : null;
+                var t = e.target.closest('button[data-upload],[data-clear-photo],[data-link-add],[data-link-fill],[data-link-overwrite],[data-link-remove],[data-delete]');
+                if (!t || !person) { return; }
+                if (t.hasAttribute('data-upload')) { qs('#ppDetail [data-file]').click(); return; }
+                if (t.hasAttribute('data-clear-photo')) { person.Photo = ''; markDirty(); renderList(); renderDetail(); return; }
+                if (t.hasAttribute('data-link-add')) {
+                    person.Links = person.Links || [];
+                    person.Links.push({ Prefix: sources[0] ? sources[0].Prefix : '', ExternalId: '' });
+                    markDirty();
+                    renderDetail();
+                    var inputs = qs('#ppDetail').querySelectorAll('[data-link-id]');
+                    if (inputs.length) { inputs[inputs.length - 1].focus(); }
+                    return;
+                }
+                if (t.hasAttribute('data-link-remove')) { person.Links.splice(parseInt(t.getAttribute('data-link-remove'), 10), 1); markDirty(); renderList(); renderDetail(); return; }
+                if (t.hasAttribute('data-link-fill') || t.hasAttribute('data-link-overwrite')) {
+                    var overwrite = t.hasAttribute('data-link-overwrite');
+                    var index = parseInt(t.getAttribute(overwrite ? 'data-link-overwrite' : 'data-link-fill'), 10);
+                    var link = person.Links[index];
+                    if (!link.Prefix || !link.ExternalId) { linkMessage('Choisissez une source et saisissez un identifiant.', false); return; }
+                    if (overwrite && !confirm('Remplacer le nom, la photo et la biographie de cette fiche par ceux de la source ?')) { return; }
+                    linkMessage('Interrogation de la source…', true);
+                    fetchPerson(link.Prefix, link.ExternalId).then(function(result) {
+                        if (result.Error) { linkMessage(result.Error, false); return; }
+                        var changed = applyFetched(person, result, overwrite);
+                        if (changed.length) { markDirty(); renderList(); renderDetail(); linkMessage('Mis à jour : ' + changed.join(', ') + '.', true); }
+                        else { linkMessage(overwrite ? 'Déjà identique à la source.' : 'Rien à compléter : les champs sont déjà remplis.', true); }
+                    }, function() { linkMessage('Le serveur Jellyfin n\'a pas pu interroger la source.', false); });
+                    return;
+                }
+                if (t.hasAttribute('data-delete')) {
+                    if (!confirm('Supprimer « ' + (person.Name || 'sans nom') + ' » ?\nPris en compte à l\'enregistrement.')) { return; }
+                    people = people.filter(function(p) { return p.Id !== person.Id; });
+                    markDirty(person.Id);
+                    selected = null;
+                    renderList();
+                    renderDetail();
+                }
+            });
+
+            qs('#ppFetch').addEventListener('click', function() {
+                var prefix = qs('#ppAddSource').value;
+                var id = qs('#ppAddId').value.trim();
+                if (!prefix) { qs('#ppFound').innerHTML = '<div class="pp-msg">Aucune source de personnes n\'est configurée.</div>'; return; }
+                if (!id) { qs('#ppAddId').focus(); return; }
+                var button = qs('#ppFetch');
+                button.disabled = true;
+                qs('#ppFound').innerHTML = '<div class="pp-hint">Interrogation de la source…</div>';
+                fetchPerson(prefix, id).then(showFound, function() {
+                    qs('#ppFound').innerHTML = '<div class="pp-msg">Le serveur Jellyfin n\'a pas pu interroger la source.</div>';
+                }).then(function() { button.disabled = false; });
+            });
+            qs('#ppAddId').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); qs('#ppFetch').click(); } });
+
+            qs('#ppFound').addEventListener('click', function(e) {
+                var t = e.target.closest('[data-found-add],[data-found-merge],[data-found-open],[data-found-cancel]');
+                var result = qs('#ppFound')._result;
+                if (!t) { return; }
+                if (t.hasAttribute('data-found-add') && result) { addFromResult(result); }
+                else if (t.hasAttribute('data-found-merge') && result) { mergeResult(result); }
+                else if (t.hasAttribute('data-found-open')) { select(t.getAttribute('data-found-open')); }
+                else if (t.hasAttribute('data-found-cancel')) { qs('#ppFound').innerHTML = ''; }
+            });
+
+            qs('#ppAddManual').addEventListener('click', function() {
+                var person = { Id: newId(), Name: '', Photo: '', Bio: '', Links: [] };
+                people.push(person);
+                markDirty();
+                qs('#ppSearch').value = '';
+                select(person.Id);
+                var name = qs('#ppName');
+                if (name) { name.focus(); }
+            });
+
+            function pendingCount() { return Object.keys(changedPersons).length + Object.keys(changedKeys).length; }
+
+            function showApplyNotice() {
+                if (!pendingCount()) { qs('#ppApply').hidden = true; return; }
+                qs('#ppApplyText').textContent = 'Enregistré. Les épisodes déjà enrichis gardent l\'ancienne version (noms, photos, distribution) tant qu\'ils ne sont pas mis à jour : appliquez les changements pour ne relancer que les épisodes concernés, sans toucher au reste de la série.';
+                qs('#ppApplyBtn').disabled = false;
+                qs('#ppApply').hidden = false;
+            }
+
+            qs('#ppApplyLater').addEventListener('click', function() { qs('#ppApply').hidden = true; });
+            qs('#ppApplyBtn').addEventListener('click', function() {
+                if (applying) { return; }
+                applying = true;
+                qs('#ppApplyBtn').disabled = true;
+                ApiClient.ajax({
+                    type: 'POST', url: ApiClient.getUrl('CustomMetadata/People/Apply'),
+                    data: JSON.stringify((function() {
+                        var keys = Object.keys(changedKeys), pick = function(type) { return keys.filter(function(k) { return typeOf(k) === type; }).map(keyOf); };
+                        return { PersonIds: Object.keys(changedPersons), EpisodeKeys: pick('episode'), SeasonKeys: pick('season'), SeriesKeys: pick('series'), Prefixes: [] };
+                    })()),
+                    contentType: 'application/json', dataType: 'json'
+                }).then(function(result) {
+                    changedPersons = {};
+                    changedKeys = {};
+                    qs('#ppApplyText').textContent = result.Queued
+                        ? result.Queued + ' épisode(s) en cours de mise à jour par Jellyfin' + (result.Missing ? ' (dont ' + result.Missing + ' manquant(s))' : '') + '. Quelques instants suffisent, en arrière-plan.'
+                        : 'Aucun épisode de la médiathèque n\'est concerné par ces changements.';
+                    qs('#ppApplyBtn').hidden = true;
+                }, function() {
+                    qs('#ppApplyText').textContent = 'La mise à jour n\'a pas pu être lancée.';
+                    qs('#ppApplyBtn').disabled = false;
+                }).then(function() { applying = false; });
+            });
+
+            function putJson(url, body) {
+                return ApiClient.ajax({ type: 'PUT', url: ApiClient.getUrl(url), data: JSON.stringify(body), contentType: 'application/json', dataType: 'json' });
+            }
+
+            qs('#ppSave').addEventListener('click', function() {
+                var named = people.filter(function(p) { return String(p.Name || '').trim(); });
+                if (dirty) {
+                    if (named.length !== people.length && !confirm((people.length - named.length) + ' fiche(s) sans nom ne seront pas enregistrées. Continuer ?')) { return; }
+                    var dups = duplicateNames();
+                    var dupCount = Object.keys(dups).filter(function(k) { return dups[k] > 1; }).length;
+                    if (dupCount && !confirm(dupCount + ' nom(s) existent en double dans l\'annuaire. Enregistrer quand même ?')) { return; }
+                }
+                Dashboard.showLoadingMsg();
+                // The directory first: the casts refer to it by identifier
+                var steps = Promise.resolve();
+                if (dirty) {
+                    steps = steps.then(function() { return putJson('CustomMetadata/People', { Version: 1, People: named }); }).then(function(saved) {
+                        people = saved.People || [];
+                        if (selected && !byId(selected)) { selected = null; }
+                        dirty = false;
+                    });
+                }
+                if (dirtyEp) {
+                    steps = steps.then(function() {
+                        var episodes = Object.keys(episodeCast).filter(function(k) { return episodeCast[k].length; }).map(function(k) { return { Type: typeOf(k), Key: keyOf(k), Cast: episodeCast[k] }; });
+                        return putJson('CustomMetadata/People/EpisodeCast', { Version: 1, Episodes: episodes });
+                    }).then(function(saved) {
+                        episodeCast = {};
+                        (saved.Episodes || []).forEach(function(entry) { episodeCast[typedKey(entry.Type || 'episode', entry.Key)] = (entry.Cast || []).map(function(c) { return { PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }; }); });
+                        dirtyEp = false;
+                    });
+                }
+                steps.then(function() {
+                    showDirty();
+                    qs('#ppApplyBtn').hidden = false;
+                    showApplyNotice();
+                    renderList();
+                    renderDetail();
+                    renderEpTree();
+                    renderEpDetail();
+                    Dashboard.hideLoadingMsg();
+                }, function() {
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert('❌ L\'enregistrement a échoué. Rien n\'est perdu : les modifications restent dans la page.');
+                });
+            });
+
+            qs('#ppCancel').addEventListener('click', function() {
+                if ((dirty || dirtyEp) && !confirm('Abandonner les modifications non enregistrées ?')) { return; }
+                library = null;
+                changedPersons = {};
+                changedKeys = {};
+                load();
+            });
+
+            window.addEventListener('beforeunload', function(e) { if (dirty || dirtyEp) { e.preventDefault(); e.returnValue = ''; } });
+
+            function renderSources() {
+                var select = qs('#ppAddSource');
+                select.innerHTML = sources.map(function(s) { return '<option value="' + escapeHtml(s.Prefix) + '">' + escapeHtml(s.Name) + ' (' + escapeHtml(s.Prefix) + ')</option>'; }).join('');
+                qs('#ppNoSource').hidden = sources.length > 0;
+                qs('#ppFetch').disabled = !sources.length;
+            }
+
+            function load() {
+                Dashboard.showLoadingMsg();
+                Promise.all([ApiClient.getPluginConfiguration(pluginId), ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People'))]).then(function(results) {
+                    sources = (results[0].Sources || []).filter(function(s) { return s.SourceType === 'People' && s.Enabled !== false; });
+                    qs('#ppCastOff').hidden = results[0].EnableCasting !== false;
+                    people = (results[1].People || []).map(function(p) { p.Links = p.Links || []; return p; });
+                    selected = null;
+                    clearDirty();
+                    renderSources();
+                    renderList();
+                    renderDetail();
+                    qs('#ppFound').innerHTML = '';
+                    epOpen = null;
+                    if (!qs('#ppTabEpisodes').hidden) { loadEpisodesTab(); renderEpDetail(); }
+                    Dashboard.hideLoadingMsg();
+                }, function() {
+                    Dashboard.hideLoadingMsg();
+                    qs('#ppItems').innerHTML = '<div class="pp-empty">L\'annuaire n\'a pas pu être chargé.</div>';
+                });
+            }
+
+            page.addEventListener('pageshow', load);
+        })();
+    </script>
+</div>
+</body>
+</html>

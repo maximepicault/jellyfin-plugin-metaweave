@@ -1,0 +1,44 @@
+# Build results
+bin/
+obj/
+*.dll
+*.pdb
+*.exe
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio cache/options
+.vs/
+.vscode/
+
+# NuGet packages
+*.nupkg
+packages/
+
+# Build outputs
+*.log
+*.wrn
+
+# Rider
+.idea/
+
+# Mac
+.DS_Store
+
+# Configuration personnelle (ne pas commiter les clés API)
+appsettings.local.json
+*.local.json
+
+# Réglages locaux de l'éditeur / de l'assistant (propres à chaque poste)
+.claude/settings.local.json
+.idea/
+
+# Caches et sorties du banc de test
+__pycache__/
+*.pyc
+*.log
+.DS_Store
