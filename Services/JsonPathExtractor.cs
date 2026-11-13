@@ -11,6 +11,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     /// - "title" → root.title
     /// - "data.video.name" → root.data.video.name
     /// - "metadata.tags" → root.metadata.tags
+    /// - "title || name" → title, or name when title is missing, null or empty
     /// - "[0].name" → name of the first element of a root list; "results[0].name" → of the first element of "results"
     /// </summary>
     public static class JsonPathExtractor
@@ -204,11 +205,41 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private static readonly System.Text.RegularExpressions.Regex IndexedPart =
             new System.Text.RegularExpressions.Regex(@"^(?<name>[^\[\]]*)(?<idx>(\[\d+\])+)$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
+        /// <summary>Separates alternative paths: the first one that exists and is not empty wins ("title || name")</summary>
+        public const string FallbackSeparator = "||";
+
+        /// <summary>The alternatives of a path ("a || b" → a, b); a path without "||" gives itself</summary>
+        public static string[] Alternatives(string path)
+        {
+            return (path ?? string.Empty).Split(new[] { FallbackSeparator }, StringSplitOptions.None)
+                .Select(p => p.Trim())
+                .Where(p => p.Length > 0)
+                .ToArray();
+        }
+
+        /// <summary>A value worth using: not null, not an empty or blank text, not an empty list</summary>
+        public static bool IsUsable(JsonElement value)
+        {
+            switch (value.ValueKind)
+            {
+                case JsonValueKind.Null:
+                case JsonValueKind.Undefined:
+                    return false;
+                case JsonValueKind.String:
+                    return !string.IsNullOrWhiteSpace(value.GetString());
+                case JsonValueKind.Array:
+                    return value.GetArrayLength() > 0;
+                default:
+                    return true;
+            }
+        }
+
         /// <summary>
-        /// Walks the JSON tree following the path. Besides "a.b.c", a position in a list is written
-        /// "[0]" (first element of the root list) or "items[0]" (first element of the list "items"), so
-        /// "[0].name", "results[0].user.name" and "data.items[1].tags" work. "[]" (all the elements) is not handled
-        /// here: the callers that accept it split the path before.
+        /// Walks the JSON tree following the path. "a || b || c" is a fallback: the first alternative that exists
+        /// and is not null / empty is used (a path without "||" is returned as it is, even if empty). Besides "a.b.c",
+        /// a position in a list is written "[0]" (first element of the root list) or "items[0]" (first element of the
+        /// list "items"), so "[0].name", "results[0].user.name" and "data.items[1].tags" work. "[]" (all the elements)
+        /// is not handled here: the callers that accept it split the path before.
         /// </summary>
         private static JsonElement? NavigateToElement(JsonElement root, string path)
         {
@@ -217,6 +248,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 return root;
             }
 
+            if (path.Contains(FallbackSeparator))
+            {
+                foreach (var alternative in Alternatives(path))
+                {
+                    var found = NavigateSingle(root, alternative);
+                    if (found.HasValue && IsUsable(found.Value))
+                    {
+                        return found;
+                    }
+                }
+
+                return null;
+            }
+
+            return NavigateSingle(root, path);
+        }
+
+        private static JsonElement? NavigateSingle(JsonElement root, string path)
+        {
             JsonElement current = root;
             foreach (var part in path.Split('.'))
             {

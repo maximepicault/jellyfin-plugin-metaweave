@@ -69,6 +69,23 @@ data.items[1].user.id → second element of data.items, then its user.id
 It works in every field of every mapping (title, overview, cast, images…), not only for people. `[]` (all the elements)
 and `[0]` (one element) are different notations: do not mix them in the same segment.
 
+### Fallback between fields: `||`
+
+When a field may be missing, `null` or empty depending on the item, list several paths separated by `||`. The first one
+that **exists and is not empty** is used, the next ones are only read when it is not (like `||` in JavaScript or `//` in `jq`):
+
+```
+title || name || label        → title, otherwise name, otherwise label
+overview || summary           → overview, but summary when overview is "" or null
+tags || categories[].label    → the tags list, or the labels of "categories" when "tags" is empty
+[0].name || results[0].name   → works with list positions too
+```
+
+- *Not usable* means: path missing, `null`, an empty or blank text, or an empty list. A number or a boolean is usable (even `0`).
+- Spaces around `||` are ignored. If no alternative is usable, the field stays empty (no error).
+- It works in every field of every mapping: series, season, video/episode, episode list, cast, images and people.
+- A path without `||` behaves as before.
+
 ---
 
 ## ⚙️ Where to configure it

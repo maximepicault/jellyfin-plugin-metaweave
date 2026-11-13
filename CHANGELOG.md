@@ -6,6 +6,7 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **JSON paths**: fallback between fields with `||`. `title || name || label` uses the first path that exists and is not null, empty or blank, so an API whose fields vary from one item to the next can be mapped (works for every field of every mapping, with list positions and the `[]` notation too). The editor says so in each mapping section.
 - **Local sources**: the cast field of an episode now has the same dropdown as the distribution screen (photo, name, identifiers, filtered as you type, arrow keys, a click adds the person) instead of the browser's plain list. The directory is read again when the field gets the focus, so people added in the Personnes screen show up without reopening the source.
 - **Local sources**: people are no longer shown as "(personne supprimée)" while the directory is loading or when it could not be read: the row says "Chargement…" or "(annuaire illisible)".
 - **People sources**: a new optional "Adresse des photos" field for APIs that return the photo as a **path** (`/abc123.jpg`) hosted on another address than the API (an image server). A prefix (`https://images.example.com/p/w185`) or a template with `{value}` (`https://images.example.com/{value}?w=200`). Left empty, a path is still completed with the API's base URL, and a full address is used as it is.

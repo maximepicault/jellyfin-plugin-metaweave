@@ -595,6 +595,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 return new List<string>();
             }
 
+            // "a[].x || b" : the first alternative that gives at least one item
+            if (path.Contains(JsonPathExtractor.FallbackSeparator))
+            {
+                var alternatives = JsonPathExtractor.Alternatives(path);
+                for (var i = 0; i < alternatives.Length; i++)
+                {
+                    var items = GetStringArrayValue(element, alternatives[i], itemField, i == alternatives.Length - 1 ? fieldName : null);
+                    if (items.Count > 0)
+                    {
+                        if (fieldName != null)
+                        {
+                            _logger.LogDebug("🔄 [JSON MAPPER] {FieldName}: fallback - alternative {Index}/{Count} ('{Alternative}') used", fieldName, i + 1, alternatives.Length, alternatives[i]);
+                        }
+
+                        return items;
+                    }
+                }
+
+                return new List<string>();
+            }
+
             // Detection of the array[].field notation
             string arrayPath = path;
             string extractField = itemField;
