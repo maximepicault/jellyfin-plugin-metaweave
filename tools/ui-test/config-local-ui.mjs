@@ -154,6 +154,16 @@ try {
   await ev(`(function(){var s=document.querySelector('[data-cast-type="1"]'); s.value='Director'; s.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
   await addCast('Zoé Martin'); await click('[data-cast-remove="2"]'); await wait(150);
   check('cast: removal', (await ev(`document.querySelectorAll('.cm-cast-row').length`)) === 2);
+  // Autocomplete with a preview (photo, name): suggestions on focus, filtered while typing, a click adds the person
+  await ev(`document.querySelector('#lfCastAdd').dispatchEvent(new FocusEvent('focusin',{bubbles:true})); true`); await wait(300);
+  check('cast autocomplete: suggestions with an avatar and a name', (await ev(`document.querySelectorAll('.cm-ac-opt').length`)) >= 1 && (await ev(`Array.from(document.querySelectorAll('.cm-ac-opt')).every(function(o){return !!o.querySelector('.cm-avatar') && !!o.querySelector('strong');})`)) === true);
+  check('cast autocomplete: people already in the cast are not suggested', (await ev(`Array.from(document.querySelectorAll('.cm-ac-opt strong')).map(function(b){return b.textContent;}).join('|')`)) === 'Zoé Martin');
+  await type('#lfCastAdd', 'zoe mar');
+  check('cast autocomplete: filtered by the typed words, without accents', (await ev(`document.querySelectorAll('.cm-ac-opt').length`)) === 1);
+  await shot('L4c-cast-autocomplete-1440');
+  await click('.cm-ac-opt'); await wait(250);
+  check('cast autocomplete: a click on a suggestion adds the person', (await ev(`document.querySelectorAll('.cm-cast-row').length`)) === 3 && (await ev(`Array.from(document.querySelectorAll('.cm-cast-name')).map(function(b){return b.textContent;}).includes('Zoé Martin')`)) === true);
+  await click('[data-cast-remove="2"]'); await wait(150);
   await shot('L4b-cast-1440');
   // casting disabled in the settings: the cast block says so
   check('cast: no warning when casting is on', !(await vis('.cm-cast-msg[role="alert"]')));

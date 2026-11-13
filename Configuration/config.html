@@ -280,6 +280,18 @@
         #CustomMetadataConfigPage .cm-cast-add { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
         #CustomMetadataConfigPage .cm-cast-add input { flex: 1 1 240px; }
         #CustomMetadataConfigPage .cm-cast-add .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-ac { position: relative; flex: 1 1 260px; }
+        #CustomMetadataConfigPage .cm-ac input { width: 100%; }
+        #CustomMetadataConfigPage .cm-ac-list { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); max-height: 320px; overflow: auto; padding: 4px; border: 1px solid var(--cm-border); border-radius: 8px; background: #26292d; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 2px; }
+        #CustomMetadataConfigPage .cm-ac-list[hidden] { display: none; }
+        #CustomMetadataConfigPage .cm-ac-opt { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-ac-opt:hover, #CustomMetadataConfigPage .cm-ac-opt.active { background: rgba(0, 164, 220, 0.22); }
+        #CustomMetadataConfigPage .cm-ac-opt .cm-avatar { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: var(--cm-surface); display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-ac-opt .cm-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        #CustomMetadataConfigPage .cm-ac-text { min-width: 0; display: flex; flex-direction: column; }
+        #CustomMetadataConfigPage .cm-ac-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #CustomMetadataConfigPage .cm-ac-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-ac-none { padding: 8px; font-size: 13px; color: var(--cm-muted); }
         #CustomMetadataConfigPage .cm-cast-msg { font-size: 13px; color: #f0c080; }
         @container (max-width: 700px) { #CustomMetadataConfigPage .cm-cast-row { grid-template-columns: 40px minmax(0, 1fr) auto; } #CustomMetadataConfigPage .cm-cast-row .cm-cast-role, #CustomMetadataConfigPage .cm-cast-row .cm-cast-type { grid-column: 2 / -1; } }
         #CustomMetadataConfigPage .cm-imgrow { display: flex; gap: 16px; align-items: flex-start; }
@@ -2124,15 +2136,32 @@
             }
 
             // ---- Cast of an episode: people of the directory (People screen) ----
-            var peopleDir = null;
+            var peopleDir = null;          // null while it loads
+            var peopleDirFailed = false;   // the directory could not be read: do not call everybody "deleted"
+            var lfAcIndex = -1;            // highlighted suggestion
             var CAST_TYPES = [['Actor', 'Acteur'], ['GuestStar', 'Invité'], ['Director', 'Réalisateur'], ['Writer', 'Scénariste'], ['Producer', 'Producteur'], ['Composer', 'Compositeur'], ['Creator', 'Créateur'], ['Editor', 'Monteur']];
 
-            function loadPeopleDirectory() {
+            // quiet = refresh the list in the background without redrawing the form (the user may be typing in it)
+            function loadPeopleDirectory(quiet) {
                 ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People')).then(function(dir) {
                     peopleDir = dir.People || [];
+                    peopleDirFailed = false;
                     var hit = localSel ? findNode(localSel) : null;
-                    if (hit && hit.kind === 'episode') { renderLocalDetail(); }
-                }, function() { peopleDir = []; });
+                    if (quiet) { renderCastSuggest(); }
+                    else if (hit && hit.kind === 'episode') { renderLocalDetail(); }
+                }, function() {
+                    peopleDirFailed = true;
+                    if (!peopleDir) { peopleDir = []; }
+                    var hit = localSel ? findNode(localSel) : null;
+                    if (!quiet && hit && hit.kind === 'episode') { renderLocalDetail(); }
+                });
+            }
+
+            // Name shown for a cast entry: never "deleted" while the directory is loading or unreadable
+            function castPersonLabel(person) {
+                if (person) { return person.Name; }
+                if (peopleDir === null) { return 'Chargement…'; }
+                return peopleDirFailed ? '(annuaire illisible)' : '(personne supprimée)';
             }
 
             function personById(id) {
@@ -2152,26 +2181,81 @@
                     var photo = person && person.Photo ? imagePreviewUrl(person.Photo) : '';
                     var typeOptions = CAST_TYPES.map(function(t) { return '<option value="' + t[0] + '"' + (t[0] === entry.Type ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('');
                     html += '<div class="cm-cast-row"><span class="cm-avatar">' + (photo ? '<img alt="" src="' + escapeHtml(photo) + '" />' : '?') + '</span>'
-                        + '<span class="cm-cast-name">' + escapeHtml(person ? person.Name : '(personne supprimée)') + '</span>'
+                        + '<span class="cm-cast-name">' + escapeHtml(castPersonLabel(person)) + '</span>'
                         + '<input class="cm-cast-role" type="text" data-cast-role="' + i + '" value="' + escapeHtml(entry.Role || '') + '" placeholder="Rôle" aria-label="Rôle de ' + escapeHtml(person ? person.Name : 'la personne') + '" />'
                         + '<select class="cm-cast-type" data-cast-type="' + i + '" aria-label="Type de ' + escapeHtml(person ? person.Name : 'la personne') + '">' + typeOptions + '</select>'
                         + '<button type="button" class="cm-linkbtn" data-cast-remove="' + i + '" aria-label="Retirer ' + escapeHtml(person ? person.Name : 'la personne') + '">Retirer</button></div>';
                 });
                 if (!cast.length) { html += '<div class="cm-hint" style="margin:0;">Personne pour le moment.</div>'; }
-                var known = (peopleDir || []).filter(function(p) { return !cast.some(function(c) { return String(c.PersonId).toLowerCase() === String(p.Id).toLowerCase(); }); });
                 if (qs('#CustomMetadataConfigPage').getAttribute('data-casting') === 'off') {
                     html += '<div class="cm-cast-msg" role="alert">Le casting est désactivé : cette distribution ne sera pas envoyée à Jellyfin tant que « Importer le casting » (onglet Réglages) est coupé.</div>';
                 }
-                html += '<div class="cm-cast-add"><input type="text" id="lfCastAdd" list="lfCastList" placeholder="' + (peopleDir && !peopleDir.length ? 'Aucune personne dans l\'annuaire : ajoutez-en dans l\'écran Personnes' : 'Ajouter une personne : tapez un nom') + '" aria-label="Ajouter une personne à la distribution" autocomplete="off" />'
-                    + '<datalist id="lfCastList">' + known.map(function(p) { return '<option value="' + escapeHtml(p.Name) + '"></option>'; }).join('') + '</datalist>'
+                html += '<div class="cm-cast-add"><div class="cm-ac"><input type="text" id="lfCastAdd" role="combobox" aria-expanded="false" aria-controls="lfCastSuggest" placeholder="' + (peopleDir && !peopleDir.length ? 'Aucune personne dans l\'annuaire : ajoutez-en dans l\'écran Personnes' : 'Ajouter une personne : tapez un nom') + '" aria-label="Ajouter une personne à la distribution" autocomplete="off" />'
+                    + '<div class="cm-ac-list" id="lfCastSuggest" role="listbox" hidden></div></div>'
                     + '<button is="emby-button" type="button" class="raised" data-cast-add="1"><span>Ajouter</span></button>'
                     + (cast.length ? '<button is="emby-button" type="button" class="raised" data-cast-season="1"><span>Appliquer à toute la saison</span></button>' : '')
                     + '</div><div class="cm-cast-msg" id="lfCastMsg" role="status"></div></div>';
                 return html;
             }
 
+            // People of the directory that match what is typed and are not already in this episode's cast
+            function castSuggestions(text) {
+                var hit = localSel ? findNode(localSel) : null;
+                var cast = (hit && hit.node.Cast) || [];
+                return (peopleDir || []).filter(function(p) {
+                    return !cast.some(function(c) { return String(c.PersonId).toLowerCase() === String(p.Id).toLowerCase(); })
+                        && (!text.trim() || normalizeName(p.Name).indexOf(normalizeName(text)) >= 0 || normalizeName(text).split(' ').every(function(w) { return normalizeName(p.Name).indexOf(w) >= 0; }));
+                }).sort(function(x, y) { return String(x.Name || '').localeCompare(String(y.Name || '')); });
+            }
+
+            function renderCastSuggest() {
+                var input = qs('#lfCastAdd'), box = qs('#lfCastSuggest');
+                if (!input || !box || box.hidden) { return; }
+                var list = castSuggestions(input.value).slice(0, 8);
+                lfAcIndex = list.length ? Math.min(Math.max(lfAcIndex, 0), list.length - 1) : -1;
+                if (!list.length) {
+                    box.innerHTML = '<div class="cm-ac-none">' + (peopleDir === null ? 'Chargement de l\'annuaire…' : (peopleDirFailed ? 'L\'annuaire n\'a pas pu être lu.' : (!(peopleDir || []).length ? 'L\'annuaire est vide.' : (input.value.trim() ? 'Personne de ce nom dans l\'annuaire (ou déjà ajoutée).' : 'Tout l\'annuaire est déjà dans cette distribution.')))) + '</div>';
+                } else {
+                    box.innerHTML = list.map(function(p, i) {
+                        var photo = p.Photo ? imagePreviewUrl(p.Photo) : '';
+                        var ids = (p.Links || []).map(function(l) { return l.Prefix + '-' + l.ExternalId; }).join(' · ');
+                        return '<button type="button" class="cm-ac-opt' + (i === lfAcIndex ? ' active' : '') + '" role="option" data-ac-person="' + escapeHtml(p.Id) + '" aria-selected="' + (i === lfAcIndex) + '">'
+                            + '<span class="cm-avatar">' + (photo ? '<img alt="" src="' + escapeHtml(photo) + '" />' : escapeHtml((p.Name || '?').trim().charAt(0).toUpperCase())) + '</span>'
+                            + '<span class="cm-ac-text"><strong>' + escapeHtml(p.Name || '?') + '</strong>' + (ids ? '<span>' + escapeHtml(ids) + '</span>' : '') + '</span></button>';
+                    }).join('');
+                }
+                box._list = list;
+            }
+
+            function openCastSuggest() {
+                var input = qs('#lfCastAdd'), box = qs('#lfCastSuggest');
+                if (!input || !box) { return; }
+                box.hidden = false;
+                input.setAttribute('aria-expanded', 'true');
+                renderCastSuggest();
+            }
+
+            function closeCastSuggest() {
+                var input = qs('#lfCastAdd'), box = qs('#lfCastSuggest');
+                if (box) { box.hidden = true; }
+                if (input) { input.setAttribute('aria-expanded', 'false'); }
+                lfAcIndex = -1;
+            }
+
             function castMessage(text) { var el = qs('#lfCastMsg'); if (el) { el.textContent = text || ''; } }
 
+            function addCastPerson(person) {
+                var hit = localSel ? findNode(localSel) : null;
+                if (!hit || hit.kind !== 'episode' || !person) { return; }
+                hit.node.Cast = hit.node.Cast || [];
+                if (hit.node.Cast.some(function(c) { return String(c.PersonId).toLowerCase() === String(person.Id).toLowerCase(); })) { castMessage(person.Name + ' est déjà dans la distribution.'); return; }
+                hit.node.Cast.push({ PersonId: person.Id, Role: '', Type: 'Actor' });
+                markDirty();
+                renderLocalDetail();
+                var again = qs('#lfCastAdd'); if (again) { again.focus(); openCastSuggest(); }
+            }
+
+            // The "Ajouter" button / Enter with an exact name typed
             function addCastFromInput() {
                 var hit = localSel ? findNode(localSel) : null;
                 var input = qs('#lfCastAdd');
@@ -2180,12 +2264,7 @@
                 if (!wanted) { input.focus(); return; }
                 var person = (peopleDir || []).filter(function(p) { return normalizeName(p.Name) === wanted; })[0];
                 if (!person) { castMessage('« ' + input.value.trim() + ' » n\'est pas dans l\'annuaire. Ajoutez-la d\'abord dans l\'écran Personnes.'); return; }
-                hit.node.Cast = hit.node.Cast || [];
-                if (hit.node.Cast.some(function(c) { return String(c.PersonId).toLowerCase() === String(person.Id).toLowerCase(); })) { castMessage(person.Name + ' est déjà dans la distribution.'); return; }
-                hit.node.Cast.push({ PersonId: person.Id, Role: '', Type: 'Actor' });
-                markDirty();
-                renderLocalDetail();
-                var again = qs('#lfCastAdd'); if (again) { again.focus(); }
+                addCastPerson(person);
             }
 
             // Copies this episode's cast to the other episodes of the season (without touching what they already have)
@@ -2217,10 +2296,28 @@
             qs('#localDetail').addEventListener('change', function(e) {
                 var hit = localSel ? findNode(localSel) : null;
                 if (hit && hit.node.Cast && e.target.hasAttribute('data-cast-type')) { hit.node.Cast[parseInt(e.target.getAttribute('data-cast-type'), 10)].Type = e.target.value; }
-                if (e.target.id === 'lfCastAdd') { /* choosing in the list adds nothing: the button or Enter does */ }
             });
+            // Autocomplete of the people field: a click or Enter on a suggestion adds the person
+            qs('#localDetail').addEventListener('mousedown', function(e) { if (e.target.closest('.cm-ac-list')) { e.preventDefault(); } });
+            qs('#localDetail').addEventListener('focusin', function(e) {
+                if (e.target.id !== 'lfCastAdd') { return; }
+                lfAcIndex = -1;
+                openCastSuggest();
+                loadPeopleDirectory(true);   // the directory may have changed in the People screen since this source was opened
+            });
+            qs('#localDetail').addEventListener('focusout', function(e) { if (e.target.id === 'lfCastAdd') { closeCastSuggest(); } });
+            qs('#localDetail').addEventListener('input', function(e) { if (e.target.id === 'lfCastAdd') { lfAcIndex = 0; openCastSuggest(); } });
             qs('#localDetail').addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && e.target.id === 'lfCastAdd') { e.preventDefault(); addCastFromInput(); }
+                if (e.target.id !== 'lfCastAdd') { return; }
+                var box = qs('#lfCastSuggest'), list = (box && !box.hidden && box._list) || [];
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (box.hidden) { openCastSuggest(); return; }
+                    if (list.length) { lfAcIndex = (lfAcIndex + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length; renderCastSuggest(); }
+                    return;
+                }
+                if (e.key === 'Escape') { closeCastSuggest(); return; }
+                if (e.key === 'Enter') { e.preventDefault(); if (list.length && lfAcIndex >= 0) { addCastPerson(list[lfAcIndex]); } else { addCastFromInput(); } }
             });
 
             // Enter in a field of the form must not save the source
@@ -2229,7 +2326,7 @@
             });
 
             function onLocalClick(e) {
-                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-upload],[data-clear-img],[data-cast-remove],[data-cast-add],[data-cast-season]');
+                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-upload],[data-clear-img],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
                 if (!target || !localContent) { return; }
                 if (target.hasAttribute('data-node')) { selectNode(target.getAttribute('data-node')); return; }
                 if (target.hasAttribute('data-toggle-node')) {
@@ -2241,6 +2338,11 @@
                 if (target.hasAttribute('data-add')) { addNode(target.getAttribute('data-add'), target.getAttribute('data-parent')); return; }
                 if (target.hasAttribute('data-bulk')) { bulkAdd(target.getAttribute('data-bulk')); return; }
                 if (target.hasAttribute('data-del')) { deleteNode(target.getAttribute('data-del')); return; }
+                if (target.hasAttribute('data-ac-person')) {
+                    var chosen = (peopleDir || []).filter(function(p) { return p.Id === target.getAttribute('data-ac-person'); })[0];
+                    addCastPerson(chosen);
+                    return;
+                }
                 if (target.hasAttribute('data-cast-add')) { addCastFromInput(); return; }
                 if (target.hasAttribute('data-cast-season')) { applyCastToSeason(); return; }
                 if (target.hasAttribute('data-cast-remove')) {

@@ -6,6 +6,8 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **Local sources**: the cast field of an episode now has the same dropdown as the distribution screen (photo, name, identifiers, filtered as you type, arrow keys, a click adds the person) instead of the browser's plain list. The directory is read again when the field gets the focus, so people added in the Personnes screen show up without reopening the source.
+- **Local sources**: people are no longer shown as "(personne supprimée)" while the directory is loading or when it could not be read: the row says "Chargement…" or "(annuaire illisible)".
 - **People sources**: a new optional "Adresse des photos" field for APIs that return the photo as a **path** (`/abc123.jpg`) hosted on another address than the API (an image server). A prefix (`https://images.example.com/p/w185`) or a template with `{value}` (`https://images.example.com/{value}?w=200`). Left empty, a path is still completed with the API's base URL, and a full address is used as it is.
 - **Cast distribution**: adding a person now uses a dropdown with a preview (photo, name, identifiers) filtered as you type, with keyboard navigation, instead of the browser's plain list.
 - **Cast distribution**: the library listing (slow on a large library) is no longer loaded when the tab opens. The tab starts on "Par identifiant", and a "Parcourir la médiathèque" button loads the series, seasons and episodes on demand.
