@@ -26,6 +26,12 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/img/"):
             f = os.path.join(IMG_DIR, os.path.basename(p))
             return self.send(200, open(f, "rb").read(), "image/jpeg") if os.path.exists(f) else self.send(404, {})
+        # A record whose fields are null / empty / missing, to exercise the fallback "a || b"
+        m = re.fullmatch(r"/fallback/(\w+)", p)
+        if m:
+            return self.send(200, {"title": None, "name": "Nom de repli", "overview": "", "summary": "Résumé de repli", "tags": [],
+                                   "categories": [{"label": "aventure"}, {"label": "nature"}], "genres_csv": "docu, voyage",
+                                   "alt": "premier", "alt2": "second", "list": [{"label": "L1"}]})
         # People found through a SEARCH url: the answer is a LIST with one element (root list, or a list inside an object)
         if p in ("/people-list", "/people-wrapped"):
             uid = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("user", [""])[0]

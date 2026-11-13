@@ -78,6 +78,24 @@ try {
 
   // A people source whose answer is a LIST (search url with the identifier as a parameter): paths with a position, "[0]"
   const fetchPerson = prefix => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl('CustomMetadata/People/Fetch'),{method:'POST',headers:{'Content-Type':'application/json','X-Emby-Token':ApiClient.accessToken()},body:JSON.stringify({Prefix:${JSON.stringify(prefix)},ExternalId:'p1'})}); return JSON.stringify(await r.json());})()`).then(JSON.parse);
+  // Fallback between fields: "a || b" uses the first one that exists and is not null / empty / blank
+  const testSource = (mappings, type = 'video') => evalJs(`(async function(){var src={Name:'t',Prefix:'fb',SourceType:'Api',BaseUrl:'http://172.17.0.1:8765',VideoEndpoint:'/fallback/{id}',SourceEndpoint:'/fallback/{id}',SeriesEndpoint:'/fallback/{id}',VideoFieldMappings:${JSON.stringify(mappings)},Enabled:true,SendOriginReferer:false}; var r=await fetch(ApiClient.getUrl('CustomMetadata/TestSource'),{method:'POST',headers:{'Content-Type':'application/json','X-Emby-Token':ApiClient.accessToken()},body:JSON.stringify({Source:src,ItemType:${JSON.stringify(type)},Id:'x'})}); return JSON.stringify(await r.json());})()`).then(JSON.parse);
+  const fb = await testSource({ Title: 'title || name', Overview: 'overview || summary', Tags: 'tags || categories[].label', Genres: 'missing.path || genres_csv' });
+  const md = fb.Metadata || {};
+  check('fallback: null field -> next one (title || name)', md.Title === 'Nom de repli', JSON.stringify(fb).slice(0, 400));
+  check('fallback: empty text -> next one (overview || summary)', md.Overview === 'Résumé de repli', JSON.stringify(md));
+  check('fallback: empty list -> next list, with the [] notation', JSON.stringify(md.Tags) === JSON.stringify(['aventure', 'nature']), JSON.stringify(md.Tags));
+  check('fallback: missing path -> next one, comma-separated string', JSON.stringify(md.Genres) === JSON.stringify(['docu', 'voyage']), JSON.stringify(md.Genres));
+  const first = await testSource({ Title: 'alt || alt2' });
+  check('fallback: the first usable alternative wins', (first.Metadata || {}).Title === 'premier', JSON.stringify(first.Metadata));
+  const spaced = await testSource({ Title: '  title  ||   alt2 ' });
+  check('fallback: spaces around the separator are ignored', (spaced.Metadata || {}).Title === 'second', JSON.stringify(spaced.Metadata));
+  const none = await testSource({ Title: 'title || nothing.here' });
+  check('fallback: nothing usable -> no value, no error', !(none.Metadata || {}).Title, JSON.stringify(none.Metadata));
+  const listPos = await testSource({ Title: 'title || list[0].label' });
+  check('fallback combined with a list position', (listPos.Metadata || {}).Title === 'L1', JSON.stringify(listPos.Metadata));
+  const plain = await testSource({ Title: 'alt' });
+  check('a path without || behaves as before', (plain.Metadata || {}).Title === 'premier', JSON.stringify(plain.Metadata));
   const rootList = await fetchPerson('pl');
   check('list source (root list): name read with [0]', rootList.Name === 'Camille Durand', JSON.stringify(rootList));
   check('list source (root list): photo and bio read too', !!rootList.Photo && !!rootList.Bio, JSON.stringify(rootList));
@@ -85,8 +103,8 @@ try {
   check('list source (list inside an object): name read with results[0]', wrapped.Name === 'Camille Durand', JSON.stringify(wrapped));
   const noPath = await fetchPerson('px');
   check('list source without [0]: a clear hint instead of a silent miss', !noPath.Name && /\[0\]/.test(noPath.Error || ''), JSON.stringify(noPath));
-  const plain = await fetchPerson('pe');
-  check('plain object source unchanged', plain.Name === 'Camille Durand', JSON.stringify(plain));
+  const plainObject = await fetchPerson('pe');
+  check('plain object source unchanged', plainObject.Name === 'Camille Durand', JSON.stringify(plainObject));
   // Photo path completed with another address than the API's
   const prefixed = await fetchPerson('pi');
   check('photo path + image address (prefix): joined with one slash', prefixed.Photo === 'http://172.17.0.1:8765/img/p1.jpg', JSON.stringify(prefixed));
