@@ -11,6 +11,27 @@ Everything in the repository is written in **English** (code comments, docs, com
 3. CI (`build`) must be green. The merge is a **squash**: the pull request title becomes the commit message on `main`, so it follows the same format as commits.
 4. **Never** push directly to `main`, never force-push `main`, never rewrite its history.
 
+### The `develop` branch (maintainer's integration branch)
+
+`develop` is the maintainer's own branch, to try several changes together. Nobody else uses it (the repository has a single
+collaborator; outside contributors only work through forks and pull requests, which never touch it).
+
+- Changes are committed to `develop` **directly, one commit per logical change** (no pull request, no squash), so the
+  list of commits is kept. The maintainer's assistant does the same. CI builds every push (`build`).
+- `develop` reaches `main` through **one pull request `develop` → `main`**, merged with **"Rebase and merge"**: `main`
+  gets the same commits one by one (linear history), not a single squashed commit. Each commit keeps its
+  Conventional Commits message, so the history of `main` stays readable and each change keeps its own changelog line.
+- **After that merge, realign `develop` on `main`** (GitHub recreates the commits with new identifiers, so the old ones
+  would otherwise look like duplicates in the next release pull request):
+  ```bash
+  git switch develop && git fetch origin && git reset --hard origin/main && git push --force-with-lease origin develop
+  ```
+  Nothing is lost: the content is identical. Do it before adding new commits to `develop`.
+- A pull request opened directly against `main` (small fix, documentation) is still **squash-merged** as described above.
+- Tags and releases are cut from `main` only, never from `develop`.
+- A branch can be deployed for testing from `develop` as well as from any `feat/…` branch: its tip is signed by the
+  maintainer's key because commits pushed directly are not rewritten.
+
 ## Commit messages
 
 *Conventional Commits*, **in English**, first line at most 72 characters:
@@ -75,10 +96,13 @@ git config core.hooksPath .githooks
 
 After creating the repository (Settings):
 
-- **Squash merging only**, with automatic deletion of merged branches:
+- **Squash and rebase merging**, no merge commit, with automatic deletion of merged branches. Squash is for ordinary pull
+  requests, rebase for the `develop` → `main` release pull request (see above):
   ```bash
-  gh repo edit --enable-squash-merge --enable-merge-commit=false --enable-rebase-merge=false --delete-branch-on-merge
+  gh repo edit --enable-squash-merge --enable-rebase-merge --enable-merge-commit=false --delete-branch-on-merge
   ```
+  (`--delete-branch-on-merge` would delete `develop` after the release pull request: keep a rule or a habit that restores
+  it, or turn this option off.)
 - **Protect `main`**: pull request required (0 approvals if you work alone), `build` check required, no force-push, no deletion:
   ```bash
   gh api -X PUT repos/OWNER/REPO/branches/main/protection --input - <<'JSON'
