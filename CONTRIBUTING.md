@@ -26,7 +26,8 @@ collaborator; outside contributors only work through forks and pull requests, wh
   ```bash
   git switch develop && git fetch origin && git reset --hard origin/main && git push --force-with-lease origin develop
   ```
-  Nothing is lost: the content is identical. Do it before adding new commits to `develop`.
+  Nothing is lost: the content is identical. Do it before adding new commits to `develop`. If `develop` was deleted on
+  GitHub anyway, recreate it instead: `git fetch --prune && git switch -C develop origin/main && git push -u origin develop`.
 - A pull request opened directly against `main` (small fix, documentation) is still **squash-merged** as described above.
 - Tags and releases are cut from `main` only, never from `develop`.
 - A branch can be deployed for testing from `develop` as well as from any `feat/…` branch: its tip is signed by the
@@ -101,8 +102,16 @@ After creating the repository (Settings):
   ```bash
   gh repo edit --enable-squash-merge --enable-rebase-merge --enable-merge-commit=false --delete-branch-on-merge
   ```
-  (`--delete-branch-on-merge` would delete `develop` after the release pull request: keep a rule or a habit that restores
-  it, or turn this option off.)
+- **Keep `develop` from being deleted** (a ruleset with the `deletion` rule only, no pull request required, so direct pushes
+  and the realignment force-push stay possible). Without it, `--delete-branch-on-merge` deletes `develop` when the
+  release pull request is merged; GitHub never auto-deletes a protected branch:
+  ```bash
+  gh api -X POST repos/OWNER/REPO/rulesets --input - <<'JSON'
+  {"name":"protect-develop-from-deletion","target":"branch","enforcement":"active",
+   "conditions":{"ref_name":{"include":["refs/heads/develop"],"exclude":[]}},
+   "rules":[{"type":"deletion"}]}
+  JSON
+  ```
 - **Protect `main`**: pull request required (0 approvals if you work alone), `build` check required, no force-push, no deletion:
   ```bash
   gh api -X PUT repos/OWNER/REPO/branches/main/protection --input - <<'JSON'
