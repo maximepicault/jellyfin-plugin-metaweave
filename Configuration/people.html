@@ -113,6 +113,11 @@
         #CustomMetadataPeoplePage .pp-cascade { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; cursor: pointer; }
         #CustomMetadataPeoplePage .pp-cascade input { margin-top: 3px; }
         #CustomMetadataPeoplePage .pp-cascade[data-off] { opacity: 0.6; cursor: default; }
+        #CustomMetadataPeoplePage .pp-cascade-preview { margin: 0 0 0 26px; font-size: 12px; color: var(--pp-muted); display: flex; flex-direction: column; gap: 6px; }
+        #CustomMetadataPeoplePage .pp-chips { display: flex; flex-wrap: wrap; gap: 4px; max-height: 120px; overflow: auto; }
+        #CustomMetadataPeoplePage .pp-chip { padding: 1px 8px; border: 1px solid var(--pp-border); border-radius: 10px; font-family: monospace; font-size: 11px; color: rgba(255, 255, 255, 0.85); background: var(--pp-surface); }
+        #CustomMetadataPeoplePage .pp-chip.season { border-color: rgba(0, 164, 220, 0.6); }
+        #CustomMetadataPeoplePage .pp-chip.missing { border-style: dashed; }
         #CustomMetadataPeoplePage .pp-library-box { padding: 10px; border: 1px dashed var(--pp-border); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
         @container (max-width: 700px) { #CustomMetadataPeoplePage .pp-cast-row { grid-template-columns: 40px minmax(0, 1fr) auto; } #CustomMetadataPeoplePage .pp-cast-row .pp-cast-role, #CustomMetadataPeoplePage .pp-cast-row .pp-cast-type { grid-column: 2 / -1; } }
         #CustomMetadataPeoplePage .pp-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(240, 160, 64, 0.55); border-radius: 8px; background: rgba(240, 160, 64, 0.1); color: #f3c88a; line-height: 1.5; }
@@ -471,7 +476,9 @@
             var epMode = 'ids';       // 'library': series/seasons of the library (loaded on demand), 'ids': elements typed by identifier
             var castLoaded = false;   // the small distribution file is loaded (fast); the library is NOT loaded until asked
             var libraryLoading = false;
-            var cascade = false;      // adding someone to a series/season also adds them to the children (needs the library)
+            var cascadeMap = {};      // typed key (series / season) -> its distribution also applies to everything below it (saved)
+            var cascadeWas = {};      // same, as loaded from the server: turning it off must clean the children at the next application
+            var childrenCache = {};   // typed key -> seasons / episodes below it (preview of the cascade)
             var acIndex = -1;         // highlighted suggestion
             var epSeries = null;      // Id of the displayed series (its own cast)
             var TYPE_LABELS = { series: 'Série', season: 'Saison', episode: 'Épisode' };
@@ -571,38 +578,46 @@
                 return html + '</div>';
             }
 
-            // Elements below a series / season, taken from the library (empty while it is not loaded)
-            function childKeys(tk) {
-                var out = [];
-                var type = typeOf(tk), key = keyOf(tk);
-                (library || []).forEach(function(series) {
-                    if (type === 'series' && series.Key && series.Key.toLowerCase() === key) {
-                        series.Seasons.forEach(function(season) {
-                            if (season.Key) { out.push(typedKey('season', season.Key)); }
-                            season.Episodes.forEach(function(ep) { out.push(typedKey('episode', ep.Key)); });
-                        });
-                    }
-                    series.Seasons.forEach(function(season) {
-                        if (type === 'season' && season.Key && season.Key.toLowerCase() === key) {
-                            season.Episodes.forEach(function(ep) { out.push(typedKey('episode', ep.Key)); });
-                        }
-                    });
-                });
-                return out;
-            }
-
+            // Cascade: a flag stored on the series / season distribution. Everything below it (seasons, episodes, missing ones too)
+            // inherits the cast when it is enriched; the preview lists the tags it reaches, read for this one element only.
             function cascadeBox(tk) {
                 var type = typeOf(tk);
                 if (type === 'episode') { return ''; }
-                var below = type === 'series' ? 'aux saisons et aux épisodes' : 'aux épisodes';
-                var usable = !!library;
-                return '<label class="pp-cascade"' + (usable ? '' : ' data-off="1"') + '><input type="checkbox" id="ppCascade"' + (cascade && usable ? ' checked' : '') + (usable ? '' : ' disabled') + ' />'
-                    + '<span>Ajouter aussi la personne ' + below + ' de cet élément.' + (usable ? '' : ' <em>Disponible après « Parcourir la médiathèque » (liste de gauche).</em>') + '</span></label>';
+                var below = type === 'series' ? 'aux saisons et à tous les épisodes de cette série' : 'à tous les épisodes de cette saison';
+                return '<label class="pp-cascade"><input type="checkbox" id="ppCascade"' + (cascadeMap[tk] ? ' checked' : '') + ' />'
+                    + '<span>Appliquer aussi cette distribution ' + below + '. Les personnes déjà présentes sur un épisode y restent, celles-ci s\'ajoutent.</span></label>'
+                    + (cascadeMap[tk] ? '<div class="pp-cascade-preview" id="ppCascadePreview" role="status">Recherche des éléments concernés…</div>' : '');
+            }
+
+            function renderCascadePreview(tk, data) {
+                var box = qs('#ppCascadePreview');
+                if (!box || tk !== epOpen) { return; }
+                if (!data || !data.Found) {
+                    box.textContent = 'Cet élément n\'est pas (encore) dans la médiathèque : la distribution sera répercutée dès qu\'il y sera enrichi.';
+                    return;
+                }
+                var seasons = data.Seasons || [], episodes = data.Episodes || [];
+                var chips = seasons.map(function(x) { return ['season', x]; }).concat(episodes.map(function(x) { return ['episode', x]; }));
+                var LIMIT = 40;
+                box.innerHTML = '<span>Sera répercuté sur ' + (typeOf(tk) === 'series' ? seasons.length + ' saison(s) et ' : '') + episodes.length + ' épisode(s) de la médiathèque :</span>'
+                    + '<div class="pp-chips">' + chips.slice(0, LIMIT).map(function(c) {
+                        return '<span class="pp-chip ' + c[0] + (c[1].IsMissing ? ' missing' : '') + '" title="' + escapeHtml((c[1].Title || '') + (c[1].IsMissing ? ' (manquant)' : '')) + '">{' + escapeHtml(c[1].Key) + '}</span>';
+                    }).join('') + (chips.length > LIMIT ? '<span class="pp-chip">+ ' + (chips.length - LIMIT) + ' autres</span>' : '') + '</div>'
+                    + (chips.length ? '' : '<span>Rien en dessous pour le moment.</span>');
+            }
+
+            function loadCascadePreview(tk) {
+                if (!tk || !cascadeMap[tk] || typeOf(tk) === 'episode') { return; }
+                if (childrenCache[tk]) { renderCascadePreview(tk, childrenCache[tk]); return; }
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/Children', { type: typeOf(tk), key: keyOf(tk) })).then(function(data) {
+                    childrenCache[tk] = data || { Found: false };
+                    renderCascadePreview(tk, childrenCache[tk]);
+                }, function() { var box = qs('#ppCascadePreview'); if (box) { box.textContent = 'Les éléments concernés n\'ont pas pu être lus.'; } });
             }
 
             function noTagNote() { return 'Ce dossier ne porte pas de tag {préfixe-id} : sa distribution ne peut pas être rattachée.'; }
 
-            function renderEpDetail() {
+            function renderEpDetailRaw() {
                 var box = qs('#ppEpDetail');
                 if (!castLoaded) { box.innerHTML = ''; return; }
                 var html = '';
@@ -644,6 +659,9 @@
                 box.innerHTML = '<div class="pp-empty">' + (!library ? 'Choisissez « Par identifiant », ou parcourez la médiathèque depuis la liste.' : (library.length ? 'Choisissez une série, une saison, ou « Par identifiant ».' : 'Aucun élément portant un tag de source API dans la médiathèque : utilisez « Par identifiant ».')) + '</div>';
             }
 
+            // The preview is filled after each render of the detail panel (the panel is rebuilt on every change)
+            function renderEpDetail() { renderEpDetailRaw(); loadCascadePreview(epOpen); }
+
             function epMessage(text) { var el = qs('#ppCastMsg'); if (el) { el.textContent = text || ''; } }
 
             // People of the directory matching what is typed, not yet in the open element's cast
@@ -682,20 +700,12 @@
 
             function addPerson(person) {
                 if (!person || !epOpen) { return; }
-                var targets = [epOpen];
-                var box = qs('#ppCascade');
-                cascade = !!(box && box.checked);
-                if (cascade) { targets = targets.concat(childKeys(epOpen)); }
-                var added = 0;
-                targets.forEach(function(tk) {
-                    episodeCast[tk] = episodeCast[tk] || [];
-                    if (!episodeCast[tk].some(function(c) { return c.PersonId === person.Id; })) { episodeCast[tk].push({ PersonId: person.Id, Role: '', Type: 'Actor' }); added++; }
-                });
-                if (!added) { epMessage(person.Name + ' est déjà dans la distribution.'); return; }
-                markEpDirty(targets);
+                episodeCast[epOpen] = episodeCast[epOpen] || [];
+                if (episodeCast[epOpen].some(function(c) { return c.PersonId === person.Id; })) { epMessage(person.Name + ' est déjà dans la distribution.'); return; }
+                episodeCast[epOpen].push({ PersonId: person.Id, Role: '', Type: 'Actor' });
+                markEpDirty();
                 renderEpDetail();
                 renderEpTree();
-                epMessage(targets.length > 1 ? person.Name + ' ajouté·e à ' + added + ' élément(s) (cet élément et ceux en dessous).' : '');
                 var again = qs('#ppCastAdd'); if (again) { again.focus(); renderSuggest(); }
             }
 
@@ -751,7 +761,14 @@
                 renderEpTree();
                 ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/EpisodeCast')).then(function(result) {
                     episodeCast = {};
-                    (result.Episodes || []).forEach(function(entry) { episodeCast[typedKey(entry.Type || 'episode', entry.Key)] = (entry.Cast || []).map(function(c) { return { PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }; }); });
+                    cascadeMap = {};
+                    (result.Episodes || []).forEach(function(entry) {
+                        var tk = typedKey(entry.Type || 'episode', entry.Key);
+                        episodeCast[tk] = (entry.Cast || []).map(function(c) { return { PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }; });
+                        if (entry.Cascade) { cascadeMap[tk] = true; }
+                    });
+                    cascadeWas = JSON.parse(JSON.stringify(cascadeMap));
+                    childrenCache = {};
                     castLoaded = true;
                     renderEpTree();
                     renderEpDetail();
@@ -828,7 +845,12 @@
                 if (epOpen && e.target.hasAttribute('data-cast-role')) { episodeCast[epOpen][parseInt(e.target.getAttribute('data-cast-role'), 10)].Role = e.target.value; markEpDirty(); }
             });
             qs('#ppEpDetail').addEventListener('change', function(e) {
-                if (e.target.id === 'ppCascade') { cascade = e.target.checked; return; }
+                if (e.target.id === 'ppCascade') {
+                    if (e.target.checked) { cascadeMap[epOpen] = true; } else { delete cascadeMap[epOpen]; }
+                    markEpDirty();
+                    renderEpDetail();
+                    return;
+                }
                 if (epOpen && e.target.hasAttribute('data-cast-type')) { episodeCast[epOpen][parseInt(e.target.getAttribute('data-cast-type'), 10)].Type = e.target.value; markEpDirty(); }
             });
             qs('#ppEpDetail').addEventListener('keydown', function(e) {
@@ -974,12 +996,15 @@
                     type: 'POST', url: ApiClient.getUrl('CustomMetadata/People/Apply'),
                     data: JSON.stringify((function() {
                         var keys = Object.keys(changedKeys), pick = function(type) { return keys.filter(function(k) { return typeOf(k) === type; }).map(keyOf); };
-                        return { PersonIds: Object.keys(changedPersons), EpisodeKeys: pick('episode'), SeasonKeys: pick('season'), SeriesKeys: pick('series'), Prefixes: [] };
+                        return { PersonIds: Object.keys(changedPersons), EpisodeKeys: pick('episode'), SeasonKeys: pick('season'), SeriesKeys: pick('series'), Prefixes: [],
+                            // children are refreshed for a series / season that cascades, or that did before this change (turned off)
+                            ExpandKeys: keys.filter(function(k) { return typeOf(k) !== 'episode' && (cascadeMap[k] || cascadeWas[k]); }) };
                     })()),
                     contentType: 'application/json', dataType: 'json'
                 }).then(function(result) {
                     changedPersons = {};
                     changedKeys = {};
+                    cascadeWas = JSON.parse(JSON.stringify(cascadeMap));
                     qs('#ppApplyText').textContent = result.Queued
                         ? result.Queued + ' épisode(s) en cours de mise à jour par Jellyfin' + (result.Missing ? ' (dont ' + result.Missing + ' manquant(s))' : '') + '. Quelques instants suffisent, en arrière-plan.'
                         : 'Aucun épisode de la médiathèque n\'est concerné par ces changements.';
@@ -1014,11 +1039,16 @@
                 }
                 if (dirtyEp) {
                     steps = steps.then(function() {
-                        var episodes = Object.keys(episodeCast).filter(function(k) { return episodeCast[k].length; }).map(function(k) { return { Type: typeOf(k), Key: keyOf(k), Cast: episodeCast[k] }; });
+                        var episodes = Object.keys(episodeCast).filter(function(k) { return episodeCast[k].length; }).map(function(k) { return { Type: typeOf(k), Key: keyOf(k), Cascade: !!cascadeMap[k], Cast: episodeCast[k] }; });
                         return putJson('CustomMetadata/People/EpisodeCast', { Version: 1, Episodes: episodes });
                     }).then(function(saved) {
                         episodeCast = {};
-                        (saved.Episodes || []).forEach(function(entry) { episodeCast[typedKey(entry.Type || 'episode', entry.Key)] = (entry.Cast || []).map(function(c) { return { PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }; }); });
+                        cascadeMap = {};
+                        (saved.Episodes || []).forEach(function(entry) {
+                            var tk = typedKey(entry.Type || 'episode', entry.Key);
+                            episodeCast[tk] = (entry.Cast || []).map(function(c) { return { PersonId: c.PersonId, Role: c.Role || '', Type: c.Type || 'Actor' }; });
+                            if (entry.Cascade) { cascadeMap[tk] = true; }
+                        });
                         dirtyEp = false;
                     });
                 }

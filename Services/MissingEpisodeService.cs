@@ -45,6 +45,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly MissingEpisodeCache _cache;
         private readonly CastOverlayStore _castOverlay;
         private readonly PeopleStore _people;
+        private readonly CastInheritance _inheritance;
 
         public MissingEpisodeService(
             ILibraryManager libraryManager,
@@ -54,8 +55,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             SourceResolver sourceResolver,
             CastOverlayStore castOverlay,
             PeopleStore people,
+            CastInheritance inheritance,
             ILogger<MissingEpisodeService> logger)
         {
+            _inheritance = inheritance;
             _castOverlay = castOverlay;
             _people = people;
             _libraryManager = libraryManager;
@@ -307,6 +310,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 ? new Dictionary<string, CachedMissingEpisode>(StringComparer.OrdinalIgnoreCase)
                 : _cache.Load(season.Id);
 
+            // The virtual episodes inherit the cast of their season / series ("cascade"): tell the provider which season they belong to
+            foreach (var wantedKey in wantedByKey.Keys)
+            {
+                _inheritance.Register(wantedKey, season.Id);
+            }
+
+            var seasonInherited = _inheritance.ForSeasonItem(season);
             var indexNumbers = AssignIndexNumbers(season, wantedByKey, cache);
             var (existing, orphans) = FindExistingVirtualEpisodes(season, existingVirtual, virtualFromLibrary, wantedByKey.Keys.Concat(cache.Keys));
 
@@ -330,7 +340,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
                 kept.Add(key);
 
-                var hash = MissingEpisodeCache.ComputeHash(item, source, CastFingerprint(key));
+                var hash = MissingEpisodeCache.ComputeHash(item, source, CastFingerprint(key, seasonInherited));
                 cache.TryGetValue(key, out var cached);
                 var indexNumber = indexNumbers[key];
                 if (cached != null && cached.Hash == hash)
@@ -402,7 +412,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
 
                 await SyncPreviewAsync(episode, item, source, cancellationToken);
-                cache[key] = CreateCacheEntry(item, source, MissingEpisodeCache.ComputeHash(item, source, CastFingerprint(key)), thumb, indexNumbers[key]);
+                cache[key] = CreateCacheEntry(item, source, MissingEpisodeCache.ComputeHash(item, source, CastFingerprint(key, seasonInherited)), thumb, indexNumbers[key]);
                 stats.Created++;
             }
 
@@ -420,9 +430,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// Fingerprint of the cast added to this episode (People screen): people of the directory (names, photos) and roles.
         /// Empty if none. It goes into the episode's hash: a rename in the directory updates it at the next analysis.
         /// </summary>
-        private string CastFingerprint(string key)
+        private string CastFingerprint(string key, List<LocalCastEntry> inherited)
         {
-            var cast = _people.ResolveCast(_castOverlay.Get("episode", new[] { key }));
+            var cast = _people.ResolveCast(CastInheritance.Combine(_castOverlay.Get("episode", new[] { key }), inherited));
             return cast.Count == 0 ? string.Empty : string.Join("|", cast.Select(c => $"{c.Name}~{c.Role}~{c.Type}~{c.Image}"));
         }
 

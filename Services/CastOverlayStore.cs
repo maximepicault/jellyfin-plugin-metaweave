@@ -18,6 +18,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         public string Key { get; set; }
 
+        /// <summary>
+        /// Series and seasons only: the cast also applies to every season / episode below (inherited live when they are enriched;
+        /// the episodes' own cast is kept and comes first).
+        /// </summary>
+        public bool Cascade { get; set; }
+
         public List<LocalCastEntry> Cast { get; set; } = new List<LocalCastEntry>();
     }
 
@@ -110,6 +116,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     Type = NormalizeType(g.First().Type),
                     Key = NormalizeKey(g.First().Key),
+                    Cascade = NormalizeType(g.First().Type) != "episode" && g.Any(e => e.Cascade),
                     Cast = LocalSourceStore.NormalizeCast(g.SelectMany(e => e.Cast ?? new List<LocalCastEntry>()))
                 })
                 .Where(e => e.Cast.Count > 0)
@@ -133,6 +140,37 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             _logger.LogInformation("👥 [CAST OVERLAY] 💾 Saved cast for {Count} episodes", file.Episodes.Count);
             return file;
+        }
+
+        /// <summary>True when at least one series or season distribution is marked to cascade (cheap early exit for the providers)</summary>
+        public bool AnyCascade() => Load().Episodes.Any(e => e.Cascade && e.Cast != null && e.Cast.Count > 0);
+
+        /// <summary>True when this series / season distribution is marked to cascade to its children</summary>
+        public bool IsCascading(string type, string key)
+        {
+            var typed = TypedKey(type, key);
+            return Load().Episodes.Any(e => e.Cascade && TypedKey(e.Type, e.Key) == typed);
+        }
+
+        /// <summary>Cast of the series / seasons with these tags that are marked to cascade (first occurrence of a person kept)</summary>
+        public List<LocalCastEntry> GetCascading(string type, IEnumerable<string> keys)
+        {
+            var wanted = new HashSet<string>((keys ?? Enumerable.Empty<string>()).Select(k => TypedKey(type, k)), StringComparer.Ordinal);
+            var result = new List<LocalCastEntry>();
+            if (wanted.Count == 0)
+            {
+                return result;
+            }
+
+            foreach (var entry in Load().Episodes.Where(e => e.Cascade && wanted.Contains(TypedKey(e.Type, e.Key))))
+            {
+                foreach (var cast in (entry.Cast ?? new List<LocalCastEntry>()).Where(c => !result.Any(r => string.Equals(r.PersonId, c.PersonId, StringComparison.OrdinalIgnoreCase))))
+                {
+                    result.Add(cast);
+                }
+            }
+
+            return result;
         }
 
         /// <summary>Cast attached to these tags for this element type (file with several tags: each one's, first occurrence of a person kept)</summary>

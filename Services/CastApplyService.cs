@@ -26,6 +26,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>Series whose cast changed (folder tags "dm-serie")</summary>
         public List<string> SeriesKeys { get; set; } = new List<string>();
 
+        /// <summary>
+        /// Typed keys ("series:dm-x", "season:dm-a1") whose children must be refreshed even if the element is not (or no longer)
+        /// marked "cascade": the screen sends the ones whose cascade was on before or after the change, so that turning it off cleans the children.
+        /// </summary>
+        public List<string> ExpandKeys { get; set; } = new List<string>();
+
         /// <summary>Local sources whose content changed (prefixes): their episodes that have a cast</summary>
         public List<string> Prefixes { get; set; } = new List<string>();
     }
@@ -49,6 +55,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly IFileSystem _fileSystem;
         private readonly LocalSourceStore _local;
         private readonly CastOverlayStore _overlay;
+        private readonly CastInheritance _inheritance;
         private readonly ILogger<CastApplyService> _logger;
 
         public CastApplyService(
@@ -56,8 +63,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             IFileSystem fileSystem,
             LocalSourceStore local,
             CastOverlayStore overlay,
+            CastInheritance inheritance,
             ILogger<CastApplyService> logger)
         {
+            _inheritance = inheritance;
             _libraryManager = libraryManager;
             _fileSystem = fileSystem;
             _local = local;
@@ -89,6 +98,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     result.Add(key);
                 }
+            }
+
+            // Keys named by the request even when they no longer have an entry (a distribution that was emptied must be cleaned too)
+            foreach (var key in keys)
+            {
+                result.Add(key);
             }
 
             // Cast typed in the local sources
@@ -127,10 +142,31 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             // Episodes, seasons and series with a tag matching a concerned key
             bool Wanted(BaseItem item, string type) => CastCatalog.Keys(item).Any(k => wanted.Contains(CastOverlayStore.TypedKey(type, k)));
+            var expand = new HashSet<string>((request?.ExpandKeys ?? new List<string>()).Select(k => k.Trim().ToLowerInvariant()), StringComparer.OrdinalIgnoreCase);
             var episodes = new List<BaseItem>();
+            var seen = new HashSet<Guid>();
             foreach (var (kind, type) in new[] { (BaseItemKind.Series, "series"), (BaseItemKind.Season, "season"), (BaseItemKind.Episode, "episode") })
             {
-                episodes.AddRange(_libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { kind }, Recursive = true }).Where(i => Wanted(i, type)));
+                foreach (var item in _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { kind }, Recursive = true }).Where(i => Wanted(i, type)))
+                {
+                    if (seen.Add(item.Id))
+                    {
+                        episodes.Add(item);
+                    }
+
+                    // A series / season marked "cascade" (or that was, see ExpandKeys): everything below it inherits its cast
+                    if (type != "episode" && CastCatalog.Keys(item).Any(k => _overlay.IsCascading(type, k) || expand.Contains(CastOverlayStore.TypedKey(type, k))))
+                    {
+                        var below = type == "series" ? new[] { BaseItemKind.Season, BaseItemKind.Episode } : new[] { BaseItemKind.Episode };
+                        foreach (var child in _libraryManager.GetItemList(new InternalItemsQuery { AncestorIds = new[] { item.Id }, IncludeItemTypes = below, Recursive = true }))
+                        {
+                            if (seen.Add(child.Id))
+                            {
+                                episodes.Add(child);
+                            }
+                        }
+                    }
+                }
             }
 
             result.Queued = episodes.Count;
@@ -154,6 +190,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     try
                     {
+                        // A missing episode has no path: tell the provider which season it belongs to (cascade)
+                        if (episode is Episode virtualEpisode && virtualEpisode.IsVirtualItem)
+                        {
+                            _inheritance.Register(CustomId.Get(virtualEpisode.ProviderIds), virtualEpisode.SeasonId);
+                        }
+
                         await episode.RefreshMetadata(
                             new MetadataRefreshOptions(new DirectoryService(_fileSystem))
                             {
