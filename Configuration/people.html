@@ -79,7 +79,7 @@
         #CustomMetadataPeoplePage .pp-tab { height: 44px; padding: 0 16px; background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; color: var(--pp-muted); font: inherit; font-weight: 600; cursor: pointer; }
         #CustomMetadataPeoplePage .pp-tab[aria-selected="true"] { color: #fff; border-bottom-color: var(--pp-accent); }
         #CustomMetadataPeoplePage .pp-group { padding: 10px 10px 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pp-muted); display: flex; justify-content: space-between; gap: 8px; }
-        #CustomMetadataPeoplePage .pp-group-btn { width: 100%; box-sizing: border-box; border: 0; border-left: 3px solid transparent; background: none; font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pp-muted); cursor: pointer; text-align: left; align-items: center; min-height: 40px; }
+        #CustomMetadataPeoplePage .pp-group-btn { min-height: 48px; padding: 8px 10px; width: 100%; box-sizing: border-box; border: 0; border-left: 3px solid transparent; background: rgba(255, 255, 255, 0.05); border-radius: 6px; margin-top: 8px; font: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: inherit; cursor: pointer; text-align: left; align-items: center; }
         #CustomMetadataPeoplePage .pp-group-btn:hover { background: rgba(255, 255, 255, 0.06); }
         #CustomMetadataPeoplePage .pp-group-btn[aria-current="true"] { background: rgba(0, 164, 220, 0.16); border-left-color: var(--pp-accent); color: #fff; }
         #CustomMetadataPeoplePage .pp-count { flex-shrink: 0; min-width: 22px; padding: 1px 7px; border-radius: 10px; background: rgba(63, 178, 127, 0.2); color: #8fd9b7; font-size: 12px; font-weight: 700; text-align: center; }
@@ -123,6 +123,10 @@
         #CustomMetadataPeoplePage .pp-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(240, 160, 64, 0.55); border-radius: 8px; background: rgba(240, 160, 64, 0.1); color: #f3c88a; line-height: 1.5; }
         #CustomMetadataPeoplePage .pp-warn span { flex: 1 1 320px; }
         #CustomMetadataPeoplePage .pp-group-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        #CustomMetadataPeoplePage .pp-group-btn { justify-content: flex-start; gap: 8px; }
+        #CustomMetadataPeoplePage .pp-group-btn .pp-count { margin-left: auto; }
+        #CustomMetadataPeoplePage .pp-group-btn::before { content: "▸"; color: var(--pp-accent); margin-right: 2px; }
+        #CustomMetadataPeoplePage .pp-item.pp-sub { margin-left: 14px; }
         #CustomMetadataPeoplePage .pp-group-sub { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--pp-muted); }
         #CustomMetadataPeoplePage .pp-apply { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(63, 178, 127, 0.5); border-radius: 8px; background: rgba(63, 178, 127, 0.1); line-height: 1.5; }
         #CustomMetadataPeoplePage .pp-apply span { flex: 1 1 320px; }
@@ -524,7 +528,7 @@
                     seasons.forEach(function(season) {
                         var withCast = season.Episodes.filter(function(e) { return castCount(typedKey('episode', e.Key)) > 0; }).length;
                         var seasonOwn = season.Key ? castCount(typedKey('season', season.Key)) : 0;
-                        html += '<button type="button" class="pp-item" data-ep-season="' + season.SeasonId + '"' + (epMode === 'library' && season.SeasonId === epSeason ? ' aria-current="true"' : '') + '>'
+                        html += '<button type="button" class="pp-item pp-sub" data-ep-season="' + season.SeasonId + '"' + (epMode === 'library' && season.SeasonId === epSeason ? ' aria-current="true"' : '') + '>'
                             + '<span class="pp-item-text"><span class="pp-item-name">' + escapeHtml(season.Name || 'Saison') + '</span><span class="pp-item-ids">' + season.Episodes.length + ' épisode(s)</span></span>'
                             + (seasonOwn ? '<span class="pp-badge miss" title="Cette saison a sa propre distribution">saison</span>' : '')
                             + (withCast ? '<span class="pp-count" title="' + withCast + ' épisode(s) avec une distribution">' + withCast + '</span>' : '') + '</button>';
