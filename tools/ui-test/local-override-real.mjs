@@ -172,6 +172,13 @@ try {
   const missC = pick(rc, 'Missing') || [];
   check('C: same prefix - every API episode is still listed', pick(rc, 'ApiCount') === list.length, JSON.stringify(pick(rc, 'ApiCount')));
   check('C: same prefix - the plain local id overrides the API episode', pick(missC.find(m => pick(m, 'Tag') === 'dm-a1v4'), 'Title') === 'Quatrième même préfixe', JSON.stringify(missC.map(m => pick(m, 'Tag') + ':' + pick(m, 'Title'))));
+  // Removing the virtual episodes (option off): they go, and the analysis finishes even if a removal is refused
+  const victim = pick(missC[0], 'EpisodeId');
+  check('removal: a virtual episode exists before', !!victim && !!(await item(victim)));
+  config.CreateVirtualEpisodes = false;
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
+  await analyze();
+  check('removal: it is gone after an analysis with the option off', !!victim && (await api('GET', `/Items/${victim}?userId=${auth.User.Id}`)).status === 404);
 } finally {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, original);
   await api('DELETE', `/CustomMetadata/Local/${DATA}`);
