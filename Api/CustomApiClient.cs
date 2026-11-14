@@ -958,6 +958,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     {
         public string Id { get; set; }
 
+        /// <summary>Full "prefix-id" key when it is not the list source's prefix + Id (local episode added to an API season)</summary>
+        public string Key { get; set; }
         public string Title { get; set; }
         public string Overview { get; set; }
         public DateTime? PremiereDate { get; set; }
