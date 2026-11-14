@@ -36,14 +36,21 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             ILogger<CustomImageProvider> logger,
             CustomApiClient apiClient,
             SourceResolver sourceResolver,
-            LocalSourceStore localStore)
+            LocalSourceStore localStore,
+            MediaBrowser.Controller.IServerApplicationHost appHost,
+            IServiceProvider services)
         {
+            _appHost = appHost;
+            _services = services;
             _localStore = localStore;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _apiClient = apiClient;
             _sourceResolver = sourceResolver;
         }
+
+        private readonly MediaBrowser.Controller.IServerApplicationHost _appHost;
+        private readonly IServiceProvider _services;
 
         public string Name => "Custom Image Provider";
 
@@ -220,6 +227,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     }
                 }
 
+                // Uploaded images: an address the picker of jellyfin-web can show as a preview (see ToPickerUrl)
+                foreach (var found in results.Where(r => LocalSourceStore.IsLocalImageUrl(r.Url)))
+                {
+                    // jellyfin-web previews Url and Jellyfin's own HTTP client downloads it: an absolute address of this server
+                    found.Url = PublicBase() + ToPickerUrl(found.Url);
+                    found.ThumbnailUrl = found.Url;
+                }
+
                 _logger.LogInformation("🖼️ [IMAGE PROVIDER] ✅ Found {Count} images for {ItemName}", results.Count, item.Name);
             }
             catch (Exception ex)
@@ -273,8 +288,49 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 (_, previous) => new ImageOrigin(source.Prefix, isEpisodeThumbnail || previous.IsEpisodeThumbnail));
         }
 
+        /// <summary>The address the person is using right now (the picker request), so that their browser can preview the image; the local address otherwise (library refresh)</summary>
+        private string PublicBase()
+        {
+            var request = (_services.GetService(typeof(Microsoft.AspNetCore.Http.IHttpContextAccessor)) as Microsoft.AspNetCore.Http.IHttpContextAccessor)?.HttpContext?.Request;
+            return request != null && request.Host.HasValue
+                ? $"{request.Scheme}://{request.Host}{request.PathBase}"
+                : _appHost.GetLocalApiUrl("127.0.0.1").TrimEnd('/');
+        }
+
+        private const string PickerPath = "/CustomMetadata/Local/";
+
+        /// <summary>
+        /// "local://img/{dataId}/{file}" → "/CustomMetadata/Local/{dataId}/Public/{file}" (anonymous endpoint, relative to the Jellyfin address:
+        /// what the browser of the image picker previews). The absolute form is what Jellyfin downloads; FromPickerUrl maps both back.
+        /// </summary>
+        internal static string ToPickerUrl(string url)
+        {
+            var parts = url.Substring(LocalSourceStore.ImageUrlPrefix.Length).Split('/');
+            return parts.Length == 2 ? $"{PickerPath}{parts[0]}/Public/{parts[1]}" : url;
+        }
+
+        private static string FromPickerUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                return url;
+            }
+
+            var at = url.IndexOf(PickerPath, StringComparison.OrdinalIgnoreCase);
+            if (at < 0 || at > 0 && !url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return url;
+            }
+
+            var parts = url.Substring(at + PickerPath.Length).Split('?')[0].Split('/');
+            return parts.Length == 3 && parts[1].Equals("Public", StringComparison.OrdinalIgnoreCase)
+                ? LocalSourceStore.ImageUrlPrefix + parts[0] + "/" + parts[2]
+                : url;
+        }
+
         public async Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)
         {
+            url = FromPickerUrl(url);
             var client = _httpClientFactory.CreateClient();
 
             // Source that supplied this URL, otherwise the source whose BaseUrl has the same host
