@@ -31,6 +31,7 @@ window.ApiClient = {
     return Promise.resolve(clone(__mock.local[m[1]] || { Version: 1, Series: [] }));
   },
   ajax: function (o) {
+    if (/CustomMetadata\\/FolderImages\\/Import$/.test(o.url)) { __mock.calls.push('FOLDER-IMPORT ' + o.data); return Promise.resolve({ Items: 1, Images: [{ Type: 'Primary', Url: 'local://img/x/a.jpg', Name: 'Principal/a.jpg' }, { Type: 'Backdrop', Url: 'local://img/x/b.jpg', Name: 'Fond/b.jpg' }], Refused: [] }); }
     if (/CustomMetadata\\/Refresh$/.test(o.url)) { __mock.refresh = JSON.parse(o.data); __mock.calls.push('REFRESH ' + o.data); return Promise.resolve({ Running: true, Prefix: __mock.refresh.Prefix, Total: 3, Done: 0, Failed: 0, Series: 1, Seasons: 1, Episodes: 1 }); }
     if (o.url.indexOf('ImportEpisodes') >= 0) {
       var tag = JSON.parse(o.data).Tag; __mock.calls.push('IMPORT ' + tag);
@@ -146,6 +147,17 @@ try {
   check('apply images: the request targets the tag, replaces images, episode only', /^[a-z]+-[a-z0-9]{6}$/i.test(applied.Tag) && applied.ReplaceImages === true && JSON.stringify(applied.Types) === '["episode"]' && applied.IncludeChildren === false, JSON.stringify(applied));
   check('apply images: the result is shown', (await ev(`document.querySelector('#lfApplyMsg').textContent`)).includes('3 élément'));
   await shot('L3c-gallery-1440');
+  // Series: the images of the library sub-folders can be copied into the gallery (never twice)
+  check('folders: no import button for an episode', !(await vis('[data-gal-folders]')));
+  await click('#localTree [data-node^="s:"]'); await wait(300);
+  check('folders: the series form offers the import and names the folders', (await vis('[data-gal-folders]')) && (await ev(`document.querySelector('#lfGallery').textContent`)).includes('Primary'));
+  await click('[data-gal-folders]'); await wait(500);
+  check('folders: the request carries the tag and the data id', (await ev(`__mock.calls.filter(function(c){return c.indexOf('FOLDER-IMPORT')===0;})[0]`)).includes('"Tag":"loc-'));
+  check('folders: two images imported with their types', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 image(s) importée(s)'));
+  await click('[data-gal-folders]'); await wait(500);
+  check('folders: a second import adds nothing', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 déjà présente(s)'));
+  await shot('L3d-gallery-folders-1440');
+  await click('#localTree [data-node^="e:"]'); await wait(300);
   await click('[data-clear-img="Thumb"]'); await wait(200);
   check('image: "Retirer" empties the field', (await ev(`document.querySelector('#lf-Thumb').value`)) === '' && !(await vis('[data-clear-img="Thumb"]')));
   await ev(`(function(){var dt=new DataTransfer(); dt.items.add(new File([new Uint8Array([255,216,255,224,0,16,74,70,73,70,0,1])],'b.jpg',{type:'image/jpeg'})); var i=document.querySelector('[data-file="Thumb"]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(400);

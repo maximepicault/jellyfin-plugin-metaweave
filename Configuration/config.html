@@ -2075,7 +2075,9 @@
             // Extra images of a node: all offered in Jellyfin's "Modifier les images", the fields above stay the default ones
             function galleryBlock(n, kind) {
                 var list = n.Gallery || [];
-                var html = '<div class="cm-gallery cm-span" id="lfGallery"><div><strong>Galerie d\'images</strong><div class="cm-hint">Toutes ces images sont proposées, avec aperçu, dans « Modifier les images » de Jellyfin : plus besoin de les ranger dans les dossiers de la série. Les champs ci-dessus restent les images appliquées par défaut.</div></div>';
+                var html = '<div class="cm-gallery cm-span" id="lfGallery"><div><strong>Galerie d\'images</strong><div class="cm-hint">Toutes ces images sont proposées, avec aperçu, dans « Modifier les images » de Jellyfin : plus besoin de les ranger dans les dossiers de la série. Les champs ci-dessus restent les images appliquées par défaut.'
+                    + (kind === 'episode' ? '' : '<br>Vous pouvez aussi déposer des images dans des <strong>sous-dossiers du dossier ' + (kind === 'series' ? 'de la série' : 'de la saison') + '</strong> nommés <code>Primary</code>, <code>Backdrop</code>, <code>Logo</code>, <code>Banner</code> ou <code>Thumb</code> (ou Principal, Fond, Bannière, Miniature) : elles sont proposées dans « Modifier les images » sans rien faire de plus. « Importer depuis les dossiers » les copie en plus dans cette galerie.')
+                    + '</div></div>';
                 if (list.length) {
                     html += '<div class="cm-gal-list">' + list.map(function(g, i) {
                         var src = imagePreviewUrl(g.Url);
@@ -2088,6 +2090,7 @@
                     + '<input type="text" id="lfGalUrl" placeholder="Adresse web (https://…)" aria-label="Adresse de la nouvelle image" />'
                     + '<button is="emby-button" type="button" class="raised" data-gal-url><span>Ajouter l\'adresse</span></button>'
                     + '<button is="emby-button" type="button" class="raised" data-gal-pick><span>Envoyer des fichiers…</span></button>'
+                    + (kind === 'episode' ? '' : '<button is="emby-button" type="button" class="raised" data-gal-folders title="Copie dans la galerie les images des sous-dossiers Primary, Backdrop, Logo, Banner, Thumb du dossier ' + (kind === 'series' ? 'de la série' : 'de la saison') + '"><span>Importer depuis les dossiers</span></button>')
                     + '<input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" data-gal-file hidden /></div>'
                     + '<div class="cm-hint" id="lfGalMsg" role="status"></div></div>';
                 return html;
@@ -2473,6 +2476,28 @@
                 next();
             }
 
+            // Copies the images of the Primary / Backdrop / … sub-folders of the library folder of this series or season into the gallery
+            function importFolderImages(button) {
+                var hit = localSel ? findNode(localSel) : null;
+                if (!hit) { return; }
+                var tag = isFullTag(hit.node.Id) ? hit.node.Id : currentPrefix() + '-' + hit.node.Id;
+                button.disabled = true; gallerySay('Lecture des dossiers…');
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('CustomMetadata/FolderImages/Import'),
+                    data: JSON.stringify({ Tag: tag, DataId: localDataId, NodeId: hit.node.Id }), contentType: 'application/json', dataType: 'json'
+                }).then(function(r) {
+                    button.disabled = false;
+                    if (!r.Items) { gallerySay('Aucun dossier de la médiathèque ne porte {' + tag + '} : nommez-le avec ce tag.', true); return; }
+                    var gallery = hit.node.Gallery = hit.node.Gallery || [];
+                    var known = {}; gallery.forEach(function(g) { if (g.Name) { known[g.Name] = true; } });
+                    var added = 0, already = 0;
+                    (r.Images || []).forEach(function(img) { if (known[img.Name]) { already++; } else { gallery.push({ Type: img.Type, Url: img.Url, Name: img.Name }); added++; } });
+                    if (added) { markDirty(); renderLocalDetail(); }
+                    var text = added + ' image(s) importée(s)' + (already ? ', ' + already + ' déjà présente(s)' : '') + ((r.Refused || []).length ? ', ' + r.Refused.length + ' refusée(s) (' + r.Refused[0] + ')' : '') + '.';
+                    if (!added && !already && !(r.Refused || []).length) { text = 'Aucune image dans les sous-dossiers Primary, Backdrop, Logo, Banner ou Thumb.'; }
+                    gallerySay(text, !!(r.Refused || []).length);
+                }, function() { button.disabled = false; gallerySay('L\'import n\'a pas pu être lancé.', true); });
+            }
+
             function applyImages(button) {
                 var hit = findNode(button.getAttribute('data-apply-images'));
                 var msg = qs('#lfApplyMsg');
@@ -2693,7 +2718,7 @@
             });
 
             function onLocalClick(e) {
-                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-clear-img],[data-gal-del],[data-gal-url],[data-gal-pick],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
+                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-clear-img],[data-gal-del],[data-gal-url],[data-gal-pick],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
                 if (!target || !localContent) { return; }
                 if (target.hasAttribute('data-node')) { selectNode(target.getAttribute('data-node')); return; }
                 if (target.hasAttribute('data-toggle-node')) {
@@ -2730,6 +2755,7 @@
                 }
                 if (target.hasAttribute('data-gal-url')) { addGalleryUrl(); return; }
                 if (target.hasAttribute('data-gal-pick')) { var gp = qs('#localDetail [data-gal-file]'); if (gp) { gp.click(); } return; }
+                if (target.hasAttribute('data-gal-folders')) { importFolderImages(target); return; }
                 if (target.hasAttribute('data-apply-images')) { applyImages(target); return; }
                 if (target.hasAttribute('data-clear-img')) {
                     var owner = localSel ? findNode(localSel) : null;

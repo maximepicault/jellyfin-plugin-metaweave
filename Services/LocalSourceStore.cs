@@ -46,6 +46,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     {
         public string Type { get; set; }
         public string Url { get; set; }
+
+        /// <summary>Set when the image was imported from a sub-folder of the library ("Principal/poster.jpg"): an import does not add it twice</summary>
+        public string Name { get; set; }
     }
 
     public class LocalSeries : LocalNode
@@ -455,7 +458,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var type = GalleryTypes.FirstOrDefault(t => string.Equals(t, Clean(image?.Type), StringComparison.OrdinalIgnoreCase));
                 if (url != null && type != null && seen.Add(type + "|" + url) && result.Count < 60)
                 {
-                    result.Add(new LocalImage { Type = type, Url = url });
+                    result.Add(new LocalImage { Type = type, Url = url, Name = Clean(image.Name) });
                 }
             }
 
