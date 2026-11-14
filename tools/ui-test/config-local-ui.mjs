@@ -326,6 +326,20 @@ try {
   await ev(`window.confirm = function () { return true; }; true`);
   await click('#sourceForm button[type=submit]'); await wait(500);
   check('prefix: confirmation = saved', JSON.parse(await ev(`JSON.stringify(__mock.config.Sources.map(function(x){return x.Prefix;}))`))[0] === 'zz');
+  // Custom headers: quotes in a value are kept (typed, saved, shown again)
+  await click(`${P} #sourcesList .cm-card:nth-child(1) .raised`); await wait(300);
+  await click('[data-go="network"]'); await wait(200);
+  await click('button[onclick="addHeader()"]'); await wait(150);
+  const quoted = '"Chromium";v="120", "Not?A_Brand";v="8"';
+  await ev(`(function(){var r=document.querySelectorAll('.cm-header-row input'); var k=r[r.length-2], v=r[r.length-1]; k.value='sec-ch-ua'; k.dispatchEvent(new Event('input',{bubbles:true})); v.value=${JSON.stringify(quoted)}; v.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
+  await click('#sourceForm button[type=submit]'); await wait(500);
+  const savedHeaders = JSON.parse(await ev(`JSON.stringify(__mock.config.Sources[0].CustomHeaders || [])`));
+  check('headers: quotes kept in the saved value', savedHeaders.some(h => h.Key === 'sec-ch-ua' && h.Value === quoted), JSON.stringify(savedHeaders));
+  await click(`${P} #sourcesList .cm-card:nth-child(1) .raised`); await wait(300);
+  await click('[data-go="network"]'); await wait(200);
+  const shown = await ev(`Array.from(document.querySelectorAll('.cm-header-row input')).map(function(i){return i.value;}).join('|')`);
+  check('headers: quotes kept when the source is reopened', shown.includes(quoted), shown);
+  await click('#btnCancelEdit'); await wait(300);
   await shot('L7-api-editor-1440');
 } finally {
   console.log(`\n${pass} PASS, ${fail} FAIL`);
