@@ -336,6 +336,16 @@ try {
   check('refresh: the API source has a group header with its prefix', (await vis('.cm-group-head[data-group="dm"]')) && (await ev(`document.querySelector('.cm-group-head[data-group="dm"] .cm-tag').textContent`)).includes('dm'));
   check('refresh: the header offers series / seasons / episodes on, images off', (await ev(`['series','season','episode'].every(function(t){return document.querySelector('.cm-group-head[data-group="dm"] [data-rf="'+t+'"]').checked;}) && !document.querySelector('.cm-group-head[data-group="dm"] [data-rf="images"]').checked`)) === true);
   await shot('L11-source-groups-1440');
+  // Richer list for the screenshots: an API + local pair sharing a prefix, a second API, a People source, a disabled source
+  await ev(`(function(){var base=JSON.parse(JSON.stringify(__mock.config.Sources[0]));
+    var loc=Object.assign({},base,{Name:'Surcharges locales',SourceType:'Local',LocalDataId:'zz11',BaseUrl:'local://local'});
+    var yt=Object.assign({},base,{Name:'API YouTube',Prefix:'yt',BaseUrl:'https://yt.example.org/api',Enabled:false,EpisodeListEndpoint:''});
+    var pe=Object.assign({},base,{Name:'Annuaire acteurs',Prefix:'pe',SourceType:'People',BaseUrl:'http://people.test'});
+    window.renderSourcesList([base,loc,yt,pe]); return true;})()`);
+  await size(1440, 900); await wait(400); await shot('L12-groups-pair-1440');
+  await size(1920, 900); await wait(400); await shot('L12-groups-pair-1920');
+  await size(412, 900, true); await wait(400); await shot('L12-groups-pair-mobile');
+  await size(1440, 900); await wait(300);
   await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-rf="season"]').click(); true`);
   await click('.cm-group-head[data-group="dm"] [data-refresh]'); await wait(1800);
   const sent = JSON.parse(await ev(`JSON.stringify(__mock.refresh)`));
