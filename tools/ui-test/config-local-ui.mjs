@@ -404,6 +404,11 @@ try {
   check('refresh: the request carries the prefix, the checked types and no images', sent.Prefix === 'dm' && JSON.stringify(sent.Types) === JSON.stringify(['series', 'episode']) && sent.ReplaceImages === false, JSON.stringify(sent));
   check('refresh: the progress is shown then the result', (await ev(`document.querySelector('.cm-group-status[data-refresh-status="dm"]').textContent`)).includes('Terminé : 3 / 3'));
   check('refresh: the button is usable again', (await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-refresh]').disabled`)) === false);
+  // Images ticked: the request asks to replace the images
+  await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-rf="images"]').click(); true`);
+  await click('.cm-group-head[data-group="dm"] [data-refresh]'); await wait(1800);
+  const sentImages = JSON.parse(await ev(`JSON.stringify(__mock.refresh)`));
+  check('refresh: with Images ticked the request replaces the images', sentImages.ReplaceImages === true, JSON.stringify(sentImages));
   // 9. API source: the editor is unchanged
   await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
   const apiNav = await ev(`Array.from(document.querySelectorAll('${P} .cm-nav-item')).filter(function(b){return b.offsetParent!==null;}).length`);
