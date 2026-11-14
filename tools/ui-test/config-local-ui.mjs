@@ -33,7 +33,12 @@ window.ApiClient = {
     if (o.url.indexOf('ImportEpisodes') >= 0) {
       var tag = JSON.parse(o.data).Tag; __mock.calls.push('IMPORT ' + tag);
       if (tag !== 'dm-123') { return Promise.reject({ text: function () { return Promise.resolve('"Aucune source API active n\\'a le préfixe « zz »."'); } }); }
-      return Promise.resolve([1, 2, 3].map(function (n) { return { Id: 'dm-e' + n, Title: 'API ' + n, Overview: 'Résumé API ' + n, IndexNumber: n, Duration: '24:30', Thumb: 'https://img.example/t' + n + '.jpg' }; }));
+      __mock.imports = (__mock.imports || 0) + 1;
+      return Promise.resolve([1, 2, 3].map(function (n) {
+        var title = (n === 2 && __mock.imports > 1) ? 'API 2 bis' : 'API ' + n;   // the API changes a title between two syncs
+        var f = { Title: title, Overview: 'Résumé API ' + n, IndexNumber: n, Duration: '24:30', Thumb: 'https://img.example/t' + n + '.jpg' };
+        return Object.assign({ Id: 'dm-e' + n, ApiBase: JSON.parse(JSON.stringify(f)) }, f);
+      }));
     }
     var m = o.url.match(/CustomMetadata\\/Local\\/(.+)$/);
     if (o.type === 'PUT') {
@@ -154,12 +159,18 @@ try {
   check('sync: message says what was done', (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('3 ajoutés'));
   await click('#localTree [data-node="dm-e1"]'); await wait(200);
   check('sync: imported episode shows the API tag and its data', (await ev(`document.querySelector('#lfTag').textContent`)) === '{dm-e1}' && (await ev(`document.querySelector('#lf-Title').value`)) === 'API 1' && (await ev(`document.querySelector('#lf-Duration').value`)) === '24:30');
-  await type('#lf-Title', 'Mon titre'); await type('#lf-Overview', '');
+  await type('#lf-Title', 'Mon titre');
   await click('#localTree [data-node="dm-123"]'); await wait(200);
-  await click('[data-sync-episodes]'); await wait(300);
-  check('sync again: nothing added', (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('0 ajouté'));
+  await click('[data-sync-episodes]:not([data-overwrite])'); await wait(300);
+  check('sync again: nothing added, one episode updated, one with a kept change', (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('0 ajouté') && (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('1 mis à jour') && (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('1 avec des champs modifiés'));
   await click('#localTree [data-node="dm-e1"]'); await wait(200);
-  check('sync again: a typed title is kept, an emptied field is completed', (await ev(`document.querySelector('#lf-Title').value`)) === 'Mon titre' && (await ev(`document.querySelector('#lf-Overview').value`)) === 'Résumé API 1');
+  check('sync again: the title I typed is kept', (await ev(`document.querySelector('#lf-Title').value`)) === 'Mon titre');
+  await click('#localTree [data-node="dm-e2"]'); await wait(200);
+  check('sync again: an untouched field follows the API (title changed there)', (await ev(`document.querySelector('#lf-Title').value`)) === 'API 2 bis');
+  await click('#localTree [data-node="dm-123"]'); await wait(200);
+  await click('[data-overwrite]'); await wait(300);
+  await click('#localTree [data-node="dm-e1"]'); await wait(200);
+  check('"Remettre les valeurs de l\'API" discards what I typed', (await ev(`document.querySelector('#lf-Title').value`)) === 'API 1');
   for (const n of [1, 2, 3]) { await click(`#localTree [data-node="dm-e${n}"]`); await wait(150); await click(`#localDetail [data-del="dm-e${n}"]`); await wait(200); }
   await click('#localTree [data-node="dm-123"]'); await wait(200);
   await setId('not valid!'); await wait(200);

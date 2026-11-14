@@ -62,6 +62,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             var key = source.Prefix.Trim();
             return Ok(items.Select(i => new LocalEpisode
             {
+                ApiBase = new LocalEpisodeBase
+                {
+                    Title = i.Title,
+                    Overview = i.Overview,
+                    PremiereDate = i.PremiereDate?.ToString("yyyy-MM-dd"),
+                    IndexNumber = i.IndexNumber,
+                    Duration = i.RunTimeTicks.HasValue ? FormatDuration(System.TimeSpan.FromTicks(i.RunTimeTicks.Value)) : null,
+                    Thumb = i.ThumbUrl,
+                    PreviewUrl = i.PreviewUrl
+                },
                 Id = $"{key}-{i.Id}",
                 Title = i.Title,
                 Overview = i.Overview,

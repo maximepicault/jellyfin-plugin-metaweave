@@ -1979,9 +1979,10 @@
 
                 if (kind === 'season' && /-/.test(n.Id)) {
                     html += '<div class="cm-bulk"><div><strong>Synchroniser avec l\'API</strong><div class="cm-hint">Récupère la liste des épisodes de ' + escapeHtml(tagOf(n))
-                        + ' : les épisodes absents sont ajoutés avec leur identifiant d\'API (ils remplacent alors ceux de l\'API), les champs vides des épisodes déjà présents sont complétés. Ce que vous avez saisi n\'est jamais écrasé. Rien n\'est enregistré avant « Enregistrer ».</div>'
+                        + ' : les épisodes absents sont ajoutés avec leur identifiant d\'API. Un champ que vous ne modifiez pas continue de suivre l\'API ; seul ce que vous changez la remplace. Une nouvelle synchronisation met à jour les champs non modifiés et garde les vôtres. Rien n\'est enregistré avant « Enregistrer ».</div>'
                         + '<div class="cm-hint" id="lfSyncMsg" role="status"></div></div>'
-                        + '<button is="emby-button" type="button" class="raised" data-sync-episodes="' + n.Id + '"><span>Synchroniser la liste</span></button></div>';
+                        + '<button is="emby-button" type="button" class="raised" data-sync-episodes="' + n.Id + '"><span>Synchroniser la liste</span></button>'
+                        + '<button is="emby-button" type="button" class="raised" data-sync-episodes="' + n.Id + '" data-overwrite="1"><span>Remettre les valeurs de l\'API</span></button></div>';
                 }
 
                 if (kind === 'season') {
@@ -2043,12 +2044,15 @@
                 focusTitle();
             }
 
-            // Episode list of the API season whose tag this local season carries ("dm-123"): missing episodes are added with the API's
-            // tag ("dm-a1v1"), empty fields of the existing ones are filled in, what was typed is never overwritten. Saved with the source.
-            function syncEpisodes(seasonId) {
+            // Episode list of the API season whose tag this local season carries ("dm-123"). Missing episodes are added with the API's
+            // tag ("dm-a1v1"). Each imported episode remembers the API values (ApiBase): a field still equal to them is NOT an override
+            // (the live API value is used), only what you change is. Syncing again refreshes the untouched fields and keeps the changed
+            // ones; "Remettre les valeurs de l'API" (overwrite) discards the changes. Saved with the source.
+            function syncEpisodes(seasonId, overwrite) {
                 var hit = findNode(seasonId);
                 if (!hit) { return; }
                 var season = hit.node;
+                if (overwrite && !confirm('Remettre les valeurs de l\'API sur tous les épisodes de cette saison ?\nLes champs que vous avez modifiés sont perdus (pris en compte à l\'enregistrement de la source).')) { return; }
                 var say = function(text, bad) { var m = qs('#lfSyncMsg'); if (m) { m.textContent = text; m.style.color = bad ? '#e57373' : ''; } };
                 say('Récupération de la liste…');
                 ApiClient.ajax({
@@ -2056,9 +2060,11 @@
                     data: JSON.stringify({ Tag: season.Id }), contentType: 'application/json', dataType: 'json'
                 }).then(function(list) {
                     season.Episodes = season.Episodes || [];
-                    var added = 0, completed = 0;
-                    var fields = ['Title', 'Overview', 'PremiereDate', 'Duration', 'Thumb', 'PreviewUrl'];
+                    var added = 0, refreshed = 0, kept = 0;
+                    var fields = ['Title', 'Overview', 'PremiereDate', 'Duration', 'Thumb', 'PreviewUrl', 'IndexNumber'];
+                    var same = function(a, b) { return String(a == null ? '' : a).trim() === String(b == null ? '' : b).trim(); };
                     (list || []).forEach(function(item) {
+                        var fresh = item.ApiBase || {};
                         var mine = season.Episodes.filter(function(e) { return String(e.Id).toLowerCase() === String(item.Id).toLowerCase(); })[0];
                         if (!mine) {
                             item.Tags = []; item.Genres = []; item.Cast = [];
@@ -2066,15 +2072,24 @@
                             added++;
                             return;
                         }
-                        var changed = false;
-                        fields.forEach(function(f) { if (!mine[f] && item[f]) { mine[f] = item[f]; changed = true; } });
-                        if ((mine.IndexNumber == null) && item.IndexNumber != null) { mine.IndexNumber = item.IndexNumber; changed = true; }
-                        if (changed) { completed++; }
+                        var base = mine.ApiBase;
+                        var changed = false, keptHere = false;
+                        fields.forEach(function(f) {
+                            // untouched = equal to the snapshot (or, with no snapshot yet, equal to the API's value / empty)
+                            var untouched = overwrite || (base ? same(mine[f], base[f]) : (same(mine[f], '') || same(mine[f], fresh[f])));
+                            if (untouched) {
+                                if (!same(mine[f], fresh[f])) { mine[f] = fresh[f] == null ? (f === 'IndexNumber' ? null : '') : fresh[f]; changed = true; }
+                            } else { keptHere = true; }
+                        });
+                        mine.ApiBase = fresh;
+                        if (changed) { refreshed++; }
+                        if (keptHere) { kept++; }
                     });
-                    if (added || completed) { markDirty(); }
+                    markDirty();
                     renderLocalTree();
                     renderLocalDetail();
-                    say((list || []).length + ' épisode' + ((list || []).length > 1 ? 's' : '') + ' dans l\'API : ' + added + ' ajouté' + (added > 1 ? 's' : '') + ', ' + completed + ' complété' + (completed > 1 ? 's' : '') + '. Pensez à enregistrer.');
+                    var plural = function(n, w) { return n + ' ' + w + (n > 1 ? 's' : ''); };
+                    say((list || []).length + ' épisode' + ((list || []).length > 1 ? 's' : '') + ' dans l\'API : ' + plural(added, 'ajouté') + ', ' + plural(refreshed, 'mis à jour') + ', ' + plural(kept, 'avec des champs modifiés conservés') + '. Pensez à enregistrer.');
                 }).catch(function(err) {
                     var show = function(text) { say(text || 'La synchronisation a échoué.', true); };
                     if (err && typeof err.text === 'function') { err.text().then(function(t) { show(String(t || '').replace(/^"|"$/g, '')); }); } else { show(''); }
@@ -2440,7 +2455,7 @@
                 }
                 if (target.hasAttribute('data-add')) { addNode(target.getAttribute('data-add'), target.getAttribute('data-parent')); return; }
                 if (target.hasAttribute('data-bulk')) { bulkAdd(target.getAttribute('data-bulk')); return; }
-                if (target.hasAttribute('data-sync-episodes')) { syncEpisodes(target.getAttribute('data-sync-episodes')); return; }
+                if (target.hasAttribute('data-sync-episodes')) { syncEpisodes(target.getAttribute('data-sync-episodes'), target.hasAttribute('data-overwrite')); return; }
                 if (target.hasAttribute('data-del')) { deleteNode(target.getAttribute('data-del')); return; }
                 if (target.hasAttribute('data-ac-person')) {
                     var chosen = (peopleDir || []).filter(function(p) { return p.Id === target.getAttribute('data-ac-person'); })[0];
