@@ -1,5 +1,6 @@
 // Screenshots of the local image gallery in the REAL jellyfin-web: the editor block, then Jellyfin's own "Modifier les images" picker listing them.
 // Usage: node local-gallery-shots.mjs <base_url> <out_dir> <images_dir> [user] [password]
+// Optional env SERIES_DIR: the folder of the series on this machine; Principal/ and Fond/ sub-folders are created in it (and removed at the end).
 // images_dir holds poster1..3.jpg and back1..2.jpg. Seeds a local source over the series "dm-aventuriers" and restores everything.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -33,6 +34,15 @@ const click = async sel => { const p = await center(sel); if (!p) { console.log(
 const auth = await (await fetch(`${J}/Users/AuthenticateByName`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'MediaBrowser Client="t", Device="cli", DeviceId="cm-galshots", Version="1.0"' }, body: JSON.stringify({ Username: user, Pw: password }) })).json();
 const H = { 'Content-Type': 'application/json', Authorization: `MediaBrowser Token="${auth.AccessToken}"` };
 const rest = async (m, u, b) => { const r = await fetch(J + u, { method: m, headers: H, body: b === undefined ? undefined : JSON.stringify(b) }); const t = await r.text(); try { return JSON.parse(t); } catch { return t; } };
+const seriesDir = process.env.SERIES_DIR;
+const made = [];
+if (seriesDir) {
+  for (const [sub, files] of [['Principal', ['poster2.jpg', 'poster3.jpg']], ['Fond', ['back2.jpg']]]) {
+    fs.mkdirSync(path.join(seriesDir, sub), { recursive: true }); made.push(path.join(seriesDir, sub));
+    for (const f of files) fs.copyFileSync(path.join(imgDir, f), path.join(seriesDir, sub, 'dossier-' + f));
+  }
+  await rest('POST', '/Library/Refresh'); await wait(10000);
+}
 const original = await rest('GET', `/Plugins/${PLUGIN}/Configuration`);
 try {
   const cfg = JSON.parse(JSON.stringify(original));
@@ -62,6 +72,11 @@ try {
   await shot('G1-editor-gallery', `${C} #lfGallery`);
   await ev(`document.querySelector('${C} [data-apply-images]').scrollIntoView({block:'center'}); true`); await wait(300);
   await shot('G2-editor-full');
+  if (seriesDir) {
+    await click(`${C} [data-gal-folders]`); await wait(1500);
+    await ev(`document.querySelector('${C} #lfGallery').scrollIntoView({block:'start'}); true`); await wait(400);
+    await shot('G8-editor-after-folder-import');
+  }
 
   // 2. Jellyfin's own picker
   const series = ((await rest('GET', `/Items?IncludeItemTypes=Series&Recursive=true&userId=${auth.User.Id}`)).Items || []).find(i => /aventuriers/i.test(i.Name));
@@ -81,6 +96,7 @@ try {
 } finally {
   await rest('POST', `/Plugins/${PLUGIN}/Configuration`, original);
   await rest('DELETE', `/CustomMetadata/Local/${DATA}`);
+  for (const d of made) fs.rmSync(d, { recursive: true, force: true });
   ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5 }); } catch {}
   process.exit(0);
 }

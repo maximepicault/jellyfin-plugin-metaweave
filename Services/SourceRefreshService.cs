@@ -225,7 +225,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         /// <summary>The tags of an item: those of its own file or folder name (never of its parents), else its "custom" id (virtual episodes)</summary>
-        private static List<string> TagsOf(BaseItem item)
+        internal static List<string> TagsOf(BaseItem item)
         {
             var tags = new List<string>();
             if (!string.IsNullOrEmpty(item.Path))

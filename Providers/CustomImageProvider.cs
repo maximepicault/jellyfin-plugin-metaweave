@@ -38,8 +38,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             SourceResolver sourceResolver,
             LocalSourceStore localStore,
             MediaBrowser.Controller.IServerApplicationHost appHost,
-            IServiceProvider services)
+            IServiceProvider services,
+            MediaBrowser.Controller.Library.ILibraryManager libraryManager)
         {
+            _libraryManager = libraryManager;
             _appHost = appHost;
             _services = services;
             _localStore = localStore;
@@ -51,6 +53,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
         private readonly MediaBrowser.Controller.IServerApplicationHost _appHost;
         private readonly IServiceProvider _services;
+        private readonly MediaBrowser.Controller.Library.ILibraryManager _libraryManager;
 
         public string Name => "Custom Image Provider";
 
@@ -227,6 +230,20 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     }
                 }
 
+                // Images kept in sub-folders (Primary, Backdrop…) of the series or season folder: offered last, so the default image stays the first one
+                if (item is Series || item is Season)
+                {
+                    foreach (var folderImage in FolderImages.Discover(item.Path))
+                    {
+                        results.Add(new RemoteImageInfo
+                        {
+                            Url = $"{PublicBase()}/CustomMetadata/FolderImages/{item.Id:N}/{Uri.EscapeDataString(folderImage.Folder)}/{Uri.EscapeDataString(folderImage.File)}",
+                            Type = MapImageType(folderImage.Type) ?? ImageType.Primary,
+                            ProviderName = Name
+                        });
+                    }
+                }
+
                 // The same image as default field AND in the gallery is offered once
                 results = results.GroupBy(r => (r.Type, r.Url, r.ProviderName)).Select(g => g.First()).ToList();
 
@@ -334,6 +351,22 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         public async Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)
         {
             url = FromPickerUrl(url);
+
+            // An image of a sub-folder of the series or season folder (library refresh path): read from disk, no network
+            var folderAt = url?.IndexOf("/CustomMetadata/FolderImages/", StringComparison.OrdinalIgnoreCase) ?? -1;
+            if (folderAt >= 0)
+            {
+                var parts = url.Substring(folderAt + "/CustomMetadata/FolderImages/".Length).Split('?')[0].Split('/').Select(Uri.UnescapeDataString).ToArray();
+                if (parts.Length == 3 && Guid.TryParse(parts[0], out var folderItemId)
+                    && FolderImagesController.TryRead(_libraryManager, folderItemId, parts[1], parts[2], out var folderPath, out var folderMime))
+                {
+                    var found = new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(await System.IO.File.ReadAllBytesAsync(folderPath, cancellationToken)) };
+                    found.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(folderMime);
+                    return found;
+                }
+
+                return new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
+            }
             var client = _httpClientFactory.CreateClient();
 
             // Source that supplied this URL, otherwise the source whose BaseUrl has the same host
