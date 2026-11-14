@@ -4,12 +4,18 @@
 const [J, user = 'admin', password = 'admin'] = process.argv.slice(2);
 if (!J) { console.error('usage: node local-gallery-real.mjs <base_url> [user] [password]'); process.exit(2); }
 import http from 'node:http';
+import zlib from 'node:zlib';
 const PLUGIN = '12345678-1234-1234-1234-123456789abc';
 const DATA = 'galtest00000001';
 const pick = (o, k) => o == null ? undefined : o[k] ?? o[k[0].toLowerCase() + k.slice(1)];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log((ok ? 'PASS' : 'FAIL') + ' ' + name + (ok ? '' : '  ' + extra)); if (!ok) failed++; };
+// A tiny valid PNG of one colour (backdrops are de-duplicated by content: the carousel needs different pictures)
+const png = (r, g, b) => { const chunk = (t, d) => { const len = Buffer.alloc(4); len.writeUInt32BE(d.length); const body = Buffer.concat([Buffer.from(t), d]); const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(body)); return Buffer.concat([len, body, crc]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(8, 0); ihdr.writeUInt32BE(8, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const raw = Buffer.concat(Array.from({ length: 8 }, () => Buffer.concat([Buffer.from([0]), Buffer.from(Array.from({ length: 8 }, () => [r, g, b]).flat())])));
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]); };
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
 const auth = await (await fetch(`${J}/Users/AuthenticateByName`, { method: 'POST',
@@ -40,12 +46,16 @@ try {
   const rawUp = await fetch(`${J}/CustomMetadata/Local/${DATA}/Image?node=dm-aventuriers`, { method: 'POST', headers: { 'Content-Type': 'image/png', Authorization: H.Authorization }, body: PNG });
   const uploaded = pick(await rawUp.json(), 'Url');
   check('an image is uploaded', /^local:\/\/img\//.test(uploaded || ''), String(uploaded));
+  const rawUp2 = await fetch(`${J}/CustomMetadata/Local/${DATA}/Image?node=dm-aventuriers`, { method: 'POST', headers: { 'Content-Type': 'image/png', Authorization: H.Authorization }, body: png(200, 30, 30) });
+  const uploaded2 = pick(await rawUp2.json(), 'Url');
+  const rawUp3 = await fetch(`${J}/CustomMetadata/Local/${DATA}/Image?node=dm-aventuriers`, { method: 'POST', headers: { 'Content-Type': 'image/png', Authorization: H.Authorization }, body: png(30, 30, 200) });
+  const uploaded3 = pick(await rawUp3.json(), 'Url');
   const content = { Version: 1, Series: [{ Id: 'dm-aventuriers', Title: 'Série galerie', Seasons: [],
-    Gallery: [{ Type: 'Primary', Url: uploaded }, { Type: 'Backdrop', Url: uploaded }, { Type: 'Primary', Url: 'http://localhost:8765/series/poster.jpg' }] }] };
+    Gallery: [{ Type: 'Primary', Url: uploaded }, { Type: 'Backdrop', Url: uploaded2 }, { Type: 'Backdrop', Url: uploaded3 }, { Type: 'Primary', Url: 'http://localhost:8765/series/poster.jpg' }] }] };
   await api('PUT', `/CustomMetadata/Local/${DATA}`, content);
   const saved = (await api('GET', `/CustomMetadata/Local/${DATA}`)).json;
   const gal = pick((pick(saved, 'Series') || [])[0], 'Gallery') || [];
-  check('the gallery is stored (3 images, types kept)', gal.length === 3 && gal.map(g => pick(g, 'Type')).join() === 'Primary,Backdrop,Primary', JSON.stringify(gal));
+  check('the gallery is stored (4 images, types kept)', gal.length === 4 && gal.map(g => pick(g, 'Type')).join() === 'Primary,Backdrop,Backdrop,Primary', JSON.stringify(gal));
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
 
   const series = ((await api('GET', `/Items?IncludeItemTypes=Series&Recursive=true&userId=${auth.User.Id}`)).json?.Items || []).find(i => /aventuriers|galerie/i.test(i.Name));
@@ -73,6 +83,7 @@ try {
   for (let i = 0; i < 60; i++) { await wait(1000); if (!pick((await api('GET', '/CustomMetadata/Refresh/Status')).json, 'Running')) break; }
   const after = (await api('GET', `/Items/${series.Id}?userId=${auth.User.Id}`)).json;
   check('apply images: the series has a Primary image', !!(after.ImageTags || {}).Primary, JSON.stringify(after.ImageTags));
+  check('apply images: all the backdrops are applied (carousel)', (after.BackdropImageTags || []).length === 2, JSON.stringify(after.BackdropImageTags));
 } finally {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, original);
   await api('DELETE', `/CustomMetadata/Local/${DATA}`);

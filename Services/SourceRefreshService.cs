@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
+using Jellyfin.Plugin.CustomMetadata.Api;
+using MediaBrowser.Model.Entities;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -64,9 +67,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly ILibraryManager _libraryManager;
         private readonly IFileSystem _fileSystem;
         private readonly ILogger _logger;
+        private readonly CustomApiClient _api;
+        private readonly SourceResolver _resolver;
+        private readonly IProviderManager _providerManager;
 
-        public SourceRefreshService(ILibraryManager libraryManager, IFileSystem fileSystem, ILogger logger)
+        public SourceRefreshService(ILibraryManager libraryManager, IFileSystem fileSystem, ILogger logger, CustomApiClient api, SourceResolver resolver, IProviderManager providerManager)
         {
+            _api = api;
+            _resolver = resolver;
+            _providerManager = providerManager;
             _libraryManager = libraryManager;
             _fileSystem = fileSystem;
             _logger = logger;
@@ -152,6 +161,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                                     IsAutomated = false   // a user request: the plugin's cache is bypassed
                                 },
                                 CancellationToken.None);
+                            if (replaceImages && (item is Series || item is Season))
+                            {
+                                await ApplyAllBackdropsAsync(item);
+                            }
+
                             lock (StatusLock) { _status.Done++; }
                         }
                         catch (Exception ex)
@@ -175,6 +189,65 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             });
 
             return Status();
+        }
+
+        /// <summary>
+        /// Backdrops are a carousel: a normal refresh keeps only as many as the library allows (usually one), so when an element has several
+        /// (API, local gallery, Backdrop/ sub-folder) all of them are saved, in that order, replacing the item's backdrops.
+        /// Nothing is touched when there are fewer than two (the refresh already applied the only one).
+        /// </summary>
+        private async Task ApplyAllBackdropsAsync(BaseItem item)
+        {
+            try
+            {
+                var tag = TagsOf(item).FirstOrDefault();
+                var source = tag == null ? null : _resolver.GetSourceByPrefix(_resolver.ExtractPrefixFromId(tag));
+                var found = new List<(byte[] Data, string Mime)>();
+                var seen = new HashSet<string>();
+                void Add(byte[] data, string mime)
+                {
+                    if (data != null && data.Length > 0 && seen.Add(Convert.ToHexString(SHA256.HashData(data)))) { found.Add((data, mime)); }
+                }
+
+                if (source != null)
+                {
+                    var images = await _api.GetImagesAsync(_resolver.ExtractIdWithoutPrefix(tag), item is Series ? "series" : "season", source, CancellationToken.None) ?? new List<ImageInfo>();
+                    foreach (var url in images.Where(i => string.Equals(i.Type, "Backdrop", StringComparison.OrdinalIgnoreCase)).Select(i => i.Url).Distinct())
+                    {
+                        var (data, mime, _) = await _api.DownloadImageAsync(url, source, false, CancellationToken.None);
+                        Add(data, mime);
+                    }
+                }
+
+                foreach (var file in FolderImages.Discover(item.Path).Where(i => i.Type == "Backdrop"))
+                {
+                    Add(await File.ReadAllBytesAsync(file.FullPath), FolderImages.MimeOf(file.File));
+                }
+
+                if (found.Count < 2)
+                {
+                    return;
+                }
+
+                for (var i = 0; i < found.Count; i++)
+                {
+                    using var stream = new MemoryStream(found[i].Data);
+                    await _providerManager.SaveImage(item, stream, found[i].Mime ?? "image/jpeg", ImageType.Backdrop, i, CancellationToken.None);
+                }
+
+                var extra = item.GetImages(ImageType.Backdrop).Skip(found.Count).ToList();
+                if (extra.Count > 0)
+                {
+                    item.RemoveImages(extra);
+                    await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, CancellationToken.None);
+                }
+
+                _logger.LogInformation("🔁 [SOURCE REFRESH] 🖼️ {Count} backdrops applied to '{Name}'", found.Count, item.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "🔁 [SOURCE REFRESH] ⚠️ Could not apply all the backdrops of '{Name}': {Message}", item.Name, ex.Message);
+            }
         }
 
         private List<BaseItem> Find(SourceRefreshRequest request, string prefix)
