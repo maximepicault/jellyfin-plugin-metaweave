@@ -68,11 +68,12 @@ try {
   const corsC = await tryCors('corsC', true);
   check('CORS: a backend refusing both says what to change', pick(corsC, 'Success') === false && /CORS/.test(pick(corsC, 'Error') || '') && /Réseau/.test(pick(corsC, 'Error') || ''), JSON.stringify(pick(corsC, 'Error')));
   // Custom headers go out exactly as typed, quotes included (Cache-Control: max-age="10" used to be refused and dropped)
-  const quotedHeaders = [{ Key: 'Cache-Control', Value: 'max-age="10", no-transform' }, { Key: 'Accept-Language', Value: 'fr;q="0.9"' }, { Key: 'X-Quoted', Value: 'say "hi"' }];
+  const quotedHeaders = [{ Key: 'Cache-Control', Value: 'max-age="10", no-transform' }, { Key: 'Accept-Language', Value: 'fr;q="0.9"' }, { Key: 'X-Quoted', Value: 'say "hi"' }, { Key: 'X-Switched-Off', Value: 'nope', Enabled: false }];
   const echoed = (await api('POST', '/CustomMetadata/TestSource', { Source: { ...dm, CustomHeaders: quotedHeaders }, ItemType: 'series', Id: 'echoheaders' })).json;
   let wire = {};
   try { wire = JSON.parse(pick(pick(echoed, 'Metadata'), 'Title') || '{}'); } catch { /* shown below */ }
   const wireValue = n => Object.entries(wire).find(([k]) => k.toLowerCase() === n.toLowerCase())?.[1];
+  check('headers: a switched-off header is not sent', wireValue('X-Switched-Off') === undefined && wireValue('X-Quoted') !== undefined, JSON.stringify(wire).slice(0, 300));
   check('headers: quotes survive on the wire, also for headers .NET validates', wireValue('Cache-Control') === 'max-age="10", no-transform' && wireValue('Accept-Language') === 'fr;q="0.9"' && wireValue('X-Quoted') === 'say "hi"', JSON.stringify(wire).slice(0, 300));
   // The button of the editor: the API season's list, as local episodes carrying the API's tags (the endpoint is still there)
   const imported = await api('POST', '/CustomMetadata/Local/ImportEpisodes', { Tag: '{dm-a1}' });

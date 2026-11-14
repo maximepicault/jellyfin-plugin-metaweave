@@ -281,5 +281,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
     {
         public string Key { get; set; } = string.Empty;
         public string Value { get; set; } = string.Empty;
+
+        /// <summary>false = kept in the configuration but not sent (a configuration saved before this option has none: enabled)</summary>
+        public bool Enabled { get; set; } = true;
     }
 }
