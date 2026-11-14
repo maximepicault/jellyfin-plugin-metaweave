@@ -60,6 +60,23 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         /// <summary>Cast: people of the directory (PeopleStore), with their role in THIS episode</summary>
         public List<LocalCastEntry> Cast { get; set; } = new List<LocalCastEntry>();
+
+        /// <summary>
+        /// Episode imported from an API ("Synchroniser la liste"): the values the API had at that time. A field still equal to
+        /// its value here is NOT an override (the live API value is used); only a field the user changed overrides it.
+        /// </summary>
+        public LocalEpisodeBase ApiBase { get; set; }
+    }
+
+    public class LocalEpisodeBase
+    {
+        public string Title { get; set; }
+        public string Overview { get; set; }
+        public string PremiereDate { get; set; }
+        public int? IndexNumber { get; set; }
+        public string Duration { get; set; }
+        public string Thumb { get; set; }
+        public string PreviewUrl { get; set; }
     }
 
     public class LocalCastEntry
@@ -450,6 +467,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         episode.Duration = Clean(episode.Duration);
                         episode.PreviewUrl = Clean(episode.PreviewUrl);
                         episode.Cast = NormalizeCast(episode.Cast);
+                        if (episode.ApiBase != null)
+                        {
+                            // Same cleaning as the fields themselves, so that "unchanged" stays equal after saving
+                            var b = episode.ApiBase;
+                            b.Title = Clean(HtmlText.Decode(b.Title));
+                            b.Overview = Clean(HtmlText.Decode(b.Overview));
+                            b.PremiereDate = DateTime.TryParseExact(b.PremiereDate?.Trim(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var baseDate) ? baseDate.ToString("yyyy-MM-dd") : null;
+                            b.Duration = Clean(b.Duration);
+                            b.Thumb = Clean(b.Thumb);
+                            b.PreviewUrl = Clean(b.PreviewUrl);
+                        }
                         if (episode.IndexNumber is int n && n < 0)
                         {
                             episode.IndexNumber = null;
@@ -613,7 +641,30 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 json["preview"] = new Dictionary<string, object> { ["url"] = episode.PreviewUrl };
             }
 
+            DropUnchangedFromApi(json, episode);
             return json;
+        }
+
+        /// <summary>
+        /// An imported episode only overrides what the user changed: a field equal to the API snapshot is removed from the
+        /// answer, so the live API value is the one used (otherwise a copy made at import time would hide later API changes).
+        /// </summary>
+        private static void DropUnchangedFromApi(Dictionary<string, object> json, LocalEpisode episode)
+        {
+            var b = episode.ApiBase;
+            if (b == null)
+            {
+                return;
+            }
+
+            bool Same(string a, string c) => string.Equals(string.IsNullOrWhiteSpace(a) ? null : a.Trim(), string.IsNullOrWhiteSpace(c) ? null : c.Trim(), StringComparison.Ordinal);
+            if (Same(episode.Title, b.Title)) json.Remove("title");
+            if (Same(episode.Overview, b.Overview)) json.Remove("overview");
+            if (Same(episode.PremiereDate, b.PremiereDate)) json.Remove("premiereDate");
+            if (Same(episode.Duration, b.Duration)) json.Remove("duration");
+            if (Same(episode.Thumb, b.Thumb)) json.Remove("thumb");
+            if (Same(episode.PreviewUrl, b.PreviewUrl)) json.Remove("preview");
+            if (episode.IndexNumber == b.IndexNumber) json.Remove("indexNumber");
         }
 
         /// <summary>Episode cast → cast list (name, role, type, order, photo), from the directory. Deleted person = skipped</summary>

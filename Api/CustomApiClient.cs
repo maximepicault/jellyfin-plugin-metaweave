@@ -141,7 +141,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             var own = await FetchMetadataFromApiAsync(local.Value.Node.Id, itemType, local.Value.Source, cancellationToken);
             _logger.LogInformation("🗂️ [LOCAL SOURCE] {Tag} is overridden by the local {Kind} '{Title}' of source '{Source}'",
                 GetCacheId(source, itemId), itemType, local.Value.Node.Title ?? local.Value.Node.Id, local.Value.Source.Name);
-            return MergeOverride(api, own);
+            var merged = MergeOverride(api, own);
+            _logger.LogInformation("🗂️ [LOCAL SOURCE]   API gave: title='{ApiTitle}', {ApiTags} tags, {ApiGenres} genres, overview {ApiOverview}; local gave: title='{LocalTitle}', {LocalTags} tags, {LocalGenres} genres, overview {LocalOverview} → used: title='{Title}', {Tags} tags, {Genres} genres",
+                api?.Title, api?.Tags?.Count ?? 0, api?.Genres?.Count ?? 0, string.IsNullOrWhiteSpace(api?.Overview) ? "empty" : "set",
+                own?.Title, own?.Tags?.Count ?? 0, own?.Genres?.Count ?? 0, string.IsNullOrWhiteSpace(own?.Overview) ? "empty" : "set",
+                merged?.Title, merged?.Tags?.Count ?? 0, merged?.Genres?.Count ?? 0);
+            return merged;
         }
 
         /// <summary>The local node that overrides this API series/season/episode (null when none, or for any other type of item)</summary>
@@ -166,6 +171,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// Local fields win when they are filled in; what the local node leaves empty keeps the API value.
         /// Works on a copy: the API answer may be the cached instance.
         /// </summary>
+        private static List<string> UnionText(List<string> first, List<string> second)
+            => (first ?? new List<string>()).Concat(second ?? new List<string>())
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
         private static CustomMetadataResponse MergeOverride(CustomMetadataResponse api, CustomMetadataResponse local)
         {
             if (local == null)
@@ -183,9 +194,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 Title = string.IsNullOrWhiteSpace(local.Title) ? api.Title : local.Title,
                 Overview = string.IsNullOrWhiteSpace(local.Overview) ? api.Overview : local.Overview,
                 SeriesName = api.SeriesName,
-                Tags = local.Tags?.Count > 0 ? local.Tags : api.Tags,
-                Genres = local.Genres?.Count > 0 ? local.Genres : api.Genres,
-                Cast = local.Cast?.Count > 0 ? local.Cast : api.Cast,
+                // Lists are added together (local first), never one instead of the other
+                Tags = UnionText(local.Tags, api.Tags),
+                Genres = UnionText(local.Genres, api.Genres),
+                Cast = MetadataMerger.UnionCast(new[] { local.Cast, api.Cast }),
                 PremiereDate = local.PremiereDate ?? api.PremiereDate,
                 CommunityRating = local.CommunityRating ?? api.CommunityRating,
                 IndexNumber = local.IndexNumber ?? api.IndexNumber

@@ -76,7 +76,7 @@ try {
       Id: 'dm-aventuriers', Title: 'Aventuriers surchargés', Overview: 'Résumé de la série saisi dans le plugin.',
       Seasons: [{
         Id: 'dm-a1', Title: 'Saison locale', Overview: 'Résumé de la saison saisi dans le plugin.',
-        Episodes: list.map(e => ({ ...e, Title: pick(e, 'Id') === 'dm-a1v1' ? 'Titre surchargé' : pick(e, 'Title') }))
+        Episodes: list.map(e => ({ ...e, ApiBase: undefined, Title: pick(e, 'Id') === 'dm-a1v1' ? 'Titre surchargé' : pick(e, 'Title') }))   // typed in full: no API list to follow
       }]
     }]
   });
@@ -118,7 +118,8 @@ try {
     Version: 1,
     Series: [{ Id: 'dm-aventuriers', Title: 'Aventuriers surchargés', Seasons: [{
       Id: 'dm-a1', Title: 'Saison locale',
-      Episodes: [{ Id: 'dm-a1v4', Title: 'Quatrième surchargé' }, { Id: 'x1', Title: 'Épisode ajouté' }]
+      Episodes: [{ Id: 'dm-a1v4', Title: 'Quatrième surchargé' }, { Id: 'x1', Title: 'Épisode ajouté' },
+        { Id: 'dm-a1v5', Title: 'Ancien titre', ApiBase: { Title: 'Ancien titre' } }]   // imported earlier, untouched since
     }] }]
   });
   await analyze();
@@ -128,7 +129,8 @@ try {
   const byTag = t => missB.find(m => pick(m, 'Tag') === t);
   check('B: the API episodes are all still there, plus the added one', pick(rb, 'ApiCount') === list.length + 1, JSON.stringify(pick(rb, 'ApiCount')));
   check('B: the overridden API episode keeps its API tag and takes the local title', pick(byTag('dm-a1v4'), 'Title') === 'Quatrième surchargé', JSON.stringify(missB.map(m => pick(m, 'Tag'))));
-  check('B: an API episode not named locally is untouched', !!byTag('dm-a1v5') && pick(byTag('dm-a1v5'), 'Title') !== undefined);
+  check('B: an imported episode left untouched follows the live API title, not the old copy', !!byTag('dm-a1v5') && !!pick(byTag('dm-a1v5'), 'Title') && pick(byTag('dm-a1v5'), 'Title') !== 'Ancien titre', JSON.stringify(pick(byTag('dm-a1v5'), 'Title')));
+  check('B: an API episode not named locally is untouched', !!byTag('dm-a1v6') && !!pick(byTag('dm-a1v6'), 'Title'));
   check('B: the added episode is listed under the local source tag', pick(byTag('ov-x1'), 'Title') === 'Épisode ajouté', JSON.stringify(missB.map(m => pick(m, 'Tag'))));
 } finally {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, original);
