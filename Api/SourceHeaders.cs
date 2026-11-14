@@ -60,7 +60,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public static bool? FlipOrigin(HttpClient client, SourceConfiguration source, ILogger logger, string tag)
         {
             if (source == null || string.IsNullOrEmpty(source.BaseUrl)
-                || (source.CustomHeaders?.Any(h => string.Equals(h.Key, "Origin", StringComparison.OrdinalIgnoreCase) || string.Equals(h.Key, "Referer", StringComparison.OrdinalIgnoreCase)) ?? false))
+                || (source.CustomHeaders?.Any(h => h.Enabled && (string.Equals(h.Key, "Origin", StringComparison.OrdinalIgnoreCase) || string.Equals(h.Key, "Referer", StringComparison.OrdinalIgnoreCase))) ?? false))
             {
                 return null;
             }
@@ -135,12 +135,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 return;
             }
 
-            logger.Log(detailLevel, "{Tag} Adding {Count} custom headers from source '{SourceName}'", tag, source.CustomHeaders.Count, source.Name ?? "(unnamed)");
+            logger.Log(detailLevel, "{Tag} Adding {Count} custom headers from source '{SourceName}'", tag, source.CustomHeaders.Count(h => h.Enabled), source.Name ?? "(unnamed)");
 
             foreach (var header in source.CustomHeaders)
             {
                 if (string.IsNullOrWhiteSpace(header.Key) || string.IsNullOrWhiteSpace(header.Value))
                 {
+                    continue;
+                }
+
+                if (!header.Enabled)
+                {
+                    logger.Log(detailLevel, "{Tag} ⏭️ Custom header '{Key}' is switched off - not sent", tag, header.Key);
                     continue;
                 }
 

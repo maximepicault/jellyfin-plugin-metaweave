@@ -158,6 +158,8 @@
         #CustomMetadataConfigPage .cm-hint { margin-top: 6px; font-size: 13px; line-height: 1.45; color: var(--cm-muted); }
         #CustomMetadataConfigPage .cm-header-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
         #CustomMetadataConfigPage .cm-header-row .emby-input { flex: 1; min-width: 0; }
+        #CustomMetadataConfigPage .cm-header-row.cm-header-off input:not(.cm-switch) { opacity: .45; }
+        #CustomMetadataConfigPage .cm-header-row input.cm-switch { flex: none; }
         #CustomMetadataConfigPage .cm-danger { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; margin-top: 8px; padding: 16px; border: 1px solid rgba(255, 107, 91, 0.45); border-radius: 8px; background: rgba(255, 107, 91, 0.06); }
         #CustomMetadataConfigPage .cm-danger > div { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 3px; }
         #CustomMetadataConfigPage .cm-danger strong { color: #ff9a8c; }
@@ -1329,11 +1331,18 @@
             window.customHeaders = [];
             
             window.addHeader = function() {
-                customHeaders.push({ Key: '', Value: '' });
+                customHeaders.push({ Key: '', Value: '', Enabled: true });
                 renderHeaders();
                 markDirty();
             };
             
+            window.toggleHeader = function(index, box) {
+                customHeaders[index].Enabled = box.checked;
+                box.closest('.cm-header-row').classList.toggle('cm-header-off', !box.checked);
+                updateCounts();
+                markDirty();
+            };
+
             window.removeHeader = function(index) {
                 customHeaders.splice(index, 1);
                 renderHeaders();
@@ -1343,7 +1352,8 @@
             function renderHeaders() {
                 var html = '';
                 customHeaders.forEach(function(header, index) {
-                    html += '<div class="cm-header-row">'
+                    html += '<div class="cm-header-row' + (header.Enabled === false ? ' cm-header-off' : '') + '">'
+                        + '<input type="checkbox" class="cm-switch" aria-label="Envoyer cet en-tête" title="Envoyer cet en-tête"' + (header.Enabled === false ? '' : ' checked') + ' onchange="toggleHeader(' + index + ', this)" />'
                         + '<input is="emby-input" type="text" aria-label="Nom de l\'en-tête" placeholder="Header-Name" value="' + escapeHtml(header.Key || '') + '" oninput="customHeaders[' + index + '].Key = this.value" />'
                         + '<input is="emby-input" type="text" aria-label="Valeur de l\'en-tête" placeholder="Header-Value" value="' + escapeHtml(header.Value || '') + '" oninput="customHeaders[' + index + '].Value = this.value" />'
                         + '<button is="emby-button" type="button" class="raised" aria-label="Retirer cet en-tête" onclick="removeHeader(' + index + ')"><span>✕</span></button>'
@@ -1529,7 +1539,7 @@
                     var key = span.getAttribute('data-count-for');
                     var text = '', full = false, title = '';
                     if (key === 'network') {
-                        var headers = (window.customHeaders || []).filter(function(h) { return h.Key; }).length;
+                        var headers = (window.customHeaders || []).filter(function(h) { return h.Key && h.Enabled !== false; }).length;
                         text = headers ? headers + (headers > 1 ? ' en-têtes' : ' en-tête') : 'Par défaut';
                     } else if (key === 'content') {
                         var n = countLocal(localContent);

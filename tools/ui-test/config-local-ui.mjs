@@ -339,6 +339,19 @@ try {
   await click('[data-go="network"]'); await wait(200);
   const shown = await ev(`Array.from(document.querySelectorAll('.cm-header-row input')).map(function(i){return i.value;}).join('|')`);
   check('headers: quotes kept when the source is reopened', shown.includes(quoted), shown);
+  // Switch per header: off = kept but not sent
+  check('headers: a new header is on by default', (await ev(`Array.from(document.querySelectorAll('.cm-header-row input.cm-switch')).every(function(c){return c.checked;})`)) === true);
+  await ev(`(function(){var c=Array.from(document.querySelectorAll('.cm-header-row input.cm-switch')).pop(); c.click(); return true;})()`); await wait(150);
+  await ev(`document.querySelector('.cm-header-row').scrollIntoView({block:'center'}); true`); await wait(150);
+  await shot('L10-headers-switch-1440');
+  check('headers: the Réseau counter only counts the headers that are on', (await ev(`document.querySelector('[data-count-for="network"]').textContent`)) === 'Par défaut');
+  check('headers: switching off dims the row', (await ev(`document.querySelector('.cm-header-row:last-child').classList.contains('cm-header-off')`)) === true);
+  await click('#sourceForm button[type=submit]'); await wait(500);
+  const offHeaders = JSON.parse(await ev(`JSON.stringify(__mock.config.Sources[0].CustomHeaders || [])`));
+  check('headers: the switch is saved (Enabled false)', offHeaders.some(h => h.Key === 'sec-ch-ua' && h.Enabled === false), JSON.stringify(offHeaders));
+  await click(`${P} #sourcesList .cm-card:nth-child(1) .raised`); await wait(300);
+  await click('[data-go="network"]'); await wait(200);
+  check('headers: reopened, the header is still switched off', (await ev(`Array.from(document.querySelectorAll('.cm-header-row input.cm-switch')).pop().checked`)) === false);
   await click('#btnCancelEdit'); await wait(300);
   await shot('L7-api-editor-1440');
 } finally {
