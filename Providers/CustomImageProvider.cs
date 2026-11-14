@@ -227,6 +227,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     }
                 }
 
+                // The same image as default field AND in the gallery is offered once
+                results = results.GroupBy(r => (r.Type, r.Url, r.ProviderName)).Select(g => g.First()).ToList();
+
                 // Uploaded images: an address the picker of jellyfin-web can show as a preview (see ToPickerUrl)
                 foreach (var found in results.Where(r => LocalSourceStore.IsLocalImageUrl(r.Url)))
                 {
