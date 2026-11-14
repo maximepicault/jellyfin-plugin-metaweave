@@ -151,6 +151,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     {
                         try
                         {
+                            var imagesBefore = replaceImages ? ImageSignature(item) : null;
                             await item.RefreshMetadata(
                                 new MetadataRefreshOptions(new DirectoryService(_fileSystem))
                                 {
@@ -161,6 +162,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                                     IsAutomated = false   // a user request: the plugin's cache is bypassed
                                 },
                                 CancellationToken.None);
+                            if (replaceImages)
+                            {
+                                var imagesAfter = ImageSignature(item);
+                                _logger.LogInformation("🔁 [SOURCE REFRESH] 🖼️ '{Name}': images {State} (before: {Before} | after: {After})",
+                                    item.Name, imagesBefore == imagesAfter ? "UNCHANGED" : "replaced", imagesBefore, imagesAfter);
+                            }
+
                             if (replaceImages && (item is Series || item is Season))
                             {
                                 await ApplyAllBackdropsAsync(item);
@@ -247,6 +255,19 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "🔁 [SOURCE REFRESH] ⚠️ Could not apply all the backdrops of '{Name}': {Message}", item.Name, ex.Message);
+            }
+        }
+
+        /// <summary>One line per image of the item (type, file, last write): shows in the log whether a refresh really replaced them</summary>
+        private static string ImageSignature(BaseItem item)
+        {
+            try
+            {
+                return string.Join("; ", item.ImageInfos.Select(i => $"{i.Type}#{Path.GetFileName(i.Path)}@{i.DateModified:HH:mm:ss}"));
+            }
+            catch (Exception)
+            {
+                return "?";
             }
         }
 
