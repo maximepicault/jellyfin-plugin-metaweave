@@ -978,7 +978,7 @@
                             + '<label><input type="checkbox" class="cm-switch" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
                             + '<label><input type="checkbox" class="cm-switch" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>'
                             + '<label><input type="checkbox" class="cm-switch" data-rf="episode" checked aria-label="Actualiser les épisodes" /> Épisodes</label>'
-                            + '<label title="Par défaut seules les métadonnées sont remplacées"><input type="checkbox" class="cm-switch" data-rf="images" aria-label="Remplacer aussi les images" /> Images</label></span>'
+                            + '<label title="Décochez pour ne remplacer que les métadonnées"><input type="checkbox" class="cm-switch" data-rf="images" checked aria-label="Remplacer aussi les images" /> Images</label></span>'
                             + '<button is="emby-button" type="button" class="raised" data-refresh="' + escapeHtml(g.prefix) + '"' + (allOff ? ' disabled' : '') + ' title="Actualise uniquement les éléments de la médiathèque qui portent ce préfixe (l\'API d\'abord, puis la source locale par-dessus), sans scanner la médiathèque"><span>Actualiser les éléments</span></button>'
                             + '<span class="cm-group-status" data-refresh-status="' + escapeHtml(g.prefix) + '" role="status">' + (allOff ? 'Source désactivée : activez-la pour actualiser ses éléments.' : '') + '</span></div>';
                     }
