@@ -465,19 +465,23 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>Fills in missing or duplicate ids, cleans the texts</summary>
         public static void Normalize(LocalContent content)
         {
-            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Ids are unique within a LEVEL (series, seasons, episodes): the API numbers a series and its season separately,
+            // so both may carry the same id
+            var usedSeries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var usedSeasons = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var usedEpisodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             content.Series ??= new List<LocalSeries>();
             foreach (var series in content.Series)
             {
-                NormalizeNode(series, used, true);
+                NormalizeNode(series, usedSeries);
                 series.Seasons ??= new List<LocalSeason>();
                 foreach (var season in series.Seasons)
                 {
-                    NormalizeNode(season, used, true);
+                    NormalizeNode(season, usedSeasons);
                     season.Episodes ??= new List<LocalEpisode>();
                     foreach (var episode in season.Episodes)
                     {
-                        NormalizeNode(episode, used, true);
+                        NormalizeNode(episode, usedEpisodes);
                         episode.Duration = Clean(episode.Duration);
                         episode.PreviewUrl = Clean(episode.PreviewUrl);
                         episode.Cast = NormalizeCast(episode.Cast);
