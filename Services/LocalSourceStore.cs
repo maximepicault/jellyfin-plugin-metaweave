@@ -391,16 +391,30 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 .ToList();
         }
 
-        // "prefix-id": the tag of an element of ANOTHER source, which this node overrides (series, seasons and episodes)
-        private static readonly Regex OverrideId = new Regex(@"^[\w]{1,20}-[\w]{1,40}$", RegexOptions.Compiled);
+        // Letters, digits, "_" and "-" (a {prefix-ID} file tag accepts them, and API ids are often UUIDs or slugs); no leading hyphen
+        private static readonly Regex ValidId = new Regex(@"^\w[\w-]{0,99}$", RegexOptions.Compiled);
+
+        /// <summary>
+        /// A hyphenated id whose first part is the prefix of a configured source is the full tag ("dm-123") of an element of that source,
+        /// which the node overrides. Any other id is the node's own ("3f2a-91bc" with the source's prefix in front in the file name).
+        /// </summary>
+        public static bool IsFullTag(string id)
+        {
+            var dash = id?.IndexOf('-') ?? -1;
+            if (dash <= 0)
+            {
+                return false;
+            }
+
+            var prefix = id.Substring(0, dash);
+            return Plugin.Instance?.Configuration?.Sources?.Any(s => !s.IsPeople && string.Equals((s.Prefix ?? string.Empty).Trim(), prefix, StringComparison.OrdinalIgnoreCase)) ?? false;
+        }
 
         private static void NormalizeNode(LocalNode node, HashSet<string> used, bool mayOverride = false)
         {
             var id = Clean(node.Id);
-            // Id: letters/digits/_ only (it ends up in a {prefix-ID} file name), unique within the source. A series or a
-            // season may also carry "prefix-id" (the tag of an API element): its content then replaces that element's
-            var valid = id != null && (Regex.IsMatch(id, @"^[\w]{1,40}$") || (mayOverride && OverrideId.IsMatch(id)));
-            node.Id = valid && used.Add(id) ? id : NewId(used);
+            // Id: unique within the source, valid in a {prefix-ID} file tag
+            node.Id = id != null && ValidId.IsMatch(id) && used.Add(id) ? id : NewId(used);
             // Typed text is stored decoded: titles pasted from a web page ("Q&amp;A") do not keep their
             // entities in the editor nor in "Copier le nom" (a file name with "&amp;" in it)
             node.Title = Clean(HtmlText.Decode(node.Title));
