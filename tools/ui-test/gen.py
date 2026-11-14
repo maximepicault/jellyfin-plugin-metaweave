@@ -39,3 +39,9 @@ for ep in ("E01 Premier.mkv", "E02 Second.mkv"):
     os.makedirs(os.path.dirname(out), exist_ok=True)
     if not os.path.exists(out):
         subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=2", "-c:v", "libx264", "-t", "2", out], check=True)
+
+# A heavy poster (noise does not compress): used by the source test to check the reduced preview
+if not os.path.exists(os.path.join(img, "big.jpg")):
+    import random
+    big = Image.frombytes("RGB", (2400, 3200), random.Random(1).randbytes(2400 * 3200 * 3))
+    big.save(os.path.join(img, "big.jpg"), quality=95)

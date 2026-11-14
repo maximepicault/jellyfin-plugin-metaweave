@@ -93,6 +93,46 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>
         /// Conversion decision, converting nothing ("Tester" button of the configuration page)
         /// </summary>
+        /// <summary>
+        /// Small JPEG of the picture (longest side at most maxSide, EXIF orientation applied) for the source test screen.
+        /// Null when the format cannot be decoded (AVIF, HEIC…): the caller then shows the original or says so.
+        /// </summary>
+        public static byte[] Thumbnail(byte[] data, int maxSide)
+        {
+            try
+            {
+                using var codec = SKCodec.Create(new SKMemoryStream(data));
+                if (codec == null)
+                {
+                    return null;
+                }
+
+                using var decoded = SKBitmap.Decode(codec);
+                if (decoded == null)
+                {
+                    return null;
+                }
+
+                using var oriented = ApplyOrigin(decoded, codec.EncodedOrigin);
+                var scale = Math.Min(1.0, (double)maxSide / Math.Max(oriented.Width, oriented.Height));
+                using var resized = scale < 1.0
+                    ? oriented.Resize(new SKImageInfo(Math.Max(1, (int)(oriented.Width * scale)), Math.Max(1, (int)(oriented.Height * scale))), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear))
+                    : oriented.Copy();
+                if (resized == null)
+                {
+                    return null;
+                }
+
+                using var image = SKImage.FromBitmap(resized);
+                using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 80);
+                return encoded?.ToArray();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         public static string Describe(byte[] data)
         {
             if (data == null || data.Length == 0)

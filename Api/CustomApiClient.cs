@@ -709,13 +709,23 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     {
                         preview.Error = error ?? "téléchargement impossible";
                     }
-                    else if (data.Length > SourceTestResult.MaxPreviewBytes)
-                    {
-                        preview.Error = $"image trop lourde pour l'aperçu ({data.Length / 1024} Ko)";
-                    }
                     else
                     {
-                        preview.DataUri = $"data:{mime ?? "image/jpeg"};base64,{Convert.ToBase64String(data)}";
+                        // Reduced to a small JPEG: the test screen does not need the full picture (several MB for a poster)
+                        var small = PortraitThumbConverter.Thumbnail(data, SourceTestResult.PreviewMaxSide);
+                        if (small != null)
+                        {
+                            preview.DataUri = $"data:image/jpeg;base64,{Convert.ToBase64String(small)}";
+                        }
+                        else if (data.Length <= SourceTestResult.MaxPreviewBytes)
+                        {
+                            // Format the server cannot decode (AVIF, HEIC…): sent as it is when small enough, the browser may know it
+                            preview.DataUri = $"data:{mime ?? "image/jpeg"};base64,{Convert.ToBase64String(data)}";
+                        }
+                        else
+                        {
+                            preview.Error = $"format illisible par le serveur et image trop lourde pour l'aperçu ({data.Length / 1024} Ko)";
+                        }
                     }
                 }
                 catch (Exception ex) when (ex is InvalidOperationException || ex is UriFormatException)
@@ -878,6 +888,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public const int MaxEpisodes = 20;
         public const int MaxImagePreviews = 6;
         public const int MaxPreviewBytes = 600 * 1024;
+        public const int PreviewMaxSide = 320;
 
         public bool Success { get; set; }
         public string ItemType { get; set; }

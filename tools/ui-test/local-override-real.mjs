@@ -55,6 +55,10 @@ try {
   const tested = (await api('POST', '/CustomMetadata/TestSource', { Source: dm, ItemType: 'season', Id: 'a1' })).json;
   const previews = pick(tested, 'ImagePreviews') || [];
   check('test button: images come with a displayable preview', previews.length > 0 && previews.every(p => /^data:image\//.test(pick(p, 'DataUri') || '')), JSON.stringify(previews).slice(0, 200));
+  const heavy = (await api('POST', '/CustomMetadata/TestSource', { Source: dm, ItemType: 'series', Id: 'bigimg' })).json;
+  const heavyPreview = (pick(heavy, 'ImagePreviews') || [])[0];
+  const heavyUri = pick(heavyPreview, 'DataUri') || '';
+  check('test button: a multi-MB poster is shown reduced, not refused', /^data:image\/jpeg/.test(heavyUri) && heavyUri.length < 200 * 1024, JSON.stringify(heavyPreview)?.slice(0, 200));
   // The button of the editor: the API season's list, as local episodes carrying the API's tags (the endpoint is still there)
   const imported = await api('POST', '/CustomMetadata/Local/ImportEpisodes', { Tag: '{dm-a1}' });
   const list = imported.json || [];
