@@ -45,6 +45,11 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddSingleton(sp => new CastOverlayStore(
                 sp.GetRequiredService<ILogger<CastOverlayStore>>()));
 
+            serviceCollection.AddSingleton(sp => new SourceRefreshService(
+                sp.GetRequiredService<MediaBrowser.Controller.Library.ILibraryManager>(),
+                sp.GetRequiredService<MediaBrowser.Model.IO.IFileSystem>(),
+                sp.GetRequiredService<ILogger<SourceRefreshService>>()));
+
             serviceCollection.AddSingleton<CastCatalog>();
             serviceCollection.AddSingleton<CastInheritance>();
             serviceCollection.AddSingleton<CastApplyService>();

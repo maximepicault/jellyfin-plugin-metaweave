@@ -13,7 +13,7 @@ if (!outDir) { console.error('usage: node config-local-ui.mjs <out_dir>'); proce
 fs.mkdirSync(outDir, { recursive: true });
 
 const shim = `
-window.__mock = { calls: [], alerts: [], local: {}, people: [{ Id: 'p1', Name: 'Camille Durand', Photo: '', Links: [] }, { Id: 'p2', Name: 'Émile Lefèvre', Photo: '', Links: [] }, { Id: 'p3', Name: 'Zoé Martin', Photo: '', Links: [] }], config: { EnableMetadata: true, EnableImages: true, EnableCasting: true, CreateVirtualEpisodes: true, EnableCache: true, CacheTTLHours: 24, PatternPrefix: 'custom',
+window.__mock = { refresh: {}, calls: [], alerts: [], local: {}, people: [{ Id: 'p1', Name: 'Camille Durand', Photo: '', Links: [] }, { Id: 'p2', Name: 'Émile Lefèvre', Photo: '', Links: [] }, { Id: 'p3', Name: 'Zoé Martin', Photo: '', Links: [] }], config: { EnableMetadata: true, EnableImages: true, EnableCasting: true, CreateVirtualEpisodes: true, EnableCache: true, CacheTTLHours: 24, PatternPrefix: 'custom',
   Sources: [{ Name: 'API démo', Prefix: 'dm', BaseUrl: 'http://api.test', VideoEndpoint: '/videos/{id}', SourceEndpoint: '/sources/{id}', SeriesEndpoint: '/series/{id}', EpisodeListEndpoint: '/sources/{id}/videos', Enabled: true,
     VideoFieldMappings: { Title: 'title' }, SourceFieldMappings: {}, SeriesFieldMappings: {}, EpisodeListMappings: {}, CustomHeaders: [] }] } };
 var clone = function (o) { return JSON.parse(JSON.stringify(o)); };
@@ -24,12 +24,14 @@ window.ApiClient = {
   getPluginConfiguration: function () { return Promise.resolve(clone(__mock.config)); },
   updatePluginConfiguration: function (id, c) { __mock.config = clone(c); __mock.calls.push('PLUGIN'); return Promise.resolve({}); },
   getJSON: function (url) {
+    if (/CustomMetadata\\/Refresh\\/Status/.test(url)) { __mock.calls.push('REFRESH-STATUS'); return Promise.resolve({ Running: false, Prefix: __mock.refresh.Prefix, Total: 3, Done: 3, Failed: 0, Series: 1, Seasons: 1, Episodes: 1 }); }
     if (/CustomMetadata\\/People/.test(url)) { __mock.calls.push('GET people'); return Promise.resolve(clone({ Version: 1, People: __mock.people })); }
     var m = url.match(/CustomMetadata\\/Local\\/(.+)$/);
     __mock.calls.push('GET ' + m[1]);
     return Promise.resolve(clone(__mock.local[m[1]] || { Version: 1, Series: [] }));
   },
   ajax: function (o) {
+    if (/CustomMetadata\\/Refresh$/.test(o.url)) { __mock.refresh = JSON.parse(o.data); __mock.calls.push('REFRESH ' + o.data); return Promise.resolve({ Running: true, Prefix: __mock.refresh.Prefix, Total: 3, Done: 0, Failed: 0, Series: 1, Seasons: 1, Episodes: 1 }); }
     if (o.url.indexOf('ImportEpisodes') >= 0) {
       var tag = JSON.parse(o.data).Tag; __mock.calls.push('IMPORT ' + tag);
       if (tag !== 'dm-123') { return Promise.reject({ text: function () { return Promise.resolve('"Aucune source API active n\\'a le préfixe « zz »."'); } }); }
@@ -283,7 +285,7 @@ try {
   await shot('L5-list-1440');
 
   // 6. Reopening: the content is reloaded, deleting an episode, saving
-  await click(`${P} #sourcesList .cm-card:nth-child(2) .raised`); await wait(500);
+  await click(`${P} #sourcesList article.cm-card:nth-of-type(2) .raised`); await wait(500);
   check('reopening: local type and content reloaded', (await ev(`document.querySelector('#editorView').getAttribute('data-source-type')`)) === 'local' && (await ev(`document.querySelectorAll('#localTree .cm-t-item').length`)) === 6);
   await click(`${P} [data-go="content"]`); await wait(200);
   const quatriemeId = await ev(`Array.from(document.querySelectorAll('#localTree .cm-t-item')).find(function(b){return b.textContent.indexOf('Quatrième')>=0;}).getAttribute('data-node')`);
@@ -297,7 +299,7 @@ try {
 
   // 7. Mobile
   await size(390, 900, true);
-  await click(`${P} #sourcesList .cm-card:nth-child(2) .raised`); await wait(400);
+  await click(`${P} #sourcesList article.cm-card:nth-of-type(2) .raised`); await wait(400);
   await click(`${P} [data-go="content"]`); await wait(200);
   await click(`#localTree [data-node="${epId}"]`); await wait(300);
   const overflow = await ev(`document.documentElement.scrollWidth > window.innerWidth + 2`);
@@ -327,11 +329,21 @@ try {
   check('people source saved', ps.Prefix === 'pe' && ps.PersonEndpoint === '/people/{id}' && ps.PersonMappings.Photo === 'photo' && ps.BaseUrl === 'http://people.test' && !ps.EpisodeListEndpoint, JSON.stringify(ps));
   check('people source saved: image address kept', ps.PersonMappings.PhotoBaseUrl === 'https://images.test/p/w185', JSON.stringify(ps.PersonMappings));
   check('card: "Personnes" badge', (await ev(`Array.from(document.querySelectorAll('${P} #sourcesList .cm-kind')).map(function(b){return b.textContent;}).join()`)).includes('Personnes'));
-  await click(`${P} #sourcesList .cm-card:nth-child(2) .raised`); await wait(300);
+  await click(`${P} #sourcesList article.cm-card:nth-of-type(2) .raised`); await wait(300);
   await click('#btnDeleteSource'); await wait(400);
 
+  // Targeted refresh: cards grouped by prefix, a header with the types and a button (never automatic)
+  check('refresh: the API source has a group header with its prefix', (await vis('.cm-group-head[data-group="dm"]')) && (await ev(`document.querySelector('.cm-group-head[data-group="dm"] .cm-tag').textContent`)).includes('dm'));
+  check('refresh: the header offers series / seasons / episodes on, images off', (await ev(`['series','season','episode'].every(function(t){return document.querySelector('.cm-group-head[data-group="dm"] [data-rf="'+t+'"]').checked;}) && !document.querySelector('.cm-group-head[data-group="dm"] [data-rf="images"]').checked`)) === true);
+  await shot('L11-source-groups-1440');
+  await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-rf="season"]').click(); true`);
+  await click('.cm-group-head[data-group="dm"] [data-refresh]'); await wait(1800);
+  const sent = JSON.parse(await ev(`JSON.stringify(__mock.refresh)`));
+  check('refresh: the request carries the prefix, the checked types and no images', sent.Prefix === 'dm' && JSON.stringify(sent.Types) === JSON.stringify(['series', 'episode']) && sent.ReplaceImages === false, JSON.stringify(sent));
+  check('refresh: the progress is shown then the result', (await ev(`document.querySelector('.cm-group-status[data-refresh-status="dm"]').textContent`)).includes('Terminé : 3 / 3'));
+  check('refresh: the button is usable again', (await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-refresh]').disabled`)) === false);
   // 9. API source: the editor is unchanged
-  await click(`${P} #sourcesList .cm-card:nth-child(1) .raised`); await wait(300);
+  await click(`${P} #sourcesList article.cm-card:nth-of-type(1) .raised`); await wait(300);
   const apiNav = await ev(`Array.from(document.querySelectorAll('${P} .cm-nav-item')).filter(function(b){return b.offsetParent!==null;}).length`);
   check('API source: the 8 sections are still there', apiNav === 8, String(apiNav));
   check('source API : URL de base visible et obligatoire', (await vis('#srcBaseUrl')) && (await ev(`document.querySelector('#srcBaseUrl').required`)) === true);
@@ -351,7 +363,7 @@ try {
   await click('#sourceForm button[type=submit]'); await wait(500);
   check('prefix: confirmation = saved', JSON.parse(await ev(`JSON.stringify(__mock.config.Sources.map(function(x){return x.Prefix;}))`))[0] === 'zz');
   // Custom headers: quotes in a value are kept (typed, saved, shown again)
-  await click(`${P} #sourcesList .cm-card:nth-child(1) .raised`); await wait(300);
+  await click(`${P} #sourcesList article.cm-card:nth-of-type(1) .raised`); await wait(300);
   await click('[data-go="network"]'); await wait(200);
   await click('button[onclick="addHeader()"]'); await wait(150);
   const quoted = '"Chromium";v="120", "Not?A_Brand";v="8"';
@@ -359,7 +371,7 @@ try {
   await click('#sourceForm button[type=submit]'); await wait(500);
   const savedHeaders = JSON.parse(await ev(`JSON.stringify(__mock.config.Sources[0].CustomHeaders || [])`));
   check('headers: quotes kept in the saved value', savedHeaders.some(h => h.Key === 'sec-ch-ua' && h.Value === quoted), JSON.stringify(savedHeaders));
-  await click(`${P} #sourcesList .cm-card:nth-child(1) .raised`); await wait(300);
+  await click(`${P} #sourcesList article.cm-card:nth-of-type(1) .raised`); await wait(300);
   await click('[data-go="network"]'); await wait(200);
   const shown = await ev(`Array.from(document.querySelectorAll('.cm-header-row input')).map(function(i){return i.value;}).join('|')`);
   check('headers: quotes kept when the source is reopened', shown.includes(quoted), shown);
@@ -373,7 +385,7 @@ try {
   await click('#sourceForm button[type=submit]'); await wait(500);
   const offHeaders = JSON.parse(await ev(`JSON.stringify(__mock.config.Sources[0].CustomHeaders || [])`));
   check('headers: the switch is saved (Enabled false)', offHeaders.some(h => h.Key === 'sec-ch-ua' && h.Enabled === false), JSON.stringify(offHeaders));
-  await click(`${P} #sourcesList .cm-card:nth-child(1) .raised`); await wait(300);
+  await click(`${P} #sourcesList article.cm-card:nth-of-type(1) .raised`); await wait(300);
   await click('[data-go="network"]'); await wait(200);
   check('headers: reopened, the header is still switched off', (await ev(`Array.from(document.querySelectorAll('.cm-header-row input.cm-switch')).pop().checked`)) === false);
   await click('#btnCancelEdit'); await wait(300);

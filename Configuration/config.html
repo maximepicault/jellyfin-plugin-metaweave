@@ -84,6 +84,13 @@
         #CustomMetadataConfigPage .cm-toolbar .emby-button { margin: 0 0 0 auto; }
         #CustomMetadataConfigPage .cm-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 20px; }
         #CustomMetadataConfigPage .cm-card { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); }
+        #CustomMetadataConfigPage .cm-group-head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 14px; border: 1px solid var(--cm-border); border-radius: 8px; background: var(--cm-surface-2); }
+        #CustomMetadataConfigPage .cm-group-head:not(:first-child) { margin-top: 10px; }
+        #CustomMetadataConfigPage .cm-group-kinds { font-size: 13px; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-group-sep { flex: 1; }
+        #CustomMetadataConfigPage .cm-group-head label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-group-head .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-group-status { flex-basis: 100%; font-size: 13px; color: var(--cm-muted); }
         #CustomMetadataConfigPage .cm-card-head { display: flex; align-items: flex-start; gap: 12px; }
         #CustomMetadataConfigPage .cm-card-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
         #CustomMetadataConfigPage .cm-card h3 { margin: 0; font-size: 18px; font-weight: 700; }
@@ -918,7 +925,34 @@
                 }
 
                 var html = '';
+                // Cards grouped by prefix: an API source and a local source that share it are refreshed together (API first, local laid over it)
+                var groups = [], byPrefix = {};
                 sources.forEach(function(source, index) {
+                    var key = String(source.Prefix || '').trim().toLowerCase() || ('#' + index);
+                    if (!byPrefix[key]) { byPrefix[key] = { prefix: String(source.Prefix || '').trim(), items: [] }; groups.push(byPrefix[key]); }
+                    byPrefix[key].items.push({ source: source, index: index });
+                });
+                var rank = function(src) { return src.SourceType === 'People' ? 2 : (src.SourceType === 'Local' ? 1 : 0); };
+                var ordered = [];
+                groups.forEach(function(g) {
+                    g.items.sort(function(a, b) { return rank(a.source) - rank(b.source) || a.index - b.index; });
+                    var kinds = [];
+                    g.items.forEach(function(it) { var k = it.source.SourceType === 'People' ? 'Personnes' : (it.source.SourceType === 'Local' ? 'Locale' : 'API'); if (kinds.indexOf(k) < 0) { kinds.push(k); } });
+                    var enriches = g.items.some(function(it) { return it.source.SourceType !== 'People'; });
+                    if (enriches && g.prefix) {
+                        html += '<div class="cm-group-head" data-group="' + escapeHtml(g.prefix) + '">'
+                            + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span>'
+                            + '<label><input type="checkbox" class="cm-switch" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
+                            + '<label><input type="checkbox" class="cm-switch" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>'
+                            + '<label><input type="checkbox" class="cm-switch" data-rf="episode" checked aria-label="Actualiser les épisodes" /> Épisodes</label>'
+                            + '<label title="Par défaut seules les métadonnées sont remplacées"><input type="checkbox" class="cm-switch" data-rf="images" aria-label="Remplacer aussi les images" /> Images</label>'
+                            + '<button is="emby-button" type="button" class="raised" data-refresh="' + escapeHtml(g.prefix) + '" title="Actualise uniquement les éléments de la médiathèque qui portent ce préfixe (l\'API d\'abord, puis la source locale par-dessus), sans scanner la médiathèque"><span>Actualiser les éléments</span></button>'
+                            + '<span class="cm-group-status" data-refresh-status="' + escapeHtml(g.prefix) + '" role="status"></span></div>';
+                    }
+                    g.items.forEach(function(it) { ordered.push(it); });
+                });
+                ordered.forEach(function(entry) {
+                    var source = entry.source, index = entry.index;
                     var on = source.Enabled !== false;
                     var isLocal = source.SourceType === 'Local';
                     var isPeople = source.SourceType === 'People';
@@ -1687,6 +1721,52 @@
             });
 
             // Enabled / Disabled switch of a card: saved immediately, like the rest of the sources
+            // Targeted refresh of a prefix (the group header of the Sources tab): only the library items that carry it, in the background
+            function refreshSay(prefix, text, bad) {
+                Array.prototype.forEach.call(document.querySelectorAll('#sourcesList [data-refresh-status]'), function(el) {
+                    if (el.getAttribute('data-refresh-status') === prefix) { el.textContent = text; el.style.color = bad ? '#e57373' : ''; }
+                });
+            }
+            function refreshProgress(prefix, status) {
+                var kinds = [];
+                if (status.Series) { kinds.push(status.Series + ' série' + (status.Series > 1 ? 's' : '')); }
+                if (status.Seasons) { kinds.push(status.Seasons + ' saison' + (status.Seasons > 1 ? 's' : '')); }
+                if (status.Episodes) { kinds.push(status.Episodes + ' épisode' + (status.Episodes > 1 ? 's' : '')); }
+                return status.Done + ' / ' + status.Total + ' actualisé' + (status.Total > 1 ? 's' : '') + ' (' + kinds.join(', ') + ')' + (status.Failed ? ', ' + status.Failed + ' en échec (voir le journal)' : '');
+            }
+            function pollRefresh(prefix) {
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Refresh/Status')).then(function(st) {
+                    if (st.Prefix !== prefix) { return; }
+                    if (st.Running) {
+                        refreshSay(prefix, 'Actualisation en cours : ' + refreshProgress(prefix, st));
+                        setTimeout(function() { pollRefresh(prefix); }, 1500);
+                    } else {
+                        refreshSay(prefix, 'Terminé : ' + refreshProgress(prefix, st) + '.', !!st.Failed);
+                        Array.prototype.forEach.call(document.querySelectorAll('#sourcesList [data-refresh]'), function(b) { b.disabled = false; });
+                    }
+                });
+            }
+            qs('#sourcesList').addEventListener('click', function(e) {
+                var button = e.target.closest('[data-refresh]');
+                if (!button) { return; }
+                var prefix = button.getAttribute('data-refresh');
+                var head = button.closest('.cm-group-head');
+                var types = ['series', 'season', 'episode'].filter(function(t) { return head.querySelector('[data-rf="' + t + '"]').checked; });
+                if (!types.length) { refreshSay(prefix, 'Cochez au moins un type : séries, saisons ou épisodes.', true); return; }
+                var images = head.querySelector('[data-rf="images"]').checked;
+                button.disabled = true;
+                refreshSay(prefix, 'Recherche des éléments…');
+                ApiClient.ajax({
+                    type: 'POST', url: ApiClient.getUrl('CustomMetadata/Refresh'),
+                    data: JSON.stringify({ Prefix: prefix, Types: types, ReplaceImages: images }), contentType: 'application/json', dataType: 'json'
+                }).then(function(st) {
+                    if (st.Message) { refreshSay(prefix, st.Message, true); button.disabled = false; return; }
+                    if (!st.Total) { refreshSay(prefix, 'Aucun élément de la médiathèque ne porte ce préfixe pour les types choisis.'); button.disabled = false; return; }
+                    refreshSay(prefix, 'Actualisation lancée : ' + refreshProgress(prefix, st));
+                    setTimeout(function() { pollRefresh(prefix); }, 1200);
+                }, function() { refreshSay(prefix, 'L\'actualisation n\'a pas pu être lancée.', true); button.disabled = false; });
+            });
+
             qs('#sourcesList').addEventListener('change', function(e) {
                 var toggle = e.target.closest('[data-toggle]');
                 if (!toggle) { return; }

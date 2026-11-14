@@ -177,6 +177,27 @@ try {
   const missC = pick(rc, 'Missing') || [];
   check('C: same prefix - every API episode is still listed', pick(rc, 'ApiCount') === list.length, JSON.stringify(pick(rc, 'ApiCount')));
   check('C: same prefix - the plain local id overrides the API episode', pick(missC.find(m => pick(m, 'Tag') === 'dm-a1v4'), 'Title') === 'Quatrième même préfixe', JSON.stringify(missC.map(m => pick(m, 'Tag') + ':' + pick(m, 'Title'))));
+  // Phase D: targeted refresh of a prefix (no library scan): only the items that carry it, never automatic
+  const countTagged = async type => (((await api('GET', `/Items?IncludeItemTypes=${type}&Recursive=true&Fields=Path&userId=${auth.User.Id}`)).json?.Items) || []).filter(i => /\{dm-/i.test(String(i.Path || '').split('/').pop())).length;
+  const seasonsDm = await countTagged('Season');
+  await api('PUT', `/CustomMetadata/Local/${DATA}`, { Version: 1, Series: [{ Id: 'aventuriers', Title: 'Aventuriers même préfixe', Seasons: [{ Id: 'a1', Overview: 'Actualisation ciblée', Episodes: [] }] }] });
+  await wait(1500);
+  check('D: a change of the local data is NOT pushed by itself', !/Actualisation ciblée/.test((await item(seasonC.Id)).Overview || ''));
+  const waitRefresh = async () => { for (let i = 0; i < 90; i++) { const st = (await api('GET', '/CustomMetadata/Refresh/Status')).json; if (!pick(st, 'Running')) return st; await wait(1000); } };
+  const none = (await api('POST', '/CustomMetadata/Refresh', { Prefix: 'zz', Types: ['season'] })).json;
+  check('D: a prefix nothing carries refreshes nothing', pick(none, 'Total') === 0 && !pick(none, 'Running'), JSON.stringify(none));
+  const started = (await api('POST', '/CustomMetadata/Refresh', { Prefix: 'dm', Types: ['season'] })).json;
+  check('D: only the seasons of the prefix are found', pick(started, 'Total') === seasonsDm && pick(started, 'Seasons') === seasonsDm && !pick(started, 'Series') && !pick(started, 'Episodes'), JSON.stringify(started));
+  const finished = await waitRefresh();
+  check('D: the refresh finishes without failure', pick(finished, 'Done') === seasonsDm && !pick(finished, 'Failed'), JSON.stringify(finished));
+  check('D: the season now shows the local data (API called first, local laid over it)', /Actualisation ciblée/.test((await item(seasonC.Id)).Overview || ''), (await item(seasonC.Id)).Overview);
+  const eps = (await api('POST', '/CustomMetadata/Refresh', { Prefix: 'dm', Types: ['episode'] })).json;
+  check('D: episodes can be targeted on their own (real and missing ones)', pick(eps, 'Episodes') > 0 && !pick(eps, 'Seasons') && !pick(eps, 'Series'), JSON.stringify(eps));
+  await waitRefresh();
+  const taken = (await api('POST', '/CustomMetadata/Refresh', { Prefix: 'dm', Types: ['series'] })).json;
+  const again = (await api('POST', '/CustomMetadata/Refresh', { Prefix: 'dm', Types: ['series'] })).json;
+  check('D: a second request while one runs is refused with a message', !!pick(again, 'Message') || !pick(taken, 'Running'), JSON.stringify(again));
+  await waitRefresh();
   // Removing the virtual episodes (option off): they go, and the analysis finishes even if a removal is refused
   const victim = pick(missC[0], 'EpisodeId');
   check('removal: a virtual episode exists before', !!victim && !!(await item(victim)));
