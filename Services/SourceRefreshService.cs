@@ -165,13 +165,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                             if (replaceImages)
                             {
                                 var imagesAfter = ImageSignature(item);
-                                _logger.LogInformation("🔁 [SOURCE REFRESH] 🖼️ '{Name}': images {State} (before: {Before} | after: {After})",
-                                    item.Name, imagesBefore == imagesAfter ? "UNCHANGED" : "replaced", imagesBefore, imagesAfter);
+                                _logger.LogInformation("🔁 [SOURCE REFRESH] 🖼️ '{Name}': Jellyfin refresh {State} the images (before: {Before} | after: {After})",
+                                    item.Name, imagesBefore == imagesAfter ? "left UNCHANGED" : "replaced", imagesBefore, imagesAfter);
                             }
 
-                            if (replaceImages && (item is Series || item is Season))
+                            if (replaceImages)
                             {
-                                await ApplyAllBackdropsAsync(item);
+                                await ApplyImagesAsync(item);
                             }
 
                             lock (StatusLock) { _status.Done++; }
@@ -200,61 +200,109 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         /// <summary>
-        /// Backdrops are a carousel: a normal refresh keeps only as many as the library allows (usually one), so when an element has several
-        /// (API, local gallery, Backdrop/ sub-folder) all of them are saved, in that order, replacing the item's backdrops.
-        /// Nothing is touched when there are fewer than two (the refresh already applied the only one).
+        /// Applies the plugin's images itself after the refresh, because Jellyfin's "replace all images" does not always win: an image file
+        /// already sitting in the media folder (poster.jpg…) is a local image and beats the remote ones, so the series kept its old poster.
+        /// For each type the FIRST image of the plugin (API + local source, in that order) is saved when it differs from the item's current
+        /// one (compared by content, so nothing is rewritten when the refresh already did it). Backdrops are a carousel: all of them are
+        /// applied (API, local gallery, Backdrop/ sub-folder, de-duplicated) and the extra old ones removed when there are at least two.
         /// </summary>
-        private async Task ApplyAllBackdropsAsync(BaseItem item)
+        private async Task ApplyImagesAsync(BaseItem item)
         {
             try
             {
                 var tag = TagsOf(item).FirstOrDefault();
                 var source = tag == null ? null : _resolver.GetSourceByPrefix(_resolver.ExtractPrefixFromId(tag));
-                var found = new List<(byte[] Data, string Mime)>();
-                var seen = new HashSet<string>();
-                void Add(byte[] data, string mime)
+                var kind = item is Series ? "series" : (item is Season ? "season" : "episode");
+                var images = source == null ? new List<ImageInfo>() : (await _api.GetImagesAsync(_resolver.ExtractIdWithoutPrefix(tag), kind, source, CancellationToken.None) ?? new List<ImageInfo>());
+                var changed = new List<string>();
+
+                async Task<(byte[] Data, string Mime)> Fetch(string url, bool landscape)
                 {
-                    if (data != null && data.Length > 0 && seen.Add(Convert.ToHexString(SHA256.HashData(data)))) { found.Add((data, mime)); }
+                    var (data, mime, _) = await _api.DownloadImageAsync(url, source, landscape, CancellationToken.None);
+                    return (data, mime);
                 }
 
-                if (source != null)
+                static string Sha(byte[] data) => Convert.ToHexString(SHA256.HashData(data));
+                string CurrentSha(ImageType type, int index)
                 {
-                    var images = await _api.GetImagesAsync(_resolver.ExtractIdWithoutPrefix(tag), item is Series ? "series" : "season", source, CancellationToken.None) ?? new List<ImageInfo>();
-                    foreach (var url in images.Where(i => string.Equals(i.Type, "Backdrop", StringComparison.OrdinalIgnoreCase)).Select(i => i.Url).Distinct())
+                    var path = item.GetImageInfo(type, index)?.Path;
+                    return !string.IsNullOrEmpty(path) && File.Exists(path) ? Sha(File.ReadAllBytes(path)) : null;
+                }
+
+                async Task Apply(ImageType type, int index, byte[] data, string mime)
+                {
+                    if (data == null || data.Length == 0 || Sha(data) == CurrentSha(type, index))
                     {
-                        var (data, mime, _) = await _api.DownloadImageAsync(url, source, false, CancellationToken.None);
-                        Add(data, mime);
+                        return;
+                    }
+
+                    using var stream = new MemoryStream(data);
+                    await _providerManager.SaveImage(item, stream, mime ?? "image/jpeg", type, type == ImageType.Backdrop ? index : (int?)null, CancellationToken.None);
+                    changed.Add(type + (type == ImageType.Backdrop ? "#" + index : string.Empty));
+                }
+
+                bool IsType(ImageInfo i, string name) => string.Equals(i.Type, name, StringComparison.OrdinalIgnoreCase) || (name == "Primary" && string.Equals(i.Type, "Poster", StringComparison.OrdinalIgnoreCase));
+                foreach (var (type, name) in new[] { (ImageType.Primary, "Primary"), (ImageType.Thumb, "Thumb"), (ImageType.Logo, "Logo"), (ImageType.Banner, "Banner") })
+                {
+                    // An episode without a poster takes its thumbnail as Primary, like the image provider does
+                    var first = images.FirstOrDefault(i => IsType(i, name)) ?? (item is Episode && name == "Primary" ? images.FirstOrDefault(i => IsType(i, "Thumb")) : null);
+                    if (first != null)
+                    {
+                        var (data, mime) = await Fetch(first.Url, item is Episode && type is ImageType.Primary or ImageType.Thumb && source.LandscapePortraitThumbs);
+                        await Apply(type, 0, data, mime);
+                        continue;
+                    }
+
+                    // Nothing from the API or the local source: the first image of the matching sub-folder (Primary/, Logo/…) of a series or season folder
+                    if (item is Series || item is Season)
+                    {
+                        var fromFolder = FolderImages.Discover(item.Path).FirstOrDefault(i => i.Type == name);
+                        if (fromFolder != null)
+                        {
+                            await Apply(type, 0, await File.ReadAllBytesAsync(fromFolder.FullPath), FolderImages.MimeOf(fromFolder.File));
+                        }
                     }
                 }
 
-                foreach (var file in FolderImages.Discover(item.Path).Where(i => i.Type == "Backdrop"))
+                if (item is Series || item is Season)
                 {
-                    Add(await File.ReadAllBytesAsync(file.FullPath), FolderImages.MimeOf(file.File));
+                    var backdrops = new List<(byte[] Data, string Mime)>();
+                    var seen = new HashSet<string>();
+                    void AddBackdrop(byte[] data, string mime)
+                    {
+                        if (data != null && data.Length > 0 && seen.Add(Sha(data))) { backdrops.Add((data, mime)); }
+                    }
+
+                    foreach (var url in images.Where(i => IsType(i, "Backdrop")).Select(i => i.Url).Distinct())
+                    {
+                        var (data, mime) = await Fetch(url, false);
+                        AddBackdrop(data, mime);
+                    }
+
+                    foreach (var file in FolderImages.Discover(item.Path).Where(i => i.Type == "Backdrop"))
+                    {
+                        AddBackdrop(await File.ReadAllBytesAsync(file.FullPath), FolderImages.MimeOf(file.File));
+                    }
+
+                    for (var i = 0; i < backdrops.Count; i++)
+                    {
+                        await Apply(ImageType.Backdrop, i, backdrops[i].Data, backdrops[i].Mime);
+                    }
+
+                    var extra = backdrops.Count >= 2 ? item.GetImages(ImageType.Backdrop).Skip(backdrops.Count).ToList() : new List<ItemImageInfo>();
+                    if (extra.Count > 0)
+                    {
+                        item.RemoveImages(extra);
+                        await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, CancellationToken.None);
+                        changed.Add("-" + extra.Count + " old backdrop(s)");
+                    }
                 }
 
-                if (found.Count < 2)
-                {
-                    return;
-                }
-
-                for (var i = 0; i < found.Count; i++)
-                {
-                    using var stream = new MemoryStream(found[i].Data);
-                    await _providerManager.SaveImage(item, stream, found[i].Mime ?? "image/jpeg", ImageType.Backdrop, i, CancellationToken.None);
-                }
-
-                var extra = item.GetImages(ImageType.Backdrop).Skip(found.Count).ToList();
-                if (extra.Count > 0)
-                {
-                    item.RemoveImages(extra);
-                    await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, CancellationToken.None);
-                }
-
-                _logger.LogInformation("🔁 [SOURCE REFRESH] 🖼️ {Count} backdrops applied to '{Name}'", found.Count, item.Name);
+                _logger.LogInformation("🔁 [SOURCE REFRESH] 🖼️ '{Name}': {Result}", item.Name, changed.Count == 0 ? "images already up to date" : "images applied by the plugin: " + string.Join(", ", changed));
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "🔁 [SOURCE REFRESH] ⚠️ Could not apply all the backdrops of '{Name}': {Message}", item.Name, ex.Message);
+                _logger.LogWarning(ex, "🔁 [SOURCE REFRESH] ⚠️ Could not apply the images of '{Name}': {Message}", item.Name, ex.Message);
             }
         }
 
