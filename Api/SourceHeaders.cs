@@ -153,8 +153,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
                 try
                 {
-                    headers.Add(header.Key, header.Value);
-                    logger.Log(detailLevel, "{Tag} ✅ Added custom header: '{Key}' = '{Value}'", tag, header.Key, Mask(header.Key, header.Value));
+                    // Sent exactly as typed: Add() validates known headers and refuses values such as max-age="10" or
+                    // fr;q="0.9" (quotes) - the header was then silently dropped
+                    if (headers.TryAddWithoutValidation(header.Key, header.Value))
+                    {
+                        logger.Log(detailLevel, "{Tag} ✅ Added custom header: '{Key}' = '{Value}'", tag, header.Key, Mask(header.Key, header.Value));
+                    }
+                    else
+                    {
+                        logger.LogWarning("{Tag} ⚠️ Header '{Key}' refused (invalid name, or a header that cannot be set on a request)", tag, header.Key);
+                    }
                 }
                 catch (Exception ex)
                 {
