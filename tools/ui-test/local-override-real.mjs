@@ -51,6 +51,10 @@ const config = JSON.parse(JSON.stringify(original));
 try {
   const dm = config.Sources.find(s => (s.Prefix || '').toLowerCase() === 'dm');
   check('API source "dm" present', !!dm);
+  // The test button shows the images (downloaded by the plugin), not only their addresses
+  const tested = (await api('POST', '/CustomMetadata/TestSource', { Source: dm, ItemType: 'season', Id: 'a1' })).json;
+  const previews = pick(tested, 'ImagePreviews') || [];
+  check('test button: images come with a displayable preview', previews.length > 0 && previews.every(p => /^data:image\//.test(pick(p, 'DataUri') || '')), JSON.stringify(previews).slice(0, 200));
   // The button of the editor: the API season's list, as local episodes carrying the API's tags (the endpoint is still there)
   const imported = await api('POST', '/CustomMetadata/Local/ImportEpisodes', { Tag: '{dm-a1}' });
   const list = imported.json || [];
@@ -103,6 +107,25 @@ try {
   if (real) { await refresh(real.Id); }
   const after = real ? await item(real.Id) : null;
   check('a real episode takes the title typed in the plugin', after?.Name === 'Titre surchargé', JSON.stringify(after?.Name));
+  // Phase B: the API HAS a list again; the local season only overrides one episode and adds one: nothing of the API goes away
+  dm.EpisodeListEndpoint = original.Sources.find(x => (x.Prefix || '').toLowerCase() === 'dm').EpisodeListEndpoint;
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
+  await api('PUT', `/CustomMetadata/Local/${DATA}`, {
+    Version: 1,
+    Series: [{ Id: 'dm-aventuriers', Title: 'Aventuriers surchargés', Seasons: [{
+      Id: 'dm-a1', Title: 'Saison locale',
+      Episodes: [{ Id: 'dm-a1v4', Title: 'Quatrième surchargé' }, { Id: 'x1', Title: 'Épisode ajouté' }]
+    }] }]
+  });
+  await analyze();
+  const reportB = pick((await api('GET', '/CustomMetadata/MissingEpisodes')).json, 'Report');
+  const rb = (pick(reportB, 'Seasons') || []).find(x => pick(x, 'SourceItemId') === 'dm-a1');
+  const missB = pick(rb, 'Missing') || [];
+  const byTag = t => missB.find(m => pick(m, 'Tag') === t);
+  check('B: the API episodes are all still there, plus the added one', pick(rb, 'ApiCount') === list.length + 1, JSON.stringify(pick(rb, 'ApiCount')));
+  check('B: the overridden API episode keeps its API tag and takes the local title', pick(byTag('dm-a1v4'), 'Title') === 'Quatrième surchargé', JSON.stringify(missB.map(m => pick(m, 'Tag'))));
+  check('B: an API episode not named locally is untouched', !!byTag('dm-a1v5') && pick(byTag('dm-a1v5'), 'Title') !== undefined);
+  check('B: the added episode is listed under the local source tag', pick(byTag('ov-x1'), 'Title') === 'Épisode ajouté', JSON.stringify(missB.map(m => pick(m, 'Tag'))));
 } finally {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, original);
   await api('DELETE', `/CustomMetadata/Local/${DATA}`);

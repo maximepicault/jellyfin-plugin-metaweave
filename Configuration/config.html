@@ -165,6 +165,11 @@
         #CustomMetadataConfigPage .cm-danger .emby-button { margin: 0; background: transparent; border: 1px solid #c0392b; color: #ff9a8c; }
         #CustomMetadataConfigPage .cm-danger .emby-button:hover { background: rgba(192, 57, 43, 0.25); }
         #CustomMetadataConfigPage .cm-url-line { font-family: monospace; font-size: 12px; margin-top: 4px; }
+        #CustomMetadataConfigPage .cm-previews { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; }
+        #CustomMetadataConfigPage .cm-preview { margin: 0; width: 130px; }
+        #CustomMetadataConfigPage .cm-preview img { display: block; width: 130px; max-height: 190px; object-fit: contain; border-radius: 4px; background: rgba(255,255,255,.06); }
+        #CustomMetadataConfigPage .cm-preview figcaption { font-size: 11px; opacity: .65; margin-top: 3px; }
+        #CustomMetadataConfigPage .cm-preview-err { width: 130px; min-height: 60px; padding: 6px; box-sizing: border-box; font-size: 11px; border: 1px dashed rgba(229,115,115,.6); border-radius: 4px; word-break: break-word; }
 
         /* Panneau de test */
         #CustomMetadataConfigPage .cm-test { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); min-width: 0; }
@@ -1219,6 +1224,18 @@
                     (r.Images || []).forEach(function(img) {
                         html += '<div style="word-break: break-all;">' + escapeHtml(img.Type) + ' : ' + escapeHtml(img.Url) + '</div>';
                     });
+                    if (r.ImagePreviews && r.ImagePreviews.length) {
+                        html += '<div class="cm-previews">';
+                        r.ImagePreviews.forEach(function(p) {
+                            html += '<figure class="cm-preview">'
+                                + (p.DataUri ? '<img alt="" src="' + escapeHtml(p.DataUri) + '" />' : '<div class="cm-preview-err">Aperçu impossible<br>' + escapeHtml(p.Error || '') + '</div>')
+                                + '<figcaption>' + escapeHtml(p.Type || '') + '</figcaption></figure>';
+                        });
+                        html += '</div>';
+                        if ((r.Images || []).length > r.ImagePreviews.length) {
+                            html += '<div class="cm-hint">' + r.ImagePreviews.length + ' aperçus affichés sur ' + r.Images.length + '.</div>';
+                        }
+                    }
                     if (r.ThumbnailChecks && r.ThumbnailChecks.length) {
                         var enabled = document.querySelector('#srcLandscapePortraitThumbs').checked;
                         html += '<h4>Miniatures : conversion portrait ' + (enabled ? 'activée' : '<b>désactivée</b> (voir la section Miniatures)') + '</h4>';
