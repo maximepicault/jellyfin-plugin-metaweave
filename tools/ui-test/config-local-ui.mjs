@@ -173,6 +173,15 @@ try {
   await click('#lfGallery .cm-gal-pick:last-of-type'); await wait(200);
   await click('[data-gal-act="default"]'); await wait(250);
   check('default: another image can become the first one of its type', (await ev(`var f=document.querySelector('#lfGallery .cm-gal-pick'); f.classList.contains('cm-gal-default') && f.classList.contains('cm-gal-selected') && f.querySelector('.cm-gal-meta span').textContent==='Affiche'`)) === true);
+  // backdrops are a slideshow: no single default, each one shows its rank, any can be put first
+  await ev(`document.querySelector('#lfGalType').value='Backdrop'; true`);
+  await type('#lfGalUrl', 'https://img.test/back2.jpg'); await click('[data-gal-url]'); await wait(250);
+  const rank = async () => await ev(`Array.from(document.querySelectorAll('#lfGallery .cm-gal-pick')).filter(function(e){return e.querySelector('.cm-gal-meta span').textContent==='Fond';}).map(function(e){return (e.querySelector('.cm-gal-badge')||{}).textContent;}).join()`);
+  check('backdrops: each shows its rank in the slideshow, none is "Par défaut"', (await rank()) === 'Diaporama · 1,Diaporama · 2', await rank());
+  await click('#lfGallery .cm-gal-pick:last-of-type'); await wait(200);
+  check('backdrops: the button offers to put it at the head of the slideshow', (await ev(`document.querySelector('[data-gal-act="default"] span').textContent`)) === 'Placer en tête du diaporama' && (await ev(`document.querySelector('[data-gal-act="default"]').disabled`)) === false);
+  await click('[data-gal-act="default"]'); await wait(250);
+  check('backdrops: it moved to the head (rank 1)', (await ev(`document.querySelector('#lfGallery .cm-gal-selected .cm-gal-badge').textContent`)) === 'Diaporama · 1');
   await shot('L3d-gallery-folders-1440');
   await click('#localTree [data-node^="e:"]'); await wait(300);
   await click('[data-clear-img="Thumb"]'); await wait(200);

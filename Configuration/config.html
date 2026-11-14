@@ -337,6 +337,7 @@
         #CustomMetadataConfigPage .cm-gal-actions .emby-button { margin: 0; }
         #CustomMetadataConfigPage .cm-gal-actions .cm-hint { flex: 1; min-width: 160px; }
         #CustomMetadataConfigPage .cm-gal-badge { padding: 1px 8px; border-radius: 10px; background: var(--cm-accent); color: #000; font-weight: 600; }
+        #CustomMetadataConfigPage .cm-gal-badge-soft { background: rgba(255, 255, 255, 0.16); color: inherit; font-weight: 400; }
         #CustomMetadataConfigPage .cm-gal-meta > span:last-child { display: inline-flex; gap: 12px; }
         #CustomMetadataConfigPage .cm-gal-meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
         #CustomMetadataConfigPage .cm-gal-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
@@ -2092,12 +2093,14 @@
                     + '</div></div>';
                 // Default image of a type: the single field above when it is filled, otherwise the FIRST gallery image of that type
                 var types = galleryTypes(kind), firstOf = {};
-                types.forEach(function(t) { if (!n[GALLERY_FIELD[t]]) { for (var k = 0; k < list.length; k++) { if (list[k].Type === t) { firstOf[t] = k; break; } } } });
+                types.forEach(function(t) { if (t !== 'Backdrop' && !n[GALLERY_FIELD[t]]) { for (var k = 0; k < list.length; k++) { if (list[k].Type === t) { firstOf[t] = k; break; } } } });
+                var slideRank = {}, rank = n.Backdrop ? 1 : 0;
+                list.forEach(function(g, i) { if (g.Type === 'Backdrop') { rank++; slideRank[i] = rank; } });
                 var selected = galSel && galSel.key === localSel && list[galSel.i] ? galSel.i : -1;
                 var defaults = types.filter(function(t) { return n[GALLERY_FIELD[t]]; }).map(function(t) {
                     var src = imagePreviewUrl(n[GALLERY_FIELD[t]]);
                     return '<div class="cm-gal-item cm-gal-default"><div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
-                        + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[t]) + '</span><span class="cm-gal-badge">' + (t === 'Backdrop' ? 'Premier' : 'Par défaut') + '</span></div></div>';
+                        + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[t]) + '</span><span class="cm-gal-badge">' + (t === 'Backdrop' ? 'Diaporama · 1' : 'Par défaut') + '</span></div></div>';
                 });
                 if (defaults.length || list.length) {
                     html += '<div class="cm-gal-list">' + defaults.join('') + list.map(function(g, i) {
@@ -2105,12 +2108,12 @@
                         var isDefault = firstOf[g.Type] === i;
                         return '<div class="cm-gal-item cm-gal-pick' + (i === selected ? ' cm-gal-selected' : '') + (isDefault ? ' cm-gal-default' : '') + '" data-gal-sel="' + i + '" role="button" tabindex="0" aria-pressed="' + (i === selected) + '">'
                             + '<div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
-                            + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[g.Type] || g.Type) + '</span>' + (isDefault ? '<span class="cm-gal-badge">' + (g.Type === 'Backdrop' ? 'Premier' : 'Par défaut') + '</span>' : '') + '</div></div>';
+                            + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[g.Type] || g.Type) + '</span>' + (isDefault ? '<span class="cm-gal-badge">Par défaut</span>' : (g.Type === 'Backdrop' ? '<span class="cm-gal-badge cm-gal-badge-soft">Diaporama · ' + slideRank[i] + '</span>' : '')) + '</div></div>';
                     }).join('') + '</div>';
                     var chosen = selected >= 0 ? list[selected] : null;
-                    var chosenIsDefault = chosen && firstOf[chosen.Type] === selected;
+                    var chosenIsDefault = chosen && (firstOf[chosen.Type] === selected || (chosen.Type === 'Backdrop' && slideRank[selected] === 1));
                     html += '<div class="cm-gal-actions"><span class="cm-hint" style="margin:0;">' + (chosen ? 'Image sélectionnée : ' + escapeHtml(GALLERY_LABELS[chosen.Type]) : 'Cliquez sur une image pour la sélectionner.') + '</span>'
-                        + '<button is="emby-button" type="button" class="raised" data-gal-act="default"' + (!chosen || chosenIsDefault ? ' disabled' : '') + '><span>' + (chosen && chosen.Type === 'Backdrop' ? 'Mettre en premier' : 'Utiliser comme image par défaut') + '</span></button>'
+                        + '<button is="emby-button" type="button" class="raised" data-gal-act="default"' + (!chosen || chosenIsDefault ? ' disabled' : '') + '><span>' + (chosen && chosen.Type === 'Backdrop' ? 'Placer en tête du diaporama' : 'Utiliser comme image par défaut') + '</span></button>'
                         + '<button is="emby-button" type="button" class="raised" data-gal-act="remove"' + (chosen ? '' : ' disabled') + '><span>Retirer</span></button></div>';
                 }
                 html += '<div class="cm-gal-add"><select id="lfGalType" aria-label="Type de la nouvelle image">'
