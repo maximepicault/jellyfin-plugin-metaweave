@@ -144,7 +144,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return MergeOverride(api, own);
         }
 
-        /// <summary>The local node that overrides this API series/season (null when none, or for any other type of item)</summary>
+        /// <summary>The local node that overrides this API series/season/episode (null when none, or for any other type of item)</summary>
         private (SourceConfiguration Source, LocalNode Node)? LocalOverride(string itemId, string itemType, SourceConfiguration source)
         {
             if (_localStore == null || source == null || source.IsLocal || source.IsPeople || string.IsNullOrWhiteSpace(source.Prefix))
@@ -156,6 +156,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             {
                 "series" => "series",
                 "season" or "source" => "season",
+                "episode" or "video" => "episode",
                 _ => null
             };
             return kind == null ? null : _localStore.FindOverride(GetCacheId(source, itemId), kind);
@@ -187,7 +188,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 Cast = local.Cast?.Count > 0 ? local.Cast : api.Cast,
                 PremiereDate = local.PremiereDate ?? api.PremiereDate,
                 CommunityRating = local.CommunityRating ?? api.CommunityRating,
-                IndexNumber = api.IndexNumber
+                IndexNumber = local.IndexNumber ?? api.IndexNumber
             };
         }
 

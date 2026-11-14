@@ -30,6 +30,11 @@ window.ApiClient = {
     return Promise.resolve(clone(__mock.local[m[1]] || { Version: 1, Series: [] }));
   },
   ajax: function (o) {
+    if (o.url.indexOf('ImportEpisodes') >= 0) {
+      var tag = JSON.parse(o.data).Tag; __mock.calls.push('IMPORT ' + tag);
+      if (tag !== 'dm-123') { return Promise.reject({ text: function () { return Promise.resolve('"Aucune source API active n\\'a le préfixe « zz »."'); } }); }
+      return Promise.resolve([1, 2, 3].map(function (n) { return { Id: 'dm-e' + n, Title: 'API ' + n, Overview: 'Résumé API ' + n, IndexNumber: n, Duration: '24:30', Thumb: 'https://img.example/t' + n + '.jpg' }; }));
+    }
     var m = o.url.match(/CustomMetadata\\/Local\\/(.+)$/);
     if (o.type === 'PUT') {
       var c = JSON.parse(o.data);
@@ -142,6 +147,21 @@ try {
   await setId('dm-123'); await wait(200);
   check('id: "prefix-id" accepted, the tag is the API element\'s', (await ev(`document.querySelector('#lfTag').textContent`)) === '{dm-123}' && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
   check('id: the renamed season stays selected in the tree', (await ev(`document.querySelector('#localTree [aria-current="true"]').getAttribute('data-node')`)) === 'dm-123');
+  // Synchronise the episode list of the API season (button): add the missing ones, complete empty fields, never overwrite
+  check('sync: button offered on a season with a "prefix-id" id', await vis('[data-sync-episodes]'));
+  await click('[data-sync-episodes]'); await wait(300);
+  check('sync: 3 API episodes added with their API tag as id', (await ev(`Array.from(document.querySelectorAll('#localTree .cm-t-item')).filter(function(b){return /^dm-e/.test(b.getAttribute('data-node'));}).length`)) === 3);
+  check('sync: message says what was done', (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('3 ajoutés'));
+  await click('#localTree [data-node="dm-e1"]'); await wait(200);
+  check('sync: imported episode shows the API tag and its data', (await ev(`document.querySelector('#lfTag').textContent`)) === '{dm-e1}' && (await ev(`document.querySelector('#lf-Title').value`)) === 'API 1' && (await ev(`document.querySelector('#lf-Duration').value`)) === '24:30');
+  await type('#lf-Title', 'Mon titre'); await type('#lf-Overview', '');
+  await click('#localTree [data-node="dm-123"]'); await wait(200);
+  await click('[data-sync-episodes]'); await wait(300);
+  check('sync again: nothing added', (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('0 ajouté'));
+  await click('#localTree [data-node="dm-e1"]'); await wait(200);
+  check('sync again: a typed title is kept, an emptied field is completed', (await ev(`document.querySelector('#lf-Title').value`)) === 'Mon titre' && (await ev(`document.querySelector('#lf-Overview').value`)) === 'Résumé API 1');
+  for (const n of [1, 2, 3]) { await click(`#localTree [data-node="dm-e${n}"]`); await wait(150); await click(`#localDetail [data-del="dm-e${n}"]`); await wait(200); }
+  await click('#localTree [data-node="dm-123"]'); await wait(200);
   await setId('not valid!'); await wait(200);
   check('id: an invalid id is refused with a message and the id is kept', (await ev(`__mock.alerts.length`)) === 1 && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
   await setId(epId); await wait(200);

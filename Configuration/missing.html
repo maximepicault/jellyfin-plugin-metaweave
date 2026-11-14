@@ -787,7 +787,7 @@
             // The prefix is the part of the season folder's {prefix-ID} before the first "-" (a prefix has no hyphen)
             function suggestedFileName(episode, season) {
                 var prefix = season.EpisodePrefix || String(season.SourceItemId || '').split('-')[0];
-                var tag = '{' + (prefix ? prefix + '-' : '') + episode.Id + '}';
+                var tag = '{' + (season.EpisodePrefix && String(episode.Id).indexOf('-') >= 0 ? '' : (prefix ? prefix + '-' : '')) + episode.Id + '}';
                 var title = String(episode.Title || '')
                     .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ') // forbidden characters (Windows / Linux)
                     .replace(/[{}]/g, '')                       // the tag must remain the only {…} of the name

@@ -51,6 +51,11 @@ const config = JSON.parse(JSON.stringify(original));
 try {
   const dm = config.Sources.find(s => (s.Prefix || '').toLowerCase() === 'dm');
   check('API source "dm" present', !!dm);
+  // The button of the editor: the API season's list, as local episodes carrying the API's tags (the endpoint is still there)
+  const imported = await api('POST', '/CustomMetadata/Local/ImportEpisodes', { Tag: '{dm-a1}' });
+  const list = imported.json || [];
+  check('import: the API list comes back as local episodes with API tags', imported.status === 200 && list.length >= 5 && list.every(e => /^dm-a1v\d+$/.test(pick(e, 'Id'))), JSON.stringify(imported.json)?.slice(0, 200));
+  check('import: unknown prefix refused', (await api('POST', '/CustomMetadata/Local/ImportEpisodes', { Tag: 'zz-1' })).status === 400);
   dm.EpisodeListEndpoint = '';   // an API without a list of episodes
   config.Sources = config.Sources.filter(s => s.Prefix !== 'ov');
   config.Sources.push({
@@ -63,7 +68,7 @@ try {
       Id: 'dm-aventuriers', Title: 'Aventuriers surchargés', Overview: 'Résumé de la série saisi dans le plugin.',
       Seasons: [{
         Id: 'dm-a1', Title: 'Saison locale', Overview: 'Résumé de la saison saisi dans le plugin.',
-        Episodes: [1, 2, 3, 4, 5].map(n => ({ Id: 'e' + n, Title: 'Local ' + n, IndexNumber: n }))
+        Episodes: list.map(e => ({ ...e, Title: pick(e, 'Id') === 'dm-a1v1' ? 'Titre surchargé' : pick(e, 'Title') }))
       }]
     }]
   });
@@ -87,11 +92,17 @@ try {
   const seasons = pick(report, 'Seasons') || [];
   const rs = seasons.find(x => pick(x, 'SourceItemId') === 'dm-a1');
   check('season dm-a1 analysed although the API has no list endpoint', !!rs, JSON.stringify(seasons.map(x => pick(x, 'SourceItemId'))));
-  check('its episodes come from the local source (prefix ov)', pick(rs, 'EpisodePrefix') === 'ov' && pick(rs, 'ApiCount') === 5, JSON.stringify(rs)?.slice(0, 300));
-  check('the 5 local episodes are missing (files carry dm tags)', (pick(rs, 'Missing') || []).length === 5 && pick(pick(rs, 'Missing')[3], 'Title') === 'Local 4', JSON.stringify((pick(rs, 'Missing') || []).map(m => pick(m, 'Title'))));
-  const firstId = pick(pick(rs, 'Missing')?.[0], 'EpisodeId');
+  check('its episodes come from the local source (prefix ov)', pick(rs, 'EpisodePrefix') === 'ov' && pick(rs, 'ApiCount') === list.length, JSON.stringify(rs)?.slice(0, 300));
+  const present = 3; // the bench has the files dm-a1v1..v3 on disk: only the others are missing
+  const missing = pick(rs, 'Missing') || [];
+  check('only the episodes without a file are missing (API tags kept)', missing.length === list.length - present && missing.every(m => /^dm-a1v\d+$/.test(pick(m, 'Id'))), JSON.stringify(missing.map(m => pick(m, 'Id'))));
+  const firstId = pick(missing[0], 'EpisodeId');
   const virtual = firstId ? await item(firstId) : null;
-  check('a virtual episode exists for the first local episode', virtual?.Name === 'Local 1', JSON.stringify(virtual?.Name));
+  check('a virtual episode exists for the first missing one', !!virtual?.Name, JSON.stringify(virtual?.Name));
+  const real = await find('Episode', n => /d.part/i.test(n) || n === 'Titre surchargé');
+  if (real) { await refresh(real.Id); }
+  const after = real ? await item(real.Id) : null;
+  check('a real episode takes the title typed in the plugin', after?.Name === 'Titre surchargé', JSON.stringify(after?.Name));
 } finally {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, original);
   await api('DELETE', `/CustomMetadata/Local/${DATA}`);
