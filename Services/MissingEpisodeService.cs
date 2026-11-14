@@ -534,7 +534,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// episode) keeps that tag: it stands for the file tagged with the API's id.
         /// </summary>
         private static string EpisodeKey(SourceConfiguration source, EpisodeListItem item)
-            => item.Key ?? (source.IsLocal && item.Id != null && item.Id.Contains('-') ? item.Id : $"{source.Prefix.Trim()}-{item.Id}");
+            => item.Key ?? (source.IsLocal && LocalSourceStore.IsFullTag(item.Id) ? item.Id : $"{source.Prefix.Trim()}-{item.Id}");
 
         /// <summary>
         /// The API list with the local season's episodes laid over it: a local episode named "prefix-id" overrides the API episode
@@ -550,13 +550,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var sharesPrefix = string.Equals(localSource.Prefix?.Trim(), apiPrefix, StringComparison.OrdinalIgnoreCase);
                 var apiId = item.Id.StartsWith(apiPrefix + "-", StringComparison.OrdinalIgnoreCase)
                     ? item.Id.Substring(apiPrefix.Length + 1)
-                    : (sharesPrefix && !item.Id.Contains('-') ? item.Id : null);
+                    : (sharesPrefix && !LocalSourceStore.IsFullTag(item.Id) ? item.Id : null);
                 var target = apiId == null
                     ? null
                     : merged.FirstOrDefault(e => string.Equals(e.Id, apiId, StringComparison.OrdinalIgnoreCase));
                 if (target == null)
                 {
-                    item.Key = apiId != null ? $"{apiPrefix}-{apiId}" : (item.Id.Contains('-') ? item.Id : $"{localSource.Prefix.Trim()}-{item.Id}");
+                    item.Key = apiId != null ? $"{apiPrefix}-{apiId}" : (LocalSourceStore.IsFullTag(item.Id) ? item.Id : $"{localSource.Prefix.Trim()}-{item.Id}");
                     merged.Add(item);
                     continue;
                 }

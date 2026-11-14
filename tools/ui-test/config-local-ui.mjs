@@ -174,14 +174,22 @@ try {
   for (const n of [1, 2, 3]) { await click(`#localTree [data-node="dm-e${n}"]`); await wait(150); await click(`#localDetail [data-del="dm-e${n}"]`); await wait(200); }
   await click('#localTree [data-node="dm-123"]'); await wait(200);
   await setId('not valid!'); await wait(200);
-  check('id: an invalid id is refused with a message and the id is kept', (await ev(`__mock.alerts.length`)) === 1 && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
+  check('id: an invalid id is refused with a message under the field and the id is kept', (await ev(`document.querySelector('#lfIdMsg').textContent`)).includes('refusé') && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
   await setId(epId); await wait(200);
-  check('id: an id already used is refused', (await ev(`__mock.alerts.length`)) === 2 && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
+  check('id: an id already used is refused', (await ev(`document.querySelector('#lfIdMsg').textContent`)).includes('déjà utilisé') && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
   await ev(`__mock.alerts.length = 0; true`);
+  await setId('3f2a-91bc-77'); await wait(200);
+  check('id: an API-style id with several hyphens is accepted and tagged with the source prefix', (await ev(`document.querySelector('#lf-NodeId').value`)) === '3f2a-91bc-77' && (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-3f2a-91bc-77}', await ev(`document.querySelector('#lfTag').textContent`));
   await setId(seasonId); await wait(200);
   check('id: renamed back, the tag is the source\'s again', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-' + seasonId + '}');
   await click(`#localTree [data-node="${epId}"]`); await wait(200);
   check('id: no field on an episode', !(await vis('#lf-NodeId')));
+  // Series id: changed, shown in the tag, kept after saving
+  const seriesNode = await ev(`document.querySelector('#localTree > ul > li > .cm-t-row .cm-t-item').getAttribute('data-node')`);
+  await click(`#localTree [data-node="${seriesNode}"]`); await wait(200);
+  check('series id: the field is offered on a series', await vis('#lf-NodeId'));
+  await setId('ser1'); await wait(200);
+  check('series id: renamed (tag, selection)', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-ser1}' && (await ev(`document.querySelector('#localTree [aria-current="true"]').getAttribute('data-node')`)) === 'ser1');
   check('Contenu section counter', (await ev(`document.querySelector('[data-count-for="content"]').textContent`)) === '4 épisodes');
   await click(`#localTree [data-node="${epId}"]`); await wait(200);
   await shot('L4-content-1440');
@@ -238,6 +246,7 @@ try {
   check('source saved: LocalDataId (16 hex)', /^[0-9a-f]{16}$/.test(src.LocalDataId || ''));
   const content = m.local[src.LocalDataId];
   const ep = content && content.Series[0].Seasons[0].Episodes.find(e => e.Title === 'Le pilote');
+  check('series id: the new id is what was saved', content && content.Series[0].Id === 'ser1', JSON.stringify(content && content.Series[0].Id));
   check('content saved: 1 series, 1 season, 4 episodes', content && content.Series.length === 1 && content.Series[0].Seasons[0].Episodes.length === 4);
   check('content saved: episode fields', ep && ep.Duration === '24:30' && /^local:\/\/img\/[0-9a-f]{16}\/ep-[a-z0-9]+\.jpg$/.test(ep.Thumb) && ep.IndexNumber === 1 && ep.Tags.join() === 'a,b,A', JSON.stringify(ep));
   check('the API already present is untouched', m.sources[0].Name === 'API démo' && !m.sources[0].SourceType);
