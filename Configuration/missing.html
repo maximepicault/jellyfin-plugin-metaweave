@@ -786,7 +786,7 @@
             // File name to give the episode when it is added: "Title {prefix-ID}" (no extension).
             // The prefix is the part of the season folder's {prefix-ID} before the first "-" (a prefix has no hyphen)
             function suggestedFileName(episode, season) {
-                var prefix = String(season.SourceItemId || '').split('-')[0];
+                var prefix = season.EpisodePrefix || String(season.SourceItemId || '').split('-')[0];
                 var tag = '{' + (prefix ? prefix + '-' : '') + episode.Id + '}';
                 var title = String(episode.Title || '')
                     .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ') // forbidden characters (Windows / Linux)

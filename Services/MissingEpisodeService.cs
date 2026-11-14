@@ -46,6 +46,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly CastOverlayStore _castOverlay;
         private readonly PeopleStore _people;
         private readonly CastInheritance _inheritance;
+        private readonly LocalSourceStore _localStore;
 
         public MissingEpisodeService(
             ILibraryManager libraryManager,
@@ -56,8 +57,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             CastOverlayStore castOverlay,
             PeopleStore people,
             CastInheritance inheritance,
+            LocalSourceStore localStore,
             ILogger<MissingEpisodeService> logger)
         {
+            _localStore = localStore;
             _inheritance = inheritance;
             _castOverlay = castOverlay;
             _people = people;
@@ -210,13 +213,28 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             var prefix = _sourceResolver.ExtractPrefixFromId(seasonTag);
             var source = _sourceResolver.GetSourceByPrefix(prefix);
+            var sourceItemId = _sourceResolver.ExtractIdWithoutPrefix(seasonTag);
+
+            // A local season whose id is this season's tag brings its own episodes: it is the list, whatever the API
+            // offers (it is how an API without a list endpoint gets one). The episodes are then the local source's
+            // ("loc-abc" tags), not the API source's
+            string episodePrefix = null;
+            var overridden = source != null && !source.IsLocal ? _localStore?.FindOverride(seasonTag, "season") : null;
+            if (overridden != null)
+            {
+                _logger.LogInformation("🔎 [MISSING] {Tag}: episodes come from the local season '{Title}' of source '{Source}'",
+                    seasonTag, overridden.Value.Node.Title ?? overridden.Value.Node.Id, overridden.Value.Source.Name);
+                source = overridden.Value.Source;
+                sourceItemId = overridden.Value.Node.Id;
+                episodePrefix = source.Prefix?.Trim();
+            }
+
             if (source == null || string.IsNullOrWhiteSpace(source.EpisodeListEndpoint))
             {
                 // No source, or no list endpoint configured for this source: nothing to analyse
                 return null;
             }
 
-            var sourceItemId = _sourceResolver.ExtractIdWithoutPrefix(seasonTag);
             var seasonReport = new SeasonMissingReport
             {
                 SeriesId = season.SeriesId,
@@ -224,7 +242,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 SeasonId = season.Id,
                 SeasonName = season.Name,
                 SourceName = source.Name,
-                SourceItemId = seasonTag
+                SourceItemId = seasonTag,
+                EpisodePrefix = episodePrefix
             };
 
             var episodes = season.GetRecursiveChildren().OfType<Episode>().ToList();
@@ -1031,6 +1050,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public string SeasonName { get; set; }
         public string SourceName { get; set; }
         public string SourceItemId { get; set; }
+
+        /// <summary>Prefix of the episodes' tags when it is not the season's (a local season replaces the API's list), else null</summary>
+        public string EpisodePrefix { get; set; }
         public int LocalCount { get; set; }
         public int ApiCount { get; set; }
         public string Error { get; set; }

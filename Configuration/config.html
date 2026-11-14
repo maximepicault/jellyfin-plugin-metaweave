@@ -1819,7 +1819,8 @@
 
             function pad2(n) { return n == null ? '' : (n < 10 ? '0' : '') + n; }
             function currentPrefix() { return qs('#srcPrefix').value.trim() || 'préfixe'; }
-            function tagOf(node) { return '{' + currentPrefix() + '-' + node.Id + '}'; }
+            // An id like "dm-123" (series and seasons only) is the tag of an element of another source that this one overrides
+            function tagOf(node) { return /-/.test(node.Id) ? '{' + node.Id + '}' : '{' + currentPrefix() + '-' + node.Id + '}'; }
 
             // "Title {prefix-ID}" without the characters forbidden in a file name (same rule as the missing-episodes screen)
             function suggestedName(node) {
@@ -1932,6 +1933,11 @@
                     + '<button is="emby-button" type="button" class="raised" data-copy="tag"><span>Copier le tag</span></button>'
                     + '<button is="emby-button" type="button" class="raised" data-copy="name"><span>Copier le nom</span></button></div>'
                     + '<div class="cm-grid">'
+                    + (kind === 'episode' ? '' : '<div class="inputContainer cm-span"><label class="inputLabel" for="lf-NodeId">Identifiant</label>'
+                        + '<input is="emby-input" type="text" id="lf-NodeId" data-node-id value="' + escapeHtml(n.Id) + '" />'
+                        + '<div class="cm-hint">Généré, vous pouvez le changer (lettres, chiffres, _). Pour remplacer une ' + (kind === 'series' ? 'série' : 'saison')
+                        + ' d\'une source API, saisissez son tag sans accolades, par exemple <code>dm-123</code> : le contenu saisi ici est alors utilisé à sa place'
+                        + (kind === 'season' ? ' (y compris la liste des épisodes, même si l\'API n\'en propose pas)' : '') + '. Changer l\'identifiant d\'un élément déjà utilisé oblige à renommer son dossier.</div></div>')
                     + inputField('Titre', 'Title', n.Title, { span: true })
                     + areaField('Résumé', 'Overview', n.Overview)
                     + inputField('Date de sortie', 'PremiereDate', n.PremiereDate, { placeholder: 'AAAA-MM-JJ' });
@@ -2095,9 +2101,34 @@
                 }
             });
 
+            // New id of the selected series/season: letters, digits, _ , optionally "prefix-id" (override of an API element); unique
+            function renameNode(value) {
+                var hit = localSel ? findNode(localSel) : null;
+                if (!hit) { return; }
+                var id = String(value || '').trim();
+                var taken = false;
+                ((localContent && localContent.Series) || []).forEach(function(s) {
+                    var all = [s].concat(s.Seasons || []);
+                    (s.Seasons || []).forEach(function(season) { all = all.concat(season.Episodes || []); });
+                    all.forEach(function(node) { if (node !== hit.node && String(node.Id).toLowerCase() === id.toLowerCase()) { taken = true; } });
+                });
+                if (!/^\w{1,40}$/.test(id) && !/^\w{1,20}-\w{1,40}$/.test(id)) {
+                    Dashboard.alert('Identifiant invalide : lettres, chiffres et _ (40 caractères au plus), éventuellement sous la forme préfixe-id.');
+                } else if (taken) {
+                    Dashboard.alert('Cet identifiant est déjà utilisé dans cette source.');
+                } else if (id !== hit.node.Id) {
+                    if (localCollapsed[hit.node.Id]) { localCollapsed[id] = true; delete localCollapsed[hit.node.Id]; }
+                    hit.node.Id = id;
+                    localSel = id;
+                }
+                renderLocalTree();
+                renderLocalDetail();
+            }
+
             // Web address typed: the preview follows when the field loses focus
             qs('#localDetail').addEventListener('change', function(e) {
                 var t = e.target;
+                if (t.hasAttribute && t.hasAttribute('data-node-id')) { renameNode(t.value); return; }
                 if (t.hasAttribute && t.hasAttribute('data-file')) { uploadImage(t.getAttribute('data-file'), t.files && t.files[0]); t.value = ''; return; }
                 var box = t.closest && t.closest('[data-img-field]');
                 var hit = localSel ? findNode(localSel) : null;
