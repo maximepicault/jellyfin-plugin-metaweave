@@ -1822,14 +1822,20 @@
             }
 
             // ---- Recherche et tri ----
-            function findNode(id) {
+            // An element is designated by a KEY ("s:1234" series, "n:1234" season, "e:1234" episode): a series and its season may carry
+            // the same id (the API numbers them separately), so the id alone does not tell them apart
+            function nodeKey(kind, id) { return (kind === 'series' ? 's:' : (kind === 'season' ? 'n:' : 'e:')) + id; }
+
+            function findNode(key) {
+                key = String(key || '');
+                var kind = key.charAt(0), id = key.slice(2);
                 var found = null;
                 ((localContent && localContent.Series) || []).forEach(function(s) {
-                    if (s.Id === id) { found = { kind: 'series', node: s, list: localContent.Series }; }
+                    if (kind === 's' && s.Id === id) { found = { kind: 'series', node: s, list: localContent.Series }; }
                     (s.Seasons || []).forEach(function(season) {
-                        if (season.Id === id) { found = { kind: 'season', node: season, parent: s, list: s.Seasons }; }
+                        if (kind === 'n' && season.Id === id) { found = { kind: 'season', node: season, parent: s, list: s.Seasons }; }
                         (season.Episodes || []).forEach(function(e) {
-                            if (e.Id === id) { found = { kind: 'episode', node: e, parent: season, grand: s, list: season.Episodes }; }
+                            if (kind === 'e' && e.Id === id) { found = { kind: 'episode', node: e, parent: season, grand: s, list: season.Episodes }; }
                         });
                     });
                 });
@@ -1880,25 +1886,25 @@
                 if (!localContent) { tree.innerHTML = '<p class="cm-hint" style="margin: 8px;">Chargement…</p>'; return; }
                 var html = '<ul>';
                 localContent.Series.forEach(function(s) {
-                    var open = !localCollapsed[s.Id];
+                    var open = !localCollapsed[nodeKey('series', s.Id)];
                     html += '<li>' + treeRow(s, open, 'série', (s.Seasons || []).length + ' s.');
                     if (open) {
                         html += '<ul>';
                         (s.Seasons || []).forEach(function(season) {
-                            var openSeason = !localCollapsed[season.Id];
+                            var openSeason = !localCollapsed[nodeKey('season', season.Id)];
                             html += '<li>' + treeRow(season, openSeason, 'saison', (season.Episodes || []).length + ' ép.');
                             if (openSeason) {
                                 html += '<ul>';
                                 sortedEpisodes(season).forEach(function(e) {
-                                    html += '<li><div class="cm-t-row"><button type="button" class="cm-t-item" data-node="' + e.Id + '"' + (localSel === e.Id ? ' aria-current="true"' : '') + '>'
+                                    html += '<li><div class="cm-t-row"><button type="button" class="cm-t-item" data-node="' + nodeKey('episode', e.Id) + '"' + (localSel === nodeKey('episode', e.Id) ? ' aria-current="true"' : '') + '>'
                                         + '<span class="n num">' + escapeHtml(pad2(e.IndexNumber)) + '</span>'
                                         + '<span class="t' + (e.Title ? '' : ' untitled') + '">' + escapeHtml(e.Title || 'Épisode sans titre') + '</span></button></div></li>';
                                 });
-                                html += '<li><button type="button" class="cm-t-add" data-add="episode" data-parent="' + season.Id + '">＋ Épisode</button></li></ul>';
+                                html += '<li><button type="button" class="cm-t-add" data-add="episode" data-parent="' + nodeKey('season', season.Id) + '">＋ Épisode</button></li></ul>';
                             }
                             html += '</li>';
                         });
-                        html += '<li><button type="button" class="cm-t-add" data-add="season" data-parent="' + s.Id + '">＋ Saison</button></li></ul>';
+                        html += '<li><button type="button" class="cm-t-add" data-add="season" data-parent="' + nodeKey('series', s.Id) + '">＋ Saison</button></li></ul>';
                     }
                     html += '</li>';
                 });
@@ -1907,8 +1913,9 @@
             }
 
             function treeRow(node, open, kindLabel, count) {
-                return '<div class="cm-t-row"><button type="button" class="cm-t-chev" data-toggle-node="' + node.Id + '" aria-expanded="' + open + '" aria-label="' + (open ? 'Replier' : 'Déplier') + ' ' + kindLabel + ' ' + escapeHtml(node.Title || '') + '">' + (open ? '▾' : '▸') + '</button>'
-                    + '<button type="button" class="cm-t-item" data-node="' + node.Id + '"' + (localSel === node.Id ? ' aria-current="true"' : '') + '>'
+                var key = nodeKey(kindLabel === 'série' ? 'series' : 'season', node.Id);
+                return '<div class="cm-t-row"><button type="button" class="cm-t-chev" data-toggle-node="' + key + '" aria-expanded="' + open + '" aria-label="' + (open ? 'Replier' : 'Déplier') + ' ' + kindLabel + ' ' + escapeHtml(node.Title || '') + '">' + (open ? '▾' : '▸') + '</button>'
+                    + '<button type="button" class="cm-t-item" data-node="' + key + '"' + (localSel === key ? ' aria-current="true"' : '') + '>'
                     + '<span class="t' + (node.Title ? '' : ' untitled') + '">' + escapeHtml(node.Title || (kindLabel === 'série' ? 'Série sans titre' : 'Saison sans titre')) + '</span><span class="n">' + count + '</span></button></div>';
             }
 
@@ -2005,20 +2012,20 @@
                     html += '<div class="cm-bulk"><div><strong>Synchroniser avec l\'API</strong><div class="cm-hint">Récupère la liste des épisodes de ' + escapeHtml(tagOf(n))
                         + ' : les épisodes absents sont ajoutés avec leur identifiant d\'API. Un champ que vous ne modifiez pas continue de suivre l\'API ; seul ce que vous changez la remplace. Une nouvelle synchronisation met à jour les champs non modifiés et garde les vôtres. Rien n\'est enregistré avant « Enregistrer ».</div>'
                         + '<div class="cm-hint" id="lfSyncMsg" role="status"></div></div>'
-                        + '<button is="emby-button" type="button" class="raised" data-sync-episodes="' + n.Id + '"><span>Synchroniser la liste</span></button>'
-                        + '<button is="emby-button" type="button" class="raised" data-sync-episodes="' + n.Id + '" data-overwrite="1"><span>Remettre les valeurs de l\'API</span></button></div>';
+                        + '<button is="emby-button" type="button" class="raised" data-sync-episodes="' + nodeKey(kind, n.Id) + '"><span>Synchroniser la liste</span></button>'
+                        + '<button is="emby-button" type="button" class="raised" data-sync-episodes="' + nodeKey(kind, n.Id) + '" data-overwrite="1"><span>Remettre les valeurs de l\'API</span></button></div>';
                 }
 
                 if (kind === 'season') {
                     html += '<div class="cm-bulk"><div><strong>Ajouter plusieurs épisodes</strong><div class="cm-hint">Un titre par ligne. Les numéros suivent les épisodes existants.</div></div>'
                         + '<textarea id="lfBulk" rows="5" aria-label="Titres des épisodes à ajouter, un par ligne"></textarea>'
-                        + '<button is="emby-button" type="button" class="raised" data-bulk="' + n.Id + '"><span>Ajouter ces épisodes</span></button></div>';
+                        + '<button is="emby-button" type="button" class="raised" data-bulk="' + nodeKey(kind, n.Id) + '"><span>Ajouter ces épisodes</span></button></div>';
                 }
 
                 var children = kind === 'series' ? (n.Seasons || []).length : (kind === 'season' ? (n.Episodes || []).length : 0);
                 html += '<div class="cm-danger"><div><strong>Supprimer ' + (kind === 'episode' ? 'cet épisode' : (kind === 'season' ? 'cette saison' : 'cette série')) + '</strong>'
                     + '<span>' + (children ? 'Son contenu (' + children + (kind === 'series' ? ' saison(s)' : ' épisode(s)') + ') est supprimé avec elle. ' : '') + 'Pris en compte à l\'enregistrement.</span></div>'
-                    + '<button is="emby-button" type="button" class="raised" data-del="' + n.Id + '"><span>Supprimer…</span></button></div>';
+                    + '<button is="emby-button" type="button" class="raised" data-del="' + nodeKey(kind, n.Id) + '"><span>Supprimer…</span></button></div>';
                 qs('#localDetail').innerHTML = html;
             }
 
@@ -2035,12 +2042,12 @@
                 if (tag && hit) { tag.textContent = tagOf(hit.node); }
             }
 
-            function selectNode(id) {
-                localSel = id;
+            function selectNode(key) {
+                localSel = key;
                 // The parents of the chosen element are expanded
-                var hit = findNode(id);
-                if (hit && hit.parent) { delete localCollapsed[hit.parent.Id]; }
-                if (hit && hit.grand) { delete localCollapsed[hit.grand.Id]; }
+                var hit = findNode(key);
+                if (hit && hit.kind === 'season') { delete localCollapsed[nodeKey('series', hit.parent.Id)]; }
+                if (hit && hit.kind === 'episode') { delete localCollapsed[nodeKey('season', hit.parent.Id)]; delete localCollapsed[nodeKey('series', hit.grand.Id)]; }
                 renderLocalTree();
                 renderLocalDetail();
             }
@@ -2064,7 +2071,7 @@
                     season.Episodes.push(node);
                 }
                 markDirty();
-                selectNode(node.Id);
+                selectNode(nodeKey(kind, node.Id));
                 focusTitle();
             }
 
@@ -2129,7 +2136,7 @@
                     season.Episodes.push({ Id: newNodeId(), Title: title, Overview: '', PremiereDate: '', Tags: [], Genres: [], IndexNumber: next++ });
                 });
                 markDirty();
-                localCollapsed[seasonId] = false;
+                localCollapsed[seasonId] = false;   // seasonId is the season's key
                 renderLocalEditor();
             }
 
@@ -2207,10 +2214,14 @@
                 var hit = localSel ? findNode(localSel) : null;
                 if (!hit) { return; }
                 var id = String(value || '').trim();
+                // Unique among the elements of the SAME level: a series and its season may share an id
                 var taken = false;
                 ((localContent && localContent.Series) || []).forEach(function(s) {
-                    var all = [s].concat(s.Seasons || []);
-                    (s.Seasons || []).forEach(function(season) { all = all.concat(season.Episodes || []); });
+                    var all = hit.kind === 'series' ? [s] : [];
+                    (s.Seasons || []).forEach(function(season) {
+                        if (hit.kind === 'season') { all.push(season); }
+                        if (hit.kind === 'episode') { all = all.concat(season.Episodes || []); }
+                    });
                     all.forEach(function(node) { if (node !== hit.node && String(node.Id).toLowerCase() === id.toLowerCase()) { taken = true; } });
                 });
                 // The message stays under the field (a toast is easy to miss) and the field goes back to the id in use
@@ -2224,13 +2235,14 @@
                     return;
                 }
                 if (taken) {
-                    refuse('Identifiant refusé : il est déjà utilisé par un autre élément de cette source (série, saison ou épisode). L\'ancien identifiant est conservé.');
+                    refuse('Identifiant refusé : il est déjà utilisé par un autre élément du même niveau de cette source (une série et une saison peuvent en revanche porter le même). L\'ancien identifiant est conservé.');
                     return;
                 }
                 if (id !== hit.node.Id) {
-                    if (localCollapsed[hit.node.Id]) { localCollapsed[id] = true; delete localCollapsed[hit.node.Id]; }
+                    var oldKey = nodeKey(hit.kind, hit.node.Id), newKey = nodeKey(hit.kind, id);
+                    if (localCollapsed[oldKey]) { localCollapsed[newKey] = true; delete localCollapsed[oldKey]; }
                     hit.node.Id = id;
-                    localSel = id;
+                    localSel = newKey;
                     markDirty();
                 }
                 renderLocalTree();

@@ -83,7 +83,7 @@ try {
   await evalJs(`(function(){var c=Array.from(document.querySelectorAll('${C} .cm-card')).find(function(x){return x.textContent.indexOf('Locale test')>=0;}); if(c) c.querySelector('.raised').click(); return true;})()`); await wait(900);
   await mouseClick(`${C} [data-go="content"]`); await wait(600);
   const shown = await evalJs(`(Array.from(document.querySelectorAll('${C} #localTree .cm-t-item'))[0]||{getAttribute:function(){return null;}}).getAttribute('data-node')`);
-  check('reopened: the tree shows the saved id', shown === 'abc123', String(shown));
+  check('reopened: the tree shows the saved id', shown === 's:abc123', String(shown));
   await shot('S3-reopened');
 } finally {
   await rest('POST', `/Plugins/${PLUGIN}/Configuration`, original);

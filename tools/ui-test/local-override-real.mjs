@@ -101,6 +101,9 @@ try {
   check('an invalid id is replaced, not kept', bad.json?.Series?.[0]?.Id !== 'bad id!', bad.json?.Series?.[0]?.Id);
   const uuidLike = await api('PUT', `/CustomMetadata/Local/${DATA}`, { Version: 1, Series: [{ Id: '3f2a-91bc-77', Title: 'x', Seasons: [{ Id: 'dm-3f2a-91bc', Title: 'y', Episodes: [{ Id: 'dm-9c1e-04d2-ab', Title: 'z' }] }] }] });
   check('ids with several hyphens (UUIDs, slugs) are kept, not replaced', pick(uuidLike.json?.Series?.[0], 'Id') === '3f2a-91bc-77' && pick(pick(uuidLike.json?.Series?.[0], 'Seasons')?.[0], 'Id') === 'dm-3f2a-91bc' && pick(pick(pick(uuidLike.json?.Series?.[0], 'Seasons')?.[0], 'Episodes')?.[0], 'Id') === 'dm-9c1e-04d2-ab', JSON.stringify(uuidLike.json)?.slice(0, 250));
+  const sameId = await api('PUT', `/CustomMetadata/Local/${DATA}`, { Version: 1, Series: [{ Id: 'same', Title: 'x', Seasons: [{ Id: 'same', Title: 'y', Episodes: [{ Id: 'same', Title: 'z' }] }] }] });
+  const sSame = pick(sameId.json, 'Series')?.[0];
+  check('a series, its season and an episode may carry the same id (unique per level)', pick(sSame, 'Id') === 'same' && pick(pick(sSame, 'Seasons')?.[0], 'Id') === 'same' && pick(pick(pick(sSame, 'Seasons')?.[0], 'Episodes')?.[0], 'Id') === 'same', JSON.stringify(sameId.json)?.slice(0, 250));
   await api('PUT', `/CustomMetadata/Local/${DATA}`, put.json);
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
 

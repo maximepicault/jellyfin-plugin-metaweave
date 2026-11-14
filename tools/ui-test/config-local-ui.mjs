@@ -134,7 +134,7 @@ try {
   check('image: "Retirer" empties the field', (await ev(`document.querySelector('#lf-Thumb').value`)) === '' && !(await vis('[data-clear-img="Thumb"]')));
   await ev(`(function(){var dt=new DataTransfer(); dt.items.add(new File([new Uint8Array([255,216,255,224,0,16,74,70,73,70,0,1])],'b.jpg',{type:'image/jpeg'})); var i=document.querySelector('[data-file="Thumb"]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(400);
   const epId = await ev(`document.querySelector('#localTree [aria-current="true"]').getAttribute('data-node')`);
-  check('episode: {loc-id} tag shown', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-' + epId + '}');
+  check('episode: {loc-id} tag shown', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-' + epId.slice(2) + '}');
   check('episode: number 1 assigned', (await ev(`document.querySelector('#lf-IndexNumber').value`)) === '1');
   // saison : ajout en lot
   const seasonId = await ev(`document.querySelector('#localTree ul ul > li > .cm-t-row .cm-t-item').getAttribute('data-node')`);
@@ -151,37 +151,36 @@ try {
   check('id: field offered on a season', await vis('#lf-NodeId'));
   await setId('dm-123'); await wait(200);
   check('id: "prefix-id" accepted, the tag is the API element\'s', (await ev(`document.querySelector('#lfTag').textContent`)) === '{dm-123}' && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
-  check('id: the renamed season stays selected in the tree', (await ev(`document.querySelector('#localTree [aria-current="true"]').getAttribute('data-node')`)) === 'dm-123');
+  check('id: the renamed season stays selected in the tree', (await ev(`document.querySelector('#localTree [aria-current="true"]').getAttribute('data-node')`)) === 'n:dm-123');
   // Synchronise the episode list of the API season (button): add the missing ones, complete empty fields, never overwrite
   check('sync: button offered on a season with a "prefix-id" id', await vis('[data-sync-episodes]'));
   await click('[data-sync-episodes]'); await wait(300);
-  check('sync: 3 API episodes added with their API tag as id', (await ev(`Array.from(document.querySelectorAll('#localTree .cm-t-item')).filter(function(b){return /^dm-e/.test(b.getAttribute('data-node'));}).length`)) === 3);
+  check('sync: 3 API episodes added with their API tag as id', (await ev(`Array.from(document.querySelectorAll('#localTree .cm-t-item')).filter(function(b){return /^e:dm-e/.test(b.getAttribute('data-node'));}).length`)) === 3);
   check('sync: message says what was done', (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('3 ajoutés'));
-  await click('#localTree [data-node="dm-e1"]'); await wait(200);
+  await click('#localTree [data-node="e:dm-e1"]'); await wait(200);
   check('sync: imported episode shows the API tag and its data', (await ev(`document.querySelector('#lfTag').textContent`)) === '{dm-e1}' && (await ev(`document.querySelector('#lf-Title').value`)) === 'API 1' && (await ev(`document.querySelector('#lf-Duration').value`)) === '24:30');
   await type('#lf-Title', 'Mon titre');
-  await click('#localTree [data-node="dm-123"]'); await wait(200);
+  await click('#localTree [data-node="n:dm-123"]'); await wait(200);
   await click('[data-sync-episodes]:not([data-overwrite])'); await wait(300);
   check('sync again: nothing added, one episode updated, one with a kept change', (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('0 ajouté') && (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('1 mis à jour') && (await ev(`document.querySelector('#lfSyncMsg').textContent`)).includes('1 avec des champs modifiés'));
-  await click('#localTree [data-node="dm-e1"]'); await wait(200);
+  await click('#localTree [data-node="e:dm-e1"]'); await wait(200);
   check('sync again: the title I typed is kept', (await ev(`document.querySelector('#lf-Title').value`)) === 'Mon titre');
-  await click('#localTree [data-node="dm-e2"]'); await wait(200);
+  await click('#localTree [data-node="e:dm-e2"]'); await wait(200);
   check('sync again: an untouched field follows the API (title changed there)', (await ev(`document.querySelector('#lf-Title').value`)) === 'API 2 bis');
-  await click('#localTree [data-node="dm-123"]'); await wait(200);
+  await click('#localTree [data-node="n:dm-123"]'); await wait(200);
   await click('[data-overwrite]'); await wait(300);
-  await click('#localTree [data-node="dm-e1"]'); await wait(200);
+  await click('#localTree [data-node="e:dm-e1"]'); await wait(200);
   check('"Remettre les valeurs de l\'API" discards what I typed', (await ev(`document.querySelector('#lf-Title').value`)) === 'API 1');
-  for (const n of [1, 2, 3]) { await click(`#localTree [data-node="dm-e${n}"]`); await wait(150); await click(`#localDetail [data-del="dm-e${n}"]`); await wait(200); }
-  await click('#localTree [data-node="dm-123"]'); await wait(200);
+  for (const n of [1, 2, 3]) { await click(`#localTree [data-node="e:dm-e${n}"]`); await wait(150); await click(`#localDetail [data-del="e:dm-e${n}"]`); await wait(200); }
+  await click('#localTree [data-node="n:dm-123"]'); await wait(200);
   await setId('not valid!'); await wait(200);
   check('id: an invalid id is refused with a message under the field and the id is kept', (await ev(`document.querySelector('#lfIdMsg').textContent`)).includes('refusé') && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
-  await setId(epId); await wait(200);
-  check('id: an id already used is refused', (await ev(`document.querySelector('#lfIdMsg').textContent`)).includes('déjà utilisé') && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
+  await click('#localTree [data-node="n:dm-123"]'); await wait(200);
   await ev(`__mock.alerts.length = 0; true`);
   await setId('3f2a-91bc-77'); await wait(200);
   check('id: an API-style id with several hyphens is accepted and tagged with the source prefix', (await ev(`document.querySelector('#lf-NodeId').value`)) === '3f2a-91bc-77' && (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-3f2a-91bc-77}', await ev(`document.querySelector('#lfTag').textContent`));
-  await setId(seasonId); await wait(200);
-  check('id: renamed back, the tag is the source\'s again', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-' + seasonId + '}');
+  await setId(seasonId.slice(2)); await wait(200);
+  check('id: renamed back, the tag is the source\'s again', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-' + seasonId.slice(2) + '}');
   await click(`#localTree [data-node="${epId}"]`); await wait(200);
   check('id: no field on an episode', !(await vis('#lf-NodeId')));
   // Series id: changed, shown in the tag, kept after saving
@@ -189,7 +188,23 @@ try {
   await click(`#localTree [data-node="${seriesNode}"]`); await wait(200);
   check('series id: the field is offered on a series', await vis('#lf-NodeId'));
   await setId('ser1'); await wait(200);
-  check('series id: renamed (tag, selection)', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-ser1}' && (await ev(`document.querySelector('#localTree [aria-current="true"]').getAttribute('data-node')`)) === 'ser1');
+  check('series id: renamed (tag, selection)', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-ser1}' && (await ev(`document.querySelector('#localTree [aria-current="true"]').getAttribute('data-node')`)) === 's:ser1');
+  // A series and its season may carry the same id (the API numbers them separately)
+  await click(`#localTree [data-node="${seasonId}"]`); await wait(200);
+  await setId('ser1'); await wait(200);
+  check('id: a season may carry the same id as its series', (await ev(`document.querySelector('#lf-NodeId').value`)) === 'ser1' && !(await ev(`document.querySelector('#lfIdMsg').textContent`)));
+  check('id: both are still there and told apart in the tree', (await ev(`document.querySelectorAll('#localTree .cm-t-item[data-node="s:ser1"], #localTree .cm-t-item[data-node="n:ser1"]').length`)) === 2);
+  check('id: the season keeps its own form (not the series\')', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-ser1}' && (await vis('[data-bulk]')));
+  await click('#localTree [data-node="s:ser1"]'); await wait(200);
+  check('id: selecting the series shows the series, not the season', !(await vis('[data-bulk]')));
+  await setId('ser1'); await wait(200);
+  await click('#localTree [data-node="n:ser1"]'); await wait(200);
+  await setId(seasonId.slice(2)); await wait(200);
+  // Two seasons cannot share an id (same level): a second season is refused the first one's id, then removed
+  await click('#localTree [data-add="season"]'); await wait(250);
+  await setId(seasonId.slice(2)); await wait(200);
+  check('id: an id already used at the same level is refused', (await ev(`document.querySelector('#lfIdMsg').textContent`)).includes('déjà utilisé'));
+  await click('#localDetail [data-del]'); await wait(250);
   check('Contenu section counter', (await ev(`document.querySelector('[data-count-for="content"]').textContent`)) === '4 épisodes');
   await click(`#localTree [data-node="${epId}"]`); await wait(200);
   await shot('L4-content-1440');
