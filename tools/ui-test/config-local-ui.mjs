@@ -140,13 +140,16 @@ try {
   check('gallery: an address is added with its type', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)) === 1 && (await ev(`document.querySelector('#lfGallery .cm-gal-meta span').textContent`)) === 'Miniature');
   await ev(`(function(){var dt=new DataTransfer(); ['b.jpg','c.png'].forEach(function(n){dt.items.add(new File([new Uint8Array([255,216,255,224,0,16,74,70,73,70,0,1])],n,{type:'image/jpeg'}));}); var i=document.querySelector('[data-gal-file]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(900);
   check('gallery: several files are sent and added', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)) === 3, String(await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)));
-  await click('#lfGallery [data-gal-del="0"]'); await wait(250);
+  await click('#lfGallery [data-gal-sel="0"]'); await wait(250);
+  check('gallery: clicking an image selects it and enables the buttons', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-selected').length`)) === 1 && (await ev(`document.querySelector('[data-gal-act="remove"]').disabled`)) === false);
+  await click('[data-gal-act="remove"]'); await wait(250);
   check('gallery: "Retirer" removes one', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)) === 2);
   // make a gallery image the default: it swaps with the previous default (the Thumb field holds an uploaded file here)
   const thumbBefore = await ev(`document.querySelector('#lf-Thumb').disabled`);
   check('default: the current default is shown first with its badge', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-default').length`)) === 1 && (await ev(`document.querySelector('#lfGallery .cm-gal-badge').textContent`)) === 'Par défaut');
-  await click('#lfGallery [data-gal-default="0"]'); await wait(300);
-  check('default: the gallery image became the default and the old one took its place', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)) === 2 && (await ev(`document.querySelectorAll('#lfGallery [data-gal-default]').length`)) === 2);
+  await click('#lfGallery [data-gal-sel="0"]'); await wait(250);
+  await click('[data-gal-act="default"]'); await wait(300);
+  check('default: the selected image became the default and the old one took its place', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-pick').length`)) === 2 && (await ev(`document.querySelector('#lfGallery .cm-gal-default .cm-imgprev img') !== null`)));
   await click('[data-apply-images]'); await wait(600);
   const applied = JSON.parse(await ev(`JSON.stringify(__mock.refresh)`));
   check('apply images: the request targets the tag, replaces images, episode only', /^[a-z]+-[a-z0-9]{6}$/i.test(applied.Tag) && applied.ReplaceImages === true && JSON.stringify(applied.Types) === '["episode"]' && applied.IncludeChildren === false, JSON.stringify(applied));
@@ -158,9 +161,18 @@ try {
   check('folders: the series form offers the import and names the folders', (await vis('[data-gal-folders]')) && (await ev(`document.querySelector('#lfGallery').textContent`)).includes('Primary'));
   await click('[data-gal-folders]'); await wait(500);
   check('folders: the request carries the tag and the data id', (await ev(`__mock.calls.filter(function(c){return c.indexOf('FOLDER-IMPORT')===0;})[0]`)).includes('"Tag":"loc-'));
-  check('folders: two images imported with their types', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 image(s) importée(s)'));
+  check('folders: two images imported with their types', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 image(s) importée(s)'));
   await click('[data-gal-folders]'); await wait(500);
-  check('folders: a second import adds nothing', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 déjà présente(s)'));
+  check('folders: a second import adds nothing', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 déjà présente(s)'));
+  check('default: with no default field, the first image of each type carries the badge', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-badge').length`)) === 2);
+  await click('#lfGallery .cm-gal-pick'); await wait(200);
+  check('default: the image that already is the default cannot be chosen again', (await ev(`document.querySelector('[data-gal-act="default"]').disabled`)) === true);
+  // a second Primary image: select it and make it the default (no default field: it moves to the first place of its type)
+  await ev(`document.querySelector('#lfGalType').value='Primary'; true`);
+  await type('#lfGalUrl', 'https://img.test/second.jpg'); await click('[data-gal-url]'); await wait(250);
+  await click('#lfGallery .cm-gal-pick:last-of-type'); await wait(200);
+  await click('[data-gal-act="default"]'); await wait(250);
+  check('default: another image can become the first one of its type', (await ev(`var f=document.querySelector('#lfGallery .cm-gal-pick'); f.classList.contains('cm-gal-default') && f.classList.contains('cm-gal-selected') && f.querySelector('.cm-gal-meta span').textContent==='Affiche'`)) === true);
   await shot('L3d-gallery-folders-1440');
   await click('#localTree [data-node^="e:"]'); await wait(300);
   await click('[data-clear-img="Thumb"]'); await wait(200);
