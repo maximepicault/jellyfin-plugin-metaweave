@@ -519,13 +519,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var merged = api.ToList();
             foreach (var item in local)
             {
-                var overridesApi = item.Id.StartsWith(apiPrefix + "-", StringComparison.OrdinalIgnoreCase);
-                var target = overridesApi
-                    ? merged.FirstOrDefault(e => string.Equals(e.Id, item.Id.Substring(apiPrefix.Length + 1), StringComparison.OrdinalIgnoreCase))
-                    : null;
+                // "dm-a1v4" names the API episode "a1v4"; a plain id of a local source sharing the API's prefix does too
+                var sharesPrefix = string.Equals(localSource.Prefix?.Trim(), apiPrefix, StringComparison.OrdinalIgnoreCase);
+                var apiId = item.Id.StartsWith(apiPrefix + "-", StringComparison.OrdinalIgnoreCase)
+                    ? item.Id.Substring(apiPrefix.Length + 1)
+                    : (sharesPrefix && !item.Id.Contains('-') ? item.Id : null);
+                var target = apiId == null
+                    ? null
+                    : merged.FirstOrDefault(e => string.Equals(e.Id, apiId, StringComparison.OrdinalIgnoreCase));
                 if (target == null)
                 {
-                    item.Key = overridesApi || item.Id.Contains('-') ? item.Id : $"{localSource.Prefix.Trim()}-{item.Id}";
+                    item.Key = apiId != null ? $"{apiPrefix}-{apiId}" : (item.Id.Contains('-') ? item.Id : $"{localSource.Prefix.Trim()}-{item.Id}");
                     merged.Add(item);
                     continue;
                 }

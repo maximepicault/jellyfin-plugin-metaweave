@@ -1835,6 +1835,13 @@
             }
 
             function pad2(n) { return n == null ? '' : (n < 10 ? '0' : '') + n; }
+            // An API source with the same prefix as this local source: the local data is then laid over it, with the API's plain ids
+            function apiSharesPrefix() {
+                var mine = currentPrefix().toLowerCase();
+                return ((currentConfig && currentConfig.Sources) || []).some(function(s) {
+                    return (!s.SourceType || s.SourceType === 'Api') && s.Enabled !== false && String(s.Prefix || '').trim().toLowerCase() === mine;
+                });
+            }
             function currentPrefix() { return qs('#srcPrefix').value.trim() || 'préfixe'; }
             // An id like "dm-123" (series and seasons only) is the tag of an element of another source that this one overrides
             function tagOf(node) { return /-/.test(node.Id) ? '{' + node.Id + '}' : '{' + currentPrefix() + '-' + node.Id + '}'; }
@@ -1952,8 +1959,8 @@
                     + '<div class="cm-grid">'
                     + (kind === 'episode' ? '' : '<div class="inputContainer cm-span"><label class="inputLabel" for="lf-NodeId">Identifiant</label>'
                         + '<input is="emby-input" type="text" id="lf-NodeId" data-node-id value="' + escapeHtml(n.Id) + '" />'
-                        + '<div class="cm-hint">Généré, vous pouvez le changer (lettres, chiffres, _). Pour remplacer une ' + (kind === 'series' ? 'série' : 'saison')
-                        + ' d\'une source API, saisissez son tag sans accolades, par exemple <code>dm-123</code> : le contenu saisi ici est alors utilisé à sa place'
+                        + '<div class="cm-hint">Généré, vous pouvez le changer (lettres, chiffres, _). Pour compléter ou remplacer une ' + (kind === 'series' ? 'série' : 'saison')
+                        + ' d\'une source API : si cette source locale a le <strong>même préfixe</strong> que la source API, saisissez simplement son identifiant (<code>123</code>) ; sinon son tag sans accolades (<code>dm-123</code>). L\'API est interrogée en premier, le contenu saisi ici s\'applique par-dessus'
                         + (kind === 'season' ? ' (y compris la liste des épisodes, même si l\'API n\'en propose pas)' : '') + '. Changer l\'identifiant d\'un élément déjà utilisé oblige à renommer son dossier.</div></div>')
                     + inputField('Titre', 'Title', n.Title, { span: true })
                     + areaField('Résumé', 'Overview', n.Overview)
@@ -1977,7 +1984,7 @@
                 html += '</div>';
                 if (kind === 'episode') { html += castBlock(n); }
 
-                if (kind === 'season' && /-/.test(n.Id)) {
+                if (kind === 'season' && (/-/.test(n.Id) || apiSharesPrefix())) {
                     html += '<div class="cm-bulk"><div><strong>Synchroniser avec l\'API</strong><div class="cm-hint">Récupère la liste des épisodes de ' + escapeHtml(tagOf(n))
                         + ' : les épisodes absents sont ajoutés avec leur identifiant d\'API. Un champ que vous ne modifiez pas continue de suivre l\'API ; seul ce que vous changez la remplace. Une nouvelle synchronisation met à jour les champs non modifiés et garde les vôtres. Rien n\'est enregistré avant « Enregistrer ».</div>'
                         + '<div class="cm-hint" id="lfSyncMsg" role="status"></div></div>'
@@ -2057,7 +2064,7 @@
                 say('Récupération de la liste…');
                 ApiClient.ajax({
                     type: 'POST', url: ApiClient.getUrl('CustomMetadata/Local/ImportEpisodes'),
-                    data: JSON.stringify({ Tag: season.Id }), contentType: 'application/json', dataType: 'json'
+                    data: JSON.stringify({ Tag: season.Id.indexOf('-') >= 0 ? season.Id : currentPrefix() + '-' + season.Id }), contentType: 'application/json', dataType: 'json'
                 }).then(function(list) {
                     season.Episodes = season.Episodes || [];
                     var added = 0, refreshed = 0, kept = 0;

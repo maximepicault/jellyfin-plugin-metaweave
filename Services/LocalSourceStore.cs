@@ -513,27 +513,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// </summary>
         public (SourceConfiguration Source, LocalNode Node)? FindOverride(string tag, string kind)
         {
-            if (string.IsNullOrWhiteSpace(tag) || !OverrideId.IsMatch(tag.Trim()))
+            tag = (tag ?? string.Empty).Trim();
+            var dash = tag.IndexOf('-');
+            if (dash <= 0 || dash == tag.Length - 1)
             {
                 return null;
             }
 
-            tag = tag.Trim();
-            var prefix = tag.Substring(0, tag.IndexOf('-'));
+            var prefix = tag.Substring(0, dash);
+            var idPart = tag.Substring(dash + 1);
             foreach (var source in Plugin.Instance?.Configuration?.Sources?.Where(s => s.IsLocal && s.Enabled && !string.IsNullOrEmpty(s.LocalDataId)) ?? Enumerable.Empty<SourceConfiguration>())
             {
-                if (string.Equals((source.Prefix ?? string.Empty).Trim(), prefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
+                // A local source with the SAME prefix as the tag lays its data over the API source of that prefix: its node
+                // carries the API's plain id ("1234"). Any local source may also name the full tag ("dm-1234").
+                var samePrefix = string.Equals((source.Prefix ?? string.Empty).Trim(), prefix, StringComparison.OrdinalIgnoreCase);
                 var content = Load(source.LocalDataId);
                 IEnumerable<LocalNode> nodes = kind == "series"
                     ? content.Series
                     : kind == "season"
                         ? content.Series.SelectMany(s => s.Seasons)
                         : content.Series.SelectMany(s => s.Seasons).SelectMany(s => s.Episodes);
-                var node = nodes.FirstOrDefault(n => IdEquals(n.Id, tag));
+                var node = nodes.FirstOrDefault(n => IdEquals(n.Id, tag) || (samePrefix && IdEquals(n.Id, idPart)));
                 if (node != null)
                 {
                     return (source, node);

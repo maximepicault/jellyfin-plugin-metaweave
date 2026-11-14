@@ -132,6 +132,30 @@ try {
   check('B: an imported episode left untouched follows the live API title, not the old copy', !!byTag('dm-a1v5') && !!pick(byTag('dm-a1v5'), 'Title') && pick(byTag('dm-a1v5'), 'Title') !== 'Ancien titre', JSON.stringify(pick(byTag('dm-a1v5'), 'Title')));
   check('B: an API episode not named locally is untouched', !!byTag('dm-a1v6') && !!pick(byTag('dm-a1v6'), 'Title'));
   check('B: the added episode is listed under the local source tag', pick(byTag('ov-x1'), 'Title') === 'Épisode ajouté', JSON.stringify(missB.map(m => pick(m, 'Tag'))));
+  // Phase C: the local source has the SAME prefix as the API ("dm") and plain ids (a1, a1v4): the API is called first, the local data goes over it
+  config.Sources.find(x => x.Prefix === 'ov').Prefix = 'dm';
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
+  await api('PUT', `/CustomMetadata/Local/${DATA}`, {
+    Version: 1,
+    Series: [{ Id: 'aventuriers', Title: 'Aventuriers même préfixe', Seasons: [{
+      Id: 'a1', Overview: 'Résumé de la saison, même préfixe',
+      Episodes: [{ Id: 'a1v4', Title: 'Quatrième même préfixe' }]
+    }] }]
+  });
+  const seriesC = await find('Series', n => /aventuriers/i.test(n));
+  const seasonC = await find('Season', n => /saison 2024|saison locale|2024/i.test(n));
+  await refresh(seriesC.Id);
+  await refresh(seasonC.Id);
+  const sC = await item(seriesC.Id), nC = await item(seasonC.Id);
+  check('C: same prefix - series takes the local title', sC.Name === 'Aventuriers même préfixe', sC.Name);
+  check('C: same prefix - season keeps the API title where the local one is empty', nC.Name === 'Saison 2024', nC.Name);
+  check('C: same prefix - season takes the local overview', /même préfixe/.test(nC.Overview || ''), nC.Overview);
+  await analyze();
+  const reportC = pick((await api('GET', '/CustomMetadata/MissingEpisodes')).json, 'Report');
+  const rc = (pick(reportC, 'Seasons') || []).find(x => pick(x, 'SourceItemId') === 'dm-a1');
+  const missC = pick(rc, 'Missing') || [];
+  check('C: same prefix - every API episode is still listed', pick(rc, 'ApiCount') === list.length, JSON.stringify(pick(rc, 'ApiCount')));
+  check('C: same prefix - the plain local id overrides the API episode', pick(missC.find(m => pick(m, 'Tag') === 'dm-a1v4'), 'Title') === 'Quatrième même préfixe', JSON.stringify(missC.map(m => pick(m, 'Tag') + ':' + pick(m, 'Title'))));
 } finally {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, original);
   await api('DELETE', `/CustomMetadata/Local/${DATA}`);

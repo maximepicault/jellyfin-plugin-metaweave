@@ -83,8 +83,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public List<CastCatalogSeries> Build()
         {
             var sources = Plugin.Instance?.Configuration?.Sources ?? new List<Configuration.SourceConfiguration>();
+            // A local source sharing its prefix with an API source only lays its data over it: that prefix stays listed
+            var apiPrefixes = new HashSet<string>(
+                sources.Where(s => !s.IsLocal && !s.IsPeople).Select(s => (s.Prefix ?? string.Empty).Trim().ToLowerInvariant()),
+                StringComparer.Ordinal);
             var skipPrefixes = new HashSet<string>(
-                sources.Where(s => s.IsLocal || s.IsPeople).Select(s => (s.Prefix ?? string.Empty).Trim().ToLowerInvariant()),
+                sources.Where(s => s.IsLocal || s.IsPeople).Select(s => (s.Prefix ?? string.Empty).Trim().ToLowerInvariant()).Where(p => !apiPrefixes.Contains(p)),
                 StringComparer.Ordinal);
 
             var episodes = _libraryManager.GetItemList(new InternalItemsQuery
