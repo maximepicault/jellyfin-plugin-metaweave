@@ -157,13 +157,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     cancellationToken.ThrowIfCancellationRequested();
                     progress?.Report(100.0 * i / Math.Max(1, seasons.Count));
 
-                    var seasonReport = await AnalyzeSeasonAsync(
-                        seasons[i],
-                        createVirtual,
-                        ignoreCache,
-                        virtualBySeason.TryGetValue(seasons[i].Id, out var seasonVirtual) ? seasonVirtual : new List<Episode>(),
-                        totals,
-                        cancellationToken);
+                    SeasonMissingReport seasonReport;
+                    try
+                    {
+                        seasonReport = await AnalyzeSeasonAsync(
+                            seasons[i],
+                            createVirtual,
+                            ignoreCache,
+                            virtualBySeason.TryGetValue(seasons[i].Id, out var seasonVirtual) ? seasonVirtual : new List<Episode>(),
+                            totals,
+                            cancellationToken);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        // One season failing (a Jellyfin database error, say) must not stop the analysis of the others
+                        _logger.LogError(ex, "🔎 [MISSING] ❌ Season '{Season}' of '{Series}' could not be analysed: {Message} - skipped", seasons[i].Name, seasons[i].SeriesName, ex.Message);
+                        totals.Failed++;
+                        continue;
+                    }
+
                     if (seasonReport != null)
                     {
                         report.Seasons.Add(seasonReport);
@@ -182,9 +194,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 report.Removed = totals.Removed;
 
                 _logger.LogInformation(
-                    "🔎 [MISSING] ========== Analysis done in {Duration}s: {Seasons} seasons, {Missing} missing — virtual episodes: {Created} created, {Updated} updated, {Unchanged} unchanged (cache), {Removed} removed ==========",
+                    "🔎 [MISSING] ========== Analysis done in {Duration}s: {Seasons} seasons, {Missing} missing — virtual episodes: {Created} created, {Updated} updated, {Unchanged} unchanged (cache), {Removed} removed{Failed} ==========",
                     report.DurationSeconds, report.Seasons.Count, report.Seasons.Sum(s => s.Missing.Count),
-                    totals.Created, totals.Updated, totals.Unchanged, totals.Removed);
+                    totals.Created, totals.Updated, totals.Unchanged, totals.Removed,
+                    totals.Failed > 0 ? $", {totals.Failed} FAILED (see the warnings above)" : string.Empty);
 
                 _lastReport = report;
                 SaveReport(report);
@@ -312,6 +325,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             totals.Updated += stats.Updated;
             totals.Unchanged += stats.Unchanged;
             totals.Removed += stats.Removed;
+            totals.Failed += stats.Failed;
 
             return seasonReport;
         }
@@ -355,8 +369,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             foreach (var orphan in orphans)
             {
                 _logger.LogInformation("🔎 [MISSING] Removing orphan virtual episode '{Name}' ({Id})", orphan.Name, orphan.Id);
-                DeleteVirtualEpisode(orphan, season);
-                stats.Removed++;
+                if (DeleteVirtualEpisode(orphan, season)) { stats.Removed++; } else { stats.Failed++; }
             }
 
             var kept = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -365,8 +378,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 if (!wantedByKey.TryGetValue(key, out var item))
                 {
                     _logger.LogInformation("🔎 [MISSING] Removing virtual episode '{Name}' ({Key})", episode.Name, key);
-                    DeleteVirtualEpisode(episode, season);
-                    stats.Removed++;
+                    if (DeleteVirtualEpisode(episode, season)) { stats.Removed++; } else { stats.Failed++; }
                     continue;
                 }
 
@@ -491,15 +503,30 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
         }
 
-        private void DeleteVirtualEpisode(Episode episode, Season season)
+        /// <summary>
+        /// Deletes a virtual episode and its preview. Returns false (and logs) when Jellyfin refuses: its database can reject the
+        /// move of a play history to the "deleted items" placeholder (UNIQUE constraint on UserData). One refusal must not
+        /// stop the analysis, the episode stays and the next one is tried.
+        /// </summary>
+        private bool DeleteVirtualEpisode(Episode episode, Season season)
         {
-            // Extras are not deleted together with their owner
-            foreach (var preview in GetOurPreviews(episode))
+            try
             {
-                _libraryManager.DeleteItem(preview, new DeleteOptions { DeleteFileLocation = false });
-            }
+                // Extras are not deleted together with their owner
+                foreach (var preview in GetOurPreviews(episode))
+                {
+                    _libraryManager.DeleteItem(preview, new DeleteOptions { DeleteFileLocation = false });
+                }
 
-            _libraryManager.DeleteItem(episode, new DeleteOptions { DeleteFileLocation = false }, season, false);
+                _libraryManager.DeleteItem(episode, new DeleteOptions { DeleteFileLocation = false }, season, false);
+                return true;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "🔎 [MISSING] ⚠️ Could not remove virtual episode '{Name}' ({Id}): {Message}. It is left in place; a Jellyfin database error that mentions UserData means its play history clashes with an earlier deletion",
+                    episode.Name, episode.Id, ex.Message);
+                return false;
+            }
         }
 
         /// <summary>
@@ -854,7 +881,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 _logger.LogInformation("🎞️ [PREVIEW] Removing preview {Url} of '{Name}'", old.Path, episode.Name);
                 episode.ExtraIds = episode.ExtraIds.Where(id => !id.Equals(old.Id)).ToArray();
-                _libraryManager.DeleteItem(old, new DeleteOptions { DeleteFileLocation = false });
+                try
+                {
+                    _libraryManager.DeleteItem(old, new DeleteOptions { DeleteFileLocation = false });
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "🎞️ [PREVIEW] ⚠️ Could not remove preview {Url} of '{Name}': {Message}", old.Path, episode.Name, ex.Message);
+                }
+
                 changed = true;
             }
 
@@ -1023,6 +1058,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             public int Updated { get; set; }
             public int Unchanged { get; set; }
             public int Removed { get; set; }
+            public int Failed { get; set; }
         }
 
         /// <summary>
