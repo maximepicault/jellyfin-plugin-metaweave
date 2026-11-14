@@ -56,6 +56,8 @@ class H(BaseHTTPRequestHandler):
             name, bio = PEOPLE[m[1]]
             return self.send(200, {"name": name, "photo": f"/img/{m[1]}.jpg", "bio": bio})   # RELATIVE photo: completed with the base URL
         m = re.fullmatch(r"/series/(\w+)", p)
+        if m and m[1] == "bigimg":   # a poster of several MB: the source test must show it reduced, not refuse it
+            return self.send(200, {"id": "bigimg", "title": "Grande affiche", "poster": f"{BASE}/img/big.jpg"})
         if m and m[1] in SERIES:
             return self.send(200, {"id": m[1], "title": SERIES[m[1]]["title"], "overview": "Série de démonstration.", "poster": f"{BASE}/img/{m[1]}.jpg"})
         m = re.fullmatch(r"/sources/(\w+)/videos", p)
