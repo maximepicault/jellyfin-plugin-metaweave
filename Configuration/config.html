@@ -330,6 +330,12 @@
         #CustomMetadataConfigPage .cm-gal-item { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--cm-border); border-radius: 6px; background: var(--cm-surface-2); font-size: 12px; }
         #CustomMetadataConfigPage .cm-gal-item .cm-imgprev { flex: none; width: 100%; height: 90px; }
         #CustomMetadataConfigPage .cm-gal-default { border-color: var(--cm-accent); }
+        #CustomMetadataConfigPage .cm-gal-pick { cursor: pointer; }
+        #CustomMetadataConfigPage .cm-gal-pick:hover { background: rgba(255, 255, 255, 0.08); }
+        #CustomMetadataConfigPage .cm-gal-selected { outline: 3px solid #fff; outline-offset: 1px; }
+        #CustomMetadataConfigPage .cm-gal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+        #CustomMetadataConfigPage .cm-gal-actions .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-gal-actions .cm-hint { flex: 1; min-width: 160px; }
         #CustomMetadataConfigPage .cm-gal-badge { padding: 1px 8px; border-radius: 10px; background: var(--cm-accent); color: #000; font-weight: 600; }
         #CustomMetadataConfigPage .cm-gal-meta > span:last-child { display: inline-flex; gap: 12px; }
         #CustomMetadataConfigPage .cm-gal-meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
@@ -2073,6 +2079,7 @@
                     + '<textarea id="lf-' + field + '" data-f="' + field + '" rows="4">' + escapeHtml(value || '') + '</textarea></div>';
             }
 
+            var galSel = null;   // {key, i}: the gallery image selected in the editor
             var GALLERY_FIELD = { Primary: 'Poster', Backdrop: 'Backdrop', Logo: 'Logo', Banner: 'Banner', Thumb: 'Thumb' };
             var GALLERY_LABELS = { Primary: 'Affiche', Backdrop: 'Fond', Logo: 'Logo', Banner: 'Bannière', Thumb: 'Miniature' };
             function galleryTypes(kind) { return kind === 'episode' ? ['Thumb', 'Primary'] : (kind === 'season' ? ['Primary', 'Backdrop', 'Thumb'] : ['Primary', 'Backdrop', 'Logo', 'Banner', 'Thumb']); }
@@ -2083,8 +2090,11 @@
                 var html = '<div class="cm-gallery cm-span" id="lfGallery"><div><strong>Galerie d\'images</strong><div class="cm-hint">Toutes ces images sont proposées, avec aperçu, dans « Modifier les images » de Jellyfin : plus besoin de les ranger dans les dossiers de la série. Les champs ci-dessus restent les images appliquées par défaut. Les <strong>fonds</strong> forment un diaporama : « Appliquer les images » les applique tous ; pour les autres types, seule l\'image par défaut est retenue.'
                     + (kind === 'episode' ? '' : '<br>Vous pouvez aussi déposer des images dans des <strong>sous-dossiers du dossier ' + (kind === 'series' ? 'de la série' : 'de la saison') + '</strong> nommés <code>Primary</code>, <code>Backdrop</code>, <code>Logo</code>, <code>Banner</code> ou <code>Thumb</code> (ou Principal, Fond, Bannière, Miniature) : elles sont proposées dans « Modifier les images » sans rien faire de plus. « Importer depuis les dossiers » les copie en plus dans cette galerie.')
                     + '</div></div>';
-                // The default images (the single fields above) come first, then the other images with a button to make one the default
-                var defaults = galleryTypes(kind).filter(function(t) { return n[GALLERY_FIELD[t]]; }).map(function(t) {
+                // Default image of a type: the single field above when it is filled, otherwise the FIRST gallery image of that type
+                var types = galleryTypes(kind), firstOf = {};
+                types.forEach(function(t) { if (!n[GALLERY_FIELD[t]]) { for (var k = 0; k < list.length; k++) { if (list[k].Type === t) { firstOf[t] = k; break; } } } });
+                var selected = galSel && galSel.key === localSel && list[galSel.i] ? galSel.i : -1;
+                var defaults = types.filter(function(t) { return n[GALLERY_FIELD[t]]; }).map(function(t) {
                     var src = imagePreviewUrl(n[GALLERY_FIELD[t]]);
                     return '<div class="cm-gal-item cm-gal-default"><div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
                         + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[t]) + '</span><span class="cm-gal-badge">' + (t === 'Backdrop' ? 'Premier' : 'Par défaut') + '</span></div></div>';
@@ -2092,11 +2102,16 @@
                 if (defaults.length || list.length) {
                     html += '<div class="cm-gal-list">' + defaults.join('') + list.map(function(g, i) {
                         var src = imagePreviewUrl(g.Url);
-                        return '<div class="cm-gal-item"><div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
-                            + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[g.Type] || g.Type) + '</span><span>'
-                            + '<button type="button" class="cm-linkbtn" data-gal-default="' + i + '" title="' + (g.Type === 'Backdrop' ? 'Place ce fond en premier' : 'Utiliser cette image comme image par défaut') + '">' + (g.Type === 'Backdrop' ? 'En premier' : 'Par défaut') + '</button> '
-                            + '<button type="button" class="cm-linkbtn" data-gal-del="' + i + '">Retirer</button></span></div></div>';
+                        var isDefault = firstOf[g.Type] === i;
+                        return '<div class="cm-gal-item cm-gal-pick' + (i === selected ? ' cm-gal-selected' : '') + (isDefault ? ' cm-gal-default' : '') + '" data-gal-sel="' + i + '" role="button" tabindex="0" aria-pressed="' + (i === selected) + '">'
+                            + '<div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
+                            + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[g.Type] || g.Type) + '</span>' + (isDefault ? '<span class="cm-gal-badge">' + (g.Type === 'Backdrop' ? 'Premier' : 'Par défaut') + '</span>' : '') + '</div></div>';
                     }).join('') + '</div>';
+                    var chosen = selected >= 0 ? list[selected] : null;
+                    var chosenIsDefault = chosen && firstOf[chosen.Type] === selected;
+                    html += '<div class="cm-gal-actions"><span class="cm-hint" style="margin:0;">' + (chosen ? 'Image sélectionnée : ' + escapeHtml(GALLERY_LABELS[chosen.Type]) : 'Cliquez sur une image pour la sélectionner.') + '</span>'
+                        + '<button is="emby-button" type="button" class="raised" data-gal-act="default"' + (!chosen || chosenIsDefault ? ' disabled' : '') + '><span>' + (chosen && chosen.Type === 'Backdrop' ? 'Mettre en premier' : 'Utiliser comme image par défaut') + '</span></button>'
+                        + '<button is="emby-button" type="button" class="raised" data-gal-act="remove"' + (chosen ? '' : ' disabled') + '><span>Retirer</span></button></div>';
                 }
                 html += '<div class="cm-gal-add"><select id="lfGalType" aria-label="Type de la nouvelle image">'
                     + galleryTypes(kind).map(function(t) { return '<option value="' + t + '">' + GALLERY_LABELS[t] + '</option>'; }).join('') + '</select>'
@@ -2407,6 +2422,11 @@
                 renderLocalTree();
                 renderLocalDetail();
             }
+
+            qs('#localDetail').addEventListener('keydown', function(e) {
+                var tile = e.target.closest && e.target.closest('[data-gal-sel]');
+                if (tile && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tile.click(); }
+            });
 
             // Web address typed: the preview follows when the field loses focus
             qs('#localDetail').addEventListener('change', function(e) {
@@ -2731,7 +2751,7 @@
             });
 
             function onLocalClick(e) {
-                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-clear-img],[data-gal-del],[data-gal-default],[data-gal-url],[data-gal-pick],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
+                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-clear-img],[data-gal-sel],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
                 if (!target || !localContent) { return; }
                 if (target.hasAttribute('data-node')) { selectNode(target.getAttribute('data-node')); return; }
                 if (target.hasAttribute('data-toggle-node')) {
@@ -2761,21 +2781,33 @@
                     if (picker) { picker.click(); }
                     return;
                 }
-                if (target.hasAttribute('data-gal-del')) {
-                    var gh = localSel ? findNode(localSel) : null;
-                    if (gh && gh.node.Gallery) { gh.node.Gallery.splice(parseInt(target.getAttribute('data-gal-del'), 10), 1); markDirty(); renderLocalDetail(); }
+                if (target.hasAttribute('data-gal-sel')) {
+                    var si = parseInt(target.getAttribute('data-gal-sel'), 10);
+                    galSel = galSel && galSel.key === localSel && galSel.i === si ? null : { key: localSel, i: si };
+                    renderLocalDetail();
                     return;
                 }
-                if (target.hasAttribute('data-gal-default')) {
-                    var dh = localSel ? findNode(localSel) : null;
-                    var di = parseInt(target.getAttribute('data-gal-default'), 10);
-                    if (dh && dh.node.Gallery && dh.node.Gallery[di]) {
-                        // Swap: the chosen image becomes the single field of its type, the previous default takes its place in the gallery
-                        var chosen = dh.node.Gallery[di], field = GALLERY_FIELD[chosen.Type], previous = dh.node[field];
-                        dh.node[field] = chosen.Url;
-                        if (previous) { dh.node.Gallery[di] = { Type: chosen.Type, Url: previous }; } else { dh.node.Gallery.splice(di, 1); }
-                        markDirty(); renderLocalDetail();
+                if (target.hasAttribute('data-gal-act')) {
+                    var gh = localSel ? findNode(localSel) : null;
+                    var gi = galSel && galSel.key === localSel ? galSel.i : -1;
+                    var gal = gh && gh.node.Gallery;
+                    if (!gal || !gal[gi]) { return; }
+                    var chosen = gal[gi];
+                    if (target.getAttribute('data-gal-act') === 'remove') {
+                        gal.splice(gi, 1); galSel = null;
+                    } else {
+                        // Default = the single field of its type when it is filled (swap), otherwise the first gallery image of that type
+                        var field = GALLERY_FIELD[chosen.Type], previous = gh.node[field];
+                        if (previous) {
+                            gh.node[field] = chosen.Url; gal[gi] = { Type: chosen.Type, Url: previous };
+                        } else {
+                            gal.splice(gi, 1); var at = 0;
+                            for (var k = 0; k < gal.length; k++) { if (gal[k].Type === chosen.Type) { at = k; break; } at = k + 1; }
+                            gal.splice(at, 0, chosen);
+                            galSel = { key: localSel, i: at };
+                        }
                     }
+                    markDirty(); renderLocalDetail();
                     return;
                 }
                 if (target.hasAttribute('data-gal-url')) { addGalleryUrl(); return; }

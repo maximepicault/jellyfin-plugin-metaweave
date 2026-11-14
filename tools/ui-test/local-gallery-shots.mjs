@@ -77,6 +77,10 @@ try {
     await ev(`document.querySelector('${C} #lfGallery').scrollIntoView({block:'start'}); true`); await wait(400);
     await shot('G8-editor-after-folder-import');
   }
+  await ev(`document.querySelector('${C} #lfGallery').scrollIntoView({block:'start'}); true`);
+  await click(`${C} #lfGallery .cm-gal-pick:not(.cm-gal-default)`); await wait(500);
+  await ev(`document.querySelector('${C} #lfGallery').scrollIntoView({block:'start'}); true`); await wait(300);
+  await shot('G9-image-selected');
 
   // 2. Jellyfin's own picker
   const series = ((await rest('GET', `/Items?IncludeItemTypes=Series&Recursive=true&userId=${auth.User.Id}`)).Items || []).find(i => /aventuriers/i.test(i.Name));
