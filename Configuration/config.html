@@ -84,8 +84,9 @@
         #CustomMetadataConfigPage .cm-toolbar .emby-button { margin: 0 0 0 auto; }
         #CustomMetadataConfigPage .cm-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 20px; }
         #CustomMetadataConfigPage .cm-card { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); }
-        #CustomMetadataConfigPage .cm-group-head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 14px; border: 1px solid var(--cm-border); border-radius: 8px; background: var(--cm-surface-2); }
-        #CustomMetadataConfigPage .cm-group-head:not(:first-child) { margin-top: 10px; }
+        #CustomMetadataConfigPage .cm-group { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 14px; padding: 14px; border: 1px solid var(--cm-border); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
+        #CustomMetadataConfigPage .cm-group-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 16px; }
+        #CustomMetadataConfigPage .cm-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 2px 4px; }
         #CustomMetadataConfigPage .cm-group-kinds { font-size: 13px; color: var(--cm-muted); }
         #CustomMetadataConfigPage .cm-group-sep { flex: 1; }
         #CustomMetadataConfigPage .cm-group-head label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
@@ -933,14 +934,16 @@
                     byPrefix[key].items.push({ source: source, index: index });
                 });
                 var rank = function(src) { return src.SourceType === 'People' ? 2 : (src.SourceType === 'Local' ? 1 : 0); };
-                var ordered = [];
+                var cardHtml;   // defined below, used per group
+                var groupsHtml = [];
                 groups.forEach(function(g) {
                     g.items.sort(function(a, b) { return rank(a.source) - rank(b.source) || a.index - b.index; });
                     var kinds = [];
                     g.items.forEach(function(it) { var k = it.source.SourceType === 'People' ? 'Personnes' : (it.source.SourceType === 'Local' ? 'Locale' : 'API'); if (kinds.indexOf(k) < 0) { kinds.push(k); } });
                     var enriches = g.items.some(function(it) { return it.source.SourceType !== 'People'; });
+                    var head = '';
                     if (enriches && g.prefix) {
-                        html += '<div class="cm-group-head" data-group="' + escapeHtml(g.prefix) + '">'
+                        head = '<div class="cm-group-head" data-group="' + escapeHtml(g.prefix) + '">'
                             + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span>'
                             + '<label><input type="checkbox" class="cm-switch" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
                             + '<label><input type="checkbox" class="cm-switch" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>'
@@ -949,9 +952,10 @@
                             + '<button is="emby-button" type="button" class="raised" data-refresh="' + escapeHtml(g.prefix) + '" title="Actualise uniquement les éléments de la médiathèque qui portent ce préfixe (l\'API d\'abord, puis la source locale par-dessus), sans scanner la médiathèque"><span>Actualiser les éléments</span></button>'
                             + '<span class="cm-group-status" data-refresh-status="' + escapeHtml(g.prefix) + '" role="status"></span></div>';
                     }
-                    g.items.forEach(function(it) { ordered.push(it); });
+                    groupsHtml.push({ head: head, items: g.items });
                 });
-                ordered.forEach(function(entry) {
+                cardHtml = function(entry) {
+                    var html = '';
                     var source = entry.source, index = entry.index;
                     var on = source.Enabled !== false;
                     var isLocal = source.SourceType === 'Local';
@@ -974,6 +978,12 @@
                         + '<label class="cm-inline-switch"><span>' + (on ? 'Activée' : 'Désactivée') + '</span>'
                         + '<input type="checkbox" class="cm-switch" data-toggle="' + index + '" aria-label="Source ' + escapeHtml(source.Name || '') + ' activée"' + (on ? ' checked' : '') + ' /></label>'
                         + '</div></article>';
+                    return html;
+                };
+                groupsHtml.forEach(function(g) {
+                    var cards = g.items.map(cardHtml).join('');
+                    // One block per prefix: its refresh bar, then the cards of its sources
+                    html += g.head ? '<section class="cm-group">' + g.head + '<div class="cm-group-cards">' + cards + '</div></section>' : cards;
                 });
                 html += '<button type="button" class="cm-add" onclick="openAddSourceModal()"><strong>Ajouter une source</strong><span>Une API, ou une source locale à remplir</span></button>';
                 container.innerHTML = html;

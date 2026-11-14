@@ -285,7 +285,7 @@ try {
   await shot('L5-list-1440');
 
   // 6. Reopening: the content is reloaded, deleting an episode, saving
-  await click(`${P} #sourcesList article.cm-card:nth-of-type(2) .raised`); await wait(500);
+  await ev(`document.querySelectorAll("#sourcesList article.cm-card")[2-1].querySelector(".raised").click(); true`); await wait(500);
   check('reopening: local type and content reloaded', (await ev(`document.querySelector('#editorView').getAttribute('data-source-type')`)) === 'local' && (await ev(`document.querySelectorAll('#localTree .cm-t-item').length`)) === 6);
   await click(`${P} [data-go="content"]`); await wait(200);
   const quatriemeId = await ev(`Array.from(document.querySelectorAll('#localTree .cm-t-item')).find(function(b){return b.textContent.indexOf('Quatrième')>=0;}).getAttribute('data-node')`);
@@ -299,7 +299,7 @@ try {
 
   // 7. Mobile
   await size(390, 900, true);
-  await click(`${P} #sourcesList article.cm-card:nth-of-type(2) .raised`); await wait(400);
+  await ev(`document.querySelectorAll("#sourcesList article.cm-card")[2-1].querySelector(".raised").click(); true`); await wait(400);
   await click(`${P} [data-go="content"]`); await wait(200);
   await click(`#localTree [data-node="${epId}"]`); await wait(300);
   const overflow = await ev(`document.documentElement.scrollWidth > window.innerWidth + 2`);
@@ -329,7 +329,7 @@ try {
   check('people source saved', ps.Prefix === 'pe' && ps.PersonEndpoint === '/people/{id}' && ps.PersonMappings.Photo === 'photo' && ps.BaseUrl === 'http://people.test' && !ps.EpisodeListEndpoint, JSON.stringify(ps));
   check('people source saved: image address kept', ps.PersonMappings.PhotoBaseUrl === 'https://images.test/p/w185', JSON.stringify(ps.PersonMappings));
   check('card: "Personnes" badge', (await ev(`Array.from(document.querySelectorAll('${P} #sourcesList .cm-kind')).map(function(b){return b.textContent;}).join()`)).includes('Personnes'));
-  await click(`${P} #sourcesList article.cm-card:nth-of-type(2) .raised`); await wait(300);
+  await ev(`document.querySelectorAll("#sourcesList article.cm-card")[2-1].querySelector(".raised").click(); true`); await wait(300);
   await click('#btnDeleteSource'); await wait(400);
 
   // Targeted refresh: cards grouped by prefix, a header with the types and a button (never automatic)
@@ -343,7 +343,7 @@ try {
   check('refresh: the progress is shown then the result', (await ev(`document.querySelector('.cm-group-status[data-refresh-status="dm"]').textContent`)).includes('Terminé : 3 / 3'));
   check('refresh: the button is usable again', (await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-refresh]').disabled`)) === false);
   // 9. API source: the editor is unchanged
-  await click(`${P} #sourcesList article.cm-card:nth-of-type(1) .raised`); await wait(300);
+  await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
   const apiNav = await ev(`Array.from(document.querySelectorAll('${P} .cm-nav-item')).filter(function(b){return b.offsetParent!==null;}).length`);
   check('API source: the 8 sections are still there', apiNav === 8, String(apiNav));
   check('source API : URL de base visible et obligatoire', (await vis('#srcBaseUrl')) && (await ev(`document.querySelector('#srcBaseUrl').required`)) === true);
@@ -363,7 +363,7 @@ try {
   await click('#sourceForm button[type=submit]'); await wait(500);
   check('prefix: confirmation = saved', JSON.parse(await ev(`JSON.stringify(__mock.config.Sources.map(function(x){return x.Prefix;}))`))[0] === 'zz');
   // Custom headers: quotes in a value are kept (typed, saved, shown again)
-  await click(`${P} #sourcesList article.cm-card:nth-of-type(1) .raised`); await wait(300);
+  await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
   await click('[data-go="network"]'); await wait(200);
   await click('button[onclick="addHeader()"]'); await wait(150);
   const quoted = '"Chromium";v="120", "Not?A_Brand";v="8"';
@@ -371,7 +371,7 @@ try {
   await click('#sourceForm button[type=submit]'); await wait(500);
   const savedHeaders = JSON.parse(await ev(`JSON.stringify(__mock.config.Sources[0].CustomHeaders || [])`));
   check('headers: quotes kept in the saved value', savedHeaders.some(h => h.Key === 'sec-ch-ua' && h.Value === quoted), JSON.stringify(savedHeaders));
-  await click(`${P} #sourcesList article.cm-card:nth-of-type(1) .raised`); await wait(300);
+  await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
   await click('[data-go="network"]'); await wait(200);
   const shown = await ev(`Array.from(document.querySelectorAll('.cm-header-row input')).map(function(i){return i.value;}).join('|')`);
   check('headers: quotes kept when the source is reopened', shown.includes(quoted), shown);
@@ -385,7 +385,7 @@ try {
   await click('#sourceForm button[type=submit]'); await wait(500);
   const offHeaders = JSON.parse(await ev(`JSON.stringify(__mock.config.Sources[0].CustomHeaders || [])`));
   check('headers: the switch is saved (Enabled false)', offHeaders.some(h => h.Key === 'sec-ch-ua' && h.Enabled === false), JSON.stringify(offHeaders));
-  await click(`${P} #sourcesList article.cm-card:nth-of-type(1) .raised`); await wait(300);
+  await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
   await click('[data-go="network"]'); await wait(200);
   check('headers: reopened, the header is still switched off', (await ev(`Array.from(document.querySelectorAll('.cm-header-row input.cm-switch')).pop().checked`)) === false);
   await click('#btnCancelEdit'); await wait(300);
