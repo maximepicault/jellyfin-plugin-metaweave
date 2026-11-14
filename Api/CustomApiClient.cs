@@ -651,7 +651,23 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             try
             {
-                using var response = await client.GetAsync(url, cancellationToken);
+                var response = await client.GetAsync(url, cancellationToken);
+                if (response.StatusCode == HttpStatusCode.Forbidden)
+                {
+                    // CORS rejection: same request with the opposite Origin/Referer choice (once)
+                    var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                    if (SourceHeaders.LooksLikeCorsRejection(403, body) && SourceHeaders.FlipOrigin(client, source, _logger, "🖼️ [IMAGE DOWNLOAD]") is bool sending)
+                    {
+                        response.Dispose();
+                        response = await client.GetAsync(url, cancellationToken);
+                        if (response.IsSuccessStatusCode)
+                        {
+                            SourceHeaders.RememberOrigin(source, sending);
+                        }
+                    }
+                }
+
+                using var _ = response;
                 if (!response.IsSuccessStatusCode)
                 {
                     return (null, null, $"HTTP {(int)response.StatusCode} {response.ReasonPhrase} (HTTP/{response.Version})");
@@ -827,6 +843,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             result.Attempts = fetch.Attempts;
             result.DurationMs = fetch.DurationMs;
             result.Error = fetch.Error;
+            if (!fetch.IsSuccess && SourceHeaders.LooksLikeCorsRejection(fetch.StatusCode, fetch.ErrorBody))
+            {
+                result.Error += " - l'API refuse l'Origin (CORS), même après un essai avec et sans. Dans l'onglet Réseau, réglez « Origin » sur une origine qu'elle autorise (par exemple l'adresse de son interface web), ou désactivez l'envoi d'Origin et Referer.";
+            }
+
 
             if (!fetch.IsSuccess)
             {

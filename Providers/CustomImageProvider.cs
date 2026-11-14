@@ -316,6 +316,20 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             else
             {
                 response = await client.GetAsync(url, cancellationToken);
+                if (response.StatusCode == System.Net.HttpStatusCode.Forbidden && source != null)
+                {
+                    // CORS rejection: same request with the opposite Origin/Referer choice (once)
+                    var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                    if (SourceHeaders.LooksLikeCorsRejection(403, body) && SourceHeaders.FlipOrigin(client, source, _logger, "🖼️ [IMAGE DOWNLOAD]") is bool sending)
+                    {
+                        response.Dispose();
+                        response = await client.GetAsync(url, cancellationToken);
+                        if (response.IsSuccessStatusCode)
+                        {
+                            SourceHeaders.RememberOrigin(source, sending);
+                        }
+                    }
+                }
             }
 
             // Jellyfin SILENTLY ignores (Debug log) a 403/404 image and keeps the old one: we report it here
