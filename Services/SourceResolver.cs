@@ -42,11 +42,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 _logger.LogDebug("🔍 [SOURCE RESOLVER] Multi-source mode: {Count} sources configured", config.Sources.Count);
                 
-                var source = config.Sources.FirstOrDefault(s => 
-                    s.Enabled && 
-                    !s.IsPeople &&   // a people source does not enrich media: its tag designates no file
-                    !string.IsNullOrEmpty(s.Prefix) && 
-                    s.Prefix.Equals(prefix, System.StringComparison.OrdinalIgnoreCase));
+                // An API source and a local source may share a prefix: the local one then lays its data over the API's
+                // (LocalSourceStore.FindOverride), so the API source is the one the tag resolves to
+                var source = config.Sources
+                    .Where(s => s.Enabled &&
+                        !s.IsPeople &&   // a people source does not enrich media: its tag designates no file
+                        !string.IsNullOrEmpty(s.Prefix) &&
+                        s.Prefix.Equals(prefix, System.StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(s => s.IsLocal)
+                    .FirstOrDefault();
                 
                 if (source != null)
                 {
