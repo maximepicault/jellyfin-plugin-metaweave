@@ -691,6 +691,44 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return checks;
         }
 
+        /// <summary>
+        /// "Test" button: the first images, downloaded the way Jellyfin will (source headers), as small data addresses the
+        /// page can display. A browser could not show them itself (headers, referrer checks, relative paths).
+        /// </summary>
+        private async Task<List<ImagePreview>> PreviewImagesAsync(List<ImageInfo> images, SourceConfiguration source, CancellationToken cancellationToken)
+        {
+            var previews = new List<ImagePreview>();
+            foreach (var image in (images ?? new List<ImageInfo>()).Where(i => !string.IsNullOrWhiteSpace(i.Url)).Take(SourceTestResult.MaxImagePreviews))
+            {
+                var url = PreviewMapper.ResolveUrl(image.Url, source.BaseUrl);
+                var preview = new ImagePreview { Type = image.Type, Url = image.Url };
+                try
+                {
+                    var (data, mime, error) = await DownloadImageAsync(url, source, false, cancellationToken);
+                    if (data == null)
+                    {
+                        preview.Error = error ?? "téléchargement impossible";
+                    }
+                    else if (data.Length > SourceTestResult.MaxPreviewBytes)
+                    {
+                        preview.Error = $"image trop lourde pour l'aperçu ({data.Length / 1024} Ko)";
+                    }
+                    else
+                    {
+                        preview.DataUri = $"data:{mime ?? "image/jpeg"};base64,{Convert.ToBase64String(data)}";
+                    }
+                }
+                catch (Exception ex) when (ex is InvalidOperationException || ex is UriFormatException)
+                {
+                    preview.Error = "adresse invalide : " + ex.Message;
+                }
+
+                previews.Add(preview);
+            }
+
+            return previews;
+        }
+
         private static string AppendPageParameter(string url, EpisodeListMapping mapping, int page)
         {
             var separator = url.Contains('?') ? "&" : "?";
@@ -814,6 +852,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     {
                         result.ThumbnailChecks = await CheckThumbnailsAsync(result.Images, source, cancellationToken);
                     }
+
+                    result.ImagePreviews = await PreviewImagesAsync(result.Images, source, cancellationToken);
                 }
 
                 result.Success = true;
@@ -836,6 +876,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     {
         public const int MaxRawLength = 20000;
         public const int MaxEpisodes = 20;
+        public const int MaxImagePreviews = 6;
+        public const int MaxPreviewBytes = 600 * 1024;
 
         public bool Success { get; set; }
         public string ItemType { get; set; }
@@ -854,6 +896,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public CustomMetadataResponse Metadata { get; set; }
         public PersonData Person { get; set; }
         public List<ImageInfo> Images { get; set; }
+
+        /// <summary>The first images, downloaded by the plugin, for the test screen to display</summary>
+        public List<ImagePreview> ImagePreviews { get; set; }
 
         /// <summary>Episode thumbnails: real dimensions and the portrait → 16:9 conversion decision</summary>
         public List<string> ThumbnailChecks { get; set; }
@@ -888,6 +933,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string Image { get; set; }
     }
 
+    public class ImagePreview
+    {
+        public string Type { get; set; }
+        public string Url { get; set; }
+
+        /// <summary>"data:image/jpeg;base64,…" (null when the download failed: see Error)</summary>
+        public string DataUri { get; set; }
+        public string Error { get; set; }
+    }
+
     public class ImageInfo
     {
         public string Url { get; set; }
@@ -902,6 +957,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     public class EpisodeListItem
     {
         public string Id { get; set; }
+
         public string Title { get; set; }
         public string Overview { get; set; }
         public DateTime? PremiereDate { get; set; }
