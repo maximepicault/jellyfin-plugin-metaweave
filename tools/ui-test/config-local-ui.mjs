@@ -386,7 +386,7 @@ try {
 
   // Targeted refresh: cards grouped by prefix, a header with the types and a button (never automatic)
   check('refresh: the API source has a group header with its prefix', (await vis('.cm-group-head[data-group="dm"]')) && (await ev(`document.querySelector('.cm-group-head[data-group="dm"] .cm-tag').textContent`)).includes('dm'));
-  check('refresh: the header offers series / seasons / episodes on, images off', (await ev(`['series','season','episode'].every(function(t){return document.querySelector('.cm-group-head[data-group="dm"] [data-rf="'+t+'"]').checked;}) && !document.querySelector('.cm-group-head[data-group="dm"] [data-rf="images"]').checked`)) === true);
+  check('refresh: the header offers series / seasons / episodes on, images on', (await ev(`['series','season','episode'].every(function(t){return document.querySelector('.cm-group-head[data-group="dm"] [data-rf="'+t+'"]').checked;}) && document.querySelector('.cm-group-head[data-group="dm"] [data-rf="images"]').checked`)) === true);
   await shot('L11-source-groups-1440');
   // Richer list for the screenshots: an API + local pair sharing a prefix, a second API, a People source, a disabled source
   await ev(`(function(){var base=JSON.parse(JSON.stringify(__mock.config.Sources[0]));
@@ -401,14 +401,14 @@ try {
   await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-rf="season"]').click(); true`);
   await click('.cm-group-head[data-group="dm"] [data-refresh]'); await wait(1800);
   const sent = JSON.parse(await ev(`JSON.stringify(__mock.refresh)`));
-  check('refresh: the request carries the prefix, the checked types and no images', sent.Prefix === 'dm' && JSON.stringify(sent.Types) === JSON.stringify(['series', 'episode']) && sent.ReplaceImages === false, JSON.stringify(sent));
+  check('refresh: the request carries the prefix, the checked types, images replaced by default', sent.Prefix === 'dm' && JSON.stringify(sent.Types) === JSON.stringify(['series', 'episode']) && sent.ReplaceImages === true, JSON.stringify(sent));
   check('refresh: the progress is shown then the result', (await ev(`document.querySelector('.cm-group-status[data-refresh-status="dm"]').textContent`)).includes('Terminé : 3 / 3'));
   check('refresh: the button is usable again', (await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-refresh]').disabled`)) === false);
-  // Images ticked: the request asks to replace the images
+  // Images unticked: metadata only
   await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-rf="images"]').click(); true`);
   await click('.cm-group-head[data-group="dm"] [data-refresh]'); await wait(1800);
   const sentImages = JSON.parse(await ev(`JSON.stringify(__mock.refresh)`));
-  check('refresh: with Images ticked the request replaces the images', sentImages.ReplaceImages === true, JSON.stringify(sentImages));
+  check('refresh: with Images unticked only the metadata is replaced', sentImages.ReplaceImages === false, JSON.stringify(sentImages));
   // 9. API source: the editor is unchanged
   await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
   const apiNav = await ev(`Array.from(document.querySelectorAll('${P} .cm-nav-item')).filter(function(b){return b.offsetParent!==null;}).length`);
