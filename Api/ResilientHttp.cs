@@ -131,6 +131,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             var result = new HttpFetchResult { Url = url };
             var stopwatch = Stopwatch.StartNew();
+            var corsFlipped = false;
+            bool? corsTried = null;
 
             for (var attempt = 1; ; attempt++)
             {
@@ -159,6 +161,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                         result.Content = await response.Content.ReadAsStringAsync(attemptCts.Token).ConfigureAwait(false);
                         result.Error = null;
                         result.ErrorBody = null;
+                        if (corsTried.HasValue)
+                        {
+                            // The opposite Origin choice worked: next calls (and image downloads) start with it
+                            SourceHeaders.RememberOrigin(source, corsTried.Value);
+                            _logger.LogInformation("{Tag} 🔐 Works {Mode} Origin/Referer: kept for source '{SourceName}' (change the setting in the editor's Réseau tab to make it permanent)",
+                                logTag, corsTried.Value ? "with" : "without", source.Name);
+                        }
+
                         break;
                     }
 
@@ -184,6 +194,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 finally
                 {
                     limiter?.Release();
+                }
+
+                if (!corsFlipped && SourceHeaders.LooksLikeCorsRejection(result.StatusCode, result.ErrorBody))
+                {
+                    corsFlipped = true;
+                    var flipped = SourceHeaders.FlipOrigin(client, source, _logger, logTag);
+                    if (flipped.HasValue)
+                    {
+                        corsTried = flipped;
+                        attempt--;   // not a failed attempt of the same request: same request with other headers
+                        continue;
+                    }
                 }
 
                 if (!retryable || attempt > maxRetries)

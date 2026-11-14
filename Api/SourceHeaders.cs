@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -18,6 +19,67 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public const string BrowserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
         public const string PluginUserAgent = "Jellyfin.Plugin.CustomMetadata/1.0";
+
+        // ---- CORS rejections -------------------------------------------------------------------------------
+        // Some backends (Spring "Invalid CORS request"…) answer 403 to a request whose Origin they do not list, others to one
+        // WITHOUT an Origin. On such a 403 the call is retried once with the opposite choice, and the working choice is kept
+        // (per source and per current setting: changing the setting in the editor starts over).
+
+        private static readonly ConcurrentDictionary<string, bool> OriginMemory = new ConcurrentDictionary<string, bool>();
+
+        private static string MemoryKey(SourceConfiguration s) => $"{s.Prefix}|{s.BaseUrl}|{s.SendOriginReferer}|{s.OriginOverride}|{s.RefererOverride}";
+
+        /// <summary>The source's Origin/Referer setting, unless a CORS rejection taught us the opposite works</summary>
+        public static bool EffectiveSendOrigin(SourceConfiguration source)
+            => source != null && (OriginMemory.TryGetValue(MemoryKey(source), out var remembered) ? remembered : source.SendOriginReferer);
+
+        public static void RememberOrigin(SourceConfiguration source, bool send)
+        {
+            if (source != null)
+            {
+                OriginMemory[MemoryKey(source)] = send;
+            }
+        }
+
+        /// <summary>403 whose body talks about CORS / a refused origin</summary>
+        public static bool LooksLikeCorsRejection(int? statusCode, string body)
+        {
+            if (statusCode != 403 || string.IsNullOrEmpty(body))
+            {
+                return false;
+            }
+
+            return body.IndexOf("cors", StringComparison.OrdinalIgnoreCase) >= 0
+                || (body.IndexOf("origin", StringComparison.OrdinalIgnoreCase) >= 0 && body.IndexOf("not allowed", StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        /// <summary>
+        /// Flips Origin/Referer on this client (removes them if they were sent, adds them otherwise). Returns the new state, or
+        /// null when nothing can be flipped (source without BaseUrl, or the user sets Origin/Referer in the custom headers).
+        /// </summary>
+        public static bool? FlipOrigin(HttpClient client, SourceConfiguration source, ILogger logger, string tag)
+        {
+            if (source == null || string.IsNullOrEmpty(source.BaseUrl)
+                || (source.CustomHeaders?.Any(h => string.Equals(h.Key, "Origin", StringComparison.OrdinalIgnoreCase) || string.Equals(h.Key, "Referer", StringComparison.OrdinalIgnoreCase)) ?? false))
+            {
+                return null;
+            }
+
+            var headers = client.DefaultRequestHeaders;
+            var sending = headers.Contains("Origin");
+            headers.Remove("Origin");
+            headers.Remove("Referer");
+            if (sending)
+            {
+                logger.LogWarning("{Tag} 🔐 CORS rejection (HTTP 403) - retrying WITHOUT Origin/Referer", tag);
+                return false;
+            }
+
+            AddOriginOrReferer(headers, "Origin", source.OriginOverride, () => DeriveOrigin(source.BaseUrl), logger, LogLevel.Information, tag);
+            AddOriginOrReferer(headers, "Referer", source.RefererOverride, () => source.BaseUrl, logger, LogLevel.Information, tag);
+            logger.LogWarning("{Tag} 🔐 CORS rejection (HTTP 403) - retrying WITH Origin/Referer", tag);
+            return true;
+        }
 
         /// <param name="apiKey">Sent as X-API-Key if not empty (null for image downloads)</param>
         /// <param name="detailLevel">Level of the detailed logs (Information for the API, Debug for images)</param>
@@ -50,7 +112,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             if (source != null && !string.IsNullOrEmpty(source.BaseUrl))
             {
-                if (source.SendOriginReferer)
+                if (EffectiveSendOrigin(source))
                 {
                     AddOriginOrReferer(headers, "Origin", source.OriginOverride, () => DeriveOrigin(source.BaseUrl), logger, detailLevel, tag);
                     AddOriginOrReferer(headers, "Referer", source.RefererOverride, () => source.BaseUrl, logger, detailLevel, tag);

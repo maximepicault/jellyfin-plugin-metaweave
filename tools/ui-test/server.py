@@ -55,6 +55,12 @@ class H(BaseHTTPRequestHandler):
             if m[1] not in PEOPLE: return self.send(404, {"error": "inconnue"})
             name, bio = PEOPLE[m[1]]
             return self.send(200, {"name": name, "photo": f"/img/{m[1]}.jpg", "bio": bio})   # RELATIVE photo: completed with the base URL
+        m = re.fullmatch(r"/series/(cors[ABC])", p)
+        if m:   # CORS-like backends: A refuses a request WITH an Origin, B one WITHOUT, C always
+            origin = self.headers.get("Origin")
+            refused = (m[1] == "corsA" and origin) or (m[1] == "corsB" and not origin) or m[1] == "corsC"
+            if refused: return self.send(403, {"error": "Invalid CORS request"})
+            return self.send(200, {"id": m[1], "title": "Réponse sans souci CORS", "overview": "ok"})
         m = re.fullmatch(r"/series/(\w+)", p)
         if m and m[1] == "bigimg":   # a poster of several MB: the source test must show it reduced, not refuse it
             return self.send(200, {"id": "bigimg", "title": "Grande affiche", "poster": f"{BASE}/img/big.jpg"})

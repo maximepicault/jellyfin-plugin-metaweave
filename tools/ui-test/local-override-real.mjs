@@ -59,6 +59,14 @@ try {
   const heavyPreview = (pick(heavy, 'ImagePreviews') || [])[0];
   const heavyUri = pick(heavyPreview, 'DataUri') || '';
   check('test button: a multi-MB poster is shown reduced, not refused', /^data:image\/jpeg/.test(heavyUri) && heavyUri.length < 200 * 1024, JSON.stringify(heavyPreview)?.slice(0, 200));
+  // CORS-like rejections: the call is retried once with the opposite Origin/Referer choice
+  const tryCors = async (id, origin) => (await api('POST', '/CustomMetadata/TestSource', { Source: { ...dm, SendOriginReferer: origin }, ItemType: 'series', Id: id })).json;
+  const corsA = await tryCors('corsA', true);
+  check('CORS: a backend refusing the Origin is retried without it', pick(corsA, 'Success') === true && !(pick(corsA, 'RequestHeaders') || []).some(h => /^Origin:/i.test(h)), JSON.stringify(pick(corsA, 'Error')));
+  const corsB = await tryCors('corsB', false);
+  check('CORS: a backend requiring the Origin is retried with it', pick(corsB, 'Success') === true && (pick(corsB, 'RequestHeaders') || []).some(h => /^Origin:/i.test(h)), JSON.stringify(pick(corsB, 'Error')));
+  const corsC = await tryCors('corsC', true);
+  check('CORS: a backend refusing both says what to change', pick(corsC, 'Success') === false && /CORS/.test(pick(corsC, 'Error') || '') && /Réseau/.test(pick(corsC, 'Error') || ''), JSON.stringify(pick(corsC, 'Error')));
   // The button of the editor: the API season's list, as local episodes carrying the API's tags (the endpoint is still there)
   const imported = await api('POST', '/CustomMetadata/Local/ImportEpisodes', { Tag: '{dm-a1}' });
   const list = imported.json || [];
