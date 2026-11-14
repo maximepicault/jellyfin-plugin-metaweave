@@ -484,7 +484,7 @@
                         </div>
                     </section>
                     <section class="cm-pane cm-mono" data-section="video" aria-labelledby="paneTitle-video" hidden>
-                        <div><h3 class="cm-pane-title" id="paneTitle-video">Mappings · Vidéo / épisode</h3><p class="cm-pane-intro">Où trouver chaque information dans la réponse JSON (notation pointée, par exemple data.title). Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name).</p></div>
+                        <div><h3 class="cm-pane-title" id="paneTitle-video">Mappings · Vidéo / épisode</h3><p class="cm-pane-intro">Où trouver chaque information dans la réponse JSON (notation pointée, par exemple data.title). Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name). Si l&#x27;API répond par une liste, désignez un élément avec [0] : [0].name pour une liste à la racine, results[0].name pour une liste dans un objet.</p></div>
                         <div class="cm-grid">
                         <h4>Texte</h4>
                         <div class="inputContainer">
@@ -568,7 +568,7 @@
                         </div>
                     </section>
                     <section class="cm-pane cm-mono" data-section="season" aria-labelledby="paneTitle-season" hidden>
-                        <div><h3 class="cm-pane-title" id="paneTitle-season">Mappings · Source / saison</h3><p class="cm-pane-intro">Où trouver chaque information pour une source ou une saison (une chaîne YouTube, par exemple). Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name).</p></div>
+                        <div><h3 class="cm-pane-title" id="paneTitle-season">Mappings · Source / saison</h3><p class="cm-pane-intro">Où trouver chaque information pour une source ou une saison (une chaîne YouTube, par exemple). Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name). Si l&#x27;API répond par une liste, désignez un élément avec [0] : [0].name pour une liste à la racine, results[0].name pour une liste dans un objet.</p></div>
                         <div class="cm-grid">
                         <h4>Texte</h4>
                         <div class="inputContainer">
@@ -596,7 +596,7 @@
                         </div>
                     </section>
                     <section class="cm-pane cm-mono" data-section="series" aria-labelledby="paneTitle-series" hidden>
-                        <div><h3 class="cm-pane-title" id="paneTitle-series">Mappings · Série</h3><p class="cm-pane-intro">Où trouver chaque information pour une série. Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name).</p></div>
+                        <div><h3 class="cm-pane-title" id="paneTitle-series">Mappings · Série</h3><p class="cm-pane-intro">Où trouver chaque information pour une série. Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name). Si l&#x27;API répond par une liste, désignez un élément avec [0] : [0].name pour une liste à la racine, results[0].name pour une liste dans un objet.</p></div>
                         <div class="cm-grid">
                         <h4>Texte</h4>
                         <div class="inputContainer">
@@ -630,7 +630,7 @@
                         </div>
                     </section>
                     <section class="cm-pane cm-mono" data-section="episodes" aria-labelledby="paneTitle-episodes" hidden>
-                        <div><h3 class="cm-pane-title" id="paneTitle-episodes">Mappings · Liste des épisodes</h3><p class="cm-pane-intro">Réponse de l&#x27;endpoint « Liste des épisodes ». Les champs de chaque épisode sont relatifs à l&#x27;élément du tableau. Un champ vide reprend la valeur affichée en grisé, sauf le tableau et la pagination. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name).</p></div>
+                        <div><h3 class="cm-pane-title" id="paneTitle-episodes">Mappings · Liste des épisodes</h3><p class="cm-pane-intro">Réponse de l&#x27;endpoint « Liste des épisodes ». Les champs de chaque épisode sont relatifs à l&#x27;élément du tableau. Un champ vide reprend la valeur affichée en grisé, sauf le tableau et la pagination. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name). Si l&#x27;API répond par une liste, désignez un élément avec [0] : [0].name pour une liste à la racine, results[0].name pour une liste dans un objet.</p></div>
                         <div class="cm-grid">
                         <h4>Réponse</h4>
                         <div class="inputContainer">
