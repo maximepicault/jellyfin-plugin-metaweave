@@ -325,6 +325,16 @@
         #CustomMetadataConfigPage .cm-imgbtns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
         #CustomMetadataConfigPage .cm-imgbtns .emby-button { margin: 0; }
         #CustomMetadataConfigPage .cm-imgctl .cm-hint { margin: 0; }
+        #CustomMetadataConfigPage .cm-gallery { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--cm-border); border-radius: 8px; background: rgba(255, 255, 255, 0.02); }
+        #CustomMetadataConfigPage .cm-gal-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+        #CustomMetadataConfigPage .cm-gal-item { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--cm-border); border-radius: 6px; background: var(--cm-surface-2); font-size: 12px; }
+        #CustomMetadataConfigPage .cm-gal-item .cm-imgprev { flex: none; width: 100%; height: 90px; }
+        #CustomMetadataConfigPage .cm-gal-meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+        #CustomMetadataConfigPage .cm-gal-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+        #CustomMetadataConfigPage .cm-gal-add select { width: auto; flex: none; }
+        #CustomMetadataConfigPage .cm-gal-add select, #CustomMetadataConfigPage .cm-gal-add input[type=text] { height: 36px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--cm-border); background: var(--cm-surface-2); color: inherit; font: inherit; }
+        #CustomMetadataConfigPage .cm-gal-add input[type=text] { flex: 1; min-width: 180px; }
+        #CustomMetadataConfigPage .cm-gal-add .emby-button { margin: 0; }
         @container (max-width: 560px) { #CustomMetadataConfigPage .cm-imgrow { flex-direction: column; } #CustomMetadataConfigPage .cm-imgprev { width: 100%; flex-basis: auto; height: 120px; } }
     </style>
 
@@ -1900,7 +1910,7 @@
             function applyLocalSourceDefaults(source) {
                 var fields = { Title: 'title', Overview: 'overview', PremiereDate: 'premiereDate', CommunityRating: 'communityRating',
                     Tags: 'tags', TagsItemField: 'label', Genres: 'genres', GenresItemField: 'name', SeriesName: '', IndexNumber: 'indexNumber',
-                    PosterUrl: 'poster', BackdropUrl: 'backdrop', ThumbUrl: 'thumb', LogoUrl: 'logo', BannerUrl: 'banner', ImagesArray: '', OverviewListTarget: '' };
+                    PosterUrl: 'poster', BackdropUrl: 'backdrop', ThumbUrl: 'thumb', LogoUrl: 'logo', BannerUrl: 'banner', ImagesArray: 'images', ImageUrl: 'url', ImageType: 'type', OverviewListTarget: '' };
                 source.SourceType = 'Local';
                 source.LocalDataId = localDataId;
                 source.BaseUrl = 'local://local';
@@ -2059,6 +2069,39 @@
                     + '<textarea id="lf-' + field + '" data-f="' + field + '" rows="4">' + escapeHtml(value || '') + '</textarea></div>';
             }
 
+            var GALLERY_LABELS = { Primary: 'Affiche', Backdrop: 'Fond', Logo: 'Logo', Banner: 'Bannière', Thumb: 'Miniature' };
+            function galleryTypes(kind) { return kind === 'episode' ? ['Thumb', 'Primary'] : (kind === 'season' ? ['Primary', 'Backdrop', 'Thumb'] : ['Primary', 'Backdrop', 'Logo', 'Banner', 'Thumb']); }
+
+            // Extra images of a node: all offered in Jellyfin's "Modifier les images", the fields above stay the default ones
+            function galleryBlock(n, kind) {
+                var list = n.Gallery || [];
+                var html = '<div class="cm-gallery cm-span" id="lfGallery"><div><strong>Galerie d\'images</strong><div class="cm-hint">Toutes ces images sont proposées, avec aperçu, dans « Modifier les images » de Jellyfin : plus besoin de les ranger dans les dossiers de la série. Les champs ci-dessus restent les images appliquées par défaut.</div></div>';
+                if (list.length) {
+                    html += '<div class="cm-gal-list">' + list.map(function(g, i) {
+                        var src = imagePreviewUrl(g.Url);
+                        return '<div class="cm-gal-item"><div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
+                            + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[g.Type] || g.Type) + '</span><button type="button" class="cm-linkbtn" data-gal-del="' + i + '">Retirer</button></div></div>';
+                    }).join('') + '</div>';
+                }
+                html += '<div class="cm-gal-add"><select id="lfGalType" aria-label="Type de la nouvelle image">'
+                    + galleryTypes(kind).map(function(t) { return '<option value="' + t + '">' + GALLERY_LABELS[t] + '</option>'; }).join('') + '</select>'
+                    + '<input type="text" id="lfGalUrl" placeholder="Adresse web (https://…)" aria-label="Adresse de la nouvelle image" />'
+                    + '<button is="emby-button" type="button" class="raised" data-gal-url><span>Ajouter l\'adresse</span></button>'
+                    + '<button is="emby-button" type="button" class="raised" data-gal-pick><span>Envoyer des fichiers…</span></button>'
+                    + '<input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" data-gal-file hidden /></div>'
+                    + '<div class="cm-hint" id="lfGalMsg" role="status"></div></div>';
+                return html;
+            }
+
+            // Applies the images of the node (and, for a series or a season, of its children carrying this source's prefix) to Jellyfin
+            function applyImagesBlock(n, kind) {
+                var types = kind === 'series' ? [] : (kind === 'season' ? ['season', 'episode'] : ['episode']);
+                return '<div class="cm-bulk"><div><strong>Appliquer les images dans Jellyfin</strong><div class="cm-hint">Remplace les images de ' + escapeHtml(tagOf(n))
+                    + (kind === 'episode' ? '' : ' et de ses éléments enfants portant ce préfixe') + ' par les images par défaut ci-dessus (la première de chaque type). Enregistrez d\'abord. Jamais automatique.</div>'
+                    + '<div class="cm-hint" id="lfApplyMsg" role="status"></div></div>'
+                    + '<button is="emby-button" type="button" class="raised" data-apply-images="' + nodeKey(kind, n.Id) + '" data-types="' + types.join(',') + '"><span>Appliquer les images</span></button></div>';
+            }
+
             function renderLocalDetail() {
                 var box = qs('#localDetail');
                 if (!localContent) { box.innerHTML = ''; return; }
@@ -2104,7 +2147,8 @@
                         html += imageField('Logo', 'Logo', n.Logo) + imageField('Bannière', 'Banner', n.Banner);
                     }
                 }
-                html += '</div>';
+                html += galleryBlock(n, kind) + '</div>';
+                html += applyImagesBlock(n, kind);
                 if (kind === 'episode') { html += castBlock(n); }
 
                 if (kind === 'season' && (isFullTag(n.Id) || apiSharesPrefix())) {
@@ -2352,6 +2396,7 @@
             qs('#localDetail').addEventListener('change', function(e) {
                 var t = e.target;
                 if (t.hasAttribute && t.hasAttribute('data-node-id')) { renameNode(t.value); return; }
+                if (t.hasAttribute && t.hasAttribute('data-gal-file')) { uploadGallery(t.files); t.value = ''; return; }
                 if (t.hasAttribute && t.hasAttribute('data-file')) { uploadImage(t.getAttribute('data-file'), t.files && t.files[0]); t.value = ''; return; }
                 var box = t.closest && t.closest('[data-img-field]');
                 var hit = localSel ? findNode(localSel) : null;
@@ -2387,6 +2432,65 @@
                     Dashboard.alert('Image refusée : JPEG, PNG, WebP ou GIF, 8 Mo au maximum.');
                     renderLocalDetail();
                 });
+            }
+
+            function gallerySay(text, bad) { var m = qs('#lfGalMsg'); if (m) { m.textContent = text || ''; m.style.color = bad ? '#e57373' : ''; } }
+
+            function addGalleryUrl() {
+                var hit = localSel ? findNode(localSel) : null;
+                var input = qs('#lfGalUrl');
+                if (!hit || !input) { return; }
+                var url = input.value.trim();
+                if (!/^https?:\/\//i.test(url)) { gallerySay('Indiquez une adresse web commençant par http:// ou https://.', true); return; }
+                (hit.node.Gallery = hit.node.Gallery || []).push({ Type: qs('#lfGalType').value, Url: url });
+                markDirty(); renderLocalDetail();
+            }
+
+            // Several files at once, sent one after the other: each becomes an image of the chosen type
+            function uploadGallery(files) {
+                var hit = localSel ? findNode(localSel) : null;
+                var type = qs('#lfGalType') ? qs('#lfGalType').value : 'Primary';
+                files = Array.prototype.slice.call(files || []);
+                if (!hit || !files.length) { return; }
+                var node = hit.node, done = 0, refused = 0;
+                var next = function() {
+                    if (!files.length) {
+                        markDirty(); renderLocalDetail();
+                        gallerySay(done + ' image(s) ajoutée(s)' + (refused ? ', ' + refused + ' refusée(s) (JPEG, PNG, WebP ou GIF, 8 Mo au maximum)' : '') + '.', !!refused);
+                        return;
+                    }
+                    var file = files.shift();
+                    gallerySay('Envoi de ' + file.name + '…');
+                    if (file.size > 8 * 1024 * 1024) { refused++; next(); return; }
+                    fetch(ApiClient.getUrl('CustomMetadata/Local/' + localDataId + '/Image', { node: node.Id }), {
+                        method: 'POST',
+                        headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() },
+                        body: file
+                    }).then(function(r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); }).then(function(result) {
+                        (node.Gallery = node.Gallery || []).push({ Type: type, Url: result.Url }); done++; next();
+                    }, function() { refused++; next(); });
+                };
+                next();
+            }
+
+            function applyImages(button) {
+                var hit = findNode(button.getAttribute('data-apply-images'));
+                var msg = qs('#lfApplyMsg');
+                if (!hit || !msg) { return; }
+                var say = function(text, bad) { msg.textContent = text; msg.style.color = bad ? '#e57373' : ''; };
+                var full = isFullTag(hit.node.Id);
+                var prefix = full ? String(hit.node.Id).split('-')[0] : qs('#srcPrefix').value.trim();
+                var tag = full ? hit.node.Id : prefix + '-' + hit.node.Id;
+                var types = (button.getAttribute('data-types') || '').split(',').filter(Boolean);
+                button.disabled = true; say('Recherche des éléments…');
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('CustomMetadata/Refresh'),
+                    data: JSON.stringify({ Prefix: prefix, Types: types, ReplaceImages: true, Tag: tag, IncludeChildren: hit.kind !== 'episode' }), contentType: 'application/json', dataType: 'json'
+                }).then(function(st) {
+                    button.disabled = false;
+                    if (st.Message) { say(st.Message, true); return; }
+                    if (!st.Total) { say('Aucun élément de la médiathèque ne porte ce tag : nommez le dossier ou le fichier avec ' + '{' + tag + '}.', true); return; }
+                    say('Images appliquées en arrière-plan à ' + st.Total + ' élément(s) (' + st.Series + ' série(s), ' + st.Seasons + ' saison(s), ' + st.Episodes + ' épisode(s)).');
+                }, function() { button.disabled = false; say('L\'application n\'a pas pu être lancée.', true); });
             }
 
             // ---- Cast of an episode: people of the directory (People screen) ----
@@ -2589,7 +2693,7 @@
             });
 
             function onLocalClick(e) {
-                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-clear-img],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
+                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-clear-img],[data-gal-del],[data-gal-url],[data-gal-pick],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
                 if (!target || !localContent) { return; }
                 if (target.hasAttribute('data-node')) { selectNode(target.getAttribute('data-node')); return; }
                 if (target.hasAttribute('data-toggle-node')) {
@@ -2619,6 +2723,14 @@
                     if (picker) { picker.click(); }
                     return;
                 }
+                if (target.hasAttribute('data-gal-del')) {
+                    var gh = localSel ? findNode(localSel) : null;
+                    if (gh && gh.node.Gallery) { gh.node.Gallery.splice(parseInt(target.getAttribute('data-gal-del'), 10), 1); markDirty(); renderLocalDetail(); }
+                    return;
+                }
+                if (target.hasAttribute('data-gal-url')) { addGalleryUrl(); return; }
+                if (target.hasAttribute('data-gal-pick')) { var gp = qs('#localDetail [data-gal-file]'); if (gp) { gp.click(); } return; }
+                if (target.hasAttribute('data-apply-images')) { applyImages(target); return; }
                 if (target.hasAttribute('data-clear-img')) {
                     var owner = localSel ? findNode(localSel) : null;
                     if (owner) { owner.node[target.getAttribute('data-clear-img')] = ''; markDirty(); renderLocalDetail(); }

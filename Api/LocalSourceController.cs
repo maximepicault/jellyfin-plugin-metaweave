@@ -154,6 +154,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return File(data, mime);
         }
 
+        /// <summary>
+        /// The same image for Jellyfin's image picker: the browser shows it as a preview and the server downloads it through
+        /// the provider. Anonymous because an img tag sends no token; only files of the plugin's image folders, under random names.
+        /// </summary>
+        [HttpGet("{dataId}/Public/{file}")]
+        [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public IActionResult GetPublicImage(string dataId, string file)
+        {
+            if (!_store.TryReadImage(dataId, file, out var data, out var mime))
+            {
+                return NotFound();
+            }
+
+            Response.Headers["Cache-Control"] = "private, max-age=3600";
+            return File(data, mime);
+        }
+
         [HttpDelete("{dataId}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public IActionResult Delete(string dataId)

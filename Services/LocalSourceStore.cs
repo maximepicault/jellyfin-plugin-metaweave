@@ -36,6 +36,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public string Banner { get; set; }
         public string Logo { get; set; }
         public string Thumb { get; set; }
+
+        /// <summary>More images per type: all are offered in Jellyfin's "Modifier les images"; the single fields above stay the default ones</summary>
+        public List<LocalImage> Gallery { get; set; } = new List<LocalImage>();
+    }
+
+    /// <summary>An extra image of a node: Type = Primary, Backdrop, Logo, Banner or Thumb; Url = web address or "local://img/…"</summary>
+    public class LocalImage
+    {
+        public string Type { get; set; }
+        public string Url { get; set; }
     }
 
     public class LocalSeries : LocalNode
@@ -281,7 +291,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         private void PruneImages(string dataId, LocalContent content)
         {
-            PruneImages(dataId, AllNodes(content).SelectMany(n => new[] { n.Poster, n.Backdrop, n.Banner, n.Logo, n.Thumb }));
+            PruneImages(dataId, AllNodes(content).SelectMany(n => new[] { n.Poster, n.Backdrop, n.Banner, n.Logo, n.Thumb }.Concat((n.Gallery ?? new List<LocalImage>()).Select(g => g.Url))));
         }
 
         /// <summary>Deletes the images older than one day that none of the given addresses references (uploaded then abandoned, or removed)</summary>
@@ -429,6 +439,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             node.Banner = Clean(node.Banner);
             node.Logo = Clean(node.Logo);
             node.Thumb = Clean(node.Thumb);
+            node.Gallery = CleanGallery(node.Gallery);
+        }
+
+        public static readonly string[] GalleryTypes = { "Primary", "Backdrop", "Logo", "Banner", "Thumb" };
+
+        /// <summary>Known type (any case), non-empty address, no duplicate pair, at most 60 images per node</summary>
+        private static List<LocalImage> CleanGallery(List<LocalImage> gallery)
+        {
+            var result = new List<LocalImage>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var image in gallery ?? new List<LocalImage>())
+            {
+                var url = Clean(image?.Url);
+                var type = GalleryTypes.FirstOrDefault(t => string.Equals(t, Clean(image?.Type), StringComparison.OrdinalIgnoreCase));
+                if (url != null && type != null && seen.Add(type + "|" + url) && result.Count < 60)
+                {
+                    result.Add(new LocalImage { Type = type, Url = url });
+                }
+            }
+
+            return result;
         }
 
         /// <summary>A valid PersonKind name (otherwise Actor)</summary>
@@ -636,6 +667,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             Put(json, "banner", node.Banner);
             Put(json, "logo", node.Logo);
             Put(json, "thumb", node.Thumb);
+            if (node.Gallery?.Count > 0)
+            {
+                json["images"] = node.Gallery.Select(g => new Dictionary<string, object> { ["type"] = g.Type, ["url"] = g.Url }).ToList();
+            }
+
             return json;
         }
 

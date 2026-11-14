@@ -132,6 +132,20 @@ try {
   check('image: upload with the element id and the file type', /\/Image\?node=[a-z0-9]{6}/.test(uploadCall) && uploadCall.includes('image/jpeg') && uploadCall.includes('TOKEN'), uploadCall);
   check('image: the address field is greyed out and the preview goes through the plugin', (await ev(`document.querySelector('#lf-Thumb').disabled`)) === true && (await ev(`document.querySelector('.cm-imgprev img').src`)).includes('/Image/') && (await ev(`document.querySelector('.cm-imgprev img').src`)).includes('api_key=TOKEN'));
   await shot('L3b-image-uploaded-1440');
+  // Gallery: extra images by type, offered in Jellyfin's image picker
+  check('gallery: block shown for an episode with Miniature and Affiche', (await vis('#lfGallery')) && (await ev(`Array.from(document.querySelectorAll('#lfGalType option')).map(function(o){return o.value;}).join()`)) === 'Thumb,Primary');
+  await type('#lfGalUrl', 'https://img.test/a.jpg');
+  await click('[data-gal-url]'); await wait(250);
+  check('gallery: an address is added with its type', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 1 && (await ev(`document.querySelector('#lfGallery .cm-gal-meta span').textContent`)) === 'Miniature');
+  await ev(`(function(){var dt=new DataTransfer(); ['b.jpg','c.png'].forEach(function(n){dt.items.add(new File([new Uint8Array([255,216,255,224,0,16,74,70,73,70,0,1])],n,{type:'image/jpeg'}));}); var i=document.querySelector('[data-gal-file]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(900);
+  check('gallery: several files are sent and added', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 3, String(await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)));
+  await click('#lfGallery [data-gal-del="0"]'); await wait(250);
+  check('gallery: "Retirer" removes one', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 2);
+  await click('[data-apply-images]'); await wait(600);
+  const applied = JSON.parse(await ev(`JSON.stringify(__mock.refresh)`));
+  check('apply images: the request targets the tag, replaces images, episode only', /^[a-z]+-[a-z0-9]{6}$/i.test(applied.Tag) && applied.ReplaceImages === true && JSON.stringify(applied.Types) === '["episode"]' && applied.IncludeChildren === false, JSON.stringify(applied));
+  check('apply images: the result is shown', (await ev(`document.querySelector('#lfApplyMsg').textContent`)).includes('3 élément'));
+  await shot('L3c-gallery-1440');
   await click('[data-clear-img="Thumb"]'); await wait(200);
   check('image: "Retirer" empties the field', (await ev(`document.querySelector('#lf-Thumb').value`)) === '' && !(await vis('[data-clear-img="Thumb"]')));
   await ev(`(function(){var dt=new DataTransfer(); dt.items.add(new File([new Uint8Array([255,216,255,224,0,16,74,70,73,70,0,1])],'b.jpg',{type:'image/jpeg'})); var i=document.querySelector('[data-file="Thumb"]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(400);

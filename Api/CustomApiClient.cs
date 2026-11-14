@@ -428,6 +428,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 
                 // Determine the right endpoint and mapping depending on the type
                 var (endpoint, mapping, label, mappingName) = ResolveEndpoint(itemType, source);
+                if (source.IsLocal && string.IsNullOrWhiteSpace(mapping.ImagesArray))
+                {
+                    // The gallery of a local node is served as "images": configs saved before it existed have no path for it
+                    mapping = System.Text.Json.JsonSerializer.Deserialize<FieldMapping>(System.Text.Json.JsonSerializer.Serialize(mapping));
+                    mapping.ImagesArray = "images"; mapping.ImageUrl = "url"; mapping.ImageType = "type";
+                }
+
                 _logger.LogInformation("🖼️ [IMAGE FETCH] Using {Label} mapping", label);
                 _logger.LogInformation("🖼️ [IMAGE FETCH]   {MappingName}.PosterUrl: '{PosterUrl}'", mappingName, mapping.PosterUrl ?? "(null)");
                 _logger.LogInformation("🖼️ [IMAGE FETCH]   {MappingName}.ImagesArray: '{ImagesArray}'", mappingName, mapping.ImagesArray ?? "(null)");
