@@ -268,11 +268,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             seasonReport.ApiCount = apiEpisodes.Count;
-            var sourcePrefix = source.Prefix.Trim();
             DetectOverviewLists(apiEpisodes, source);
 
             var missing = apiEpisodes
-                .Where(e => !localKeys.Contains($"{sourcePrefix}-{e.Id}"))
+                .Where(e => !localKeys.Contains(EpisodeKey(source, e.Id)))
                 .OrderBy(e => e.IndexNumber ?? int.MaxValue)
                 .ThenBy(e => e.PremiereDate ?? DateTime.MaxValue)
                 .ToList();
@@ -286,7 +285,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 RunTimeTicks = e.RunTimeTicks,
                 Overview = e.Overview != null && e.Overview.Length > 400 ? e.Overview.Substring(0, 400) + "…" : e.Overview,
                 // Matching virtual episode (thumbnail + link in the Missing episodes screen)
-                EpisodeId = createVirtual ? GetVirtualEpisodeId(season, $"{sourcePrefix}-{e.Id}") : null
+                EpisodeId = createVirtual ? GetVirtualEpisodeId(season, EpisodeKey(source, e.Id)) : null
             }).ToList();
 
             _logger.LogInformation(
@@ -318,11 +317,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             CancellationToken cancellationToken)
         {
             var stats = new SyncStats();
-            var sourcePrefix = source.Prefix.Trim();
             var wantedByKey = new Dictionary<string, EpisodeListItem>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in wanted)
             {
-                wantedByKey[$"{sourcePrefix}-{item.Id}"] = item;
+                wantedByKey[EpisodeKey(source, item.Id)] = item;
             }
 
             var cache = ignoreCache
@@ -488,6 +486,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             _libraryManager.DeleteItem(episode, new DeleteOptions { DeleteFileLocation = false }, season, false);
         }
+
+        /// <summary>
+        /// "{prefix}-{id}" key of a listed episode. On a local source, an episode whose id is already "prefix-id" (it overrides an API
+        /// episode) keeps that tag: it stands for the file tagged with the API's id.
+        /// </summary>
+        private static string EpisodeKey(SourceConfiguration source, string id)
+            => source.IsLocal && id != null && id.Contains('-') ? id : $"{source.Prefix.Trim()}-{id}";
 
         /// <summary>
         /// Deterministic id of the virtual episode of a "{prefix}-{id}" key in a season
@@ -816,7 +821,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 };
                 // Marker (informative): "{prefix}-{id}" key computed from the list, never re-read from the episode
                 // (an empty value would make SetProviderId throw)
-                trailer.SetProviderId(PreviewMapper.ProviderKey, $"{source.Prefix.Trim()}-{item.Id}");
+                trailer.SetProviderId(PreviewMapper.ProviderKey, EpisodeKey(source, item.Id));
 
                 _logger.LogInformation("🎞️ [PREVIEW] Creating preview {Url} for '{Name}'", url, episode.Name);
                 _libraryManager.CreateItem(trailer, null);

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -20,11 +21,60 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     public class LocalSourceController : ControllerBase
     {
         private readonly LocalSourceStore _store;
+        private readonly SourceResolver _resolver;
+        private readonly CustomApiClient _api;
 
-        public LocalSourceController(LocalSourceStore store)
+        public LocalSourceController(LocalSourceStore store, SourceResolver resolver, CustomApiClient api)
         {
             _store = store;
+            _resolver = resolver;
+            _api = api;
         }
+
+        /// <summary>
+        /// Episode list of an API season ("dm-123"), shaped like local episodes whose id is the API episode's tag
+        /// ("dm-a1v1"): the editor merges it into a local season that overrides that season. Saves nothing.
+        /// </summary>
+        [HttpPost("ImportEpisodes")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<List<LocalEpisode>>> ImportEpisodes([FromBody] ImportEpisodesRequest request, CancellationToken cancellationToken)
+        {
+            var tag = (request?.Tag ?? string.Empty).Trim().Trim('{', '}');
+            var prefix = _resolver.ExtractPrefixFromId(tag);
+            var source = string.IsNullOrEmpty(prefix) ? null : _resolver.GetSourceByPrefix(prefix);
+            if (source == null || source.IsLocal)
+            {
+                return BadRequest($"Aucune source API active n'a le préfixe « {prefix} ».");
+            }
+
+            if (string.IsNullOrWhiteSpace(source.EpisodeListEndpoint))
+            {
+                return BadRequest($"La source « {source.Name} » n'a pas d'endpoint de liste des épisodes (onglet Endpoints).");
+            }
+
+            var items = await _api.GetEpisodeListAsync(_resolver.ExtractIdWithoutPrefix(tag), source, cancellationToken);
+            if (items == null)
+            {
+                return BadRequest("La liste d'épisodes n'a pas pu être récupérée (voir les logs 📃 [EPISODE LIST]).");
+            }
+
+            var key = source.Prefix.Trim();
+            return Ok(items.Select(i => new LocalEpisode
+            {
+                Id = $"{key}-{i.Id}",
+                Title = i.Title,
+                Overview = i.Overview,
+                PremiereDate = i.PremiereDate?.ToString("yyyy-MM-dd"),
+                IndexNumber = i.IndexNumber,
+                Duration = i.RunTimeTicks.HasValue ? FormatDuration(System.TimeSpan.FromTicks(i.RunTimeTicks.Value)) : null,
+                Thumb = i.ThumbUrl,
+                PreviewUrl = i.PreviewUrl
+            }).ToList());
+        }
+
+        private static string FormatDuration(System.TimeSpan d)
+            => d.TotalHours >= 1 ? $"{(int)d.TotalHours}:{d.Minutes:00}:{d.Seconds:00}" : $"{d.Minutes}:{d.Seconds:00}";
 
         [HttpGet("{dataId}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -106,5 +156,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     public class LocalImageResult
     {
         public string Url { get; set; }
+    }
+
+    public class ImportEpisodesRequest
+    {
+        /// <summary>Tag of the API season: "dm-123" or "{dm-123}"</summary>
+        public string Tag { get; set; }
     }
 }

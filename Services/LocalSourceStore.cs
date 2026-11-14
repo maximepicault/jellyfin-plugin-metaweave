@@ -374,7 +374,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 .ToList();
         }
 
-        // "prefix-id": the tag of an element of ANOTHER source, which this node overrides (series and seasons only)
+        // "prefix-id": the tag of an element of ANOTHER source, which this node overrides (series, seasons and episodes)
         private static readonly Regex OverrideId = new Regex(@"^[\w]{1,20}-[\w]{1,40}$", RegexOptions.Compiled);
 
         private static void NormalizeNode(LocalNode node, HashSet<string> used, bool mayOverride = false)
@@ -446,7 +446,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     season.Episodes ??= new List<LocalEpisode>();
                     foreach (var episode in season.Episodes)
                     {
-                        NormalizeNode(episode, used);
+                        NormalizeNode(episode, used, true);
                         episode.Duration = Clean(episode.Duration);
                         episode.PreviewUrl = Clean(episode.PreviewUrl);
                         episode.Cast = NormalizeCast(episode.Cast);
@@ -480,7 +480,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         // ---- Overriding an element of another source --------------------------------------------------------------
 
         /// <summary>
-        /// The local series ("series") or season ("season") whose id is the tag "prefix-id" of an element of another
+        /// The local series ("series"), season ("season") or episode ("episode") whose id is the tag "prefix-id" of an element of another
         /// source: its content replaces what that source says. Only enabled local sources, never the source's own prefix.
         /// </summary>
         public (SourceConfiguration Source, LocalNode Node)? FindOverride(string tag, string kind)
@@ -502,7 +502,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var content = Load(source.LocalDataId);
                 IEnumerable<LocalNode> nodes = kind == "series"
                     ? content.Series
-                    : content.Series.SelectMany(s => s.Seasons);
+                    : kind == "season"
+                        ? content.Series.SelectMany(s => s.Seasons)
+                        : content.Series.SelectMany(s => s.Seasons).SelectMany(s => s.Episodes);
                 var node = nodes.FirstOrDefault(n => IdEquals(n.Id, tag));
                 if (node != null)
                 {
