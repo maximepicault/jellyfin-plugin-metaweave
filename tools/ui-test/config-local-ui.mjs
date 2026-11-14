@@ -135,6 +135,22 @@ try {
   check('bulk add: 3 episodes (empty lines ignored)', labels === 'Ma série | Saison 1 | Le pilote | Deuxième | Troisième | Quatrième', labels);
   const nums = await ev(`Array.from(document.querySelectorAll('#localTree .cm-t-item .n.num')).map(function(s){return s.textContent;}).join(',')`);
   check('bulk add: numbers 01..04', nums === '01,02,03,04', nums);
+  // The id of a series/season can be changed; "prefix-id" is the tag of an API element that it overrides
+  await click(`#localTree [data-node="${seasonId}"]`); await wait(200);
+  const setId = v => ev(`(function(){var e=document.querySelector('#lf-NodeId'); e.value=${JSON.stringify(v)}; e.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
+  check('id: field offered on a season', await vis('#lf-NodeId'));
+  await setId('dm-123'); await wait(200);
+  check('id: "prefix-id" accepted, the tag is the API element\'s', (await ev(`document.querySelector('#lfTag').textContent`)) === '{dm-123}' && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
+  check('id: the renamed season stays selected in the tree', (await ev(`document.querySelector('#localTree [aria-current="true"]').getAttribute('data-node')`)) === 'dm-123');
+  await setId('not valid!'); await wait(200);
+  check('id: an invalid id is refused with a message and the id is kept', (await ev(`__mock.alerts.length`)) === 1 && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
+  await setId(epId); await wait(200);
+  check('id: an id already used is refused', (await ev(`__mock.alerts.length`)) === 2 && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'dm-123');
+  await ev(`__mock.alerts.length = 0; true`);
+  await setId(seasonId); await wait(200);
+  check('id: renamed back, the tag is the source\'s again', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-' + seasonId + '}');
+  await click(`#localTree [data-node="${epId}"]`); await wait(200);
+  check('id: no field on an episode', !(await vis('#lf-NodeId')));
   check('Contenu section counter', (await ev(`document.querySelector('[data-count-for="content"]').textContent`)) === '4 épisodes');
   await click(`#localTree [data-node="${epId}"]`); await wait(200);
   await shot('L4-content-1440');

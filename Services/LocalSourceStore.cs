@@ -374,11 +374,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 .ToList();
         }
 
-        private static void NormalizeNode(LocalNode node, HashSet<string> used)
+        // "prefix-id": the tag of an element of ANOTHER source, which this node overrides (series and seasons only)
+        private static readonly Regex OverrideId = new Regex(@"^[\w]{1,20}-[\w]{1,40}$", RegexOptions.Compiled);
+
+        private static void NormalizeNode(LocalNode node, HashSet<string> used, bool mayOverride = false)
         {
             var id = Clean(node.Id);
-            // Id: letters/digits/_ only (it ends up in a {prefix-ID} file name), unique within the source
-            node.Id = id != null && Regex.IsMatch(id, @"^[\w]{1,40}$") && used.Add(id) ? id : NewId(used);
+            // Id: letters/digits/_ only (it ends up in a {prefix-ID} file name), unique within the source. A series or a
+            // season may also carry "prefix-id" (the tag of an API element): its content then replaces that element's
+            var valid = id != null && (Regex.IsMatch(id, @"^[\w]{1,40}$") || (mayOverride && OverrideId.IsMatch(id)));
+            node.Id = valid && used.Add(id) ? id : NewId(used);
             // Typed text is stored decoded: titles pasted from a web page ("Q&amp;A") do not keep their
             // entities in the editor nor in "Copier le nom" (a file name with "&amp;" in it)
             node.Title = Clean(HtmlText.Decode(node.Title));
@@ -433,11 +438,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             content.Series ??= new List<LocalSeries>();
             foreach (var series in content.Series)
             {
-                NormalizeNode(series, used);
+                NormalizeNode(series, used, true);
                 series.Seasons ??= new List<LocalSeason>();
                 foreach (var season in series.Seasons)
                 {
-                    NormalizeNode(season, used);
+                    NormalizeNode(season, used, true);
                     season.Episodes ??= new List<LocalEpisode>();
                     foreach (var episode in season.Episodes)
                     {
@@ -470,6 +475,42 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     node.Genres = HtmlText.Decode(node.Genres);
                 }
             }
+        }
+
+        // ---- Overriding an element of another source --------------------------------------------------------------
+
+        /// <summary>
+        /// The local series ("series") or season ("season") whose id is the tag "prefix-id" of an element of another
+        /// source: its content replaces what that source says. Only enabled local sources, never the source's own prefix.
+        /// </summary>
+        public (SourceConfiguration Source, LocalNode Node)? FindOverride(string tag, string kind)
+        {
+            if (string.IsNullOrWhiteSpace(tag) || !OverrideId.IsMatch(tag.Trim()))
+            {
+                return null;
+            }
+
+            tag = tag.Trim();
+            var prefix = tag.Substring(0, tag.IndexOf('-'));
+            foreach (var source in Plugin.Instance?.Configuration?.Sources?.Where(s => s.IsLocal && s.Enabled && !string.IsNullOrEmpty(s.LocalDataId)) ?? Enumerable.Empty<SourceConfiguration>())
+            {
+                if (string.Equals((source.Prefix ?? string.Empty).Trim(), prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var content = Load(source.LocalDataId);
+                IEnumerable<LocalNode> nodes = kind == "series"
+                    ? content.Series
+                    : content.Series.SelectMany(s => s.Seasons);
+                var node = nodes.FirstOrDefault(n => IdEquals(n.Id, tag));
+                if (node != null)
+                {
+                    return (source, node);
+                }
+            }
+
+            return null;
         }
 
         // ---- Serving in place of the API ------------------------------------------------------------------------

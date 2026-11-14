@@ -128,6 +128,76 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             CancellationToken cancellationToken,
             bool bypassCache = false)
         {
+            var api = await GetApiMetadataAsync(itemId, itemType, source, cancellationToken, bypassCache);
+
+            // A local series/season may take over the one of this API element: applied here, after the (cached) API
+            // answer, so a change typed in the plugin shows up at once
+            var local = LocalOverride(itemId, itemType, source);
+            if (local == null)
+            {
+                return api;
+            }
+
+            var own = await FetchMetadataFromApiAsync(local.Value.Node.Id, itemType, local.Value.Source, cancellationToken);
+            _logger.LogInformation("🗂️ [LOCAL SOURCE] {Tag} is overridden by the local {Kind} '{Title}' of source '{Source}'",
+                GetCacheId(source, itemId), itemType, local.Value.Node.Title ?? local.Value.Node.Id, local.Value.Source.Name);
+            return MergeOverride(api, own);
+        }
+
+        /// <summary>The local node that overrides this API series/season (null when none, or for any other type of item)</summary>
+        private (SourceConfiguration Source, LocalNode Node)? LocalOverride(string itemId, string itemType, SourceConfiguration source)
+        {
+            if (_localStore == null || source == null || source.IsLocal || source.IsPeople || string.IsNullOrWhiteSpace(source.Prefix))
+            {
+                return null;
+            }
+
+            var kind = (itemType ?? string.Empty).ToLowerInvariant() switch
+            {
+                "series" => "series",
+                "season" or "source" => "season",
+                _ => null
+            };
+            return kind == null ? null : _localStore.FindOverride(GetCacheId(source, itemId), kind);
+        }
+
+        /// <summary>
+        /// Local fields win when they are filled in; what the local node leaves empty keeps the API value.
+        /// Works on a copy: the API answer may be the cached instance.
+        /// </summary>
+        private static CustomMetadataResponse MergeOverride(CustomMetadataResponse api, CustomMetadataResponse local)
+        {
+            if (local == null)
+            {
+                return api;
+            }
+
+            if (api == null)
+            {
+                return local;
+            }
+
+            return new CustomMetadataResponse
+            {
+                Title = string.IsNullOrWhiteSpace(local.Title) ? api.Title : local.Title,
+                Overview = string.IsNullOrWhiteSpace(local.Overview) ? api.Overview : local.Overview,
+                SeriesName = api.SeriesName,
+                Tags = local.Tags?.Count > 0 ? local.Tags : api.Tags,
+                Genres = local.Genres?.Count > 0 ? local.Genres : api.Genres,
+                Cast = local.Cast?.Count > 0 ? local.Cast : api.Cast,
+                PremiereDate = local.PremiereDate ?? api.PremiereDate,
+                CommunityRating = local.CommunityRating ?? api.CommunityRating,
+                IndexNumber = api.IndexNumber
+            };
+        }
+
+        private async Task<CustomMetadataResponse> GetApiMetadataAsync(
+            string itemId,
+            string itemType,
+            SourceConfiguration source,
+            CancellationToken cancellationToken,
+            bool bypassCache)
+        {
             if (source == null)
             {
                 _logger.LogError("📡 [API CLIENT] ❌ Source is NULL! Cannot fetch metadata.");
@@ -271,6 +341,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public async Task<List<ImageInfo>> GetImagesAsync(
             string itemId, 
             string itemType, 
+            SourceConfiguration source,
+            CancellationToken cancellationToken)
+        {
+            var api = await GetApiImagesAsync(itemId, itemType, source, cancellationToken);
+
+            // The images of a local override come first (the first of each type is the one Jellyfin selects)
+            var local = LocalOverride(itemId, itemType, source);
+            if (local == null)
+            {
+                return api;
+            }
+
+            var own = await FetchImagesFromApiAsync(local.Value.Node.Id, itemType, local.Value.Source, cancellationToken);
+            return own.Concat(api ?? new List<ImageInfo>()).ToList();
+        }
+
+        private async Task<List<ImageInfo>> GetApiImagesAsync(
+            string itemId,
+            string itemType,
             SourceConfiguration source,
             CancellationToken cancellationToken)
         {
