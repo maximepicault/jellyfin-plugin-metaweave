@@ -87,10 +87,18 @@
         #CustomMetadataConfigPage .cm-group { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 14px; padding: 14px; border: 1px solid var(--cm-border); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
         #CustomMetadataConfigPage .cm-group-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 16px; }
         #CustomMetadataConfigPage .cm-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 2px 4px; }
+        #CustomMetadataConfigPage .cm-group-opts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+        @media (max-width: 600px) {
+            #CustomMetadataConfigPage .cm-group-sep { display: none; }
+            #CustomMetadataConfigPage .cm-group-opts { flex-basis: 100%; order: 3; }
+            #CustomMetadataConfigPage .cm-group-head [data-refresh] { order: 4; width: 100%; }
+            #CustomMetadataConfigPage .cm-group-status { order: 5; }
+        }
         #CustomMetadataConfigPage .cm-group-kinds { font-size: 13px; color: var(--cm-muted); }
         #CustomMetadataConfigPage .cm-group-sep { flex: 1; }
         #CustomMetadataConfigPage .cm-group-head label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
-        #CustomMetadataConfigPage .cm-group-head .emby-button { margin: 0; }
+        #CustomMetadataConfigPage .cm-group-head [data-refresh] { margin: 0; }
+        #CustomMetadataConfigPage .cm-group-head [data-refresh][disabled] { opacity: .45; cursor: not-allowed; }
         #CustomMetadataConfigPage .cm-group-status { flex-basis: 100%; font-size: 13px; color: var(--cm-muted); }
         #CustomMetadataConfigPage .cm-card-head { display: flex; align-items: flex-start; gap: 12px; }
         #CustomMetadataConfigPage .cm-card-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -942,15 +950,16 @@
                     g.items.forEach(function(it) { var k = it.source.SourceType === 'People' ? 'Personnes' : (it.source.SourceType === 'Local' ? 'Locale' : 'API'); if (kinds.indexOf(k) < 0) { kinds.push(k); } });
                     var enriches = g.items.some(function(it) { return it.source.SourceType !== 'People'; });
                     var head = '';
+                    var allOff = g.items.every(function(it) { return it.source.Enabled === false; });
                     if (enriches && g.prefix) {
                         head = '<div class="cm-group-head" data-group="' + escapeHtml(g.prefix) + '">'
-                            + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span>'
+                            + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span><span class="cm-group-opts">'
                             + '<label><input type="checkbox" class="cm-switch" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
                             + '<label><input type="checkbox" class="cm-switch" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>'
                             + '<label><input type="checkbox" class="cm-switch" data-rf="episode" checked aria-label="Actualiser les épisodes" /> Épisodes</label>'
-                            + '<label title="Par défaut seules les métadonnées sont remplacées"><input type="checkbox" class="cm-switch" data-rf="images" aria-label="Remplacer aussi les images" /> Images</label>'
-                            + '<button is="emby-button" type="button" class="raised" data-refresh="' + escapeHtml(g.prefix) + '" title="Actualise uniquement les éléments de la médiathèque qui portent ce préfixe (l\'API d\'abord, puis la source locale par-dessus), sans scanner la médiathèque"><span>Actualiser les éléments</span></button>'
-                            + '<span class="cm-group-status" data-refresh-status="' + escapeHtml(g.prefix) + '" role="status"></span></div>';
+                            + '<label title="Par défaut seules les métadonnées sont remplacées"><input type="checkbox" class="cm-switch" data-rf="images" aria-label="Remplacer aussi les images" /> Images</label></span>'
+                            + '<button is="emby-button" type="button" class="raised" data-refresh="' + escapeHtml(g.prefix) + '"' + (allOff ? ' disabled' : '') + ' title="Actualise uniquement les éléments de la médiathèque qui portent ce préfixe (l\'API d\'abord, puis la source locale par-dessus), sans scanner la médiathèque"><span>Actualiser les éléments</span></button>'
+                            + '<span class="cm-group-status" data-refresh-status="' + escapeHtml(g.prefix) + '" role="status">' + (allOff ? 'Source désactivée : activez-la pour actualiser ses éléments.' : '') + '</span></div>';
                     }
                     groupsHtml.push({ head: head, items: g.items });
                 });
