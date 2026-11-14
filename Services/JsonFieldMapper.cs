@@ -45,6 +45,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             _logger.LogDebug("  - Genres: {GenresPath}", config.Genres ?? "(not configured)");
             
             var root = jsonDoc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array && !(config.Title ?? string.Empty).TrimStart().StartsWith("["))
+            {
+                _logger.LogWarning("🔄 [JSON MAPPER] ⚠️ The API answered with a list: designate an element with [0] (for example [0].{Example}), otherwise no field is found",
+                    string.IsNullOrWhiteSpace(config.Title) ? "title" : config.Title.Split(new[] { JsonPathExtractor.FallbackSeparator }, StringSplitOptions.None)[0].Trim());
+            }
             
             // Log of the received JSON (truncated)
             var jsonString = jsonDoc.RootElement.GetRawText();
