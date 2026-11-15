@@ -58,6 +58,7 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddSingleton<CastApplyService>();
 
             serviceCollection.AddSingleton<MissingEpisodeService>();
+            serviceCollection.AddSingleton<DiagnosticService>();
         }
     }
 }

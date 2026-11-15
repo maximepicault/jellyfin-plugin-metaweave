@@ -958,6 +958,19 @@
                     renderSourcesList(config.Sources || []);
                     checkLibraryProviders(config);
                     closeEditor(true);
+                    // The Diagnostic page asks for a source to be opened (its editor, or its test)
+                    try {
+                        var wanted = JSON.parse(sessionStorage.getItem('cm-open-source') || 'null');
+                        sessionStorage.removeItem('cm-open-source');
+                        if (wanted && wanted.prefix) {
+                            var found = -1;
+                            (config.Sources || []).forEach(function(src, i) {
+                                var same = src.SourceType !== 'People' && String(src.Prefix || '').trim().toLowerCase() === String(wanted.prefix).toLowerCase();
+                                if (same && (found < 0 || (config.Sources[found].SourceType === 'Local' && src.SourceType !== 'Local'))) { found = i; }
+                            });
+                            if (found >= 0) { window.editSource(found, !!wanted.test && config.Sources[found].SourceType !== 'Local'); }
+                        }
+                    } catch (err) { /* no note: the list is shown */ }
                     
                     Dashboard.hideLoadingMsg();
                 });

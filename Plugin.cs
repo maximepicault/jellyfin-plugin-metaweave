@@ -25,7 +25,7 @@ namespace Jellyfin.Plugin.CustomMetadata
 
         public IEnumerable<PluginPageInfo> GetPages()
         {
-            // The three pages have a shortcut in the "Extensions" section of the left menu (EnableInMainMenu).
+            // The first three pages have a shortcut in the "Extensions" section of the left menu (EnableInMainMenu).
             // WATCH THE ORDER: jellyfin-web 10.11 (findBestConfigurationPage) opens, as the plugin's settings page, the FIRST
             // page flagged EnableInMainMenu in the order the server returns. The configuration page must therefore stay first,
             // otherwise clicking the plugin would open "Personnes" or "Épisodes manquants" instead.
@@ -53,6 +53,14 @@ namespace Jellyfin.Plugin.CustomMetadata
                     DisplayName = "Personnes",
                     EnableInMainMenu = true,
                     EmbeddedResourcePath = GetType().Namespace + ".Configuration.people.html"
+                },
+                new PluginPageInfo
+                {
+                    // "Diagnostic" screen: why an element is not enriched. Reached from the tab bar of the other pages,
+                    // not from the left menu (three shortcuts are enough there).
+                    Name = "CustomMetadataDiagnostic",
+                    DisplayName = "Diagnostic",
+                    EmbeddedResourcePath = GetType().Namespace + ".Configuration.diagnostic.html"
                 }
             };
         }

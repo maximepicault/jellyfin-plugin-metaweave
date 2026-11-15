@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Diagnostic</title>
+</head>
+<body>
+<div id="CustomMetadataDiagnosticPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select">
+    <!-- Styles INSIDE the page: jellyfin-web keeps only this div, a <style> in the <head> would be ignored -->
+    <style>
+        #CustomMetadataDiagnosticPage { --dg-border: rgba(255, 255, 255, 0.14); --dg-surface: rgba(255, 255, 255, 0.04); --dg-muted: rgba(255, 255, 255, 0.7); --dg-warn: #ffd27f; --dg-link: #33b6e6; }
+        #CustomMetadataDiagnosticPage [data-role="content"] { overflow: visible; }
+        #CustomMetadataDiagnosticPage .dg-wrap { container-type: inline-size; max-width: 1340px; }
+        /* Tab bar shared by the plugin's pages: keep it identical in config.html, missing.html, people.html and diagnostic.html */
+        #CustomMetadataDiagnosticPage .cmn-nav { position: relative; display: flex; gap: 4px; margin: 0 0 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.16); overflow-x: auto; scrollbar-width: none; }
+        #CustomMetadataDiagnosticPage .cmn-tab { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 46px; padding: 0 16px; margin-bottom: -1px; border-bottom: 3px solid transparent; color: rgba(255, 255, 255, 0.72); font-weight: 600; text-decoration: none; white-space: nowrap; }
+        #CustomMetadataDiagnosticPage .cmn-tab:hover { color: #fff; }
+        #CustomMetadataDiagnosticPage .cmn-tab:focus-visible { outline: 2px solid #00a4dc; outline-offset: -2px; }
+        #CustomMetadataDiagnosticPage .cmn-tab[aria-current="page"] { color: #fff; border-bottom-color: #00a4dc; }
+        #CustomMetadataDiagnosticPage .cmn-count { min-width: 20px; box-sizing: border-box; padding: 2px 7px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 12px; font-weight: 700; text-align: center; }
+        #CustomMetadataDiagnosticPage .cmn-count:empty { display: none; }
+        #CustomMetadataDiagnosticPage .cmn-count.cmn-alert { background: #c0392b; }
+        #CustomMetadataDiagnosticPage .cmn-count.cmn-warn { background: #a8620f; }
+        #CustomMetadataDiagnosticPage h2 { margin: 0 0 6px; }
+        #CustomMetadataDiagnosticPage .dg-lead { margin: 0 0 22px; max-width: 800px; color: var(--dg-muted); line-height: 1.5; }
+        #CustomMetadataDiagnosticPage .dg-panel { margin: 0 0 24px; padding: 18px; border: 1px solid var(--dg-border); border-radius: 10px; background: var(--dg-surface); }
+        #CustomMetadataDiagnosticPage .dg-panel h3 { margin: 0 0 4px; font-size: 17px; font-weight: 700; }
+        #CustomMetadataDiagnosticPage .dg-panel > p { margin: 0 0 14px; color: var(--dg-muted); font-size: 14px; line-height: 1.5; }
+        #CustomMetadataDiagnosticPage .dg-form { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; max-width: none; }
+        #CustomMetadataDiagnosticPage .dg-form .inputContainer { margin: 0; flex: 1 1 320px; min-width: 0; }
+        #CustomMetadataDiagnosticPage .dg-form .selectContainer { margin: 0; flex: 0 1 290px; }
+        #CustomMetadataDiagnosticPage .dg-form .emby-button { margin: 0; }
+        #CustomMetadataDiagnosticPage .dg-form input { font-family: monospace; }
+        #CustomMetadataDiagnosticPage .dg-verdict { display: flex; flex-direction: column; gap: 4px; margin: 16px 0 10px; padding: 12px 16px; border-radius: 8px; background: rgba(36, 115, 74, 0.35); }
+        #CustomMetadataDiagnosticPage .dg-verdict.dg-bad { background: rgba(168, 98, 15, 0.35); }
+        #CustomMetadataDiagnosticPage .dg-verdict strong { font-size: 16px; }
+        #CustomMetadataDiagnosticPage .dg-verdict span { font-size: 14px; line-height: 1.45; }
+        #CustomMetadataDiagnosticPage .dg-steps { display: flex; flex-direction: column; gap: 8px; }
+        #CustomMetadataDiagnosticPage .dg-step { display: grid; grid-template-columns: 56px 220px minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; min-height: 50px; padding: 6px 14px; border: 1px solid var(--dg-border); border-radius: 8px; background: rgba(255, 255, 255, 0.03); }
+        #CustomMetadataDiagnosticPage .dg-step[data-state="fail"] { border-color: rgba(255, 210, 127, 0.55); background: rgba(255, 210, 127, 0.1); }
+        #CustomMetadataDiagnosticPage .dg-step[data-state="skip"] { opacity: .6; }
+        #CustomMetadataDiagnosticPage .dg-mark { display: inline-flex; align-items: center; justify-content: center; height: 26px; border-radius: 13px; font-size: 12px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, 0.14); }
+        #CustomMetadataDiagnosticPage .dg-step[data-state="ok"] .dg-mark { background: #24734a; }
+        #CustomMetadataDiagnosticPage .dg-step[data-state="fail"] .dg-mark { background: #a8620f; }
+        #CustomMetadataDiagnosticPage .dg-step-title { font-weight: 600; }
+        #CustomMetadataDiagnosticPage .dg-step-detail { font-size: 14px; color: rgba(255, 255, 255, 0.85); overflow-wrap: anywhere; }
+        #CustomMetadataDiagnosticPage .dg-action { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border: 1px solid var(--dg-warn); border-radius: 6px; background: none; color: var(--dg-warn); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
+        #CustomMetadataDiagnosticPage .dg-action:hover { background: rgba(255, 210, 127, 0.12); }
+        #CustomMetadataDiagnosticPage .dg-list-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 14px; }
+        #CustomMetadataDiagnosticPage .dg-list-head h3 { margin: 0; flex: 1 1 auto; }
+        #CustomMetadataDiagnosticPage .dg-list-head .emby-button { margin: 0; }
+        #CustomMetadataDiagnosticPage .dg-when { font-size: 13px; color: var(--dg-muted); }
+        #CustomMetadataDiagnosticPage .dg-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 0 0 16px; }
+        #CustomMetadataDiagnosticPage .dg-tile { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border: 1px solid var(--dg-border); border-radius: 8px; background: rgba(255, 255, 255, 0.03); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataDiagnosticPage .dg-tile[aria-pressed="true"] { border-color: #00a4dc; background: rgba(0, 164, 220, 0.14); }
+        #CustomMetadataDiagnosticPage .dg-tile:focus-visible, #CustomMetadataDiagnosticPage .dg-action:focus-visible, #CustomMetadataDiagnosticPage .dg-rowbtn:focus-visible { outline: 2px solid #00a4dc; outline-offset: 2px; }
+        #CustomMetadataDiagnosticPage .dg-tile b { font-size: 22px; }
+        #CustomMetadataDiagnosticPage .dg-tile span { font-size: 13px; color: var(--dg-muted); }
+        #CustomMetadataDiagnosticPage .dg-rows { border: 1px solid var(--dg-border); border-radius: 10px; overflow: hidden; }
+        #CustomMetadataDiagnosticPage .dg-row { display: grid; grid-template-columns: minmax(0, 1.3fr) 80px minmax(0, 1.6fr) auto; gap: 6px 18px; align-items: center; padding: 10px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+        #CustomMetadataDiagnosticPage .dg-row:last-child { border-bottom: 0; }
+        #CustomMetadataDiagnosticPage .dg-row-head { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--dg-muted); }
+        #CustomMetadataDiagnosticPage .dg-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        #CustomMetadataDiagnosticPage .dg-name strong, #CustomMetadataDiagnosticPage .dg-name code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #CustomMetadataDiagnosticPage .dg-name code { font-size: 13px; color: var(--dg-muted); }
+        #CustomMetadataDiagnosticPage .dg-why { font-size: 14px; color: var(--dg-warn); }
+        #CustomMetadataDiagnosticPage .dg-rowbtn { min-height: 36px; padding: 0 14px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        #CustomMetadataDiagnosticPage .dg-rowbtn:hover { border-color: #00a4dc; }
+        #CustomMetadataDiagnosticPage .dg-empty { padding: 22px 16px; text-align: center; color: var(--dg-muted); line-height: 1.5; }
+        #CustomMetadataDiagnosticPage .dg-note { margin: 12px 0 0; font-size: 13px; color: var(--dg-muted); line-height: 1.5; }
+        @container (max-width: 760px) {
+            #CustomMetadataDiagnosticPage .dg-step { grid-template-columns: 56px minmax(0, 1fr); }
+            #CustomMetadataDiagnosticPage .dg-step-detail, #CustomMetadataDiagnosticPage .dg-step .dg-action { grid-column: 1 / -1; justify-self: start; }
+            #CustomMetadataDiagnosticPage .dg-row { grid-template-columns: minmax(0, 1fr) auto; }
+            #CustomMetadataDiagnosticPage .dg-row-head { display: none; }
+            #CustomMetadataDiagnosticPage .dg-why { grid-column: 1 / -1; }
+            #CustomMetadataDiagnosticPage .dg-form .emby-button { flex: 1 1 100%; min-height: 44px; justify-content: center; }
+            #CustomMetadataDiagnosticPage .dg-form .selectContainer { flex: 1 1 100%; }
+        }
+    </style>
+    <div data-role="content">
+        <div class="content-primary">
+            <div class="dg-wrap">
+                <nav class="cmn-nav" aria-label="Pages du plugin">
+                    <a class="cmn-tab" href="#/configurationpage?name=Custom%20Metadata%20Provider">Configuration <span class="cmn-count" data-cmn-count="sources"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataMissingEpisodes">Épisodes manquants <span class="cmn-count" data-cmn-count="missing"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataPeople">Personnes <span class="cmn-count" data-cmn-count="people"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDiagnostic" aria-current="page">Diagnostic <span class="cmn-count" data-cmn-count="diagnostic"></span></a>
+                </nav>
+                <h2>Diagnostic</h2>
+                <p class="dg-lead">Pourquoi un fichier ou un dossier n'est pas enrichi par le plugin : le chemin complet est rejoué, de son nom jusqu'aux images, et s'arrête à la première étape qui bloque. Rien n'est modifié.</p>
+
+                <section class="dg-panel" aria-labelledby="dgOneTitle">
+                    <h3 id="dgOneTitle">Vérifier un élément</h3>
+                    <p>Collez le nom d'un fichier ou d'un dossier, avec son tag <code>{préfixe-ID}</code>.</p>
+                    <form class="dg-form" id="dgForm">
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="dgName" label="Nom du fichier ou du dossier" placeholder="Ma vidéo {dm-123}.mkv" autocomplete="off" />
+                        </div>
+                        <div class="selectContainer">
+                            <select is="emby-select" id="dgKind" label="Type (si absent de la médiathèque)">
+                                <option value="">Deviner</option>
+                                <option value="episode">Épisode</option>
+                                <option value="season">Saison</option>
+                                <option value="series">Série</option>
+                            </select>
+                        </div>
+                        <button is="emby-button" type="submit" class="raised button-submit" id="dgRun"><span>Diagnostiquer</span></button>
+                    </form>
+                    <div id="dgResult" role="status" aria-live="polite"></div>
+                </section>
+
+                <section class="dg-panel" aria-labelledby="dgListTitle">
+                    <div class="dg-list-head">
+                        <h3 id="dgListTitle">Éléments non enrichis de la médiathèque</h3>
+                        <span class="dg-when" id="dgWhen"></span>
+                        <button is="emby-button" type="button" class="raised" id="dgScan"><span>Vérifier la médiathèque</span></button>
+                    </div>
+                    <div class="dg-tiles" id="dgTiles"></div>
+                    <div id="dgList"></div>
+                    <p class="dg-note">Cette liste ne fait aucun appel aux sources : elle lit les noms, les sources, les réglages des médiathèques et ce que le plugin a déjà enregistré. Pour connaître la réponse d'une source (404, délai dépassé…), lancez le diagnostic de la ligne. Pour un épisode, seul ce diagnostic dit si la source répond : la liste ne peut le savoir que pour les séries et les saisons. Une série qui ne porte aucun tag n'est pas listée : elle ne concerne pas le plugin.</p>
+                </section>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var page = document.querySelector('#CustomMetadataDiagnosticPage');
+            var qs = function (selector) { return page.querySelector(selector); };
+            var list = null, filter = '';
+            var REASONS = [['notag', 'sans tag dans le nom'], ['source', 'source inconnue ou désactivée'], ['library', 'plugin décoché dans la médiathèque'], ['never', 'séries ou saisons jamais enrichies']];
+
+            // Counters of the shared tab bar (same code in the four pages)
+            function loadNavStatus() {
+                // On a phone the bar scrolls sideways: centre the current tab (again once the counters have their width)
+                var centre = function() {
+                    var current = document.querySelector('#CustomMetadataDiagnosticPage .cmn-tab[aria-current="page"]');
+                    if (current) { current.parentNode.scrollLeft = current.offsetLeft - (current.parentNode.clientWidth - current.offsetWidth) / 2; }
+                };
+                centre();
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Status')).then(function(s) {
+                    var set = function(name, value, tone, title) {
+                        var el = document.querySelector('#CustomMetadataDiagnosticPage [data-cmn-count="' + name + '"]');
+                        if (!el) { return; }
+                        el.textContent = value == null ? '' : String(value);
+                        el.className = 'cmn-count' + (tone ? ' cmn-' + tone : '');
+                        el.title = title || '';
+                    };
+                    var n = function(count, one, many) { return count + ' ' + (count > 1 ? many : one); };
+                    set('sources', s.Sources, '', n(s.Sources, 'source', 'sources'));
+                    set('missing', s.MissingEpisodes, s.MissingEpisodes > 0 ? 'alert' : (s.SourceErrors > 0 ? 'warn' : ''),
+                        s.MissingEpisodes == null ? '' : n(s.MissingEpisodes, 'épisode manquant', 'épisodes manquants') + (s.SourceErrors > 0 ? ', ' + n(s.SourceErrors, 'source en erreur', 'sources en erreur') : ''));
+                    set('people', s.People, '', n(s.People, 'personne', 'personnes'));
+                    set('diagnostic', s.NotEnriched, s.NotEnriched > 0 ? 'warn' : '', s.NotEnriched == null ? '' : n(s.NotEnriched, 'élément non enrichi', 'éléments non enrichis'));
+                    centre();
+                }, function() { /* counters are a comfort: the page works without them */ });
+            }
+
+            function escapeHtml(text) {
+                return String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            function plural(n, one, many) { return n + ' ' + (n > 1 ? many : one); }
+
+            function ago(date) {
+                var minutes = Math.round((Date.now() - new Date(date).getTime()) / 60000);
+                if (minutes < 1) { return 'à l\'instant'; }
+                if (minutes < 60) { return 'il y a ' + minutes + ' min'; }
+                if (minutes < 60 * 24) { return 'il y a ' + Math.round(minutes / 60) + ' h'; }
+                return 'le ' + new Date(date).toLocaleDateString();
+            }
+
+            // ---------------- one element
+            var MARKS = { ok: 'OK', fail: 'Stop', info: 'Info', skip: '—' };
+
+            function actionHtml(step, result) {
+                if (!step.Action) { return ''; }
+                if (step.Action === 'libraries') {
+                    return '<a class="dg-action" href="#/dashboard/libraries">' + escapeHtml(step.ActionLabel) + '</a>';
+                }
+                return '<button type="button" class="dg-action" data-action="' + escapeHtml(step.Action) + '" data-prefix="' + escapeHtml(result.Prefix || '') + '">' + escapeHtml(step.ActionLabel) + '</button>';
+            }
+
+            function renderResult(result) {
+                var html = '<div class="dg-verdict' + (result.Ok ? '' : ' dg-bad') + '"><strong>' + escapeHtml(result.Verdict) + '</strong><span>' + escapeHtml(result.VerdictDetail) + '</span></div><div class="dg-steps">';
+                (result.Steps || []).forEach(function (step, index) {
+                    html += '<div class="dg-step" data-state="' + escapeHtml(step.State) + '">'
+                        + '<span class="dg-mark">' + (MARKS[step.State] || '') + '</span>'
+                        + '<span class="dg-step-title">' + (index + 1) + '. ' + escapeHtml(step.Title) + '</span>'
+                        + '<span class="dg-step-detail">' + escapeHtml(step.Detail) + '</span>'
+                        + actionHtml(step, result) + '</div>';
+                });
+                qs('#dgResult').innerHTML = html + '</div>';
+            }
+
+            function diagnose() {
+                var name = qs('#dgName').value.trim();
+                if (!name) { qs('#dgName').focus(); return; }
+                qs('#dgRun').disabled = true;
+                qs('#dgResult').innerHTML = '<p class="dg-note">Vérification en cours…</p>';
+                ApiClient.ajax({
+                    type: 'POST', url: ApiClient.getUrl('CustomMetadata/Diagnostic/Element'),
+                    data: JSON.stringify({ Name: name, Kind: qs('#dgKind').value }), contentType: 'application/json', dataType: 'json'
+                }).then(renderResult, function () {
+                    qs('#dgResult').innerHTML = '<div class="dg-verdict dg-bad"><strong>Le diagnostic n\'a pas pu être lancé.</strong><span>Le serveur n\'a pas répondu. Consultez le journal de Jellyfin.</span></div>';
+                }).then(function () { qs('#dgRun').disabled = false; });
+            }
+
+            qs('#dgForm').addEventListener('submit', function (e) { e.preventDefault(); diagnose(); });
+
+            // "Open the source" / "Test the source": the configuration page reads this note and opens the editor
+            qs('#dgResult').addEventListener('click', function (e) {
+                var button = e.target.closest('[data-action]');
+                if (!button) { return; }
+                var action = button.getAttribute('data-action');
+                if (action !== 'sources') {
+                    try { sessionStorage.setItem('cm-open-source', JSON.stringify({ prefix: button.getAttribute('data-prefix'), test: action === 'test-source' })); } catch (err) { /* the page still opens */ }
+                }
+                location.hash = '#/configurationpage?name=Custom%20Metadata%20Provider';
+            });
+
+            // ---------------- the library list
+            function renderList() {
+                var tiles = qs('#dgTiles'), box = qs('#dgList');
+                if (!list) {
+                    tiles.innerHTML = '';
+                    qs('#dgWhen').textContent = '';
+                    box.innerHTML = '<div class="dg-rows"><div class="dg-empty">La médiathèque n\'a pas encore été vérifiée.<br>« Vérifier la médiathèque » passe en revue les séries, saisons et épisodes, sans appeler vos sources.</div></div>';
+                    return;
+                }
+                qs('#dgWhen').textContent = plural(list.Checked, 'élément vérifié', 'éléments vérifiés') + ' ' + ago(list.GeneratedAt);
+                var counts = list.Counts || {};
+                var html = '<button type="button" class="dg-tile" data-filter="" aria-pressed="' + (filter === '' ? 'true' : 'false') + '"><b>' + list.Total + '</b><span>' + (list.Total > 1 ? 'éléments à voir' : 'élément à voir') + '</span></button>';
+                REASONS.forEach(function (r) {
+                    if (!counts[r[0]]) { return; }
+                    html += '<button type="button" class="dg-tile" data-filter="' + r[0] + '" aria-pressed="' + (filter === r[0] ? 'true' : 'false') + '"><b>' + counts[r[0]] + '</b><span>' + r[1] + '</span></button>';
+                });
+                tiles.innerHTML = html;
+                if (!list.Total) {
+                    box.innerHTML = '<div class="dg-rows"><div class="dg-empty">Rien à signaler : tout ce qui porte un tag d\'une de vos sources est enrichi.</div></div>';
+                    return;
+                }
+                var entries = (list.Entries || []).filter(function (e) { return !filter || e.Reason === filter; });
+                var rows = '<div class="dg-row dg-row-head"><span>Élément</span><span>Type</span><span>Ce qui bloque</span><span></span></div>';
+                entries.forEach(function (e) {
+                    rows += '<div class="dg-row">'
+                        + '<span class="dg-name"><strong>' + escapeHtml(e.SeriesName && e.SeriesName !== e.Name ? e.SeriesName + ' · ' + e.Name : e.Name) + '</strong><code>' + escapeHtml(e.FileName) + '</code></span>'
+                        + '<span>' + escapeHtml(e.Kind) + '</span>'
+                        + '<span class="dg-why">' + escapeHtml(e.Message) + '</span>'
+                        + (e.Reason === 'notag' ? '<span></span>' : '<button type="button" class="dg-rowbtn" data-diagnose="' + escapeHtml(e.FileName) + '">Diagnostiquer</button>')
+                        + '</div>';
+                });
+                var shownTotal = filter ? (counts[filter] || 0) : list.Total;
+                box.innerHTML = '<div class="dg-rows">' + rows + '</div>'
+                    + (entries.length < shownTotal ? '<p class="dg-note">' + entries.length + ' affichés sur ' + shownTotal + '.</p>' : '');
+            }
+
+            qs('#dgTiles').addEventListener('click', function (e) {
+                var tile = e.target.closest('[data-filter]');
+                if (tile) { filter = tile.getAttribute('data-filter'); renderList(); }
+            });
+
+            qs('#dgList').addEventListener('click', function (e) {
+                var button = e.target.closest('[data-diagnose]');
+                if (!button) { return; }
+                qs('#dgName').value = button.getAttribute('data-diagnose');
+                qs('#dgOneTitle').scrollIntoView({ block: 'start' });
+                diagnose();
+            });
+
+            qs('#dgScan').addEventListener('click', function () {
+                var button = qs('#dgScan');
+                button.disabled = true;
+                qs('#dgWhen').textContent = 'Vérification en cours…';
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('CustomMetadata/Diagnostic'), dataType: 'json' }).then(function (result) {
+                    list = result; filter = '';
+                    renderList();
+                    loadNavStatus();
+                }, function () {
+                    qs('#dgWhen').textContent = 'La vérification a échoué (voir le journal de Jellyfin).';
+                }).then(function () { button.disabled = false; });
+            });
+
+            page.addEventListener('pageshow', function () {
+                loadNavStatus();
+                filter = '';
+                // 204 (never checked) comes back as an empty answer
+                ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('CustomMetadata/Diagnostic') }).then(function (response) {
+                    if (response && response.status === 204) { return null; }
+                    return response && response.json ? response.json() : response;
+                }).then(function (result) {
+                    list = result && result.GeneratedAt ? result : null;
+                    renderList();
+                }, function () { list = null; renderList(); });
+            });
+        })();
+    </script>
+</div>
+</body>
+</html>
