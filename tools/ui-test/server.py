@@ -13,9 +13,19 @@ def vid_index():
                 idx[f"{nid}v{i}"] = (sid, nid, i, v)
     return idx
 VIDS = vid_index()
+# Chapters in several shapes (time codes as text, as seconds, with a fraction), one past the end of the 2 s test videos
+CHAPTERS = {
+    # "end": the first ends BEFORE the next starts (a gap), the second ends exactly where the next starts, the third ends before the end of the video
+    "d1v1": [{"time": "00:00", "end": 0.4, "title": "Introduction"}, {"time": 1, "end": "0:01.5", "title": "Milieu en secondes"}, {"time": "0:01.5", "end": "0:01.7", "title": "Fin"}, {"time": "0:30", "title": "Au-delà de la vidéo"}],
+    "d1v3": [{"time": "0:00", "end": "12:34", "title": "Début"}, {"time": 754, "end": "1:02:03", "title": "Le débat"}, {"time": "1:02:03", "title": "Conclusion"}],   # a missing episode: no video, text in the synopsis
+}
 def video_json(vid):
     sid, nid, i, (t, d, dur) = VIDS[vid]
-    return {"id": vid, "title": t, "overview": OV if i % 2 else None, "premiereDate": d, "indexNumber": i, "duration": dur, "thumb": f"{BASE}/img/{vid}.jpg"}
+    j = {"id": vid, "title": t, "overview": OV if i % 2 else None, "premiereDate": d, "indexNumber": i, "duration": dur, "thumb": f"{BASE}/img/{vid}.jpg"}
+    if vid in CHAPTERS: j["chapters"] = CHAPTERS[vid]
+    # Time codes only in the synopsis (the option "read the chapters in the synopsis")
+    if vid == "d1v2": j["overview"] = "Un épisode avec des repères dans le texte.\n0:00 Ouverture\n0:01 Suite du texte"
+    return j
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def send(self, code, body, ctype="application/json"):

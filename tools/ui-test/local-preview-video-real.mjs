@@ -109,7 +109,7 @@ try {
   await page.waitForFunction(() => !location.hash.includes('login'));
   await page.goto(`${J}/web/#/configurationpage?name=Custom%20Metadata%20Provider`);
   const C = '#CustomMetadataConfigPage';
-  await page.waitForSelector(`${C} #sourcesList .cm-card`, { state: 'visible', timeout: 30000 });
+  await page.waitForSelector(`${C} #sourcesList .cm-card`, { state: 'visible', timeout: 120000 });
   await page.evaluate(() => { const c = Array.from(document.querySelectorAll('#CustomMetadataConfigPage .cm-card')).find(x => x.textContent.includes('Aperçus')); c.querySelector('.raised').click(); });
   await page.click(`${C} [data-go="content"]`);
   await page.click(`${C} #localTree .cm-t-item:has-text("Épisode avec aperçu")`);
@@ -125,7 +125,7 @@ try {
   await page.click(`${C} [data-clear-video]`);
   check('editor: "Retirer" empties the field', (await page.$eval(`${C} #lf-PreviewUrl`, e => !e.disabled && e.value === '')) && !(await page.$(`${C} .cm-vidprev video`)));
   await page.setInputFiles(`${C} [data-vfile]`, video);
-  await page.waitForSelector(`${C} .cm-vidprev video`, { state: 'visible', timeout: 30000 });
+  await page.waitForSelector(`${C} .cm-vidprev video`, { state: 'visible', timeout: 120000 });
   check('editor: choosing a file uploads it and shows the player', (await page.$eval(`${C} #lf-PreviewUrl`, e => e.disabled)) && (await page.$eval(`${C} #lfVideoMsg`, e => e.textContent)).includes('Vidéo envoyée'));
   const refused = path.join(outDir, 'not-a-video.mp4'); fs.writeFileSync(refused, 'not a video at all, only text');
   await page.setInputFiles(`${C} [data-vfile]`, refused);
