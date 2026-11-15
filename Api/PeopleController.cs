@@ -70,7 +70,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
 
             // People deleted from the directory do not remain in the distributions
-            foreach (var episode in file.Episodes ?? new System.Collections.Generic.List<EpisodeCastEntry>())
+            foreach (var episode in (file.Episodes ?? new System.Collections.Generic.List<EpisodeCastEntry>()).Where(e => e != null))
             {
                 episode.Cast = (episode.Cast ?? new System.Collections.Generic.List<LocalCastEntry>()).Where(c => _people.Find(c?.PersonId) != null).ToList();
             }

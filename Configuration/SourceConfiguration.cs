@@ -110,7 +110,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         public List<CustomHeader> CustomHeaders { get; set; } = new List<CustomHeader>();
 
         /// <summary>
-        /// Activer cette source
+        /// Whether this source is enabled
         /// </summary>
         public bool Enabled { get; set; } = true;
 

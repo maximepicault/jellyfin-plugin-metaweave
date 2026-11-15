@@ -70,7 +70,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             // Single-source mode (backward compatibility): use the global config
             _logger.LogDebug("🔍 [SOURCE RESOLVER] Mono-source mode (legacy): checking global prefix");
             
-            if (config.PatternPrefix.Equals(prefix, System.StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(config.PatternPrefix, prefix, System.StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogInformation("🔍 [SOURCE RESOLVER] ✅ Using global configuration for prefix '{Prefix}'", prefix);
                 return GetDefaultSource();
@@ -105,7 +105,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             if (string.IsNullOrEmpty(idWithPrefix))
                 return null;
 
-            // Format: "prefix-id" → on veut "prefix"
+            // Format: "prefix-id" → keep "prefix"
             var parts = idWithPrefix.Split('-', 2);
             if (parts.Length >= 1)
             {
@@ -126,7 +126,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             if (string.IsNullOrEmpty(idWithPrefix))
                 return null;
 
-            // Format: "prefix-id" → on veut "id"
+            // Format: "prefix-id" → keep "id"
             var dashIndex = idWithPrefix.IndexOf('-');
             if (dashIndex > 0 && dashIndex < idWithPrefix.Length - 1)
             {
