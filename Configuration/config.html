@@ -1646,7 +1646,7 @@
                 if (value === null) { return 'null'; }
                 if (Array.isArray(value)) { var size = pickCounts[path] || value.length; return '[' + size + (size > 1 ? ' éléments' : ' élément') + ']'; }
                 var text = typeof value === 'string' ? '"' + value + '"' : String(value);
-                return text.length > 70 ? text.slice(0, 70) + '…' : text;
+                return text.length > 140 ? text.slice(0, 140) + '…' : text;
             }
 
             // ---- The tree of the answer: one row per key (a model), shown with fold, hide and filter ----
@@ -1655,7 +1655,7 @@
             var pickRoot = null, pickRows = [], pickFilterText = '', pickCollapsed = {};
 
             function buildPickRows(root) {
-                var rows = [], MAX_ROWS = 400, MAX_DEPTH = 6;
+                var rows = [], MAX_ROWS = 2000, MAX_DEPTH = 12;
                 var add = function(depth, kind, key, path, value) { rows.push({ depth: depth, kind: kind, key: key, path: path, value: value, hasChildren: false }); };
                 var walk = function(value, path, depth) {
                     if (rows.length >= MAX_ROWS || depth > MAX_DEPTH) { return; }
@@ -1729,7 +1729,9 @@
                     : '<span class="cm-pick-spacer"></span>';
                 var body;
                 if (row.kind === 'leaf') {
-                    body = '<button type="button" class="cm-pick-leaf" data-path="' + escapeHtml(row.path) + '"><span class="cm-pick-key">' + escapeHtml(row.key) + '</span><span class="cm-pick-val">' + escapeHtml(pickPreview(row.value, row.path)) + '</span></button>';
+                    // The value is cut on screen; the whole of it is in the tooltip
+                    var whole = row.value === null || typeof row.value === 'object' ? '' : (typeof row.value === 'string' ? row.value : String(row.value));
+                    body = '<button type="button" class="cm-pick-leaf" data-path="' + escapeHtml(row.path) + '"' + (whole.length > 60 ? ' title="' + escapeHtml(whole) + '"' : '') + '><span class="cm-pick-key">' + escapeHtml(row.key) + '</span><span class="cm-pick-val">' + escapeHtml(pickPreview(row.value, row.path)) + '</span></button>';
                 } else if (row.kind === 'node') {
                     body = '<button type="button" class="cm-pick-node cm-pick-nodebtn" data-pick-toggle="' + escapeHtml(row.path) + '">' + escapeHtml(row.key) + '</button>';
                 } else {
