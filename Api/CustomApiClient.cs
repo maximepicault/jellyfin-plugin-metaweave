@@ -335,7 +335,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
                 // Parse and map the JSON
                 using var jsonDoc = JsonDocument.Parse(content);
-                var metadata = _fieldMapper.MapToMetadata(jsonDoc, mapping);
+                var metadata = _fieldMapper.MapToMetadata(jsonDoc, mapping, source?.IsLocal == true);
 
                 _logger.LogInformation("✅ [API SUCCESS] Metadata fetched for {ItemType} {ItemId}", itemType, itemId);
                 return metadata;
@@ -467,7 +467,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 
                 // Extract the images from the JSON with the right mapping
                 using var jsonDoc = JsonDocument.Parse(content);
-                return _fieldMapper.MapToImages(jsonDoc, mapping);
+                return _fieldMapper.MapToImages(jsonDoc, mapping, source?.IsLocal == true);
             }
             catch (Exception ex)
             {

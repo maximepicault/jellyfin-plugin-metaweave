@@ -6,6 +6,7 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **Logs**: for a local source, a field left empty is no longer logged as a warning (`path 'poster' NOT FOUND`, about ten lines per refreshed item); it is a Debug line. API sources keep the warning.
 - **Refresh with images**: "Actualiser les éléments" now applies the plugin's images itself (Primary, Thumb, Logo, Banner, all the backdrops, and the images of the `Primary/`, `Logo/`… sub-folders when the API and the local source give none). Before, an image file already sitting in the series folder (`poster.jpg`) kept its old poster whatever the refresh did. The log says what was applied.
 - **Local sources, image gallery**: the first image of each type is the **default** one, and another is chosen by **selecting it and clicking "Utiliser comme image par défaut"**, and the **backdrops are a carousel**: "Appliquer les images" (and a refresh with images ticked) now applies all the backdrops of a series or season (API, gallery, `Backdrop/` sub-folder), not just the first.
 - **Image sub-folders**: images placed in sub-folders of a tagged series or season folder, named `Primary`, `Backdrop`, `Logo`, `Banner` or `Thumb` (or `Principal`, `Fond`, `Bannière`, `Miniature`), are now offered with a preview in Jellyfin's "Modifier les images", without any other step. Those folders no longer show up as empty seasons in the library. In a local source, an **"Importer depuis les dossiers"** button (never automatic) copies them into the gallery of the series or season.

@@ -16,6 +16,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     {
         private readonly ILogger _logger;
 
+        // A local source only writes the fields the person filled in: a missing path is normal there, not something to warn about.
+        // Per call (the mapper is a singleton used by several refreshes at once), hence AsyncLocal.
+        private static readonly System.Threading.AsyncLocal<bool> OptionalFields = new System.Threading.AsyncLocal<bool>();
+
+        private static LogLevel MissingLevel => OptionalFields.Value ? LogLevel.Debug : LogLevel.Warning;
+
         public JsonFieldMapper(ILogger logger)
         {
             _logger = logger;
@@ -26,7 +32,21 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// </summary>
         /// <param name="jsonDoc">JSON document to map</param>
         /// <param name="mapping">Mapping to use (optional). If null, uses the default VideoFieldMappings</param>
-        public CustomMetadataResponse MapToMetadata(JsonDocument jsonDoc, FieldMapping mapping = null)
+        /// <param name="optionalFields">true for a local source: missing paths are logged at Debug instead of Warning</param>
+        public CustomMetadataResponse MapToMetadata(JsonDocument jsonDoc, FieldMapping mapping = null, bool optionalFields = false)
+        {
+            OptionalFields.Value = optionalFields;
+            try
+            {
+                return MapToMetadataCore(jsonDoc, mapping);
+            }
+            finally
+            {
+                OptionalFields.Value = false;
+            }
+        }
+
+        private CustomMetadataResponse MapToMetadataCore(JsonDocument jsonDoc, FieldMapping mapping)
         {
             _logger.LogInformation("🔄 [JSON MAPPER] ========== Starting JSON mapping ==========");
             
@@ -217,7 +237,21 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             return string.IsNullOrWhiteSpace(value) ? null : value;
         }
 
-        public List<ImageInfo> MapToImages(JsonDocument jsonDoc, FieldMapping mapping = null)
+        /// <param name="optionalFields">true for a local source: missing paths are logged at Debug instead of Warning</param>
+        public List<ImageInfo> MapToImages(JsonDocument jsonDoc, FieldMapping mapping = null, bool optionalFields = false)
+        {
+            OptionalFields.Value = optionalFields;
+            try
+            {
+                return MapToImagesCore(jsonDoc, mapping);
+            }
+            finally
+            {
+                OptionalFields.Value = false;
+            }
+        }
+
+        private List<ImageInfo> MapToImagesCore(JsonDocument jsonDoc, FieldMapping mapping)
         {
             _logger.LogInformation("🖼️ [IMAGE MAPPER] ========== Starting image mapping ==========");
             
@@ -292,7 +326,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     }
                     else
                     {
-                        _logger.LogWarning("🖼️ [IMAGE MAPPER] ⚠️ Images array path '{ImagesArray}' NOT FOUND in JSON", config.ImagesArray);
+                        _logger.Log(MissingLevel, "🖼️ [IMAGE MAPPER] ⚠️ Images array path '{ImagesArray}' NOT FOUND in JSON", config.ImagesArray);
                     }
                 }
                 else
@@ -366,7 +400,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
             else
             {
-                _logger.LogWarning("🖼️ [IMAGE MAPPER] ❌ {ImageType} NOT FOUND at path '{Path}'", imageType, urlPath);
+                _logger.Log(MissingLevel, "🖼️ [IMAGE MAPPER] ❌ {ImageType} NOT FOUND at path '{Path}'", imageType, urlPath);
             }
         }
 
@@ -395,7 +429,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 // The path does not exist in the JSON - normal, returns null
                 if (fieldName != null)
                 {
-                    _logger.LogWarning("⚠️ [JSON MAPPER] {FieldName}: path '{Path}' NOT FOUND in JSON", fieldName, path);
+                    _logger.Log(MissingLevel, "⚠️ [JSON MAPPER] {FieldName}: path '{Path}' NOT FOUND in JSON", fieldName, path);
                 }
                 return null;
             }
@@ -438,7 +472,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 if (fieldName != null)
                 {
-                    _logger.LogWarning("⚠️ [JSON MAPPER] {FieldName}: path '{Path}' NOT FOUND in JSON", fieldName, path);
+                    _logger.Log(MissingLevel, "⚠️ [JSON MAPPER] {FieldName}: path '{Path}' NOT FOUND in JSON", fieldName, path);
                 }
                 return null;
             }
@@ -495,7 +529,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 if (fieldName != null)
                 {
-                    _logger.LogWarning("⚠️ [JSON MAPPER] {FieldName}: path '{Path}' NOT FOUND in JSON", fieldName, path);
+                    _logger.Log(MissingLevel, "⚠️ [JSON MAPPER] {FieldName}: path '{Path}' NOT FOUND in JSON", fieldName, path);
                 }
                 return null;
             }
@@ -648,7 +682,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 if (fieldName != null)
                 {
-                    _logger.LogWarning("⚠️ [JSON MAPPER] {FieldName}: path '{Path}' NOT FOUND in JSON", fieldName, arrayPath);
+                    _logger.Log(MissingLevel, "⚠️ [JSON MAPPER] {FieldName}: path '{Path}' NOT FOUND in JSON", fieldName, arrayPath);
                 }
                 return new List<string>();
             }
