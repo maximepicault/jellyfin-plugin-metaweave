@@ -25,6 +25,7 @@ window.ApiClient = {
   updatePluginConfiguration: function (id, c) { __mock.config = clone(c); __mock.calls.push('PLUGIN'); return Promise.resolve({}); },
   getJSON: function (url) {
     if (/CustomMetadata\\/Refresh\\/Status/.test(url)) { __mock.calls.push('REFRESH-STATUS'); return Promise.resolve({ Running: false, Prefix: __mock.refresh.Prefix, Total: 3, Done: 3, Failed: 0, Series: 1, Seasons: 1, Episodes: 1, LocalFilesKept: __mock.kept || 0 }); }
+    if (/Library\\/VirtualFolders/.test(url)) { return Promise.resolve(clone(__mock.libraries || [])); }
     if (/CustomMetadata\\/People/.test(url)) { __mock.calls.push('GET people'); return Promise.resolve(clone({ Version: 1, People: __mock.people })); }
     var m = url.match(/CustomMetadata\\/Local\\/(.+)$/);
     __mock.calls.push('GET ' + m[1]);
@@ -416,6 +417,25 @@ try {
   check('refresh: old image files left in the media folders are reported', /2 anciens fichiers image restent/.test(keptText) && /supprimez-les/.test(keptText), keptText);
   await shot('L13-refresh-kept-files');
   await ev(`__mock.kept = 0; true`);
+  // Library whose provider lists do not include the plugin: a warning names the library and the types (read-only check)
+  check('libraries: no warning while every library uses the plugin', (await ev(`document.querySelector('#libraryWarn').hidden`)) === true);
+  await ev(`__mock.libraries = [
+    { Name: 'Séries', CollectionType: 'tvshows', LibraryOptions: { TypeOptions: [
+      { Type: 'Series', MetadataFetchers: ['Custom Metadata Provider'], ImageFetchers: ['TheMovieDb'] },
+      { Type: 'Season', MetadataFetchers: ['Custom Metadata Provider'], ImageFetchers: [] },
+      { Type: 'Episode', MetadataFetchers: ['TheMovieDb'], ImageFetchers: ['Custom Image Provider'] }] } },
+    { Name: 'Films', CollectionType: 'movies', LibraryOptions: { TypeOptions: [{ Type: 'Movie', MetadataFetchers: [], ImageFetchers: [] }] } },
+    { Name: 'Animés', CollectionType: 'tvshows', LibraryOptions: { TypeOptions: [] } }]; true`);
+  await ev(`document.querySelector('${P}').dispatchEvent(new Event('pageshow')); true`); await wait(500);
+  const libText = await ev(`document.querySelector('#libraryWarn').hidden ? '' : document.querySelector('#libraryWarn').textContent`);
+  check('libraries: the warning names the library whose providers miss the plugin', /Médiathèque « Séries »/.test(libText), libText);
+  check('libraries: images missing for series and seasons, metadata for episodes', /Custom Image Provider » n'est pas coché pour les séries et saisons/.test(libText) && /Custom Metadata Provider » n'est pas coché pour les épisodes/.test(libText), libText);
+  check('libraries: a movie library and a library without provider lists are not reported', !/Films/.test(libText) && !/Animés/.test(libText), libText);
+  check('libraries: the warning says where to tick the providers', /Tableau de bord → Médiathèques → « Séries »/.test(libText), libText);
+  await shot('L14-library-providers-warning');
+  await ev(`__mock.libraries = []; true`);
+  await ev(`document.querySelector('${P}').dispatchEvent(new Event('pageshow')); true`); await wait(500);
+  check('libraries: the warning goes away once the libraries are fine', (await ev(`document.querySelector('#libraryWarn').hidden`)) === true);
   // 9. API source: the editor is unchanged
   await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
   const apiNav = await ev(`Array.from(document.querySelectorAll('${P} .cm-nav-item')).filter(function(b){return b.offsetParent!==null;}).length`);

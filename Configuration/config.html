@@ -239,6 +239,10 @@
         #CustomMetadataConfigPage .cm-choice span { color: var(--cm-muted); line-height: 1.45; font-size: 14px; }
         #CustomMetadataConfigPage .cm-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(63, 178, 127, 0.5); border-radius: 8px; background: rgba(63, 178, 127, 0.1); line-height: 1.5; }
         #CustomMetadataConfigPage .cm-notice span { flex: 1 1 320px; }
+        #CustomMetadataConfigPage .cm-libwarn { margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(230, 180, 80, 0.55); border-radius: 8px; background: rgba(230, 180, 80, 0.08); line-height: 1.5; }
+        #CustomMetadataConfigPage .cm-libwarn strong { display: block; color: #e6b450; margin-bottom: 4px; }
+        #CustomMetadataConfigPage .cm-libwarn ul { margin: 4px 0 6px; padding-left: 20px; }
+        #CustomMetadataConfigPage .cm-libwarn p { margin: 0; color: var(--cm-muted); font-size: 13px; }
         #CustomMetadataConfigPage .cm-kind { flex-shrink: 0; padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(0, 164, 220, 0.6); color: #7fd3f2; font-size: 12px; font-weight: 700; }
         #CustomMetadataConfigPage .cm-warnline { color: #f3c88a; padding: 8px 10px; border: 1px solid rgba(240, 160, 64, 0.45); border-radius: 6px; background: rgba(240, 160, 64, 0.08); }
         #CustomMetadataConfigPage .cm-callout-info { background: rgba(0, 164, 220, 0.08); border-color: rgba(0, 164, 220, 0.4); color: rgba(255, 255, 255, 0.9); }
@@ -383,6 +387,7 @@
                             <button type="button" class="cm-linkbtn" id="btnNoticeAnalyze">Analyser maintenant</button>
                             <button type="button" class="cm-linkbtn" id="btnNoticeClose">Fermer</button>
                         </div>
+                        <div id="libraryWarn" class="cm-libwarn" role="status" hidden></div>
                         <div id="typeChooserWrap" hidden>
                         <div class="cm-toolbar" style="margin-bottom: 12px;"><strong id="typeChooserTitle">Quel type de source ?</strong><button type="button" class="cm-linkbtn" id="btnCancelChooser" style="margin-left: auto;">Annuler</button></div>
                         <div id="typeChooser" class="cm-chooser" role="group" aria-labelledby="typeChooserTitle">
@@ -876,6 +881,41 @@
             var pluginId = '12345678-1234-1234-1234-123456789abc';
             var currentConfig = null;
 
+            // A library created before the plugin was installed (or edited since) may not have the plugin's providers ticked for series,
+            // seasons or episodes: Jellyfin then never calls them for that library, and nothing in the log says why. Read-only check.
+            function checkLibraryProviders(config) {
+                var box = document.querySelector('#libraryWarn');
+                box.hidden = true; box.textContent = '';
+                var active = (config.Sources || []).some(function(s) { return s.Enabled !== false && s.SourceType !== 'People'; });
+                if (!active) { return; }
+                ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')).then(function(libraries) {
+                    var kinds = [['Series', 'séries'], ['Season', 'saisons'], ['Episode', 'épisodes']];
+                    (libraries || []).forEach(function(library) {
+                        // Series live in TV libraries and in mixed ones (no type)
+                        if (library.CollectionType && library.CollectionType !== 'tvshows' && library.CollectionType !== 'mixed') { return; }
+                        var options = (library.LibraryOptions || {}).TypeOptions || [];
+                        var noImages = [], noMetadata = [];
+                        kinds.forEach(function(kind) {
+                            // No entry for a type: Jellyfin uses every provider, nothing to report
+                            var entry = options.filter(function(o) { return o.Type === kind[0]; })[0];
+                            if (!entry) { return; }
+                            if (config.EnableImages !== false && (entry.ImageFetchers || []).indexOf('Custom Image Provider') < 0) { noImages.push(kind[1]); }
+                            if (config.EnableMetadata !== false && (entry.MetadataFetchers || []).indexOf('Custom Metadata Provider') < 0) { noMetadata.push(kind[1]); }
+                        });
+                        if (!noImages.length && !noMetadata.length) { return; }
+                        var add = function(tag, text) { var el = document.createElement(tag); el.textContent = text; return el; };
+                        var list = function(names) { return names.length > 1 ? names.slice(0, -1).join(', ') + ' et ' + names[names.length - 1] : names[0]; };
+                        box.appendChild(add('strong', 'Médiathèque « ' + library.Name + ' » : le plugin n\'y est pas activé partout'));
+                        var ul = document.createElement('ul');
+                        if (noMetadata.length) { ul.appendChild(add('li', '« Custom Metadata Provider » n\'est pas coché pour les ' + list(noMetadata) + ' : les titres, résumés et autres informations du plugin n\'y arrivent pas, ni lors d\'un scan ni avec « Actualiser les éléments ».')); }
+                        if (noImages.length) { ul.appendChild(add('li', '« Custom Image Provider » n\'est pas coché pour les ' + list(noImages) + ' : un scan n\'apporte aucune image du plugin aux nouveaux éléments. Seul « Actualiser les éléments » (avec Images) les applique.')); }
+                        box.appendChild(ul);
+                        box.appendChild(add('p', 'Pour l\'activer : Tableau de bord → Médiathèques → « ' + library.Name + ' » → Gérer la médiathèque, puis cochez-le dans les récupérateurs de métadonnées et d\'images de chaque type.'));
+                        box.hidden = false;
+                    });
+                }, function() { /* the libraries could not be read: no warning rather than a wrong one */ });
+            }
+
             // Load the configuration
             document.querySelector('#CustomMetadataConfigPage').addEventListener('pageshow', function() {
                 Dashboard.showLoadingMsg();
@@ -907,6 +947,7 @@
                     
                     // Show the sources (always on the list: an old editing state no longer makes sense)
                     renderSourcesList(config.Sources || []);
+                    checkLibraryProviders(config);
                     closeEditor(true);
                     
                     Dashboard.hideLoadingMsg();
