@@ -91,6 +91,8 @@ const P = '#CustomMetadataConfigPage';
 const type = (sel, value) => ev(`(function(){var e=document.querySelector(${JSON.stringify(sel)}); e.value=${JSON.stringify(value)}; e.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
 const click = sel => ev(`(function(){var e=document.querySelector(${JSON.stringify(sel)}); if(!e) return false; e.click(); return true;})()`);
 const vis = sel => ev(`(function(){var e=document.querySelector(${JSON.stringify(sel)}); return !!e && e.offsetParent!==null;})()`);
+// The element form has sub-tabs (Informations / Images / Distribution): open the one a check looks at
+const ltab = name => ev(`(function(){var b=document.querySelector('[data-ltab-btn="${name}"]'); if(b) b.click(); return !!b;})()`);
 
 try {
   await send('Page.enable'); await send('Runtime.enable');
@@ -128,7 +130,10 @@ try {
   // image: web address (preview), then uploaded file (replaces the address), then "Retirer"
   await ev(`document.querySelector('#lf-Thumb').dispatchEvent(new Event('change',{bubbles:true})); true`); await wait(200);
   check('image: preview of the web address', (await ev(`(document.querySelector('.cm-imgprev img')||{}).src`)) === 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+  await ltab('images');
   check('image: "Retirer" button offered', await vis('[data-clear-img="Thumb"]'));
+  check('sub-tabs: an episode has Informations / Images / Distribution', (await ev(`Array.from(document.querySelectorAll('[data-ltab-btn]')).map(function(b){return b.getAttribute('data-ltab-btn');}).join()`)) === 'info,images,cast');
+  check('sub-tabs: the title field is hidden while Images is open', !(await vis('#lf-Title')));
   await ev(`(function(){var dt=new DataTransfer(); dt.items.add(new File([new Uint8Array([255,216,255,224,0,16,74,70,73,70,0,1])],'a.jpg',{type:'image/jpeg'})); var i=document.querySelector('[data-file="Thumb"]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(400);
   check('image: file sent to the server', (await ev(`__mock.calls.filter(function(c){return c.indexOf('UPLOAD')===0;}).length`)) === 1);
   const uploadCall = await ev(`__mock.calls.filter(function(c){return c.indexOf('UPLOAD')===0;})[0]`);
@@ -136,6 +141,7 @@ try {
   check('image: the address field is greyed out and the preview goes through the plugin', (await ev(`document.querySelector('#lf-Thumb').disabled`)) === true && (await ev(`document.querySelector('.cm-imgprev img').src`)).includes('/Image/') && (await ev(`document.querySelector('.cm-imgprev img').src`)).includes('api_key=TOKEN'));
   await shot('L3b-image-uploaded-1440');
   // Gallery: extra images by type, offered in Jellyfin's image picker
+  await ltab('images');
   check('gallery: block shown for an episode with Miniature and Affiche', (await vis('#lfGallery')) && (await ev(`Array.from(document.querySelectorAll('#lfGalType option')).map(function(o){return o.value;}).join()`)) === 'Thumb,Primary');
   await type('#lfGalUrl', 'https://img.test/a.jpg');
   await click('[data-gal-url]'); await wait(250);
@@ -160,6 +166,7 @@ try {
   // Series: the images of the library sub-folders can be copied into the gallery (never twice)
   check('folders: no import button for an episode', !(await vis('[data-gal-folders]')));
   await click('#localTree [data-node^="s:"]'); await wait(300);
+  await ltab('images');
   check('folders: the series form offers the import and names the folders', (await vis('[data-gal-folders]')) && (await ev(`document.querySelector('#lfGallery').textContent`)).includes('Primary'));
   await click('[data-gal-folders]'); await wait(500);
   check('folders: the request carries the tag and the data id', (await ev(`__mock.calls.filter(function(c){return c.indexOf('FOLDER-IMPORT')===0;})[0]`)).includes('"Tag":"loc-'));
@@ -266,6 +273,7 @@ try {
   await shot('L4-content-1440');
 
   // 3b. Cast: people of the directory, role, type, "whole season"
+  await ltab('cast');
   check('cast: block shown for an episode', await vis('.cm-cast'));
   const addCast = async name => { await type('#lfCastAdd', name); await click('[data-cast-add]'); await wait(150); };
   await addCast('camille DURAND');
@@ -298,6 +306,7 @@ try {
   check('cast: no warning when casting is on', !(await vis('.cm-cast-msg[role="alert"]')));
   await ev(`document.querySelector('#CustomMetadataConfigPage').setAttribute('data-casting','off'); true`);
   await click(`#localTree [data-node="${seasonId}"]`); await wait(150); await click(`#localTree [data-node="${epId}"]`); await wait(250);
+  await ltab('cast');
   check('cast: warning when casting is off', (await vis('.cm-cast-msg[role="alert"]')) && (await ev(`document.querySelector('.cm-cast-msg[role="alert"]').textContent`)).includes('Importer le casting'));
   await ev(`document.querySelector('#CustomMetadataConfigPage').setAttribute('data-casting','on'); true`);
   await click(`#localTree [data-node="${seasonId}"]`); await wait(150); await click(`#localTree [data-node="${epId}"]`); await wait(250);
