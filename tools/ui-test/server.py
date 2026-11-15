@@ -85,7 +85,9 @@ class H(BaseHTTPRequestHandler):
                 # The FIRST episode is poor (no synopsis, no tags) and one in the middle is the richest: the example must be that one
                 ({"id": f"long{i}", "title": f"Épisode long {i}"} if i == 1 else
                  {"id": f"long{i}", "title": f"Épisode long {i}", "overview": "Résumé très détaillé. " * 25, "meta": {"number": i, "length": "24:30"}, "tags": ["a", "b", "c"],
-                  **({"rating": 4.5, "guest": {"name": "Invité", "role": "Expert"}} if i == 57 else {})})
+                  **({"rating": 4.5, "guest": {"name": "Invité", "role": "Expert"}, "deep": {"a": {"b": {"c": {"d": {"e": {"f": "profond"}}}}}}} if i == 57 else {}),
+                  # fields that only OTHER episodes have: the example must still offer them
+                  **({"sponsor": "Marque X", "meta": {"number": i, "length": "24:30", "award": "Prix du public"}} if i == 90 else {})})
                 for i in range(1, 121)]}})
         m = re.fullmatch(r"/sources/(\w+)/videos", p)
         if m:

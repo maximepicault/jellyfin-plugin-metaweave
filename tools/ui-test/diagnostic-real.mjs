@@ -145,6 +145,10 @@ try {
   check('episode list: all 120 episodes are listed, not the first 20', (await text(page, `${C} #testResult h4:has-text("épisodes")`)) === '120 épisodes', await text(page, `${C} #testResult h4:has-text("épisodes")`));
   const nested = await page.$$eval(`${C} #pickTree .cm-pick-leaf`, els => els.map(e => e.getAttribute('data-path')));
   check('episode list: the example is the most complete element, not the first (it has fields the first lacks)', nested.includes('data.videos[0].guest.role') && nested.includes('data.videos[0].overview') && nested.includes('data.videos[0].rating'), nested.join(' | ').slice(0, 300));
+  check('episode list: a field that only ANOTHER episode has (sponsor, meta.award) is still offered', nested.includes('data.videos[0].sponsor') && nested.includes('data.videos[0].meta.award'), nested.filter(p => /sponsor|award/.test(p)).join(','));
+  check('episode list: a field nested eight levels deep is offered', nested.includes('data.videos[0].deep.a.b.c.d.e.f'), nested.filter(p => /deep/.test(p)).join(','));
+  const overviewTip = await page.$eval(`${C} #pickTree .cm-pick-leaf[data-path="data.videos[0].overview"]`, e => e.getAttribute('title') || '');
+  check('episode list: a long value is cut on screen but whole in its tooltip', overviewTip.length > 300 && overviewTip.length <= 2000, `${overviewTip.length} chars`);
   const longTitle = nested.find(p => /data\.videos\[0\]\.title$/.test(p));
   if (longTitle) {
     await page.click(`${C} #pickTree .cm-pick-leaf[data-path="${longTitle}"]`);
