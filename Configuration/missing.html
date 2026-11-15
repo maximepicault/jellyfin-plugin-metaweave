@@ -37,7 +37,16 @@
             align-items: center;
             gap: 10px 16px;
         }
-        .me-back { margin: 0 0 6px; font-weight: 600; }
+        /* Tab bar shared by the plugin's pages: keep it identical in config.html, missing.html, people.html and diagnostic.html */
+        #CustomMetadataMissingPage .cmn-nav { position: relative; display: flex; gap: 4px; margin: 0 0 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.16); overflow-x: auto; scrollbar-width: none; }
+        #CustomMetadataMissingPage .cmn-tab { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 46px; padding: 0 16px; margin-bottom: -1px; border-bottom: 3px solid transparent; color: rgba(255, 255, 255, 0.72); font-weight: 600; text-decoration: none; white-space: nowrap; }
+        #CustomMetadataMissingPage .cmn-tab:hover { color: #fff; }
+        #CustomMetadataMissingPage .cmn-tab:focus-visible { outline: 2px solid #00a4dc; outline-offset: -2px; }
+        #CustomMetadataMissingPage .cmn-tab[aria-current="page"] { color: #fff; border-bottom-color: #00a4dc; }
+        #CustomMetadataMissingPage .cmn-count { min-width: 20px; box-sizing: border-box; padding: 2px 7px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 12px; font-weight: 700; text-align: center; }
+        #CustomMetadataMissingPage .cmn-count:empty { display: none; }
+        #CustomMetadataMissingPage .cmn-count.cmn-alert { background: #c0392b; }
+        #CustomMetadataMissingPage .cmn-count.cmn-warn { background: #a8620f; }
         .me-head .sectionTitle { margin: 0; }
         .me-head-actions { margin-left: auto; display: flex; gap: 10px; }
         .me-head-actions .emby-button { margin: 0; }
@@ -384,8 +393,11 @@
     <div data-role="content">
         <div class="content-primary">
 
-            <nav class="me-back" aria-label="Retour">
-                <a class="me-link" href="#/configurationpage?name=Custom%20Metadata%20Provider">← Configuration du plugin</a>
+            <nav class="cmn-nav" aria-label="Pages du plugin">
+                <a class="cmn-tab" href="#/configurationpage?name=Custom%20Metadata%20Provider">Configuration <span class="cmn-count" data-cmn-count="sources"></span></a>
+                <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataMissingEpisodes" aria-current="page">Épisodes manquants <span class="cmn-count" data-cmn-count="missing"></span></a>
+                <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataPeople">Personnes <span class="cmn-count" data-cmn-count="people"></span></a>
+                <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDiagnostic">Diagnostic <span class="cmn-count" data-cmn-count="diagnostic"></span></a>
             </nav>
             <div class="me-head">
                 <h2 class="sectionTitle">Épisodes manquants</h2>
@@ -1220,7 +1232,34 @@
                 }
             }, 60000);
 
+            // Counters of the shared tab bar (same code in the four pages)
+            function loadNavStatus() {
+                // On a phone the bar scrolls sideways: centre the current tab (again once the counters have their width)
+                var centre = function() {
+                    var current = document.querySelector('#CustomMetadataMissingPage .cmn-tab[aria-current="page"]');
+                    if (current) { current.parentNode.scrollLeft = current.offsetLeft - (current.parentNode.clientWidth - current.offsetWidth) / 2; }
+                };
+                centre();
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Status')).then(function(s) {
+                    var set = function(name, value, tone, title) {
+                        var el = document.querySelector('#CustomMetadataMissingPage [data-cmn-count="' + name + '"]');
+                        if (!el) { return; }
+                        el.textContent = value == null ? '' : String(value);
+                        el.className = 'cmn-count' + (tone ? ' cmn-' + tone : '');
+                        el.title = title || '';
+                    };
+                    var n = function(count, one, many) { return count + ' ' + (count > 1 ? many : one); };
+                    set('sources', s.Sources, '', n(s.Sources, 'source', 'sources'));
+                    set('missing', s.MissingEpisodes, s.MissingEpisodes > 0 ? 'alert' : (s.SourceErrors > 0 ? 'warn' : ''),
+                        s.MissingEpisodes == null ? '' : n(s.MissingEpisodes, 'épisode manquant', 'épisodes manquants') + (s.SourceErrors > 0 ? ', ' + n(s.SourceErrors, 'source en erreur', 'sources en erreur') : ''));
+                    set('people', s.People, '', n(s.People, 'personne', 'personnes'));
+                    set('diagnostic', s.NotEnriched, s.NotEnriched > 0 ? 'warn' : '', s.NotEnriched == null ? '' : n(s.NotEnriched, 'élément non enrichi', 'éléments non enrichis'));
+                    centre();
+                }, function() { /* counters are a comfort: the page works without them */ });
+            }
+
             page.addEventListener('pageshow', function () {
+                loadNavStatus();
                 renderedReportDate = undefined;
                 shownLevel = null;
                 Dashboard.showLoadingMsg();

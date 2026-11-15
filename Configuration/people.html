@@ -22,7 +22,16 @@
         #CustomMetadataPeoplePage .pp-wrap { container-type: inline-size; }
         #CustomMetadataPeoplePage a.pp-link, #CustomMetadataPeoplePage .pp-linkbtn { color: var(--pp-link); text-decoration: none; background: none; border: 0; padding: 6px 0; font: inherit; font-weight: 600; cursor: pointer; }
         #CustomMetadataPeoplePage a.pp-link:hover, #CustomMetadataPeoplePage .pp-linkbtn:hover { text-decoration: underline; }
-        #CustomMetadataPeoplePage .pp-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+        /* Tab bar shared by the plugin's pages: keep it identical in config.html, missing.html, people.html and diagnostic.html */
+        #CustomMetadataPeoplePage .cmn-nav { position: relative; display: flex; gap: 4px; margin: 0 0 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.16); overflow-x: auto; scrollbar-width: none; }
+        #CustomMetadataPeoplePage .cmn-tab { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 46px; padding: 0 16px; margin-bottom: -1px; border-bottom: 3px solid transparent; color: rgba(255, 255, 255, 0.72); font-weight: 600; text-decoration: none; white-space: nowrap; }
+        #CustomMetadataPeoplePage .cmn-tab:hover { color: #fff; }
+        #CustomMetadataPeoplePage .cmn-tab:focus-visible { outline: 2px solid #00a4dc; outline-offset: -2px; }
+        #CustomMetadataPeoplePage .cmn-tab[aria-current="page"] { color: #fff; border-bottom-color: #00a4dc; }
+        #CustomMetadataPeoplePage .cmn-count { min-width: 20px; box-sizing: border-box; padding: 2px 7px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 12px; font-weight: 700; text-align: center; }
+        #CustomMetadataPeoplePage .cmn-count:empty { display: none; }
+        #CustomMetadataPeoplePage .cmn-count.cmn-alert { background: #c0392b; }
+        #CustomMetadataPeoplePage .cmn-count.cmn-warn { background: #a8620f; }
         #CustomMetadataPeoplePage h2 { margin: 0 0 4px; font-size: 26px; font-weight: 400; }
         #CustomMetadataPeoplePage .pp-lead { margin: 0 0 20px; max-width: 800px; color: var(--pp-muted); line-height: 1.5; }
         #CustomMetadataPeoplePage .pp-hint { margin-top: 6px; font-size: 13px; line-height: 1.45; color: var(--pp-muted); }
@@ -77,9 +86,9 @@
         #CustomMetadataPeoplePage .pp-danger > div { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.45; }
         #CustomMetadataPeoplePage .pp-danger strong { color: #ff9a8c; font-size: 14px; }
         #CustomMetadataPeoplePage .pp-danger .emby-button { margin: 0; background: transparent; border: 1px solid #c0392b; color: #ff9a8c; }
-        #CustomMetadataPeoplePage .pp-tabs { display: flex; gap: 4px; margin: 0 0 20px; border-bottom: 1px solid var(--pp-border); }
-        #CustomMetadataPeoplePage .pp-tab { height: 44px; padding: 0 16px; background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; color: var(--pp-muted); font: inherit; font-weight: 600; cursor: pointer; }
-        #CustomMetadataPeoplePage .pp-tab[aria-selected="true"] { color: #fff; border-bottom-color: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+        #CustomMetadataPeoplePage .pp-tab { height: 40px; padding: 0 16px; background: none; border: 1px solid var(--pp-border); border-radius: 20px; color: var(--pp-muted); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+        #CustomMetadataPeoplePage .pp-tab[aria-selected="true"] { color: #fff; border-color: var(--pp-accent); background: rgba(0, 164, 220, 0.16); }
         #CustomMetadataPeoplePage .pp-group { padding: 10px 10px 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pp-muted); display: flex; justify-content: space-between; gap: 8px; }
         #CustomMetadataPeoplePage .pp-group-btn { min-height: 48px; padding: 8px 10px; width: 100%; box-sizing: border-box; border: 0; border-left: 3px solid transparent; background: rgba(255, 255, 255, 0.05); border-radius: 6px; margin-top: 8px; font: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: inherit; cursor: pointer; text-align: left; align-items: center; }
         #CustomMetadataPeoplePage .pp-group-btn:hover { background: rgba(255, 255, 255, 0.06); }
@@ -148,8 +157,11 @@
     <div data-role="content">
         <div class="content-primary">
             <div class="pp-wrap">
-                <nav class="pp-crumbs" aria-label="Fil d'Ariane">
-                    <a class="pp-link" href="#/configurationpage?name=Custom%20Metadata%20Provider">← Configuration du plugin</a>
+                <nav class="cmn-nav" aria-label="Pages du plugin">
+                    <a class="cmn-tab" href="#/configurationpage?name=Custom%20Metadata%20Provider">Configuration <span class="cmn-count" data-cmn-count="sources"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataMissingEpisodes">Épisodes manquants <span class="cmn-count" data-cmn-count="missing"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataPeople" aria-current="page">Personnes <span class="cmn-count" data-cmn-count="people"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDiagnostic">Diagnostic <span class="cmn-count" data-cmn-count="diagnostic"></span></a>
                 </nav>
                 <h2>Personnes</h2>
                 <p class="pp-lead">L'annuaire du casting, commun à toutes les sources. Chaque personne peut venir d'une ou plusieurs API (un identifiant par source) ou être saisie à la main. Elles s'ajoutent ensuite à la distribution des épisodes : dans la source pour une source locale, dans l'onglet « Distribution des épisodes d'API » pour une source API.</p>
@@ -1136,7 +1148,33 @@
                 });
             }
 
-            page.addEventListener('pageshow', load);
+            // Counters of the shared tab bar (same code in the four pages)
+            function loadNavStatus() {
+                // On a phone the bar scrolls sideways: centre the current tab (again once the counters have their width)
+                var centre = function() {
+                    var current = document.querySelector('#CustomMetadataPeoplePage .cmn-tab[aria-current="page"]');
+                    if (current) { current.parentNode.scrollLeft = current.offsetLeft - (current.parentNode.clientWidth - current.offsetWidth) / 2; }
+                };
+                centre();
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Status')).then(function(s) {
+                    var set = function(name, value, tone, title) {
+                        var el = document.querySelector('#CustomMetadataPeoplePage [data-cmn-count="' + name + '"]');
+                        if (!el) { return; }
+                        el.textContent = value == null ? '' : String(value);
+                        el.className = 'cmn-count' + (tone ? ' cmn-' + tone : '');
+                        el.title = title || '';
+                    };
+                    var n = function(count, one, many) { return count + ' ' + (count > 1 ? many : one); };
+                    set('sources', s.Sources, '', n(s.Sources, 'source', 'sources'));
+                    set('missing', s.MissingEpisodes, s.MissingEpisodes > 0 ? 'alert' : (s.SourceErrors > 0 ? 'warn' : ''),
+                        s.MissingEpisodes == null ? '' : n(s.MissingEpisodes, 'épisode manquant', 'épisodes manquants') + (s.SourceErrors > 0 ? ', ' + n(s.SourceErrors, 'source en erreur', 'sources en erreur') : ''));
+                    set('people', s.People, '', n(s.People, 'personne', 'personnes'));
+                    set('diagnostic', s.NotEnriched, s.NotEnriched > 0 ? 'warn' : '', s.NotEnriched == null ? '' : n(s.NotEnriched, 'élément non enrichi', 'éléments non enrichis'));
+                    centre();
+                }, function() { /* counters are a comfort: the page works without them */ });
+            }
+
+            page.addEventListener('pageshow', function() { loadNavStatus(); load(); });
         })();
     </script>
 </div>
