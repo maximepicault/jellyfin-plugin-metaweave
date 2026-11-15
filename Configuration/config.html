@@ -184,6 +184,18 @@
         #CustomMetadataConfigPage .cm-pane { display: flex; flex-direction: column; gap: 18px; padding: 22px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); min-width: 0; }
         #CustomMetadataConfigPage .cm-pane-title { margin: 0; font-size: 20px; font-weight: 600; }
         #CustomMetadataConfigPage .cm-pane-intro { margin: 4px 0 0; max-width: 78ch; color: var(--cm-muted); line-height: 1.5; }
+        /* Clickable API response: a click on a value writes its path into the mapping field being edited */
+        #CustomMetadataConfigPage .cm-pick-hint { margin: 0 0 8px; font-size: 13px; line-height: 1.45; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-pick-hint strong { color: #fff; }
+        #CustomMetadataConfigPage .cm-pick { display: flex; flex-direction: column; gap: 3px; max-height: 420px; overflow: auto; padding: 8px; border: 1px solid var(--cm-border); border-radius: 8px; background: rgba(0, 0, 0, 0.25); font-family: monospace; font-size: 13px; }
+        #CustomMetadataConfigPage .cm-pick-node { padding: 4px 8px; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-pick-leaf { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 2px 8px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; background: rgba(255, 255, 255, 0.05); color: #fff; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-pick-leaf:hover { border-color: var(--cm-accent); background: rgba(0, 164, 220, 0.14); }
+        #CustomMetadataConfigPage .cm-pick-leaf:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 1px; }
+        #CustomMetadataConfigPage .cm-pick-leaf.cm-pick-used { border-color: rgba(255, 210, 127, 0.6); background: rgba(255, 210, 127, 0.12); }
+        #CustomMetadataConfigPage .cm-pick-key { flex: none; color: #9cdcfe; }
+        #CustomMetadataConfigPage .cm-pick-val { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255, 255, 255, 0.85); }
+        #CustomMetadataConfigPage .inputContainer.cm-map-active input { box-shadow: 0 0 0 2px var(--cm-accent); }
         #CustomMetadataConfigPage .cm-syntax { margin: 8px 0 0; max-width: 78ch; font-size: 13px; color: var(--cm-muted); }
         #CustomMetadataConfigPage .cm-syntax summary { cursor: pointer; color: var(--cm-link, #33b6e6); width: fit-content; }
         #CustomMetadataConfigPage .cm-syntax ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; }
@@ -1379,6 +1391,17 @@
                     html += '<details><summary>En-têtes envoyés (' + r.RequestHeaders.length + ')</summary><pre>' + escapeHtml(r.RequestHeaders.join('\n')) + '</pre></details>';
                 }
 
+                // The clickable answer comes first: it is what the mappings are filled from
+                if (r.RawJson) {
+                    var parsed;
+                    try { parsed = JSON.parse(r.RawJson); } catch (e) { /* truncated or not JSON */ }
+                    if (parsed !== undefined && parsed !== null && typeof parsed === 'object') {
+                        html += '<h4>Remplir un mapping au clic</h4><p class="cm-pick-hint" id="pickHint"></p><div class="cm-pick" id="pickTree">' + pickTreeHtml(parsed) + '</div>';
+                    } else if (ok) {
+                        html += '<p class="cm-pick-hint">Réponse trop longue pour être cliquable (elle est coupée à 20 Ko) : tapez les chemins à la main.</p>';
+                    }
+                }
+
                 if (r.Person) {
                     html += '<h4>Personne trouvée</h4><div><strong>' + escapeHtml(r.Person.Name) + '</strong></div>'
                         + (r.Person.Photo ? '<div style="word-break: break-all;">Photo : ' + escapeHtml(r.Person.Photo) + '</div><img alt="" src="' + escapeHtml(r.Person.Photo) + '" style="max-width: 120px; max-height: 120px; margin-top: 8px; border-radius: 6px;" />' : '<div class="cm-hint">Pas de photo trouvée.</div>')
@@ -1424,7 +1447,114 @@
                 }
 
                 document.querySelector('#testResult').innerHTML = html;
+                updatePickHint();
             }
+
+            // ---- Clickable response -------------------------------------------------------------
+            // The mapping field that receives a clicked path: the last path field focused in a mapping section
+            var activeMapField = null;
+            var MAP_SECTIONS = ['video', 'season', 'series', 'episodes', 'person'];
+
+            function isPathField(el) {
+                if (!el || el.tagName !== 'INPUT' || el.type !== 'text' || /PageParam|PhotoBase/.test(el.id)) { return false; }
+                var pane = el.closest('.cm-pane');
+                return !!pane && MAP_SECTIONS.indexOf(pane.getAttribute('data-section')) >= 0;
+            }
+
+            function fieldLabel(el) {
+                var label = el && el.id ? document.querySelector('#CustomMetadataConfigPage label[for="' + el.id + '"]') : null;
+                return label ? label.textContent.trim() : 'ce champ';
+            }
+
+            function setActiveMapField(el) {
+                Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage .cm-map-active'), function(box) { box.classList.remove('cm-map-active'); });
+                activeMapField = el;
+                var box = el && el.closest('.inputContainer');
+                if (box) { box.classList.add('cm-map-active'); }
+                updatePickHint();
+            }
+
+            function updatePickHint() {
+                var hint = document.querySelector('#pickHint');
+                if (!hint) { return; }
+                var visible = activeMapField && !activeMapField.closest('.cm-pane').hidden;
+                hint.innerHTML = visible
+                    ? 'Cliquez une valeur : son chemin est écrit dans <strong>' + escapeHtml(fieldLabel(activeMapField)) + '</strong>, puis le champ vide suivant est sélectionné.'
+                    : 'Cliquez d\'abord dans un champ de mapping (Titre, Synopsis…), puis sur la valeur qui lui correspond ci-dessous.';
+                Array.prototype.forEach.call(document.querySelectorAll('#pickTree .cm-pick-leaf'), function(leaf) {
+                    leaf.classList.toggle('cm-pick-used', !!visible && pathFor(leaf.getAttribute('data-path'), activeMapField) === activeMapField.value.trim());
+                });
+            }
+
+            function pickPreview(value) {
+                if (value === null) { return 'null'; }
+                if (Array.isArray(value)) { return '[' + value.length + (value.length > 1 ? ' éléments' : ' élément') + ']'; }
+                var text = typeof value === 'string' ? '"' + value + '"' : String(value);
+                return text.length > 70 ? text.slice(0, 70) + '…' : text;
+            }
+
+            // One row per key. Objects open; a list shows itself (clickable) and its first element under [0].
+            function pickTreeHtml(root) {
+                var rows = [], MAX_ROWS = 120, MAX_DEPTH = 5;
+                var leaf = function(depth, key, path, value) {
+                    rows.push('<button type="button" class="cm-pick-leaf" data-path="' + escapeHtml(path) + '" style="margin-left:' + (depth * 16) + 'px">'
+                        + '<span class="cm-pick-key">' + escapeHtml(key) + '</span><span class="cm-pick-val">' + escapeHtml(pickPreview(value)) + '</span></button>');
+                };
+                var walk = function(value, path, depth) {
+                    if (rows.length >= MAX_ROWS || depth > MAX_DEPTH) { return; }
+                    Object.keys(value).forEach(function(key) {
+                        if (rows.length >= MAX_ROWS) { return; }
+                        var child = value[key], childPath = path ? path + '.' + key : key;
+                        if (Array.isArray(child)) {
+                            leaf(depth, key, childPath, child);
+                            if (child.length && child[0] !== null && typeof child[0] === 'object' && !Array.isArray(child[0])) { walk(child[0], childPath + '[0]', depth + 1); }
+                        } else if (child !== null && typeof child === 'object') {
+                            rows.push('<div class="cm-pick-node" style="margin-left:' + (depth * 16) + 'px">' + escapeHtml(key) + '</div>');
+                            walk(child, childPath, depth + 1);
+                        } else {
+                            leaf(depth, key, childPath, child);
+                        }
+                    });
+                };
+                if (Array.isArray(root)) {
+                    rows.push('<div class="cm-pick-node">liste de ' + root.length + (root.length > 1 ? ' éléments' : ' élément') + ' : le premier</div>');
+                    if (root.length && root[0] !== null && typeof root[0] === 'object') { walk(root[0], '[0]', 1); }
+                } else {
+                    walk(root, '', 0);
+                }
+                return rows.join('') || '<div class="cm-pick-node">Réponse vide</div>';
+            }
+
+            // The path as the field expects it: an episode-list field is relative to one element of the list,
+            // and a tags / genres field takes every element of a list ([]) instead of the first ([0])
+            function pathFor(path, field) {
+                if (!field) { return path; }
+                var inList = field.closest('.cm-pane').getAttribute('data-section') === 'episodes';
+                if (inList && field.id !== 'srcListItemsPath') {
+                    var at = path.indexOf('[0]');
+                    if (at >= 0) { path = path.slice(at + 3).replace(/^\./, ''); }
+                }
+                if (/(Tags|Genres)$/.test(field.id)) { path = path.replace('[0]', '[]'); }
+                return path;
+            }
+
+            document.querySelector('#sourceForm').addEventListener('focusin', function(e) {
+                if (isPathField(e.target)) { setActiveMapField(e.target); }
+            });
+
+            document.querySelector('#testResult').addEventListener('click', function(e) {
+                var leaf = e.target.closest('.cm-pick-leaf');
+                if (!leaf) { return; }
+                if (!activeMapField || activeMapField.closest('.cm-pane').hidden) { updatePickHint(); return; }
+                var path = pathFor(leaf.getAttribute('data-path'), activeMapField);
+                if (!path) { return; }
+                activeMapField.value = path;
+                activeMapField.dispatchEvent(new Event('input', { bubbles: true }));
+                // Next empty path field of the same section, if any
+                var fields = Array.prototype.filter.call(activeMapField.closest('.cm-pane').querySelectorAll('input[type="text"]'), isPathField);
+                var next = fields.slice(fields.indexOf(activeMapField) + 1).filter(function(f) { return !f.value.trim(); })[0];
+                setActiveMapField(next || activeMapField);
+            });
 
             window.testSource = function() {
                 var resultDiv = document.querySelector('#testResult');
