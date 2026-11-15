@@ -92,6 +92,10 @@
         #CustomMetadataPeoplePage .pp-link-row select option { color: #000; }
         #CustomMetadataPeoplePage .pp-link-actions { display: flex; flex-wrap: wrap; gap: 2px 12px; }
         @container (max-width: 640px) { #CustomMetadataPeoplePage .pp-link-row { grid-template-columns: minmax(0, 1fr); } #CustomMetadataPeoplePage .pp-photo { flex-direction: column; } }
+        #CustomMetadataPeoplePage .pp-merge { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 14px 16px; border: 1px solid var(--pp-border); border-radius: 8px; background: rgba(255, 255, 255, 0.03); }
+        #CustomMetadataPeoplePage .pp-merge > div { flex: 1 1 100%; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.45; }
+        #CustomMetadataPeoplePage .pp-merge strong { font-size: 14px; }
+        #CustomMetadataPeoplePage .pp-merge select { flex: 1 1 240px; min-width: 0; height: 40px; padding: 0 10px; border: 1px solid var(--pp-border); border-radius: 6px; background: #1c1c1c; color: #fff; font: inherit; }
         #CustomMetadataPeoplePage .pp-danger { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 14px 16px; border: 1px solid rgba(255, 107, 91, 0.45); border-radius: 8px; background: rgba(255, 107, 91, 0.06); }
         #CustomMetadataPeoplePage .pp-danger > div { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.45; }
         #CustomMetadataPeoplePage .pp-danger strong { color: #ff9a8c; font-size: 14px; }
@@ -521,6 +525,7 @@
                 html += '</div><div class="pp-btns" style="margin-top:10px;"><button is="emby-button" type="button" class="raised" data-link-add="1"' + (sources.length ? '' : ' disabled') + '><span>Ajouter un identifiant</span></button></div>'
                     + '<div class="pp-hint">« Compléter » ne remplit que les champs vides. « Écraser avec l\'API » remplace le nom, la photo et la bio par ceux de la source.</div>'
                     + '<div class="pp-msg" id="ppLinkMsg" hidden role="status"></div></div>'
+                    + mergeBlock(person)
                     + '<div class="pp-danger"><div><strong>Supprimer cette personne</strong><span>Elle disparaît de l\'annuaire et des distributions qui la contiennent, à l\'enregistrement.</span></div>'
                     + '<button is="emby-button" type="button" class="raised" data-delete="1"><span>Supprimer…</span></button></div>';
                 box.innerHTML = html;
@@ -1075,8 +1080,9 @@
 
             qs('#ppDetail').addEventListener('click', function(e) {
                 var person = selected ? byId(selected) : null;
-                var t = e.target.closest('button[data-upload],[data-clear-photo],[data-link-add],[data-link-fill],[data-link-overwrite],[data-link-remove],[data-delete]');
+                var t = e.target.closest('button[data-upload],[data-clear-photo],[data-link-add],[data-link-fill],[data-link-overwrite],[data-link-remove],[data-delete],[data-merge]');
                 if (!t || !person) { return; }
+                if (t.hasAttribute('data-merge')) { mergeInto(person, t); return; }
                 if (t.hasAttribute('data-upload')) { qs('#ppDetail [data-file]').click(); return; }
                 if (t.hasAttribute('data-clear-photo')) { person.Photo = ''; markDirty(); renderList(); renderDetail(); return; }
                 if (t.hasAttribute('data-link-add')) {

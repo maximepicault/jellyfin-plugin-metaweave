@@ -80,6 +80,93 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         }
 
         /// <summary>
+        /// Merges two entries of the directory: {RemoveId} disappears into {KeepId}. The kept entry keeps its own values, takes the
+        /// other's where it has none, and gets its identifiers. Every cast that named the removed person (API overlay and local
+        /// sources) now names the kept one. Saved at once; Jellyfin's items follow with "Appliquer aux épisodes".
+        /// </summary>
+        [HttpPost("Merge")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public ActionResult<PersonMergeResult> Merge([FromBody] PersonMergeRequest request)
+        {
+            var directory = _people.Load();
+            var keep = directory.People.FirstOrDefault(p => string.Equals(p.Id, request?.KeepId, StringComparison.OrdinalIgnoreCase));
+            var remove = directory.People.FirstOrDefault(p => string.Equals(p.Id, request?.RemoveId, StringComparison.OrdinalIgnoreCase));
+            if (keep == null || remove == null || ReferenceEquals(keep, remove))
+            {
+                return BadRequest("Les deux fiches à fusionner sont introuvables. Enregistrez l'annuaire, puis réessayez.");
+            }
+
+            if (string.IsNullOrWhiteSpace(keep.Photo)) { keep.Photo = remove.Photo; }
+            if (string.IsNullOrWhiteSpace(keep.Bio)) { keep.Bio = remove.Bio; }
+            keep.Links ??= new System.Collections.Generic.List<PersonLink>();
+            foreach (var link in remove.Links ?? new System.Collections.Generic.List<PersonLink>())
+            {
+                if (!keep.Links.Any(l => string.Equals(l.Prefix, link.Prefix, StringComparison.OrdinalIgnoreCase) && string.Equals(l.ExternalId, link.ExternalId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    keep.Links.Add(link);
+                }
+            }
+
+            directory.People.Remove(remove);
+
+            // References first, the directory last: a failure in between leaves the removed entry in place, nothing dangling
+            bool Rename(System.Collections.Generic.List<LocalCastEntry> cast)
+            {
+                var changed = false;
+                foreach (var entry in cast ?? new System.Collections.Generic.List<LocalCastEntry>())
+                {
+                    if (string.Equals(entry?.PersonId, remove.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        entry.PersonId = keep.Id;
+                        changed = true;
+                    }
+                }
+
+                return changed;
+            }
+
+            var result = new PersonMergeResult { KeptId = keep.Id };
+            var overlay = _overlay.Load();
+            var overlayChanged = false;
+            foreach (var entry in overlay.Episodes ?? new System.Collections.Generic.List<EpisodeCastEntry>())
+            {
+                if (entry != null && Rename(entry.Cast))
+                {
+                    overlayChanged = true;
+                    result.Casts++;
+                }
+            }
+
+            if (overlayChanged)
+            {
+                _overlay.Save(overlay);   // normalises: the same person twice with the same job becomes one entry
+            }
+
+            foreach (var source in (Plugin.Instance?.Configuration?.Sources ?? new System.Collections.Generic.List<Configuration.SourceConfiguration>()).Where(s => s.IsLocal && LocalSourceStore.IsValidDataId(s.LocalDataId)))
+            {
+                var content = _images.Load(source.LocalDataId);
+                var changed = false;
+                foreach (var episode in (content.Series ?? new System.Collections.Generic.List<LocalSeries>()).SelectMany(se => se.Seasons ?? new System.Collections.Generic.List<LocalSeason>()).SelectMany(se => se.Episodes ?? new System.Collections.Generic.List<LocalEpisode>()))
+                {
+                    if (Rename(episode.Cast))
+                    {
+                        changed = true;
+                        result.Casts++;
+                    }
+                }
+
+                if (changed)
+                {
+                    _images.Save(source.LocalDataId, content);
+                }
+            }
+
+            result.Directory = _people.Save(directory);
+            return Ok(result);
+        }
+
+        /// <summary>
         /// "Apply to episodes": restarts the enrichment of ALREADY enriched episodes that depend on what changed
         /// (modified people, modified distributions, local sources). Empty = everything that has a cast.
         /// </summary>
@@ -189,5 +276,24 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string MatchReason { get; set; }
 
         public string Error { get; set; }
+    }
+
+    public class PersonMergeRequest
+    {
+        /// <summary>The entry that stays</summary>
+        public string KeepId { get; set; }
+
+        /// <summary>The entry that disappears into the other</summary>
+        public string RemoveId { get; set; }
+    }
+
+    public class PersonMergeResult
+    {
+        public string KeptId { get; set; }
+
+        /// <summary>Casts (elements) that named the removed person</summary>
+        public int Casts { get; set; }
+
+        public PeopleDirectory Directory { get; set; }
     }
 }
