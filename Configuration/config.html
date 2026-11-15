@@ -922,13 +922,6 @@
                 ApiClient.getPluginConfiguration(pluginId).then(function(config) {
                     currentConfig = config;
                     
-                    // DEBUG: log of the full config
-                    console.log('🔍 [DEBUG] Config chargée depuis API:', config);
-                    console.log('🔍 [DEBUG] config.Sources:', config.Sources);
-                    if (config.Sources && config.Sources.length > 0) {
-                        console.log('🔍 [DEBUG] Première source:', config.Sources[0]);
-                        console.log('🔍 [DEBUG] CustomHeaders de la première source:', config.Sources[0].CustomHeaders);
-                    }
                     
                     // "Importer le casting" switched off: the casts are not sent to Jellyfin (read by the Distribution block)
                     document.querySelector('#CustomMetadataConfigPage').setAttribute('data-casting', config.EnableCasting === false ? 'off' : 'on');
@@ -970,16 +963,8 @@
                 currentConfig.EnableCache = document.querySelector('#chkEnableCache').checked;
                 currentConfig.CacheTTLHours = parseInt(document.querySelector('#txtCacheTTL').value) || 24;
 
-                console.log('🔍 [DEBUG] MAIN SAVE - currentConfig avant envoi à l\'API:', currentConfig);
-                console.log('🔍 [DEBUG] MAIN SAVE - currentConfig.Sources:', currentConfig.Sources);
-                if (currentConfig.Sources && currentConfig.Sources.length > 0) {
-                    console.log('🔍 [DEBUG] MAIN SAVE - Première source:', currentConfig.Sources[0]);
-                    console.log('🔍 [DEBUG] MAIN SAVE - CustomHeaders de la première source:', currentConfig.Sources[0].CustomHeaders);
-                }
-                console.log('🔍 [DEBUG] MAIN SAVE - JSON.stringify(currentConfig):', JSON.stringify(currentConfig, null, 2));
 
                 ApiClient.updatePluginConfiguration(pluginId, currentConfig).then(function() {
-                    console.log('✅ [DEBUG] MAIN SAVE - Configuration sauvegardée avec succès');
                     Dashboard.processPluginConfigurationUpdateResult();
                 });
                 
@@ -1134,11 +1119,6 @@
             window.editSource = function(index, focusTest) {
                 var source = currentConfig.Sources[index];
                 
-                // DEBUG: log of the full source
-                console.log('🔍 [DEBUG] editSource - source complète:', source);
-                console.log('🔍 [DEBUG] editSource - source.CustomHeaders:', source.CustomHeaders);
-                console.log('🔍 [DEBUG] editSource - Type de CustomHeaders:', typeof source.CustomHeaders);
-                console.log('🔍 [DEBUG] editSource - Array.isArray(CustomHeaders):', Array.isArray(source.CustomHeaders));
                 
                 document.querySelector('#modalTitle').textContent = source.Name || 'Source sans nom';
                 document.querySelector('#editIndex').value = index;
@@ -1202,8 +1182,6 @@
 
                 // Headers custom
                 customHeaders = source.CustomHeaders || [];
-                console.log('🔍 [DEBUG] editSource - customHeaders après affectation:', customHeaders);
-                console.log('🔍 [DEBUG] editSource - customHeaders.length:', customHeaders.length);
                 
                 renderHeaders();
                 
@@ -1567,17 +1545,12 @@
             document.querySelector('#sourceForm').addEventListener('submit', function(e) {
                 e.preventDefault();
                 
-                console.log('🔍 [DEBUG] saveSource - customHeaders avant filtrage:', customHeaders);
-                console.log('🔍 [DEBUG] saveSource - customHeaders.length:', customHeaders.length);
                 
                 var source = readSourceFromForm();
                 if (prefixChanged() && !confirm('Changer le préfixe de « ' + editOriginalPrefix + ' » en « ' + source.Prefix + ' » ?\nLes fichiers et dossiers qui portent l\'ancien tag ne seront plus reliés à cette source tant que vous ne les aurez pas renommés.')) {
                     return;
                 }
-                console.log('🔍 [DEBUG] saveSource - filteredHeaders après filtrage:', source.CustomHeaders);
 
-                console.log('🔍 [DEBUG] saveSource - source.CustomHeaders:', source.CustomHeaders);
-                console.log('🔍 [DEBUG] saveSource - source complet:', source);
 
                 var finish = function() {
                 currentConfig.Sources = currentConfig.Sources || [];
@@ -1585,15 +1558,12 @@
                 var index = parseInt(document.querySelector('#editIndex').value);
                 if (index >= 0) {
                     // Edit
-                    console.log('🔍 [DEBUG] saveSource - Édition de la source à l\'index:', index);
                     currentConfig.Sources[index] = source;
                 } else {
-                    // Ajout
-                    console.log('🔍 [DEBUG] saveSource - Ajout d\'une nouvelle source');
+                    // New source
                     currentConfig.Sources.push(source);
                 }
                 
-                console.log('🔍 [DEBUG] saveSource - currentConfig.Sources après update:', currentConfig.Sources);
 
                 renderSourcesList(currentConfig.Sources);
                 closeEditor(true);
