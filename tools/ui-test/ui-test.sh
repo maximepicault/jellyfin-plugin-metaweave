@@ -102,9 +102,15 @@ if [ "$FRESH" = 1 ] || { wizard_pending && sleep 8 && wizard_pending; }; then
   wait_for "curl -sf -X POST '$J/Startup/Complete'" 60
 fi
 
-TOKEN=$(curl -sf -X POST "$J/Users/AuthenticateByName" -H "$H" \
-  -H 'Authorization: MediaBrowser Client="ui-test", Device="cli", DeviceId="cm-ui-test", Version="1.0"' \
-  -d '{"Username":"admin","Pw":"admin"}' | python3 -c 'import json,sys;print(json.load(sys.stdin)["AccessToken"])')
+# Right after a restart the server answers /System/Info/Public before it accepts logins (503): retry
+login() {
+  curl -sf -X POST "$J/Users/AuthenticateByName" -H "$H" \
+    -H 'Authorization: MediaBrowser Client="ui-test", Device="cli", DeviceId="cm-ui-test", Version="1.0"' \
+    -d '{"Username":"admin","Pw":"admin"}' | python3 -c 'import json,sys;print(json.load(sys.stdin)["AccessToken"])' 2>/dev/null
+}
+TOKEN=""
+for _ in $(seq 1 45); do TOKEN=$(login || true); [ -n "$TOKEN" ] && break; sleep 2; done
+[ -n "$TOKEN" ] || { echo "⚠️ login failed (admin / admin) on $J"; exit 1; }
 A="Authorization: MediaBrowser Token=\"$TOKEN\""
 count() { curl -s "$J/Items?IncludeItemTypes=$1&Recursive=true&Limit=0" -H "$A" | python3 -c 'import json,sys;print(json.load(sys.stdin)["TotalRecordCount"])'; }
 tasks_idle() { ! curl -s "$J/ScheduledTasks?isHidden=false" -H "$A" | grep -q '"State":"Running"'; }

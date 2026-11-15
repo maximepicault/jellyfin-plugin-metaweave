@@ -59,4 +59,4 @@ try {
   check('the "Personnes" shortcut opens the People screen', (await evalJs(`location.hash`)).includes('CustomMetadataPeople') && (await evalJs(`!!document.querySelector('#CustomMetadataPeoplePage')`)) === true);
   await shot('M3-people-from-menu-1440');
   console.log(`\n${pass} PASS, ${fail} FAIL`);
-} finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) {} process.exit(fail ? 1 : 0); }
+} finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch {} process.exit(fail ? 1 : 0); }

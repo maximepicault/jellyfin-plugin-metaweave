@@ -82,4 +82,4 @@ try {
   await size(1920, 1100); await wait(500); await shot('R4-editor-content-1920');
   await size(412, 900, true); await wait(600); await shot('R5-editor-content-mobile');
   console.log('page errors:', await evalJs(`document.querySelectorAll('${C} #localTree .cm-t-item').length + ' rows in the tree'`));
-} finally { ws.close(); chrome.kill(); fs.rmSync(profile, { recursive: true, force: true }); process.exit(0); }
+} finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch {} process.exit(0); }

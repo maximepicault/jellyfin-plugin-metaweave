@@ -187,4 +187,4 @@ try {
   await setCasting(true);
   console.log(`\n${pass} PASS, ${fail} FAIL`);
   await evalJs(RESTORE);
-} finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) {} process.exit(fail ? 1 : 0); }
+} finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch {} process.exit(fail ? 1 : 0); }

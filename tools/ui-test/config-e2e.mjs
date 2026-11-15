@@ -128,10 +128,12 @@ try {
   ok('default mapping saved', c.Sources[1].VideoFieldMappings.Title === 'title' && c.Sources[1].VideoFieldMappings.ImagesArray === 'images');
 
   // 4. cancel without saving, then delete
-  await click(`${C} .cm-card:nth-of-type(2) button.raised`); await wait(500);
+  // Cards are grouped by prefix, so the card is found by its name; confirm() is answered yes (a native dialog would block the driving)
+  const editByName = name => evalJs(`(function(){window.confirm=function(){return true;}; var c=Array.from(document.querySelectorAll('${C} .cm-card')).find(function(x){return x.textContent.indexOf(${JSON.stringify(name)})>=0;}); if(!c) return false; c.querySelector('button.raised').click(); return true;})()`);
+  ok('new source card found', await editByName('Nouvelle')); await wait(500);
   await set('srcName', 'Ne doit pas être gardé'); await click(`${C} #btnCancelEdit`); await wait(500);
   c = await getCfg(); ok('cancel: nothing saved', c.Sources[1].Name === 'Nouvelle', c.Sources[1].Name);
-  await click(`${C} .cm-card:nth-of-type(2) button.raised`); await wait(500);
+  await editByName('Nouvelle'); await wait(500);
   await click(`${C} #btnDeleteSource`); await wait(2500);
   c = await getCfg(); ok('source deleted', c.Sources.length === 1, String(c.Sources.length));
 
