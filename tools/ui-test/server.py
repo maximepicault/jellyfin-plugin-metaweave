@@ -1,5 +1,5 @@
 """Fake demo API to test the plugin: python3 server.py <base_url> <img_dir> (listens on 0.0.0.0:8765)
-Routes: /series/{id}, /sources/{id}, /sources/{id}/videos (episode list), /videos/{id}, /img/{file}"""
+Routes: /series/{id}, /sources/{id}, /sources/{id}/videos (episode list), /sources/longlist/videos (120 episodes in an object), /videos/{id}, /img/{file}"""
 import json, urllib.parse, re, sys, os
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 sys.path.insert(0, os.path.dirname(__file__)); from data import SERIES, OV, PEOPLE
@@ -69,6 +69,14 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {"id": "bigimg", "title": "Grande affiche", "poster": f"{BASE}/img/big.jpg"})
         if m and m[1] in SERIES:
             return self.send(200, {"id": m[1], "title": SERIES[m[1]]["title"], "overview": "Série de démonstration.", "poster": f"{BASE}/img/{m[1]}.jpg"})
+        # A LONG list inside an object (far more than the 20 KB the test screen keeps of the raw text): the clickable tree must still work
+        if p == "/sources/longlist/videos":
+            return self.send(200, {"total": 120, "data": {"videos": [
+                # The FIRST episode is poor (no synopsis, no tags) and one in the middle is the richest: the example must be that one
+                ({"id": f"long{i}", "title": f"Épisode long {i}"} if i == 1 else
+                 {"id": f"long{i}", "title": f"Épisode long {i}", "overview": "Résumé très détaillé. " * 25, "meta": {"number": i, "length": "24:30"}, "tags": ["a", "b", "c"],
+                  **({"rating": 4.5, "guest": {"name": "Invité", "role": "Expert"}} if i == 57 else {})})
+                for i in range(1, 121)]}})
         m = re.fullmatch(r"/sources/(\w+)/videos", p)
         if m:
             for s in SERIES.values():

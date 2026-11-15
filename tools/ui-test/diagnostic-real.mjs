@@ -16,6 +16,7 @@ fs.mkdirSync(outDir, { recursive: true });
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); ok ? pass++ : fail++; };
 const D = '#CustomMetadataDiagnosticPage', C = '#CustomMetadataConfigPage', M = '#CustomMetadataMissingPage', P = '#CustomMetadataPeoplePage';
+const text = (page, sel) => page.$eval(sel, e => e.textContent.trim());
 const url = name => `${J}/web/#/configurationpage?name=${name}`;
 
 const browser = await chromium.launch({ channel: 'chrome' });
@@ -123,6 +124,29 @@ try {
     check('pick: the episode list is clickable', false, listLeaves.slice(0, 6).join(' | ') || 'no tree (answer too long?)');
   }
   await shot('M2-pick-list-1440');
+  // A list far longer than the 20 KB of raw text the screen keeps (120 episodes inside an object): still clickable, with its real length
+  await page.selectOption(`${C} #testItemType`, 'episodelist');
+  await page.fill(`${C} #testItemId`, 'longlist');
+  await page.focus(`${C} #srcListItemsPath`);
+  await page.click(`${C} #btnTestSource`);
+  await page.waitForSelector(`${C} #pickTree .cm-pick-leaf[data-path="data.videos"]`, { state: 'visible', timeout: 20000 });
+  const rawLength = await page.$eval(`${C} #testResult details:last-of-type pre`, e => e.textContent.length);
+  check('episode list: the raw text is cut, the tree is not (a long list is clickable)', rawLength < 22000 && (await text(page, `${C} #pickTree .cm-pick-leaf[data-path="data.videos"] .cm-pick-val`)) === '[120 éléments]', `raw ${rawLength} chars / ${await text(page, `${C} #pickTree .cm-pick-leaf[data-path="data.videos"] .cm-pick-val`)}`);
+  await page.click(`${C} #pickTree .cm-pick-leaf[data-path="data.videos"]`);
+  check('episode list: a click on the list writes its path into "Tableau d\'épisodes"', (await page.$eval(`${C} #srcListItemsPath`, e => e.value)) === 'data.videos');
+  await page.focus(`${C} #srcListTitle`);
+  await page.click(`${C} #btnTestSource`);
+  await page.waitForFunction(sel => document.querySelector(sel + ' #testResult .cm-test-status') && /\b120\b/.test(document.querySelector(sel + ' #testResult').textContent), C, { timeout: 20000 });
+  const nested = await page.$$eval(`${C} #pickTree .cm-pick-leaf`, els => els.map(e => e.getAttribute('data-path')));
+  check('episode list: the example is the most complete element, not the first (it has fields the first lacks)', nested.includes('data.videos[0].guest.role') && nested.includes('data.videos[0].overview') && nested.includes('data.videos[0].rating'), nested.join(' | ').slice(0, 300));
+  const longTitle = nested.find(p => /data\.videos\[0\]\.title$/.test(p));
+  if (longTitle) {
+    await page.click(`${C} #pickTree .cm-pick-leaf[data-path="${longTitle}"]`);
+    check('episode list: a field gets its path relative to one element of the list', (await page.$eval(`${C} #srcListTitle`, e => e.value)) === 'title', longTitle);
+  } else {
+    check('episode list: the first element of the list is shown', false, nested.slice(0, 6).join(' | '));
+  }
+  await shot('M3-pick-long-list-1440');
   // nothing is saved: leave the editor without saving
   await page.evaluate(() => { window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} });
   await page.click(`${C} #btnCancelEdit`);
