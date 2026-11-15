@@ -25,7 +25,7 @@ window.ApiClient = {
   updatePluginConfiguration: function (id, c) { __mock.config = clone(c); __mock.calls.push('PLUGIN'); return Promise.resolve({}); },
   getJSON: function (url) {
     if (/CustomMetadata\\/Refresh\\/Status/.test(url)) { __mock.calls.push('REFRESH-STATUS'); return Promise.resolve({ Running: false, Prefix: __mock.refresh.Prefix, Total: 3, Done: 3, Failed: 0, Series: 1, Seasons: 1, Episodes: 1, LocalFilesKept: __mock.kept || 0 }); }
-    if (/CustomMetadata\\/Status/.test(url)) { return Promise.resolve({ Sources: __mock.config.Sources.length, MissingEpisodes: 3, SourceErrors: 0, People: __mock.people.length, NotEnriched: null }); }
+    if (/CustomMetadata\\/Status/.test(url)) { return Promise.resolve({ Sources: __mock.config.Sources.length, MissingEpisodes: 3, SourceErrors: 0, People: __mock.people.length, NotEnriched: null, TaggedSeries: __mock.tagged || 0 }); }
     if (/Library\\/VirtualFolders/.test(url)) { return Promise.resolve(clone(__mock.libraries || [])); }
     if (/CustomMetadata\\/People/.test(url)) { __mock.calls.push('GET people'); return Promise.resolve(clone({ Version: 1, People: __mock.people })); }
     var m = url.match(/CustomMetadata\\/Local\\/(.+)$/);
@@ -101,6 +101,8 @@ try {
   await ev(`document.querySelector('${P}').dispatchEvent(new Event('pageshow')); true`); await wait(400);
 
   // 1. List + type choice
+  check('setup guide: shown while no series folder is tagged, the next step is explained', (await vis('#setupGuide')) && (await ev(`document.querySelector('#setupGuide li[data-next] strong').textContent`)).includes('tag') && (await ev(`document.querySelector('#setupGuide li[data-next] small').textContent`)).includes('{dm-123}'));
+  check('setup guide: the steps already done are ticked', (await ev(`document.querySelectorAll('#setupGuide li[data-done="true"]').length`)) === 4, await ev(`document.querySelector('#setupGuide .cm-guide-head span').textContent`));
   check('list: 1 API source', (await ev(`document.querySelectorAll('${P} #sourcesList .cm-card').length`)) === 1);
   check('list: no type choice at the start', !(await vis('#typeChooserWrap')));
   await click(`${P} .cm-toolbar .button-submit`); await wait(200);

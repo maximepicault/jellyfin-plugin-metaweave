@@ -456,6 +456,7 @@
                             <button type="button" class="cm-linkbtn" id="btnNoticeAnalyze">Analyser maintenant</button>
                             <button type="button" class="cm-linkbtn" id="btnNoticeClose">Fermer</button>
                         </div>
+                        <section id="setupGuide" class="cm-guide" aria-labelledby="setupGuideTitle" hidden></section>
                         <div id="libraryWarn" class="cm-libwarn" role="status" hidden></div>
                         <div id="typeChooserWrap" hidden>
                         <div class="cm-toolbar" style="margin-bottom: 12px;"><strong id="typeChooserTitle">Quel type de source ?</strong><button type="button" class="cm-linkbtn" id="btnCancelChooser" style="margin-left: auto;">Annuler</button></div>
@@ -956,8 +957,10 @@
                 var box = document.querySelector('#libraryWarn');
                 box.hidden = true; box.textContent = '';
                 var active = (config.Sources || []).some(function(s) { return s.Enabled !== false && s.SourceType !== 'People'; });
-                if (!active) { return; }
+                libraryIssues = null;
+                if (!active) { libraryIssues = 0; renderSetupGuide(); return; }
                 ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')).then(function(libraries) {
+                    var issues = 0;
                     var kinds = [['Series', 'séries'], ['Season', 'saisons'], ['Episode', 'épisodes']];
                     (libraries || []).forEach(function(library) {
                         // Series live in TV libraries and in mixed ones (no type)
@@ -981,12 +984,56 @@
                         box.appendChild(ul);
                         box.appendChild(add('p', 'Pour l\'activer : Tableau de bord → Médiathèques → « ' + library.Name + ' » → Gérer la médiathèque, puis cochez-le dans les récupérateurs de métadonnées et d\'images de chaque type.'));
                         box.hidden = false;
+                        issues++;
                     });
-                }, function() { /* the libraries could not be read: no warning rather than a wrong one */ });
+                    libraryIssues = issues;
+                    renderSetupGuide();
+                }, function() { libraryIssues = 0; renderSetupGuide(); /* the libraries could not be read: no warning rather than a wrong one */ });
             }
 
             // Load the configuration
             // Counters of the shared tab bar (same code in the four pages)
+            var lastStatus = null, libraryIssues = null;   // what the setup guide reads
+
+            // Setup guide: each step is checked from what the plugin already knows, nothing to tick by hand
+            function renderSetupGuide() {
+                var box = document.querySelector('#setupGuide');
+                if (!box) { return; }
+                var hiddenByUser = false;
+                try { hiddenByUser = localStorage.getItem('cm-guide-hidden') === '1'; } catch (err) { /* private window */ }
+                var sources = ((currentConfig && currentConfig.Sources) || []).filter(function(s) { return s.SourceType !== 'People'; });
+                if (!currentConfig || !lastStatus || typeof lastStatus.TaggedSeries !== 'number' || hiddenByUser) { box.hidden = true; return; }
+                var enabled = sources.filter(function(s) { return s.Enabled !== false; });
+                var withList = enabled.some(function(s) { return !!s.EpisodeListEndpoint; });
+                var prefix = (enabled[0] || sources[0] || {}).Prefix || 'préfixe';
+                var steps = [
+                    ['Créer une source', sources.length > 0, 'Bouton « Ajouter une source » : une API, ou une source locale que vous remplissez vous-même.'],
+                    ['Activer la source', enabled.length > 0, 'Interrupteur « Activée » sur la carte de la source.'],
+                    ['Mettre un tag dans le nom d\'un dossier de série', lastStatus.TaggedSeries > 0, 'Par exemple « Ma série {' + prefix + '-123} », puis lancez un scan de la médiathèque dans Jellyfin.'],
+                    ['Cocher le plugin dans la médiathèque', libraryIssues === 0, libraryIssues === null ? 'Vérification en cours…' : 'Le détail est dans l\'encadré orange ci-dessous.']
+                ];
+                if (withList) {
+                    steps.push(['Lancer l\'analyse des épisodes manquants', lastStatus.MissingEpisodes !== null && lastStatus.MissingEpisodes !== undefined, 'Onglet « Épisodes manquants », bouton « Analyser ».']);
+                }
+                var done = steps.filter(function(s) { return s[1]; }).length;
+                if (done === steps.length) { box.hidden = true; return; }
+                var next = steps.filter(function(s) { return !s[1]; })[0];
+                box.hidden = false;
+                box.innerHTML = '<div class="cm-guide-head"><h3 id="setupGuideTitle">Mise en route</h3><span>' + done + ' / ' + steps.length + '</span>'
+                    + '<button type="button" class="cm-linkbtn" id="btnHideGuide">Masquer</button></div><ol>'
+                    + steps.map(function(s, i) {
+                        return '<li data-done="' + (s[1] ? 'true' : 'false') + '"' + (s === next ? ' data-next="true"' : '') + '><b aria-hidden="true">' + (s[1] ? '✓' : (i + 1)) + '</b>'
+                            + '<strong>' + escapeHtml(s[0]) + (s[1] ? ' <span class="cm-sr">(fait)</span>' : '') + '</strong>'
+                            + (s === next ? '<small>' + escapeHtml(s[2]) + '</small>' : '') + '</li>';
+                    }).join('') + '</ol>';
+            }
+
+            document.querySelector('#setupGuide').addEventListener('click', function(e) {
+                if (!e.target.closest('#btnHideGuide')) { return; }
+                try { localStorage.setItem('cm-guide-hidden', '1'); } catch (err) { /* hidden for this visit only */ }
+                document.querySelector('#setupGuide').hidden = true;
+            });
+
             function loadNavStatus() {
                 // On a phone the bar scrolls sideways: centre the current tab (again once the counters have their width)
                 var centre = function() {
@@ -1007,6 +1054,8 @@
                     set('missing', s.MissingEpisodes, s.MissingEpisodes > 0 ? 'alert' : (s.SourceErrors > 0 ? 'warn' : ''),
                         s.MissingEpisodes == null ? '' : n(s.MissingEpisodes, 'épisode manquant', 'épisodes manquants') + (s.SourceErrors > 0 ? ', ' + n(s.SourceErrors, 'source en erreur', 'sources en erreur') : ''));
                     set('people', s.People, '', n(s.People, 'personne', 'personnes'));
+                    lastStatus = s;
+                    renderSetupGuide();
                     set('diagnostic', s.NotEnriched, s.NotEnriched > 0 ? 'warn' : '', s.NotEnriched == null ? '' : n(s.NotEnriched, 'élément non enrichi', 'éléments non enrichis'));
                     centre();
                 }, function() { /* counters are a comfort: the page works without them */ });
@@ -1626,6 +1675,8 @@
                 Dashboard.showLoadingMsg();
                 ApiClient.updatePluginConfiguration(pluginId, currentConfig).then(function(result) {
                     Dashboard.processPluginConfigurationUpdateResult(result);
+                    loadNavStatus();   // counters and setup guide follow the change
+                    checkLibraryProviders(currentConfig);
                 }, function() {
                     Dashboard.hideLoadingMsg();
                     Dashboard.alert('❌ Erreur lors de l\'enregistrement de la source');

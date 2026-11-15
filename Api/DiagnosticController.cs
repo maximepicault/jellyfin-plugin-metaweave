@@ -1,7 +1,12 @@
+using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.CustomMetadata.Services;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,9 +25,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         private readonly DiagnosticService _diagnostic;
         private readonly MissingEpisodeService _missing;
         private readonly PeopleStore _people;
+        private readonly ILibraryManager _library;
 
-        public DiagnosticController(DiagnosticService diagnostic, MissingEpisodeService missing, PeopleStore people)
+        public DiagnosticController(DiagnosticService diagnostic, MissingEpisodeService missing, PeopleStore people, ILibraryManager library)
         {
+            _library = library;
             _diagnostic = diagnostic;
             _missing = missing;
             _people = people;
@@ -70,8 +77,30 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 MissingEpisodes = seasons?.Sum(s => s.Missing?.Count ?? 0),
                 SourceErrors = seasons?.Count(s => !string.IsNullOrEmpty(s.Error)) ?? 0,
                 People = _people.Load()?.People?.Count ?? 0,
-                NotEnriched = _diagnostic.GetLast()?.Total
+                NotEnriched = _diagnostic.GetLast()?.Total,
+                TaggedSeries = CountTaggedSeries()
             });
+        }
+
+        /// <summary>Series folders that carry a tag of a configured source (the setup guide's "a folder is tagged" step)</summary>
+        private int CountTaggedSeries()
+        {
+            var prefixes = (Plugin.Instance?.Configuration?.Sources ?? new System.Collections.Generic.List<Configuration.SourceConfiguration>())
+                .Where(s => !s.IsPeople && !string.IsNullOrWhiteSpace(s.Prefix))
+                .Select(s => s.Prefix.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (prefixes.Count == 0)
+            {
+                return 0;
+            }
+
+            return _library.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Series }, Recursive = true })
+                .Count(i =>
+                {
+                    var tag = string.IsNullOrEmpty(i.Path) ? null : TagParser.Extract(Path.GetFileName(i.Path.TrimEnd('/', '\\')));
+                    var dash = tag?.IndexOf('-') ?? -1;
+                    return dash > 0 && prefixes.Contains(tag.Substring(0, dash));
+                });
         }
     }
 
@@ -93,5 +122,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
         /// <summary>null: the library was never checked</summary>
         public int? NotEnriched { get; set; }
+
+        /// <summary>Series folders carrying a tag of a configured source</summary>
+        public int TaggedSeries { get; set; }
     }
 }
