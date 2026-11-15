@@ -27,6 +27,8 @@
         #CustomMetadataPeoplePage .pp-lead { margin: 0 0 20px; max-width: 800px; color: var(--pp-muted); line-height: 1.5; }
         #CustomMetadataPeoplePage .pp-hint { margin-top: 6px; font-size: 13px; line-height: 1.45; color: var(--pp-muted); }
         #CustomMetadataPeoplePage .pp-add { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; padding: 16px 18px; border: 1px solid var(--pp-border); border-radius: 10px; background: var(--pp-surface); }
+        /* same total width as the list + detail below (340 + 20 + 980): no panel stretched across a 1920 px screen */
+        #CustomMetadataPeoplePage .pp-add { max-width: 1340px; box-sizing: border-box; }
         #CustomMetadataPeoplePage .pp-add h3 { margin: 0; font-size: 16px; font-weight: 700; }
         #CustomMetadataPeoplePage .pp-add-row { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; }
         #CustomMetadataPeoplePage .pp-add-row .inputContainer, #CustomMetadataPeoplePage .pp-add-row .selectContainer { margin: 0; min-width: 180px; flex: 1 1 200px; }
@@ -132,7 +134,10 @@
         #CustomMetadataPeoplePage .pp-apply span { flex: 1 1 320px; }
         #CustomMetadataPeoplePage .pp-apply .emby-button { margin: 0; }
         #CustomMetadataPeoplePage .pp-savebar { position: sticky; bottom: 0; z-index: 5; margin: 24px -16px 0; padding: 12px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; border-top: 1px solid var(--pp-border); background: #181818; }
-        #CustomMetadataPeoplePage .pp-savebar .emby-button { margin: 0; }
+        #CustomMetadataPeoplePage .pp-savebar .emby-button { margin: 0; justify-content: center; text-align: center; }
+        #CustomMetadataPeoplePage .pp-narrow { display: none; }
+        #CustomMetadataPeoplePage .pp-item-ids.pp-plain { font-family: inherit; }
+        @media (max-width: 600px) { #CustomMetadataPeoplePage .pp-wide { display: none; } #CustomMetadataPeoplePage .pp-narrow { display: inline; } }
         #CustomMetadataPeoplePage .pp-dirty { color: var(--pp-muted); }
         #CustomMetadataPeoplePage .pp-dirty.on { color: #f0c080; }
         #CustomMetadataPeoplePage .pp-dirty.on::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--pp-warn); }
@@ -207,7 +212,7 @@
                 <div class="pp-savebar" role="region" aria-label="Enregistrement">
                     <span class="pp-dirty" id="ppDirty">Aucune modification</span>
                     <div class="pp-actions">
-                        <button is="emby-button" type="button" class="raised" id="ppCancel"><span>Annuler les modifications</span></button>
+                        <button is="emby-button" type="button" class="raised" id="ppCancel"><span class="pp-wide">Annuler les modifications</span><span class="pp-narrow">Annuler</span></button>
                         <button is="emby-button" type="button" class="raised button-submit" id="ppSave"><span>Enregistrer</span></button>
                     </div>
                 </div>
@@ -235,6 +240,8 @@
             var selected = null;      // Id of the selected person
             var dirty = false;
             var ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+            function plural(n, one, many) { return n + ' ' + (n > 1 ? many : one); }
 
             function escapeHtml(text) {
                 return String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -328,7 +335,7 @@
                     var ids = (p.Links || []).map(function(l) { return l.Prefix + '-' + l.ExternalId; }).join(' · ');
                     var dup = dups[normalizeName(p.Name)] > 1;
                     return '<button type="button" class="pp-item" data-person="' + p.Id + '"' + (p.Id === selected ? ' aria-current="true"' : '') + '>' + avatar(p)
-                        + '<span class="pp-item-text"><span class="pp-item-name">' + escapeHtml(p.Name || 'Sans nom') + '</span><span class="pp-item-ids">' + escapeHtml(ids || 'saisie manuelle') + '</span></span>'
+                        + '<span class="pp-item-text"><span class="pp-item-name">' + escapeHtml(p.Name || 'Sans nom') + '</span><span class="pp-item-ids' + (ids ? '' : ' pp-plain') + '">' + escapeHtml(ids || 'saisie manuelle') + '</span></span>'
                         + (dup ? '<span class="pp-badge" title="Une autre fiche porte le même nom">doublon</span>' : '') + '</button>';
                 }).join('');
             }
@@ -515,8 +522,8 @@
                 if (!castLoaded) { box.innerHTML = '<div class="pp-empty">Chargement…</div>'; return; }
                 var filter = qs('#ppEpSearch').value;
                 var idsCount = Object.keys(episodeCast).filter(function(k) { return castCount(k) > 0; }).length;
-                var html = '<button type="button" class="pp-item" data-ep-mode="ids"' + (epMode === 'ids' ? ' aria-current="true"' : '') + '><span class="pp-item-text"><span class="pp-item-name">Par identifiant</span><span class="pp-item-ids">saisir un {préfixe-id}</span></span>'
-                    + (idsCount ? '<span class="pp-count" title="' + idsCount + ' élément(s) avec une distribution">' + idsCount + '</span>' : '') + '</button>';
+                var html = '<button type="button" class="pp-item" data-ep-mode="ids"' + (epMode === 'ids' ? ' aria-current="true"' : '') + '><span class="pp-item-text"><span class="pp-item-name">Par identifiant</span><span class="pp-item-ids pp-plain">saisir un {préfixe-id}</span></span>'
+                    + (idsCount ? '<span class="pp-count" title="' + plural(idsCount, 'élément', 'éléments') + ' avec une distribution">' + idsCount + '</span>' : '') + '</button>';
                 if (!library) {
                     html += '<div class="pp-library-box">' + (libraryLoading
                         ? '<span class="pp-hint" style="margin:0;" role="status">Lecture de la médiathèque…</span>'
@@ -535,9 +542,9 @@
                         var withCast = season.Episodes.filter(function(e) { return castCount(typedKey('episode', e.Key)) > 0; }).length;
                         var seasonOwn = season.Key ? castCount(typedKey('season', season.Key)) : 0;
                         html += '<button type="button" class="pp-item pp-sub" data-ep-season="' + season.SeasonId + '"' + (epMode === 'library' && season.SeasonId === epSeason ? ' aria-current="true"' : '') + '>'
-                            + '<span class="pp-item-text"><span class="pp-item-name">' + escapeHtml(season.Name || 'Saison') + '</span><span class="pp-item-ids">' + season.Episodes.length + ' épisode(s)</span></span>'
+                            + '<span class="pp-item-text"><span class="pp-item-name">' + escapeHtml(season.Name || 'Saison') + '</span><span class="pp-item-ids pp-plain">' + plural(season.Episodes.length, 'épisode', 'épisodes') + '</span></span>'
                             + (seasonOwn ? '<span class="pp-badge miss" title="Cette saison a sa propre distribution">saison</span>' : '')
-                            + (withCast ? '<span class="pp-count" title="' + withCast + ' épisode(s) avec une distribution">' + withCast + '</span>' : '') + '</button>';
+                            + (withCast ? '<span class="pp-count" title="' + plural(withCast, 'épisode', 'épisodes') + ' avec une distribution">' + withCast + '</span>' : '') + '</button>';
                     });
                 });
                 box.innerHTML = html;
@@ -609,7 +616,7 @@
                 var seasons = data.Seasons || [], episodes = data.Episodes || [];
                 var chips = seasons.map(function(x) { return ['season', x]; }).concat(episodes.map(function(x) { return ['episode', x]; }));
                 var LIMIT = 40;
-                box.innerHTML = '<span>Sera répercuté sur ' + (typeOf(tk) === 'series' ? seasons.length + ' saison(s) et ' : '') + episodes.length + ' épisode(s) de la médiathèque :</span>'
+                box.innerHTML = '<span>Sera répercuté sur ' + (typeOf(tk) === 'series' ? plural(seasons.length, 'saison', 'saisons') + ' et ' : '') + plural(episodes.length, 'épisode', 'épisodes') + ' de la médiathèque :</span>'
                     + '<div class="pp-chips">' + chips.slice(0, LIMIT).map(function(c) {
                         return '<span class="pp-chip ' + c[0] + (c[1].IsMissing ? ' missing' : '') + '" title="' + escapeHtml((c[1].Title || '') + (c[1].IsMissing ? ' (manquant)' : '')) + '">' + (isSynthetic(c[1].Key) ? escapeHtml(c[1].Title || 'sans identifiant') : '{' + escapeHtml(c[1].Key) + '}') + '</span>';
                     }).join('') + (chips.length > LIMIT ? '<span class="pp-chip">+ ' + (chips.length - LIMIT) + ' autres</span>' : '') + '</div>'
@@ -747,7 +754,7 @@
                 var source = episodeCast[epOpen] || [];
                 var others = hit.season.Episodes.filter(function(e) { return typedKey('episode', e.Key) !== epOpen; });
                 if (!others.length) { epMessage('Cette saison n\'a pas d\'autre épisode.'); return; }
-                if (!confirm('Ajouter cette distribution aux ' + others.length + ' autre(s) épisode(s) de la saison ?\nLes personnes déjà présentes sur un épisode ne sont pas modifiées.')) { return; }
+                if (!confirm('Ajouter cette distribution ' + (others.length > 1 ? 'aux ' + others.length + ' autres épisodes' : 'à l\'autre épisode') + ' de la saison ?\nLes personnes déjà présentes sur un épisode ne sont pas modifiées.')) { return; }
                 var added = 0;
                 others.forEach(function(e) {
                     var tk = typedKey('episode', e.Key);
@@ -758,7 +765,7 @@
                 });
                 markEpDirty(hit.season.Episodes.map(function(e) { return typedKey('episode', e.Key); }));
                 renderEpTree();
-                epMessage(added + ' ajout(s) sur ' + others.length + ' épisode(s).');
+                epMessage(plural(added, 'ajout', 'ajouts') + ' sur ' + plural(others.length, 'épisode', 'épisodes') + '.');
             }
 
             // "Par identifiant": creates the element if it does not exist, then opens it
@@ -1028,9 +1035,10 @@
                     changedKeys = {};
                     cascadeWas = JSON.parse(JSON.stringify(cascadeMap));
                     qs('#ppApplyText').textContent = result.Queued
-                        ? result.Queued + ' épisode(s) en cours de mise à jour par Jellyfin' + (result.Missing ? ' (dont ' + result.Missing + ' manquant(s))' : '') + '. Quelques instants suffisent, en arrière-plan.'
+                        ? plural(result.Queued, 'épisode', 'épisodes') + ' en cours de mise à jour par Jellyfin' + (result.Missing ? ' (dont ' + plural(result.Missing, 'manquant', 'manquants') + ')' : '') + '. Quelques instants suffisent, en arrière-plan.'
                         : 'Aucun épisode de la médiathèque n\'est concerné par ces changements.';
                     qs('#ppApplyBtn').hidden = true;
+                    qs('#ppApplyLater').textContent = 'Fermer';   // nothing left to postpone
                 }, function() {
                     qs('#ppApplyText').textContent = 'La mise à jour n\'a pas pu être lancée.';
                     qs('#ppApplyBtn').disabled = false;
@@ -1044,10 +1052,10 @@
             qs('#ppSave').addEventListener('click', function() {
                 var named = people.filter(function(p) { return String(p.Name || '').trim(); });
                 if (dirty) {
-                    if (named.length !== people.length && !confirm((people.length - named.length) + ' fiche(s) sans nom ne seront pas enregistrées. Continuer ?')) { return; }
+                    if (named.length !== people.length && !confirm((people.length - named.length > 1 ? (people.length - named.length) + ' fiches sans nom ne seront pas enregistrées' : 'Une fiche sans nom ne sera pas enregistrée') + '. Continuer ?')) { return; }
                     var dups = duplicateNames();
                     var dupCount = Object.keys(dups).filter(function(k) { return dups[k] > 1; }).length;
-                    if (dupCount && !confirm(dupCount + ' nom(s) existent en double dans l\'annuaire. Enregistrer quand même ?')) { return; }
+                    if (dupCount && !confirm((dupCount > 1 ? dupCount + ' noms existent' : 'Un nom existe') + ' en double dans l\'annuaire. Enregistrer quand même ?')) { return; }
                 }
                 Dashboard.showLoadingMsg();
                 // The directory first: the casts refer to it by identifier
@@ -1077,6 +1085,7 @@
                 steps.then(function() {
                     showDirty();
                     qs('#ppApplyBtn').hidden = false;
+                    qs('#ppApplyLater').textContent = 'Plus tard';
                     showApplyNotice();
                     renderList();
                     renderDetail();

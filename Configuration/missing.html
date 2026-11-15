@@ -12,8 +12,8 @@
             --me-surface-hover: rgba(255, 255, 255, 0.08);
             --me-border: rgba(255, 255, 255, 0.12);
             --me-muted: rgba(255, 255, 255, 0.65);
-            --me-missing: #c0392b;   /* blanc dessus : 5,4:1 */
-            --me-ok: #24734a;        /* blanc dessus : 5,9:1 */
+            --me-missing: #c0392b;   /* white on top: 5.4:1 */
+            --me-ok: #24734a;        /* white on top: 5.9:1 */
             --me-warn: #a8620f;      /* white on top: 4.7:1 (the old #d4851f only gave 2.9:1) */
             --me-warn-text: #f0a040; /* orange text on a dark background */
             --me-accent: #00a4dc;
@@ -37,6 +37,7 @@
             align-items: center;
             gap: 10px 16px;
         }
+        .me-back { margin: 0 0 6px; font-weight: 600; }
         .me-head .sectionTitle { margin: 0; }
         .me-head-actions { margin-left: auto; display: flex; gap: 10px; }
         .me-head-actions .emby-button { margin: 0; }
@@ -89,7 +90,7 @@
         .me-stat-missing .me-stat-value { color: #ff7a6b; }
         .me-stat-warn .me-stat-value { color: var(--me-warn-text); }
 
-        /* Fil d'Ariane */
+        /* Breadcrumb */
         .me-crumbs {
             display: flex;
             flex-wrap: wrap;
@@ -383,9 +384,11 @@
     <div data-role="content">
         <div class="content-primary">
 
+            <nav class="me-back" aria-label="Retour">
+                <a class="me-link" href="#/configurationpage?name=Custom%20Metadata%20Provider">← Configuration du plugin</a>
+            </nav>
             <div class="me-head">
                 <h2 class="sectionTitle">Épisodes manquants</h2>
-                <a class="me-link" href="#/configurationpage?name=Custom%20Metadata%20Provider">Configuration du plugin</a>
                 <div class="me-head-actions">
                     <button is="emby-button" type="button" id="btnAnalyzeFull" class="raised" title="Ignore le cache : retélécharge aussi les miniatures et les aperçus de tous les épisodes manquants">
                         <span class="me-wide">Réanalyser sans cache</span><span class="me-narrow">Sans cache</span>
@@ -584,7 +587,8 @@
             }
 
             // "2 / 10 présents · 6 h 00 à ajouter": same vocabulary at every level
-            function presenceText(present, total, ticks) {
+            // stacked: one fact per line (narrow cards), otherwise a single line with separators
+            function presenceText(present, total, ticks, stacked) {
                 var parts = [];
                 if (total) {
                     parts.push('<span class="me-nowrap">' + present + ' / ' + total + ' présents</span>');
@@ -592,7 +596,7 @@
                 if (ticks) {
                     parts.push('<span class="me-nowrap">' + formatTotalDuration(ticks) + ' à ajouter</span>');
                 }
-                return parts.join(' · ');
+                return stacked ? parts.map(function (p) { return '<div>' + p + '</div>'; }).join('') : parts.join(' · ');
             }
 
             // Report grouped by series, with each series' totals
@@ -713,14 +717,14 @@
                     var ticks = sumDuration(g.episodes);
                     if (g.total && !(g.errors && g.errors === g.seasons.length)) {
                         lines += progressHtml(g.present, g.total)
-                            + '<div class="me-card-sub me-strong">' + presenceText(g.present, g.total, ticks) + '</div>';
+                            + '<div class="me-card-sub me-strong">' + presenceText(g.present, g.total, ticks, true) + '</div>';
                     }
                     var sub;
                     if (g.seasons.length > 1) {
                         sub = plural(g.seasons.length, 'source') + (g.incomplete > 0 ? ', ' + g.incomplete + ' incomplète' + (g.incomplete > 1 ? 's' : '') : '');
                     } else {
                         var latest = latestDate(g.episodes);
-                        sub = '1 source' + (latest ? ' · dernier ép. ' + latest.toLocaleDateString() : '');
+                        sub = '<div>1 source</div>' + (latest ? '<div class="me-nowrap">dernier épisode : ' + latest.toLocaleDateString() + '</div>' : '');
                     }
                     lines += '<div class="me-card-sub">' + sub + '</div>';
                     if (g.errors === 1) {
@@ -772,7 +776,7 @@
                         lines += '<div class="me-card-sub me-error-text" title="' + escapeHtml(s.Error) + '">' + escapeHtml(s.Error) + '</div>';
                     } else if (s.ApiCount) {
                         lines += progressHtml(presentCount(s), s.ApiCount)
-                            + '<div class="me-card-sub me-strong">' + presenceText(presentCount(s), s.ApiCount, sumDuration(s.Missing || [])) + '</div>';
+                            + '<div class="me-card-sub me-strong">' + presenceText(presentCount(s), s.ApiCount, sumDuration(s.Missing || []), true) + '</div>';
                     }
                     html += '<button type="button" class="me-card" data-season="' + escapeHtml(s.SeasonId) + '">'
                         + '<div class="me-poster">' + imageHtml(imageUrl(s.SeasonId), initial(s.SeasonName), imageUrl(group.id))
@@ -1024,8 +1028,8 @@
                     // The technical detail stays available on hover
                     label.title = formatDate(report.GeneratedAt, true)
                         + (report.DurationSeconds ? ' · ' + report.DurationSeconds + ' s' : '')
-                        + ' · ' + (report.Created || 0) + ' ajouté(s), ' + (report.Updated || 0) + ' mis à jour, '
-                        + (report.Unchanged || 0) + ' inchangé(s), ' + (report.Removed || 0) + ' retiré(s)';
+                        + ' · ' + plural(report.Created || 0, 'ajouté', 'ajoutés') + ', ' + (report.Updated || 0) + ' mis à jour, '
+                        + plural(report.Unchanged || 0, 'inchangé', 'inchangés') + ', ' + plural(report.Removed || 0, 'retiré', 'retirés');
                 } else {
                     label.textContent = 'Aucune analyse pour le moment';
                 }

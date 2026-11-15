@@ -285,7 +285,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             if (apiEpisodes == null)
             {
                 // List unavailable: touch nothing (no deletion of virtual episodes on an error)
-                seasonReport.Error = "La liste d'épisodes n'a pas pu être récupérée (voir les logs 📃 [EPISODE LIST])";
+                seasonReport.Error = "La liste d'épisodes n'a pas pu être récupérée. Testez la source (type « Liste des épisodes ») ou consultez le journal du serveur.";
                 return seasonReport;
             }
 

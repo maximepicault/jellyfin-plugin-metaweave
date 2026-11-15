@@ -162,9 +162,9 @@ try {
   check('folders: the series form offers the import and names the folders', (await vis('[data-gal-folders]')) && (await ev(`document.querySelector('#lfGallery').textContent`)).includes('Primary'));
   await click('[data-gal-folders]'); await wait(500);
   check('folders: the request carries the tag and the data id', (await ev(`__mock.calls.filter(function(c){return c.indexOf('FOLDER-IMPORT')===0;})[0]`)).includes('"Tag":"loc-'));
-  check('folders: two images imported with their types', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 image(s) importée(s)'));
+  check('folders: two images imported with their types', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 images importées'));
   await click('[data-gal-folders]'); await wait(500);
-  check('folders: a second import adds nothing', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 déjà présente(s)'));
+  check('folders: a second import adds nothing', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 déjà présentes'));
   check('default: with no default field, the first image of each type carries the badge', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-badge').length`)) === 2);
   await click('#lfGallery .cm-gal-pick'); await wait(200);
   check('default: the image that already is the default cannot be chosen again', (await ev(`document.querySelector('[data-gal-act="default"]').disabled`)) === true);
@@ -486,6 +486,6 @@ try {
   await shot('L7-api-editor-1440');
 } finally {
   console.log(`\n${pass} PASS, ${fail} FAIL`);
-  ws.close(); chrome.kill(); fs.rmSync(profile, { recursive: true, force: true });
+  ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch {}
   process.exit(fail ? 1 : 0);
 }

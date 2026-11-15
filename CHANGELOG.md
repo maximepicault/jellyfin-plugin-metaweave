@@ -6,6 +6,10 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **Interface review**: counts are written with real plurals instead of "épisode(s)" on the three pages; a required field left empty in the source editor now shows "Ce champ est obligatoire." under the field; the path syntax help of the four mapping sections is a short collapsible "Syntaxe des chemins" list instead of a five-line paragraph; the pagination field lines up with its two neighbours.
+- **Sources tab**: the options of "Actualiser les éléments" are plain checkboxes introduced by "Actualiser dans Jellyfin :" (they looked like the "Activée" switches), "Images" is named "Remplacer les images", and the prefix is no longer repeated on each card of a group.
+- **Missing episodes page**: the card lines no longer end with a lone "·", the "back to the configuration" link sits above the title as on the Personnes page, and the error of a source whose list could not be fetched says what to do instead of naming a log tag.
+- **Personnes page**: the "Ajouter une personne" panel no longer stretches across a 1920 px screen, the cancel button fits on one line on a phone, and the notice button reads "Fermer" once the changes were applied.
 - **Configuration page, fix**: the page no longer writes the whole configuration, API keys included, to the browser console (leftover debug traces).
 - **Local sources, fix**: an image uploaded for an element whose identifier has an accented letter could be stored under a file name the plugin then refused to read.
 - **Configuration page**: a warning at the top of the Sources tab when a TV (or mixed) library does not have the plugin's providers ticked for series, seasons or episodes (`Custom Metadata Provider`, `Custom Image Provider`). It names the library and the types, says what does not arrive (metadata never; images only through "Actualiser les éléments") and where to tick them. Jellyfin gives no hint of this, and a library created before the plugin was installed is in that state. Read-only: nothing is changed in the library.

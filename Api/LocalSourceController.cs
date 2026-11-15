@@ -56,7 +56,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             var items = await _api.GetEpisodeListAsync(_resolver.ExtractIdWithoutPrefix(tag), source, cancellationToken);
             if (items == null)
             {
-                return BadRequest("La liste d'épisodes n'a pas pu être récupérée (voir les logs 📃 [EPISODE LIST]).");
+                return BadRequest("La liste d'épisodes n'a pas pu être récupérée. Testez la source (type « Liste des épisodes ») ou consultez le journal du serveur.");
             }
 
             var key = source.Prefix.Trim();

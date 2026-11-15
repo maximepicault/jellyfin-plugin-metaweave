@@ -138,7 +138,7 @@ try {
   check('cascade box present on a series and unchecked by default', (await evalJs(`var c=document.querySelector('${P} #ppCascade'); !!c && !c.disabled && !c.checked`)) === true);
   await evalJs(`(function(){var c=document.querySelector('${P} #ppCascade'); c.checked=true; c.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
   check('cascade preview lists the season and episode tags', await until(`(function(){var t=(document.querySelector('${P} #ppCascadePreview')||{}).textContent||''; return t.indexOf('{dm-a1}')>=0 && t.indexOf('{dm-a1v3}')>=0;})()`, 10000), await evalJs(`(document.querySelector('${P} #ppCascadePreview')||{}).textContent`));
-  check('cascade preview says how many episodes', (await evalJs(`document.querySelector('${P} #ppCascadePreview').textContent`)).includes('épisode(s)'));
+  check('cascade preview says how many episodes', (await evalJs(`document.querySelector('${P} #ppCascadePreview').textContent`)).includes('épisode'));
   await shot('E3-autocomplete-cascade-1440');
   await click(`${P} [data-ep-mode="ids"]`); await wait(300);
   await type(`${P} #ppIdKey`, 'pas un identifiant'); await click(`${P} #ppIdAdd`); await wait(200);
@@ -165,12 +165,12 @@ try {
   const season2024 = `Array.from(document.querySelectorAll('${P} [data-ep-season]')).find(function(b){return b.textContent.indexOf('Saison 2024')>=0;})`;
   check('tree: the series shows its cast is clickable', (await evalJs(`document.querySelector('${P} [data-ep-series] .pp-group-sub').textContent`)).includes('Distribution de la série'));
   check('tree: "saison" badge when the season has a cast', (await evalJs(`!!${season2024}.querySelector('.pp-badge')`)) === true);
-  check('tree: season text not truncated', (await evalJs(`${season2024}.querySelector('.pp-item-ids').textContent`)) === '8 épisode(s)');
+  check('tree: season text not truncated', (await evalJs(`${season2024}.querySelector('.pp-item-ids').textContent`)) === '8 épisodes');
   // "Appliquer aux épisodes": banner after saving, then update of the affected episodes
   check('"Appliquer aux épisodes" banner shown after saving', (await evalJs(`!document.querySelector('${P} #ppApply').hidden`)) === true);
   await shot('E4-apply-notice-1440');
   await click(`${P} #ppApplyBtn`);
-  check('update started on episodes', await until(`/épisode\\(s\\) en cours de mise à jour/.test(document.querySelector('${P} #ppApplyText').textContent)`, 10000), await evalJs(`document.querySelector('${P} #ppApplyText').textContent`));
+  check('update started on episodes', await until(`/épisodes? en cours de mise à jour/.test(document.querySelector('${P} #ppApplyText').textContent)`, 10000), await evalJs(`document.querySelector('${P} #ppApplyText').textContent`));
   const cascadeFlag = (await api('CustomMetadata/People/EpisodeCast')).Episodes.filter(e => e.Type === 'series' && e.Key === 'dm-aventuriers')[0];
   check('saved: cascade flag on the series', !!cascadeFlag && cascadeFlag.Cascade === true, JSON.stringify(cascadeFlag));
   // Server side: the episodes below the series inherit its cast once applied (the episode has no entry of its own for this person)
@@ -236,4 +236,4 @@ try {
   }
   console.log(`\n${pass} PASS, ${fail} FAIL`);
   await evalJs(RESTORE);
-} finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) {} process.exit(fail ? 1 : 0); }
+} finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch {} process.exit(fail ? 1 : 0); }

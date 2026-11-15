@@ -95,6 +95,15 @@
             #CustomMetadataConfigPage .cm-group-status { order: 5; }
         }
         #CustomMetadataConfigPage .cm-group-kinds { font-size: 13px; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-group-optlabel { font-size: 13px; color: var(--cm-muted); }
+        /* Options of one action are plain checkboxes: switches are kept for what turns a source or a feature on */
+        #CustomMetadataConfigPage input.cm-check { appearance: none; -webkit-appearance: none; flex: none; width: 18px; height: 18px; margin: 0; border: 2px solid rgba(255, 255, 255, 0.45); border-radius: 4px; background: transparent; cursor: pointer; position: relative; }
+        #CustomMetadataConfigPage input.cm-check:checked { background: var(--cm-accent-strong); border-color: var(--cm-accent-strong); }
+        #CustomMetadataConfigPage input.cm-check:checked::before { content: ''; position: absolute; left: 4px; top: 0; width: 4px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+        #CustomMetadataConfigPage input.cm-check:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 2px; }
+        #CustomMetadataConfigPage .cm-group-optsep { width: 1px; height: 18px; background: var(--cm-border); }
+        /* The prefix is already in the group header */
+        #CustomMetadataConfigPage .cm-group .cm-card .cm-tag { display: none; }
         #CustomMetadataConfigPage .cm-group-sep { flex: 1; }
         #CustomMetadataConfigPage .cm-group-head label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
         #CustomMetadataConfigPage .cm-group-head [data-refresh] { margin: 0; }
@@ -164,7 +173,14 @@
         #CustomMetadataConfigPage .cm-count.cm-full { color: var(--cm-ok); }
         #CustomMetadataConfigPage .cm-pane { display: flex; flex-direction: column; gap: 18px; padding: 22px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); min-width: 0; }
         #CustomMetadataConfigPage .cm-pane-title { margin: 0; font-size: 20px; font-weight: 600; }
-        #CustomMetadataConfigPage .cm-pane-intro { margin: 4px 0 0; color: var(--cm-muted); line-height: 1.5; }
+        #CustomMetadataConfigPage .cm-pane-intro { margin: 4px 0 0; max-width: 78ch; color: var(--cm-muted); line-height: 1.5; }
+        #CustomMetadataConfigPage .cm-syntax { margin: 8px 0 0; max-width: 78ch; font-size: 13px; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-syntax summary { cursor: pointer; color: var(--cm-link, #33b6e6); width: fit-content; }
+        #CustomMetadataConfigPage .cm-syntax ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; }
+        #CustomMetadataConfigPage .cm-syntax code { padding: 1px 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.9); }
+        /* A required field left empty: say it next to the field (the browser bubble is easy to miss) */
+        #CustomMetadataConfigPage .cm-invalid input { box-shadow: 0 0 0 2px #e5534b; }
+        #CustomMetadataConfigPage .cm-invalid-msg { margin-top: 6px; font-size: 13px; color: #ff8a80; }
         #CustomMetadataConfigPage .cm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px 20px; }
         #CustomMetadataConfigPage .cm-grid .inputContainer, #CustomMetadataConfigPage .cm-grid .selectContainer, #CustomMetadataConfigPage .cm-grid .cm-selectfield { margin: 0; }
         #CustomMetadataConfigPage .cm-selectfield .selectContainer { margin: 0; }
@@ -534,7 +550,7 @@
                         </div>
                     </section>
                     <section class="cm-pane cm-mono" data-section="video" aria-labelledby="paneTitle-video" hidden>
-                        <div><h3 class="cm-pane-title" id="paneTitle-video">Mappings · Vidéo / épisode</h3><p class="cm-pane-intro">Où trouver chaque information dans la réponse JSON (notation pointée, par exemple data.title). Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name). Si l&#x27;API répond par une liste, désignez un élément avec [0] : [0].name pour une liste à la racine, results[0].name pour une liste dans un objet.</p></div>
+                        <div><h3 class="cm-pane-title" id="paneTitle-video">Mappings · Vidéo / épisode</h3><p class="cm-pane-intro">Où trouver chaque information dans la réponse JSON. Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée.</p><details class="cm-syntax"><summary>Syntaxe des chemins</summary><ul><li><code>data.title</code> : notation pointée, sensible à la casse.</li><li><code>title || name</code> : plusieurs chemins, le premier qui existe et n&#x27;est pas vide est utilisé.</li><li><code>[0].name</code> : premier élément quand l&#x27;API répond par une liste ; <code>results[0].name</code> pour une liste dans un objet.</li><li><code>tagList[].label</code> : un champ de chaque élément d&#x27;un tableau.</li></ul></details></div>
                         <div class="cm-grid">
                         <h4>Texte</h4>
                         <div class="inputContainer">
@@ -618,7 +634,7 @@
                         </div>
                     </section>
                     <section class="cm-pane cm-mono" data-section="season" aria-labelledby="paneTitle-season" hidden>
-                        <div><h3 class="cm-pane-title" id="paneTitle-season">Mappings · Source / saison</h3><p class="cm-pane-intro">Où trouver chaque information pour une source ou une saison (une chaîne YouTube, par exemple). Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name). Si l&#x27;API répond par une liste, désignez un élément avec [0] : [0].name pour une liste à la racine, results[0].name pour une liste dans un objet.</p></div>
+                        <div><h3 class="cm-pane-title" id="paneTitle-season">Mappings · Source / saison</h3><p class="cm-pane-intro">Où trouver chaque information pour une source ou une saison (une chaîne YouTube, par exemple). Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée.</p><details class="cm-syntax"><summary>Syntaxe des chemins</summary><ul><li><code>data.title</code> : notation pointée, sensible à la casse.</li><li><code>title || name</code> : plusieurs chemins, le premier qui existe et n&#x27;est pas vide est utilisé.</li><li><code>[0].name</code> : premier élément quand l&#x27;API répond par une liste ; <code>results[0].name</code> pour une liste dans un objet.</li><li><code>tagList[].label</code> : un champ de chaque élément d&#x27;un tableau.</li></ul></details></div>
                         <div class="cm-grid">
                         <h4>Texte</h4>
                         <div class="inputContainer">
@@ -646,7 +662,7 @@
                         </div>
                     </section>
                     <section class="cm-pane cm-mono" data-section="series" aria-labelledby="paneTitle-series" hidden>
-                        <div><h3 class="cm-pane-title" id="paneTitle-series">Mappings · Série</h3><p class="cm-pane-intro">Où trouver chaque information pour une série. Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name). Si l&#x27;API répond par une liste, désignez un élément avec [0] : [0].name pour une liste à la racine, results[0].name pour une liste dans un objet.</p></div>
+                        <div><h3 class="cm-pane-title" id="paneTitle-series">Mappings · Série</h3><p class="cm-pane-intro">Où trouver chaque information pour une série. Un champ vide est ignoré : la valeur affichée en grisé n&#x27;est pas appliquée.</p><details class="cm-syntax"><summary>Syntaxe des chemins</summary><ul><li><code>data.title</code> : notation pointée, sensible à la casse.</li><li><code>title || name</code> : plusieurs chemins, le premier qui existe et n&#x27;est pas vide est utilisé.</li><li><code>[0].name</code> : premier élément quand l&#x27;API répond par une liste ; <code>results[0].name</code> pour une liste dans un objet.</li><li><code>tagList[].label</code> : un champ de chaque élément d&#x27;un tableau.</li></ul></details></div>
                         <div class="cm-grid">
                         <h4>Texte</h4>
                         <div class="inputContainer">
@@ -680,7 +696,7 @@
                         </div>
                     </section>
                     <section class="cm-pane cm-mono" data-section="episodes" aria-labelledby="paneTitle-episodes" hidden>
-                        <div><h3 class="cm-pane-title" id="paneTitle-episodes">Mappings · Liste des épisodes</h3><p class="cm-pane-intro">Réponse de l&#x27;endpoint « Liste des épisodes ». Les champs de chaque épisode sont relatifs à l&#x27;élément du tableau. Un champ vide reprend la valeur affichée en grisé, sauf le tableau et la pagination. Plusieurs chemins séparés par || : le premier qui existe et n&#x27;est pas vide est utilisé (par exemple title || name). Si l&#x27;API répond par une liste, désignez un élément avec [0] : [0].name pour une liste à la racine, results[0].name pour une liste dans un objet.</p></div>
+                        <div><h3 class="cm-pane-title" id="paneTitle-episodes">Mappings · Liste des épisodes</h3><p class="cm-pane-intro">Réponse de l&#x27;endpoint « Liste des épisodes ». Les champs de chaque épisode sont relatifs à l&#x27;élément du tableau. Un champ vide reprend la valeur affichée en grisé, sauf le tableau et la pagination.</p><details class="cm-syntax"><summary>Syntaxe des chemins</summary><ul><li><code>data.title</code> : notation pointée, sensible à la casse.</li><li><code>title || name</code> : plusieurs chemins, le premier qui existe et n&#x27;est pas vide est utilisé.</li><li><code>[0].name</code> : premier élément quand l&#x27;API répond par une liste ; <code>results[0].name</code> pour une liste dans un objet.</li><li><code>tagList[].label</code> : un champ de chaque élément d&#x27;un tableau.</li></ul></details></div>
                         <div class="cm-grid">
                         <h4>Réponse</h4>
                         <div class="inputContainer">
@@ -727,7 +743,7 @@
                             <div class="cm-hint">Lue via le bouton « Bande-annonce » de la fiche de l&#x27;épisode manquant.</div>
                         </div>
                         <h4>Pagination (facultatif)</h4>
-                        <div class="inputContainer cm-span">
+                        <div class="inputContainer">
                             <label class="inputLabel" for="srcListPageParam">Paramètre de page</label>
                             <input is="emby-input" type="text" id="srcListPageParam" placeholder="(vide = pas de pagination)" />
                             <div class="cm-hint">Par exemple page : l&#x27;URL devient ?page=1, ?page=2… jusqu&#x27;à une page vide ou sans nouvel épisode.</div>
@@ -908,7 +924,7 @@
                         box.appendChild(add('strong', 'Médiathèque « ' + library.Name + ' » : le plugin n\'y est pas activé partout'));
                         var ul = document.createElement('ul');
                         if (noMetadata.length) { ul.appendChild(add('li', '« Custom Metadata Provider » n\'est pas coché pour les ' + list(noMetadata) + ' : les titres, résumés et autres informations du plugin n\'y arrivent pas, ni lors d\'un scan ni avec « Actualiser les éléments ».')); }
-                        if (noImages.length) { ul.appendChild(add('li', '« Custom Image Provider » n\'est pas coché pour les ' + list(noImages) + ' : un scan n\'apporte aucune image du plugin aux nouveaux éléments. Seul « Actualiser les éléments » (avec Images) les applique.')); }
+                        if (noImages.length) { ul.appendChild(add('li', '« Custom Image Provider » n\'est pas coché pour les ' + list(noImages) + ' : un scan n\'apporte aucune image du plugin aux nouveaux éléments. Seul « Actualiser les éléments » (avec « Remplacer les images ») les applique.')); }
                         box.appendChild(ul);
                         box.appendChild(add('p', 'Pour l\'activer : Tableau de bord → Médiathèques → « ' + library.Name + ' » → Gérer la médiathèque, puis cochez-le dans les récupérateurs de métadonnées et d\'images de chaque type.'));
                         box.hidden = false;
@@ -1001,11 +1017,12 @@
                     var allOff = g.items.every(function(it) { return it.source.Enabled === false; });
                     if (enriches && g.prefix) {
                         head = '<div class="cm-group-head" data-group="' + escapeHtml(g.prefix) + '">'
-                            + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span><span class="cm-group-opts">'
-                            + '<label><input type="checkbox" class="cm-switch" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
-                            + '<label><input type="checkbox" class="cm-switch" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>'
-                            + '<label><input type="checkbox" class="cm-switch" data-rf="episode" checked aria-label="Actualiser les épisodes" /> Épisodes</label>'
-                            + '<label title="Décochez pour ne remplacer que les métadonnées"><input type="checkbox" class="cm-switch" data-rf="images" checked aria-label="Remplacer aussi les images" /> Images</label></span>'
+                            + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span><span class="cm-group-opts"><span class="cm-group-optlabel">Actualiser dans Jellyfin :</span>'
+                            + '<label><input type="checkbox" class="cm-check" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
+                            + '<label><input type="checkbox" class="cm-check" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>'
+                            + '<label><input type="checkbox" class="cm-check" data-rf="episode" checked aria-label="Actualiser les épisodes" /> Épisodes</label>'
+                            + '<span class="cm-group-optsep" aria-hidden="true"></span>'
+                            + '<label title="Décochez pour ne remplacer que les métadonnées"><input type="checkbox" class="cm-check" data-rf="images" checked aria-label="Remplacer aussi les images" /> Remplacer les images</label></span>'
                             + '<button is="emby-button" type="button" class="raised" data-refresh="' + escapeHtml(g.prefix) + '"' + (allOff ? ' disabled' : '') + ' title="Actualise uniquement les éléments de la médiathèque qui portent ce préfixe (l\'API d\'abord, puis la source locale par-dessus), sans scanner la médiathèque"><span>Actualiser les éléments</span></button>'
                             + '<span class="cm-group-status" data-refresh-status="' + escapeHtml(g.prefix) + '" role="status">' + (allOff ? 'Source désactivée : activez-la pour actualiser ses éléments.' : '') + '</span></div>';
                     }
@@ -1061,6 +1078,7 @@
             };
 
             function openAddSourceForm(type) {
+                clearInvalid();
                 editOriginalPrefix = '';
                 localDataId = type === 'local' ? randomHex(16) : '';
                 localContent = type === 'local' ? { Series: [] } : null;
@@ -1118,6 +1136,7 @@
             // Edit source
             window.editSource = function(index, focusTest) {
                 var source = currentConfig.Sources[index];
+                clearInvalid();
                 
                 
                 document.querySelector('#modalTitle').textContent = source.Name || 'Source sans nom';
@@ -1294,7 +1313,7 @@
                 var html = '<div class="cm-test-status ' + (ok ? 'ok' : 'ko') + '">';
                 html += '<strong>' + (ok ? 'Succès' : 'Échec') + '</strong>';
                 if (r.StatusCode) { html += ' · HTTP ' + r.StatusCode; }
-                html += ' · ' + (r.DurationMs || 0) + ' ms · ' + (r.Attempts || 0) + ' tentative(s)';
+                html += ' · ' + (r.DurationMs || 0) + ' ms · ' + plural(r.Attempts || 0, 'tentative', 'tentatives');
                 if (r.HttpVersion) { html += ' · HTTP/' + escapeHtml(r.HttpVersion); }
                 if (r.Url) { html += '<div class="cm-url-line">GET ' + escapeHtml(r.Url).replace(/\//g, '/<wbr>') + '</div>'; }
                 if (r.Error) { html += '<div>' + escapeHtml(r.Error) + '</div>'; }
@@ -1342,7 +1361,7 @@
                 }
 
                 if (r.Episodes) {
-                    html += '<h4>' + r.EpisodeCount + ' épisode(s)' + (r.EpisodeCount > r.Episodes.length ? ' — ' + r.Episodes.length + ' premiers affichés' : '') + '</h4>';
+                    html += '<h4>' + plural(r.EpisodeCount, 'épisode', 'épisodes') + (r.EpisodeCount > r.Episodes.length ? ' — ' + r.Episodes.length + ' premiers affichés' : '') + '</h4>';
                     html += '<pre>' + escapeHtml(JSON.stringify(r.Episodes.map(compactEpisode), null, 2)) + '</pre>';
                 }
 
@@ -1637,7 +1656,7 @@
                         var filled = Array.prototype.filter.call(inputs, function(i) { return i.value.trim() !== ''; }).length;
                         text = filled + ' / ' + inputs.length;
                         full = filled === inputs.length;
-                        title = filled + ' champ(s) renseigné(s) sur ' + inputs.length + ' : un champ vide est ignoré.';
+                        title = plural(filled, 'champ renseigné', 'champs renseignés') + ' sur ' + inputs.length + ' : un champ vide est ignoré.';
                     }
                     span.textContent = text;
                     span.classList.toggle('cm-full', full);
@@ -1750,8 +1769,28 @@
                 setTimeout(function() { firstInvalidSeen = false; }, 0);
                 var pane = e.target.closest('.cm-pane');
                 if (pane) { showSection(pane.getAttribute('data-section')); }
+                var box = e.target.closest('.inputContainer');
+                if (box && !box.querySelector('.cm-invalid-msg')) {
+                    box.classList.add('cm-invalid');
+                    var msg = document.createElement('div');
+                    msg.className = 'cm-invalid-msg';
+                    msg.setAttribute('role', 'alert');
+                    msg.textContent = e.target.validity && e.target.validity.valueMissing ? 'Ce champ est obligatoire.' : (e.target.validationMessage || 'Valeur non valide.');
+                    box.appendChild(msg);
+                }
                 setTimeout(function() { e.target.focus(); if (e.target.reportValidity) { e.target.reportValidity(); } }, 0);
             }, true);
+            function clearInvalid(root) {
+                Array.prototype.forEach.call((root || qs('#sourceForm')).querySelectorAll('.cm-invalid'), function(box) {
+                    box.classList.remove('cm-invalid');
+                    var msg = box.querySelector('.cm-invalid-msg');
+                    if (msg) { msg.remove(); }
+                });
+            }
+            qs('#sourceForm').addEventListener('input', function(e) {
+                var box = e.target.closest('.cm-invalid');
+                if (box) { clearInvalid(box.parentNode); }
+            });
 
             // Enter in the test field runs the test (not the source save)
             qs('#testItemId').addEventListener('keydown', function(e) {
@@ -2221,7 +2260,7 @@
 
                 var children = kind === 'series' ? (n.Seasons || []).length : (kind === 'season' ? (n.Episodes || []).length : 0);
                 html += '<div class="cm-danger"><div><strong>Supprimer ' + (kind === 'episode' ? 'cet épisode' : (kind === 'season' ? 'cette saison' : 'cette série')) + '</strong>'
-                    + '<span>' + (children ? 'Son contenu (' + children + (kind === 'series' ? ' saison(s)' : ' épisode(s)') + ') est supprimé avec elle. ' : '') + 'Pris en compte à l\'enregistrement.</span></div>'
+                    + '<span>' + (children ? 'Son contenu (' + (kind === 'series' ? plural(children, 'saison', 'saisons') : plural(children, 'épisode', 'épisodes')) + ') est supprimé avec elle. ' : '') + 'Pris en compte à l\'enregistrement.</span></div>'
                     + '<button is="emby-button" type="button" class="raised" data-del="' + nodeKey(kind, n.Id) + '"><span>Supprimer…</span></button></div>';
                 qs('#localDetail').innerHTML = html;
             }
@@ -2515,7 +2554,7 @@
                 var next = function() {
                     if (!files.length) {
                         markDirty(); renderLocalDetail();
-                        gallerySay(done + ' image(s) ajoutée(s)' + (refused ? ', ' + refused + ' refusée(s) (JPEG, PNG, WebP ou GIF, 8 Mo au maximum)' : '') + '.', !!refused);
+                        gallerySay(plural(done, 'image ajoutée', 'images ajoutées') + (refused ? ', ' + plural(refused, 'refusée', 'refusées') + ' (JPEG, PNG, WebP ou GIF, 8 Mo au maximum)' : '') + '.', !!refused);
                         return;
                     }
                     var file = files.shift();
@@ -2548,7 +2587,7 @@
                     var added = 0, already = 0;
                     (r.Images || []).forEach(function(img) { if (known[img.Name]) { already++; } else { gallery.push({ Type: img.Type, Url: img.Url, Name: img.Name }); added++; } });
                     if (added) { markDirty(); renderLocalDetail(); }
-                    var text = added + ' image(s) importée(s)' + (already ? ', ' + already + ' déjà présente(s)' : '') + ((r.Refused || []).length ? ', ' + r.Refused.length + ' refusée(s) (' + r.Refused[0] + ')' : '') + '.';
+                    var text = plural(added, 'image importée', 'images importées') + (already ? ', ' + plural(already, 'déjà présente', 'déjà présentes') : '') + ((r.Refused || []).length ? ', ' + plural(r.Refused.length, 'refusée', 'refusées') + ' (' + r.Refused[0] + ')' : '') + '.';
                     if (!added && !already && !(r.Refused || []).length) { text = 'Aucune image dans les sous-dossiers Primary, Backdrop, Logo, Banner ou Thumb.'; }
                     gallerySay(text, !!(r.Refused || []).length);
                 }, function() { button.disabled = false; gallerySay('L\'import n\'a pas pu être lancé.', true); });
@@ -2570,7 +2609,7 @@
                     button.disabled = false;
                     if (st.Message) { say(st.Message, true); return; }
                     if (!st.Total) { say('Aucun élément de la médiathèque ne porte ce tag : nommez le dossier ou le fichier avec ' + '{' + tag + '}.', true); return; }
-                    say('Images appliquées en arrière-plan à ' + st.Total + ' élément(s) (' + st.Series + ' série(s), ' + st.Seasons + ' saison(s), ' + st.Episodes + ' épisode(s)).');
+                    say('Images appliquées en arrière-plan à ' + plural(st.Total, 'élément', 'éléments') + ' (' + plural(st.Series, 'série', 'séries') + ', ' + plural(st.Seasons, 'saison', 'saisons') + ', ' + plural(st.Episodes, 'épisode', 'épisodes') + ').');
                 }, function() { button.disabled = false; say('L\'application n\'a pas pu être lancée.', true); });
             }
 
@@ -2625,7 +2664,7 @@
                         + '<select class="cm-cast-type" data-cast-type="' + i + '" aria-label="Type de ' + escapeHtml(person ? person.Name : 'la personne') + '">' + typeOptions + '</select>'
                         + '<button type="button" class="cm-linkbtn" data-cast-remove="' + i + '" aria-label="Retirer ' + escapeHtml(person ? person.Name : 'la personne') + '">Retirer</button></div>';
                 });
-                if (!cast.length) { html += '<div class="cm-hint" style="margin:0;">Personne pour le moment.</div>'; }
+                if (!cast.length) { html += '<div class="cm-hint" style="margin:0;">Aucune personne pour le moment.</div>'; }
                 if (qs('#CustomMetadataConfigPage').getAttribute('data-casting') === 'off') {
                     html += '<div class="cm-cast-msg" role="alert">Le casting est désactivé : cette distribution ne sera pas envoyée à Jellyfin tant que « Importer le casting » (onglet Réglages) est coupé.</div>';
                 }
@@ -2721,7 +2760,7 @@
                 if (!hit || hit.kind !== 'episode') { return; }
                 var others = (hit.parent.Episodes || []).filter(function(e) { return e !== hit.node; });
                 if (!others.length) { castMessage('Cette saison n\'a pas d\'autre épisode.'); return; }
-                if (!confirm('Ajouter cette distribution aux ' + others.length + ' autre(s) épisode(s) de la saison ?\nLes personnes déjà présentes sur un épisode ne sont pas modifiées.')) { return; }
+                if (!confirm('Ajouter cette distribution ' + (others.length > 1 ? 'aux ' + others.length + ' autres épisodes' : 'à l\'autre épisode') + ' de la saison ?\nLes personnes déjà présentes sur un épisode ne sont pas modifiées.')) { return; }
                 var added = 0;
                 others.forEach(function(e) {
                     e.Cast = e.Cast || [];
@@ -2733,7 +2772,7 @@
                     });
                 });
                 markDirty();
-                castMessage(added + ' ajout(s) sur ' + others.length + ' épisode(s).');
+                castMessage(plural(added, 'ajout', 'ajouts') + ' sur ' + plural(others.length, 'épisode', 'épisodes') + '.');
             }
 
             qs('#localDetail').addEventListener('input', function(e) {
@@ -2875,7 +2914,7 @@
                     contentType: 'application/json', dataType: 'json'
                 }).then(function(result) {
                     qs('#postSaveText').textContent = result.Queued
-                        ? result.Queued + ' épisode(s) en cours de mise à jour par Jellyfin' + (result.Missing ? ' (dont ' + result.Missing + ' manquant(s))' : '') + '.'
+                        ? plural(result.Queued, 'épisode', 'épisodes') + ' en cours de mise à jour par Jellyfin' + (result.Missing ? ' (dont ' + plural(result.Missing, 'manquant', 'manquants') + ')' : '') + '.'
                         : 'Aucun épisode de la médiathèque n\'est concerné pour le moment.';
                 }, function() {
                     qs('#postSaveText').textContent = 'La mise à jour n\'a pas pu être lancée.';
