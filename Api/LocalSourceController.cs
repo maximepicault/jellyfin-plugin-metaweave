@@ -139,6 +139,44 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return url == null ? BadRequest(error) : Ok(new LocalImageResult { Url = url });
         }
 
+        /// <summary>
+        /// Uploads a preview video for an episode (body = file bytes, streamed to disk). Returns its "local://video/…" address
+        /// for the episode's PreviewUrl: for a missing episode it becomes the trailer, played through the server.
+        /// </summary>
+        [HttpPost("{dataId}/Video")]
+        [RequestSizeLimit(LocalSourceStore.MaxVideoBytes + 1024)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<LocalImageResult>> UploadVideo(string dataId, [FromQuery] string node, CancellationToken cancellationToken)
+        {
+            if (!LocalSourceStore.IsValidDataId(dataId))
+            {
+                return BadRequest("Identifiant de données invalide");
+            }
+
+            var (url, error) = await _store.SaveVideoAsync(dataId, node, Request.Body, cancellationToken);
+            return url == null ? BadRequest(error) : Ok(new LocalImageResult { Url = url });
+        }
+
+        /// <summary>
+        /// An uploaded preview video, for the editor's player AND for Jellyfin, which reads it as a trailer (ffprobe, playback).
+        /// Anonymous because neither sends a token; only the plugin's videos, under random names. Ranges are supported (seeking).
+        /// </summary>
+        [HttpGet("{dataId}/Video/{file}")]
+        [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public IActionResult GetVideo(string dataId, string file)
+        {
+            if (!_store.TryGetVideo(dataId, file, out var path, out var mime))
+            {
+                return NotFound();
+            }
+
+            Response.Headers["Cache-Control"] = "private, max-age=3600";
+            return PhysicalFile(path, mime, enableRangeProcessing: true);
+        }
+
         /// <summary>Reads an uploaded image (preview in the editor)</summary>
         [HttpGet("{dataId}/Image/{file}")]
         [ProducesResponseType(StatusCodes.Status200OK)]

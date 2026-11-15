@@ -127,12 +127,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly Dictionary<string, (DateTime Stamp, LocalContent Content)> _memory = new Dictionary<string, (DateTime, LocalContent)>();
 
         private readonly Func<PeopleStore> _people;
+        private readonly Func<string> _localApiUrl;
 
         /// <param name="people">Directory of people, to resolve the episodes' casts (supplied afterwards: it depends on this store)</param>
-        public LocalSourceStore(ILogger logger, Func<PeopleStore> people = null)
+        /// <param name="localApiUrl">Address of this server as seen from itself, for the previews uploaded as files</param>
+        public LocalSourceStore(ILogger logger, Func<PeopleStore> people = null, Func<string> localApiUrl = null)
         {
             _logger = logger;
             _people = people;
+            _localApiUrl = localApiUrl;
         }
 
         /// <summary>Address of an image uploaded into the plugin: "local://img/{dataId}/{file}" (read without network)</summary>
@@ -214,6 +217,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 File.Move(tmp, path, true);
                 _memory[dataId] = (File.GetLastWriteTimeUtc(path), content);
                 PruneImages(dataId, content);
+                PruneVideos(dataId, content);
             }
 
             _logger.LogInformation("🗂️ [LOCAL SOURCE] 💾 Saved {Series} series / {Seasons} seasons / {Episodes} episodes ({DataId})",
@@ -224,6 +228,138 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         // ---- Uploaded images (stored next to the content) -----------------------------------------------------------
 
         private static string ImagesFolder(string dataId) => Path.Combine(Folder(), dataId + "-images");
+
+        // ---- Preview videos uploaded as files: local-sources/{dataId}-videos/{node}-{random}.mp4|webm|mkv ----
+
+        /// <summary>Address of an uploaded preview video: "local://video/{dataId}/{file}"</summary>
+        public const string VideoUrlPrefix = "local://video/";
+
+        public const long MaxVideoBytes = 500L * 1024 * 1024;
+        private static readonly Regex VideoFilePattern = new Regex(@"^[A-Za-z0-9_\-]{1,60}\.(mp4|webm|mkv)$", RegexOptions.Compiled);
+
+        public static bool IsLocalVideoUrl(string url) => !string.IsNullOrEmpty(url) && url.StartsWith(VideoUrlPrefix, StringComparison.OrdinalIgnoreCase);
+
+        private static string VideosFolder(string dataId) => Path.Combine(Folder(), dataId + "-videos");
+
+        /// <summary>Real type from the first bytes (MP4 / MOV, WebM, Matroska): the name and header sent by the browser do not count</summary>
+        public static (string Mime, string Extension)? DetectVideo(byte[] d)
+        {
+            if (d == null || d.Length < 12) return null;
+            if (d[4] == 'f' && d[5] == 't' && d[6] == 'y' && d[7] == 'p') return ("video/mp4", ".mp4");
+            if (d[0] == 0x1A && d[1] == 0x45 && d[2] == 0xDF && d[3] == 0xA3)
+            {
+                // EBML header: the DocType ("webm" or "matroska") is in the first bytes
+                var head = System.Text.Encoding.ASCII.GetString(d, 0, Math.Min(d.Length, 64));
+                return head.Contains("webm", StringComparison.Ordinal) ? ("video/webm", ".webm") : ("video/x-matroska", ".mkv");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Saves an uploaded preview video from the request stream (never held in memory) and returns its
+        /// "local://video/…" address, or null and an error. The file is written under a temporary name, then renamed.
+        /// </summary>
+        public async System.Threading.Tasks.Task<(string Url, string Error)> SaveVideoAsync(string dataId, string nodeId, Stream body, System.Threading.CancellationToken cancellationToken)
+        {
+            if (!IsValidDataId(dataId)) { return (null, "Identifiant de données invalide"); }
+            var node = !string.IsNullOrEmpty(nodeId) && Regex.IsMatch(nodeId, @"^[A-Za-z0-9_]{1,40}$") ? nodeId : "preview";
+            var folder = VideosFolder(dataId);
+            Directory.CreateDirectory(folder);
+            var temp = Path.Combine(folder, Guid.NewGuid().ToString("N") + ".part");
+            try
+            {
+                (string Mime, string Extension)? kind = null;
+                long total = 0;
+                using (var file = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+                {
+                    var buffer = new byte[81920];
+                    // The type is read from the first 64 bytes (a network read can be shorter): a wrong file is refused before anything is written
+                    var read = await body.ReadAtLeastAsync(buffer, 64, throwOnEndOfStream: false, cancellationToken);
+                    if (read > 0)
+                    {
+                        kind = DetectVideo(buffer);
+                        if (kind == null) { return (null, "Format non reconnu (MP4, WebM ou MKV attendu)"); }
+                    }
+
+                    while (read > 0)
+                    {
+                        total += read;
+                        if (total > MaxVideoBytes) { return (null, $"Vidéo trop lourde (maximum {MaxVideoBytes / 1024 / 1024} Mo)"); }
+                        await file.WriteAsync(buffer, 0, read, cancellationToken);
+                        read = await body.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+                    }
+                }
+
+                if (kind == null || total == 0) { return (null, total == 0 ? "Fichier vide" : "Format non reconnu (MP4, WebM ou MKV attendu)"); }
+                var name = $"{node}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(3)).ToLowerInvariant()}{kind.Value.Extension}";
+                File.Move(temp, Path.Combine(folder, name));
+                _logger.LogInformation("🗂️ [LOCAL SOURCE] 🎞️ Preview video saved {Name} ({Size} bytes, {Mime})", name, total, kind.Value.Mime);
+                return ($"{VideoUrlPrefix}{dataId}/{name}", null);
+            }
+            finally
+            {
+                try { if (File.Exists(temp)) { File.Delete(temp); } } catch (IOException) { /* removed by the next prune */ }
+            }
+        }
+
+        /// <summary>The file behind an uploaded preview (dataId + file name), only if it really is one of the plugin's videos</summary>
+        public bool TryGetVideo(string dataId, string file, out string path, out string mime)
+        {
+            path = null;
+            mime = null;
+            if (!IsValidDataId(dataId) || string.IsNullOrEmpty(file) || !VideoFilePattern.IsMatch(file))
+            {
+                return false;
+            }
+
+            var candidate = Path.Combine(VideosFolder(dataId), file);
+            if (!File.Exists(candidate))
+            {
+                return false;
+            }
+
+            path = candidate;
+            mime = file.EndsWith(".webm", StringComparison.OrdinalIgnoreCase) ? "video/webm" : (file.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ? "video/x-matroska" : "video/mp4");
+            return true;
+        }
+
+        /// <summary>"local://video/{dataId}/{file}" → address Jellyfin itself can read (anonymous endpoint, random file name)</summary>
+        public string JellyfinVideoUrl(string url)
+        {
+            if (!IsLocalVideoUrl(url))
+            {
+                return url;
+            }
+
+            var parts = url.Substring(VideoUrlPrefix.Length).Split('/');
+            var api = _localApiUrl?.Invoke();
+            return parts.Length == 2 && !string.IsNullOrEmpty(api) ? $"{api.TrimEnd('/')}/CustomMetadata/Local/{parts[0]}/Video/{parts[1]}" : null;
+        }
+
+        private void PruneVideos(string dataId, LocalContent content)
+        {
+            var folder = VideosFolder(dataId);
+            if (!Directory.Exists(folder))
+            {
+                return;
+            }
+
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var episode in AllNodes(content).OfType<LocalEpisode>())
+            {
+                if (IsLocalVideoUrl(episode.PreviewUrl)) { used.Add(episode.PreviewUrl.Substring(episode.PreviewUrl.LastIndexOf('/') + 1)); }
+            }
+
+            foreach (var file in Directory.GetFiles(folder))
+            {
+                // Same one-day grace as the images: a file uploaded then not saved yet must survive until the save
+                if (!used.Contains(Path.GetFileName(file)) && File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddDays(-1))
+                {
+                    try { File.Delete(file); } catch (IOException) { /* in use by a playback: next save */ }
+                }
+            }
+        }
 
         /// <summary>Real type from the first bytes (the name or header sent by the browser do not count)</summary>
         public static (string Mime, string Extension)? DetectImage(byte[] d)
@@ -367,6 +503,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     }
 
                     Directory.Move(images, graveyard);
+                }
+
+                var videos = VideosFolder(dataId);
+                if (Directory.Exists(videos))
+                {
+                    var videoGraveyard = videos + ".deleted";
+                    if (Directory.Exists(videoGraveyard))
+                    {
+                        Directory.Delete(videoGraveyard, true);
+                    }
+
+                    Directory.Move(videos, videoGraveyard);
                 }
 
                 _memory.Remove(dataId);
@@ -695,7 +843,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             if (!string.IsNullOrWhiteSpace(episode.PreviewUrl))
             {
-                json["preview"] = new Dictionary<string, object> { ["url"] = episode.PreviewUrl };
+                // An uploaded file becomes an address on this server, the same way a link is used as is
+                var previewUrl = JellyfinVideoUrl(episode.PreviewUrl);
+                if (!string.IsNullOrEmpty(previewUrl))
+                {
+                    json["preview"] = new Dictionary<string, object> { ["url"] = previewUrl };
+                }
             }
 
             DropUnchangedFromApi(json, episode);

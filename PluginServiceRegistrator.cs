@@ -26,7 +26,8 @@ namespace Jellyfin.Plugin.CustomMetadata
 
             serviceCollection.AddSingleton(sp => new LocalSourceStore(
                 sp.GetRequiredService<ILogger<LocalSourceStore>>(),
-                () => sp.GetRequiredService<PeopleStore>()));
+                () => sp.GetRequiredService<PeopleStore>(),
+                () => sp.GetRequiredService<IServerApplicationHost>().GetLocalApiUrl("127.0.0.1")));
 
             serviceCollection.AddSingleton(sp => new PeopleStore(
                 sp.GetRequiredService<ILogger<PeopleStore>>(),

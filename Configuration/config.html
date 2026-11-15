@@ -392,6 +392,8 @@
         #CustomMetadataConfigPage .cm-imgrow { display: flex; gap: 16px; align-items: flex-start; }
         #CustomMetadataConfigPage .cm-imgprev { flex: 0 0 160px; height: 96px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--cm-border); border-radius: 6px; background: var(--cm-surface-2); color: var(--cm-muted); font-size: 12px; text-align: center; }
         #CustomMetadataConfigPage .cm-imgprev img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        #CustomMetadataConfigPage .cm-vidprev { flex: 0 0 240px; min-height: 96px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--cm-border); border-radius: 6px; background: var(--cm-surface-2); color: var(--cm-muted); font-size: 13px; }
+        #CustomMetadataConfigPage .cm-vidprev video { width: 100%; max-height: 180px; background: #000; }
         #CustomMetadataConfigPage .cm-imgctl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
         #CustomMetadataConfigPage .cm-imgctl .inputContainer { margin: 0; }
         #CustomMetadataConfigPage .cm-imgbtns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
@@ -418,7 +420,7 @@
         #CustomMetadataConfigPage .cm-gal-add select, #CustomMetadataConfigPage .cm-gal-add input[type=text] { height: 36px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--cm-border); background: var(--cm-surface-2); color: inherit; font: inherit; }
         #CustomMetadataConfigPage .cm-gal-add input[type=text] { flex: 1; min-width: 180px; }
         #CustomMetadataConfigPage .cm-gal-add .emby-button { margin: 0; }
-        @container (max-width: 560px) { #CustomMetadataConfigPage .cm-imgrow { flex-direction: column; } #CustomMetadataConfigPage .cm-imgprev { width: 100%; flex-basis: auto; height: 120px; } }
+        @container (max-width: 560px) { #CustomMetadataConfigPage .cm-vidprev { width: 100%; flex-basis: auto; min-height: 120px; } #CustomMetadataConfigPage .cm-imgrow { flex-direction: column; } #CustomMetadataConfigPage .cm-imgprev { width: 100%; flex-basis: auto; height: 120px; } }
     </style>
 
     <div data-role="content">
@@ -2437,6 +2439,30 @@
                     + (opts.hint ? '<div class="cm-hint">' + opts.hint + '</div>' : '') + '</div>';
             }
 
+            // Preview video of an episode: a web address, or a file uploaded to the plugin ("local://video/…", played by the server)
+            function isLocalVideo(value) { return typeof value === 'string' && value.indexOf('local://video/') === 0; }
+
+            function videoPreviewUrl(value) {
+                var parts = String(value).substring('local://video/'.length).split('/');
+                return parts.length === 2 ? ApiClient.getUrl('CustomMetadata/Local/' + parts[0] + '/Video/' + parts[1]) : '';
+            }
+
+            function videoField(label, field, value, hint) {
+                var local = isLocalVideo(value);
+                var src = local ? videoPreviewUrl(value) : '';
+                return '<div class="inputContainer cm-span cm-vidfield" data-video-field="' + field + '"><span class="inputLabel">' + label + '</span>'
+                    + '<div class="cm-imgrow"><div class="cm-vidprev">' + (src ? '<video controls preload="metadata" aria-label="Aperçu de la vidéo envoyée" src="' + escapeHtml(src) + '"></video>' : 'Aucune vidéo') + '</div>'
+                    + '<div class="cm-imgctl">'
+                    + '<div class="inputContainer"><input is="emby-input" type="text" id="lf-' + field + '" data-f="' + field + '" aria-label="' + label + ' : adresse web"'
+                    + ' value="' + escapeHtml(local ? '' : (value || '')) + '" placeholder="' + (local ? 'Fichier envoyé au plugin' : 'Adresse web (https://…)') + '"' + (local ? ' disabled' : '') + ' /></div>'
+                    + '<div class="cm-imgbtns"><button is="emby-button" type="button" class="raised" data-upload-video="' + field + '"><span>Envoyer une vidéo…</span></button>'
+                    + (value ? '<button type="button" class="cm-linkbtn" data-clear-video="' + field + '">Retirer</button>' : '')
+                    + '<input type="file" accept="video/mp4,video/webm,video/x-matroska,.mp4,.m4v,.mov,.webm,.mkv" data-vfile="' + field + '" hidden /></div>'
+                    + '<div class="cm-hint" id="lfVideoMsg" role="status" aria-live="polite"></div>'
+                    + (hint ? '<div class="cm-hint">' + hint + '</div>' : '')
+                    + '</div></div></div>';
+            }
+
             // Image: preview, file uploaded to the plugin ("local://img/…", read without network) or web address
             function isLocalImage(value) { return typeof value === 'string' && value.indexOf('local://img/') === 0; }
 
@@ -2576,7 +2602,7 @@
                     + '</div><div class="cm-grid" data-lpanel="images">';
                 if (kind === 'episode') {
                     html += imageField('Miniature', 'Thumb', n.Thumb, 'Affichée dans la liste des épisodes de la saison. Envoyez un fichier ou indiquez une adresse web.')
-                        + inputField('Vidéo d\'aperçu', 'PreviewUrl', n.PreviewUrl, { span: true, hint: 'Adresse web. Épisodes manquants uniquement : devient la bande-annonce de l\'épisode.' });
+                        + videoField('Vidéo d\'aperçu', 'PreviewUrl', n.PreviewUrl, 'Adresse web, ou fichier MP4, WebM ou MKV (500 Mo au maximum). Épisodes manquants uniquement : devient la bande-annonce de l\'épisode.');
                 } else {
                     html += imageField('Affiche', 'Poster', n.Poster) + imageField('Image de fond', 'Backdrop', n.Backdrop);
                     if (kind === 'series') {
@@ -2840,6 +2866,7 @@
                 var t = e.target;
                 if (t.hasAttribute && t.hasAttribute('data-node-id')) { renameNode(t.value); return; }
                 if (t.hasAttribute && t.hasAttribute('data-gal-file')) { uploadGallery(t.files); t.value = ''; return; }
+                if (t.hasAttribute && t.hasAttribute('data-vfile')) { uploadVideo(t.getAttribute('data-vfile'), t.files && t.files[0]); t.value = ''; return; }
                 if (t.hasAttribute && t.hasAttribute('data-file')) { uploadImage(t.getAttribute('data-file'), t.files && t.files[0]); t.value = ''; return; }
                 var box = t.closest && t.closest('[data-img-field]');
                 var hit = localSel ? findNode(localSel) : null;
@@ -2875,6 +2902,38 @@
                     Dashboard.alert('Image refusée : JPEG, PNG, WebP ou GIF, 8 Mo au maximum.');
                     renderLocalDetail();
                 });
+            }
+
+            // XMLHttpRequest and not fetch: a video is large, the progress is shown; the token goes in the header as for images
+            function uploadVideo(field, file) {
+                var hit = localSel ? findNode(localSel) : null;
+                if (!file || !hit) { return; }
+                var say = function(text, bad) { var m = qs('#lfVideoMsg'); if (m) { m.textContent = text || ''; m.style.color = bad ? '#e57373' : ''; } };
+                if (file.size > 500 * 1024 * 1024) { say('Vidéo trop lourde : 500 Mo au maximum.', true); return; }
+                var button = qs('#localDetail [data-upload-video="' + field + '"]');
+                if (button) { button.disabled = true; }
+                var request = new XMLHttpRequest();
+                request.open('POST', ApiClient.getUrl('CustomMetadata/Local/' + localDataId + '/Video', { node: hit.node.Id }));
+                request.setRequestHeader('X-Emby-Token', ApiClient.accessToken());
+                request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+                request.upload.onprogress = function(e) {
+                    if (e.lengthComputable) { say('Envoi : ' + Math.round(e.loaded * 100 / e.total) + ' %'); }
+                };
+                request.onload = function() {
+                    if (request.status >= 200 && request.status < 300) {
+                        var result = JSON.parse(request.responseText);
+                        hit.node[field] = result.Url;
+                        markDirty();
+                        renderLocalDetail();
+                        say('Vidéo envoyée. Elle est prise en compte à l\'enregistrement de la source.');
+                    } else {
+                        say((request.responseText || '').replace(/^"|"$/g, '') || 'Vidéo refusée (MP4, WebM ou MKV, 500 Mo au maximum).', true);
+                        if (button) { button.disabled = false; }
+                    }
+                };
+                request.onerror = function() { say('L\'envoi a échoué : le serveur n\'a pas répondu.', true); if (button) { button.disabled = false; } };
+                say('Envoi : 0 %');
+                request.send(file);
             }
 
             function gallerySay(text, bad) { var m = qs('#lfGalMsg'); if (m) { m.textContent = text || ''; m.style.color = bad ? '#e57373' : ''; } }
@@ -3160,7 +3219,7 @@
             function onLocalClick(e) {
                 var ltab = e.target.closest('[data-ltab-btn]');
                 if (ltab) { localTab = ltab.getAttribute('data-ltab-btn'); renderLocalDetail(); return; }
-                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-clear-img],[data-gal-sel],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
+                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-upload-video],[data-clear-video],[data-clear-img],[data-gal-sel],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
                 if (!target || !localContent) { return; }
                 if (target.hasAttribute('data-node')) { selectNode(target.getAttribute('data-node')); return; }
                 if (target.hasAttribute('data-toggle-node')) {
@@ -3183,6 +3242,16 @@
                 if (target.hasAttribute('data-cast-remove')) {
                     var holder = localSel ? findNode(localSel) : null;
                     if (holder && holder.node.Cast) { holder.node.Cast.splice(parseInt(target.getAttribute('data-cast-remove'), 10), 1); markDirty(); renderLocalDetail(); }
+                    return;
+                }
+                if (target.hasAttribute('data-upload-video')) {
+                    var vpicker = qs('#localDetail [data-vfile="' + target.getAttribute('data-upload-video') + '"]');
+                    if (vpicker) { vpicker.click(); }
+                    return;
+                }
+                if (target.hasAttribute('data-clear-video')) {
+                    var vhit = localSel ? findNode(localSel) : null;
+                    if (vhit) { vhit.node[target.getAttribute('data-clear-video')] = ''; markDirty(); renderLocalDetail(); }
                     return;
                 }
                 if (target.hasAttribute('data-upload')) {
