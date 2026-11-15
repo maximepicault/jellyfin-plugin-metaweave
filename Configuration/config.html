@@ -199,6 +199,17 @@
         #CustomMetadataConfigPage .cm-pick-hint strong { color: #fff; }
         #CustomMetadataConfigPage .cm-pick { display: flex; flex-direction: column; gap: 3px; max-height: 420px; overflow: auto; padding: 8px; border: 1px solid var(--cm-border); border-radius: 8px; background: rgba(0, 0, 0, 0.25); font-family: monospace; font-size: 13px; }
         #CustomMetadataConfigPage .cm-pick-node { padding: 4px 8px; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-pick-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0 0 8px; }
+        #CustomMetadataConfigPage .cm-pick-filter { flex: 1 1 160px; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid var(--cm-border); border-radius: 6px; background: var(--cm-surface-2); color: #fff; font: inherit; font-size: 14px; }
+        #CustomMetadataConfigPage .cm-pick-filter:focus-visible, #CustomMetadataConfigPage .cm-pick-toggle:focus-visible, #CustomMetadataConfigPage .cm-pick-hide:focus-visible, #CustomMetadataConfigPage .cm-pick-nodebtn:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 1px; }
+        #CustomMetadataConfigPage .cm-pick-row { display: flex; align-items: center; gap: 2px; }
+        #CustomMetadataConfigPage .cm-pick-row .cm-pick-leaf, #CustomMetadataConfigPage .cm-pick-row .cm-pick-node { flex: 1; min-width: 0; }
+        #CustomMetadataConfigPage .cm-pick-nodebtn { border: 0; background: none; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-pick-toggle, #CustomMetadataConfigPage .cm-pick-hide { flex: none; width: 30px; height: 32px; border: 0; background: none; color: var(--cm-muted); font: inherit; font-size: 15px; cursor: pointer; border-radius: 4px; }
+        #CustomMetadataConfigPage .cm-pick-spacer { flex: none; width: 30px; }
+        #CustomMetadataConfigPage .cm-pick-hide { opacity: .35; }
+        #CustomMetadataConfigPage .cm-pick-row:hover .cm-pick-hide, #CustomMetadataConfigPage .cm-pick-hide:focus-visible { opacity: 1; color: #ff8a80; }
+        #CustomMetadataConfigPage .cm-pick-toggle:hover, #CustomMetadataConfigPage .cm-pick-nodebtn:hover { color: #fff; }
         #CustomMetadataConfigPage .cm-pick-leaf { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 2px 8px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; background: rgba(255, 255, 255, 0.05); color: #fff; font: inherit; text-align: left; cursor: pointer; }
         #CustomMetadataConfigPage .cm-pick-leaf:hover { border-color: var(--cm-accent); background: rgba(0, 164, 220, 0.14); }
         #CustomMetadataConfigPage .cm-pick-leaf:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 1px; }
@@ -1498,6 +1509,7 @@
             }
 
             function renderTestResult(r) {
+                pickRoot = null;
                 var ok = r.Success;
                 var html = '<div class="cm-test-status ' + (ok ? 'ok' : 'ko') + '">';
                 html += '<strong>' + (ok ? 'Succès' : 'Échec') + '</strong>';
@@ -1523,7 +1535,12 @@
                     try { parsed = JSON.parse(r.PickJson || r.RawJson); } catch (e) { /* not JSON */ }
                     pickCounts = r.PickCounts || {};
                     if (parsed !== undefined && parsed !== null && typeof parsed === 'object') {
-                        html += '<h4>Remplir un mapping au clic</h4><p class="cm-pick-hint" id="pickHint"></p><div class="cm-pick" id="pickTree">' + pickTreeHtml(parsed) + '</div>';
+                        pickRoot = parsed;
+                        html += '<h4>Remplir un mapping au clic</h4><p class="cm-pick-hint" id="pickHint"></p>'
+                            + '<div class="cm-pick-tools"><input type="search" id="pickFilter" class="cm-pick-filter" placeholder="Filtrer les champs…" aria-label="Filtrer les champs" autocomplete="off" />'
+                            + '<button type="button" class="cm-linkbtn" id="pickCollapseAll">Tout replier</button><button type="button" class="cm-linkbtn" id="pickExpandAll">Tout déplier</button>'
+                            + '<button type="button" class="cm-linkbtn" id="pickReveal" hidden></button></div>'
+                            + '<div class="cm-pick" id="pickTree"></div>';
                     } else if (ok) {
                         html += '<p class="cm-pick-hint">La réponse n\'est pas du JSON lisible : tapez les chemins à la main.</p>';
                     }
@@ -1577,7 +1594,14 @@
                 }
 
                 document.querySelector('#testResult').innerHTML = html;
-                updatePickHint();
+                if (pickRoot !== null) {
+                    pickRows = buildPickRows(pickRoot);
+                    pickHiddenList = loadPickHidden();
+                    pickFilterText = '';
+                    renderPickTree();
+                } else {
+                    updatePickHint();
+                }
             }
 
             // ---- Clickable response -------------------------------------------------------------
@@ -1625,13 +1649,14 @@
                 return text.length > 70 ? text.slice(0, 70) + '…' : text;
             }
 
-            // One row per key. Objects open; a list shows itself (clickable) and its first element under [0].
-            function pickTreeHtml(root) {
-                var rows = [], MAX_ROWS = 120, MAX_DEPTH = 5;
-                var leaf = function(depth, key, path, value) {
-                    rows.push('<button type="button" class="cm-pick-leaf" data-path="' + escapeHtml(path) + '" style="margin-left:' + (depth * 16) + 'px">'
-                        + '<span class="cm-pick-key">' + escapeHtml(key) + '</span><span class="cm-pick-val">' + escapeHtml(pickPreview(value, path)) + '</span></button>');
-                };
+            // ---- The tree of the answer: one row per key (a model), shown with fold, hide and filter ----
+            // Objects fold; a list shows itself (clickable) and its example element under [0]. Fields one does not care about can be
+            // hidden (kept in this browser, per source prefix) so that the ones to map stay in reach.
+            var pickRoot = null, pickRows = [], pickFilterText = '', pickCollapsed = {};
+
+            function buildPickRows(root) {
+                var rows = [], MAX_ROWS = 400, MAX_DEPTH = 6;
+                var add = function(depth, kind, key, path, value) { rows.push({ depth: depth, kind: kind, key: key, path: path, value: value, hasChildren: false }); };
                 var walk = function(value, path, depth) {
                     if (rows.length >= MAX_ROWS || depth > MAX_DEPTH) { return; }
                     Object.keys(value).forEach(function(key) {
@@ -1641,7 +1666,7 @@
                             add(depth, 'leaf', key, childPath, child);
                             if (child.length && child[0] !== null && typeof child[0] === 'object' && !Array.isArray(child[0])) { walk(child[0], childPath + '[0]', depth + 1); }
                         } else if (child !== null && typeof child === 'object') {
-                            rows.push('<div class="cm-pick-node" style="margin-left:' + (depth * 16) + 'px">' + escapeHtml(key) + '</div>');
+                            add(depth, 'node', key, childPath, null);
                             walk(child, childPath, depth + 1);
                         } else {
                             add(depth, 'leaf', key, childPath, child);
@@ -1650,12 +1675,83 @@
                 };
                 if (Array.isArray(root)) {
                     var rootSize = pickCounts[''] || root.length;
-                    rows.push('<div class="cm-pick-node">liste de ' + rootSize + (rootSize > 1 ? ' éléments' : ' élément') + ' : l\'exemple le plus complet</div>');
+                    add(0, 'root', 'liste de ' + rootSize + (rootSize > 1 ? ' éléments' : ' élément') + ' : l\'exemple le plus complet', '', null);
                     if (root.length && root[0] !== null && typeof root[0] === 'object') { walk(root[0], '[0]', 1); }
                 } else {
                     walk(root, '', 0);
                 }
-                return rows.join('') || '<div class="cm-pick-node">Réponse vide</div>';
+                rows.forEach(function(row, index) { row.hasChildren = index + 1 < rows.length && rows[index + 1].depth > row.depth; });
+                return rows;
+            }
+
+            function pickHiddenKey() { return 'cm-pick-hidden:' + String((qs('#srcPrefix') || {}).value || '').trim().toLowerCase(); }
+            function loadPickHidden() {
+                try { return JSON.parse(localStorage.getItem(pickHiddenKey()) || '[]') || []; } catch (err) { return []; }
+            }
+            function savePickHidden(list) {
+                try { localStorage.setItem(pickHiddenKey(), JSON.stringify(list)); } catch (err) { /* hidden for this visit only */ }
+            }
+            var pickHiddenList = [];
+
+            // The rows to show: hidden fields (and what is under them) out; folded objects close their content; with a filter, folds
+            // are ignored and a row is shown when it matches or holds a match
+            function pickVisibleRows() {
+                var f = pickFilterText.trim().toLowerCase();
+                var hidden = {};
+                pickHiddenList.forEach(function(path) { hidden[path] = true; });
+                var matches = pickRows.map(function(row) {
+                    return !f || (row.key + ' ' + row.path + ' ' + (row.value === null || row.value === undefined ? '' : (typeof row.value === 'object' ? '' : String(row.value)))).toLowerCase().indexOf(f) >= 0;
+                });
+                var holds = pickRows.map(function(row, index) {
+                    if (matches[index]) { return true; }
+                    for (var k = index + 1; k < pickRows.length && pickRows[k].depth > row.depth; k++) { if (matches[k]) { return true; } }
+                    return false;
+                });
+                var shown = [], skipDepth = null;
+                pickRows.forEach(function(row, index) {
+                    if (skipDepth !== null) {
+                        if (row.depth > skipDepth) { return; }
+                        skipDepth = null;
+                    }
+                    if (row.kind !== 'root' && hidden[row.path]) { skipDepth = row.depth; return; }
+                    if (f && !holds[index]) { return; }
+                    shown.push(index);
+                    if (!f && row.hasChildren && pickCollapsed[row.path]) { skipDepth = row.depth; }
+                });
+                return shown;
+            }
+
+            function pickRowHtml(index) {
+                var row = pickRows[index];
+                var open = !(row.hasChildren && pickCollapsed[row.path]) || !!pickFilterText.trim();
+                var toggle = row.hasChildren && row.kind !== 'root'
+                    ? '<button type="button" class="cm-pick-toggle" data-pick-toggle="' + escapeHtml(row.path) + '" aria-expanded="' + (open ? 'true' : 'false') + '" aria-label="' + (open ? 'Replier ' : 'Déplier ') + escapeHtml(row.key) + '">' + (open ? '▾' : '▸') + '</button>'
+                    : '<span class="cm-pick-spacer"></span>';
+                var body;
+                if (row.kind === 'leaf') {
+                    body = '<button type="button" class="cm-pick-leaf" data-path="' + escapeHtml(row.path) + '"><span class="cm-pick-key">' + escapeHtml(row.key) + '</span><span class="cm-pick-val">' + escapeHtml(pickPreview(row.value, row.path)) + '</span></button>';
+                } else if (row.kind === 'node') {
+                    body = '<button type="button" class="cm-pick-node cm-pick-nodebtn" data-pick-toggle="' + escapeHtml(row.path) + '">' + escapeHtml(row.key) + '</button>';
+                } else {
+                    body = '<div class="cm-pick-node">' + escapeHtml(row.key) + '</div>';
+                }
+                var hide = row.kind === 'root' ? '' : '<button type="button" class="cm-pick-hide" data-pick-hide="' + escapeHtml(row.path) + '" aria-label="Masquer le champ ' + escapeHtml(row.key) + '" title="Masquer ce champ">×</button>';
+                return '<div class="cm-pick-row" style="margin-left:' + (row.depth * 16) + 'px">' + toggle + body + hide + '</div>';
+            }
+
+            function renderPickTree(focusSelector) {
+                var box = document.querySelector('#pickTree');
+                if (!box) { return; }
+                var shown = pickVisibleRows();
+                box.innerHTML = shown.map(pickRowHtml).join('') || '<div class="cm-pick-node">' + (pickFilterText.trim() ? 'Aucun champ ne correspond.' : 'Tous les champs sont masqués.') + '</div>';
+                var reveal = document.querySelector('#pickReveal');
+                if (reveal) {
+                    var count = pickHiddenList.filter(function(path) { return pickRows.some(function(row) { return row.path === path; }); }).length;
+                    reveal.hidden = count === 0;
+                    reveal.textContent = count + (count > 1 ? ' champs masqués · Réafficher' : ' champ masqué · Réafficher');
+                }
+                updatePickHint();
+                if (focusSelector) { var target = box.querySelector(focusSelector); if (target) { target.focus(); } }
             }
 
             // The path as the field expects it: an episode-list field is relative to one element of the list,
@@ -1675,7 +1771,30 @@
                 if (isPathField(e.target)) { setActiveMapField(e.target); }
             });
 
+            document.querySelector('#testResult').addEventListener('input', function(e) {
+                if (e.target.id === 'pickFilter') { pickFilterText = e.target.value; renderPickTree(); }
+            });
+
             document.querySelector('#testResult').addEventListener('click', function(e) {
+                var copyRaw = e.target.closest('#btnCopyRaw');
+                if (copyRaw) { copyLocal(lastRawText, copyRaw); return; }
+                var toggle = e.target.closest('[data-pick-toggle]');
+                if (toggle) {
+                    var togglePath = toggle.getAttribute('data-pick-toggle');
+                    pickCollapsed[togglePath] = !pickCollapsed[togglePath];
+                    renderPickTree('[data-pick-toggle="' + togglePath.replace(/"/g, '\\"') + '"]');
+                    return;
+                }
+                var hideButton = e.target.closest('[data-pick-hide]');
+                if (hideButton) {
+                    var hidePath = hideButton.getAttribute('data-pick-hide');
+                    if (pickHiddenList.indexOf(hidePath) < 0) { pickHiddenList.push(hidePath); savePickHidden(pickHiddenList); }
+                    renderPickTree();
+                    return;
+                }
+                if (e.target.closest('#pickReveal')) { pickHiddenList = []; savePickHidden(pickHiddenList); renderPickTree(); return; }
+                if (e.target.closest('#pickCollapseAll')) { pickRows.forEach(function(row) { if (row.hasChildren && row.kind !== 'root') { pickCollapsed[row.path] = true; } }); renderPickTree(); return; }
+                if (e.target.closest('#pickExpandAll')) { pickCollapsed = {}; renderPickTree(); return; }
                 var leaf = e.target.closest('.cm-pick-leaf');
                 if (!leaf) { return; }
                 if (!activeMapField || activeMapField.closest('.cm-pane').hidden) { updatePickHint(); return; }

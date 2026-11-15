@@ -152,6 +152,32 @@ try {
   } else {
     check('episode list: the first element of the list is shown', false, nested.slice(0, 6).join(' | '));
   }
+  // Fold, hide and filter the fields of the answer (what one does not care about stays out of the way)
+  const leaf = path => `${C} #pickTree .cm-pick-leaf[data-path="${path}"]`;
+  await page.click(`${C} [data-pick-toggle="data.videos"]`);
+  check('tree: folding a list hides its fields', !(await page.$(leaf('data.videos[0].title'))) && (await page.$eval(`${C} [data-pick-toggle="data.videos"]`, e => e.getAttribute('aria-expanded'))) === 'false');
+  await page.click(`${C} [data-pick-toggle="data.videos"]`);
+  check('tree: unfolding brings them back', !!(await page.$(leaf('data.videos[0].title'))));
+  const before = (await page.$$(`${C} #pickTree .cm-pick-leaf`)).length;
+  await page.click(`${C} [data-pick-hide="data.videos[0].overview"]`);
+  check('tree: a hidden field is gone and a "Réafficher" link says how many', !(await page.$(leaf('data.videos[0].overview'))) && (await page.$$(`${C} #pickTree .cm-pick-leaf`)).length === before - 1 && (await text(page, `${C} #pickReveal`)).startsWith('1 champ masqué'), await text(page, `${C} #pickReveal`));
+  await page.focus(`${C} #srcListTitle`);
+  await page.click(`${C} #btnTestSource`);
+  await page.waitForFunction(sel => document.querySelector(sel + ' #pickTree .cm-pick-leaf'), C, { timeout: 20000 });
+  check('tree: the hidden field stays hidden at the next test (kept in this browser)', !(await page.$(leaf('data.videos[0].overview'))) && await page.isVisible(`${C} #pickReveal`));
+  await page.fill(`${C} #pickFilter`, 'guest');
+  const filtered = await page.$$eval(`${C} #pickTree .cm-pick-leaf`, els => els.map(e => e.getAttribute('data-path')));
+  check('tree: the filter keeps the matching fields and their parents only', filtered.includes('data.videos[0].guest.name') && filtered.includes('data.videos[0].guest.role') && !filtered.includes('data.videos[0].title'), filtered.join(','));
+  await page.fill(`${C} #pickFilter`, 'zzzz');
+  check('tree: a filter with no match says so', (await text(page, `${C} #pickTree`)).includes('Aucun champ ne correspond'));
+  await page.fill(`${C} #pickFilter`, '');
+  await page.click(`${C} #pickCollapseAll`);
+  const collapsed = (await page.$$(`${C} #pickTree .cm-pick-leaf`)).length;
+  await page.click(`${C} #pickExpandAll`);
+  const expanded = (await page.$$(`${C} #pickTree .cm-pick-leaf`)).length;
+  check('tree: "Tout replier" keeps the top level, "Tout déplier" brings the rest back', collapsed > 0 && collapsed < expanded, `${collapsed} → ${expanded}`);
+  await page.click(`${C} #pickReveal`);
+  check('tree: "Réafficher" brings the hidden field back', !!(await page.$(leaf('data.videos[0].overview'))) && !(await page.isVisible(`${C} #pickReveal`)));
   await shot('M3-pick-long-list-1440');
   // nothing is saved: leave the editor without saving
   await page.evaluate(() => { window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} });
