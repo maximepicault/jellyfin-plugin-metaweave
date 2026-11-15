@@ -2585,11 +2585,14 @@
                     + '<button is="emby-button" type="button" class="raised" data-copy="tag"><span>Copier le tag</span></button>'
                     + '<button is="emby-button" type="button" class="raised" data-copy="name"><span>Copier le nom</span></button></div>'
                     + '<div class="cm-grid" data-lpanel="info">'
-                    + (kind === 'episode' ? '' : '<div class="inputContainer cm-span"><label class="inputLabel" for="lf-NodeId">Identifiant</label>'
+                    + '<div class="inputContainer cm-span"><label class="inputLabel" for="lf-NodeId">Identifiant</label>'
                         + '<input is="emby-input" type="text" id="lf-NodeId" data-node-id value="' + escapeHtml(n.Id) + '" />'
-                        + '<div class="cm-hint">Généré, vous pouvez le changer (lettres sans accent, chiffres, _ et -). Pour compléter ou remplacer une ' + (kind === 'series' ? 'série' : 'saison')
-                        + ' d\'une source API : si cette source locale a le <strong>même préfixe</strong> que la source API, saisissez simplement son identifiant (<code>123</code>) ; sinon son tag sans accolades (<code>dm-123</code>). L\'API est interrogée en premier, le contenu saisi ici s\'applique par-dessus'
-                        + (kind === 'season' ? ' (y compris la liste des épisodes, même si l\'API n\'en propose pas)' : '') + '. Changer l\'identifiant d\'un élément déjà utilisé oblige à renommer son dossier.</div><div class="cm-hint" id="lfIdMsg" role="alert"></div></div>')
+                        + (kind === 'episode'
+                            ? '<div class="cm-hint">Généré, vous pouvez le changer (lettres sans accent, chiffres, _ et -). C\'est la fin du tag du nom de fichier : pour qu\'un épisode saisi ici <strong>remplace</strong> celui d\'une API, saisissez l\'identifiant de l\'épisode de l\'API (<code>a1v3</code> si cette source locale a le même préfixe que la source API ; sinon son tag sans accolades, <code>dm-a1v3</code>) : vos champs s\'appliquent par-dessus ceux de l\'API. Changer l\'identifiant d\'un épisode déjà utilisé oblige à renommer son fichier ; son épisode grisé de l\'ancien identifiant disparaît à la prochaine analyse.</div>'
+                            : '<div class="cm-hint">Généré, vous pouvez le changer (lettres sans accent, chiffres, _ et -). Pour compléter ou remplacer une ' + (kind === 'series' ? 'série' : 'saison')
+                                + ' d\'une source API : si cette source locale a le <strong>même préfixe</strong> que la source API, saisissez simplement son identifiant (<code>123</code>) ; sinon son tag sans accolades (<code>dm-123</code>). L\'API est interrogée en premier, le contenu saisi ici s\'applique par-dessus'
+                                + (kind === 'season' ? ' (y compris la liste des épisodes, même si l\'API n\'en propose pas)' : '') + '. Changer l\'identifiant d\'un élément déjà utilisé oblige à renommer son dossier.</div>')
+                        + '<div class="cm-hint" id="lfIdMsg" role="alert"></div></div>'
                     + inputField('Titre', 'Title', n.Title, { span: true })
                     + areaField('Résumé', 'Overview', n.Overview)
                     + inputField('Date de sortie', 'PremiereDate', n.PremiereDate, { placeholder: 'AAAA-MM-JJ' });

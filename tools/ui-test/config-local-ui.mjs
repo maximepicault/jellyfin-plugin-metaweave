@@ -247,7 +247,21 @@ try {
   await setId(seasonId.slice(2)); await wait(200);
   check('id: renamed back, the tag is the source\'s again', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-' + seasonId.slice(2) + '}');
   await click(`#localTree [data-node="${epId}"]`); await wait(200);
-  check('id: no field on an episode', !(await vis('#lf-NodeId')));
+  check('episode id: the field is offered on an episode', await vis('#lf-NodeId'));
+  const epOld = epId.slice(2);
+  await setId('ep-renomme'); await wait(200);
+  check('episode id: renamed (tag, selection in the tree)', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-ep-renomme}' && (await ev(`document.querySelector('#localTree [aria-current="true"]').getAttribute('data-node')`)) === 'e:ep-renomme');
+  await click(`#localTree [data-node="n:${seasonId.slice(2)}"]`); await wait(150);
+  await click(`#localTree [data-node="e:ep-renomme"]`); await wait(150);
+  const otherEp = await ev(`(function(){var r=Array.from(document.querySelectorAll('#localTree [data-node^="e:"]')).map(function(x){return x.getAttribute('data-node');}).filter(function(k){return k!=='e:ep-renomme';}); return r[0]||'';})()`);
+  if (otherEp) {
+    await setId(otherEp.slice(2)); await wait(200);
+    check('episode id: an id already used by another episode is refused, the id is kept', (await ev(`document.querySelector('#lfIdMsg').textContent`)).includes('refusé') && (await ev(`document.querySelector('#lf-NodeId').value`)) === 'ep-renomme');
+  }
+  await setId('dm-a1v3'); await wait(200);
+  check('episode id: an API episode\'s tag is accepted (it then overrides that episode)', (await ev(`document.querySelector('#lfTag').textContent`)) === '{dm-a1v3}');
+  await setId(epOld); await wait(200);
+  check('episode id: renamed back', (await ev(`document.querySelector('#lfTag').textContent`)) === '{loc-' + epOld + '}');
   // Series id: changed, shown in the tag, kept after saving
   const seriesNode = await ev(`document.querySelector('#localTree > ul > li > .cm-t-row .cm-t-item').getAttribute('data-node')`);
   await click(`#localTree [data-node="${seriesNode}"]`); await wait(200);
