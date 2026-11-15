@@ -21,7 +21,7 @@ const url = name => `${J}/web/#/configurationpage?name=${name}`;
 
 const browser = await chromium.launch({ channel: 'chrome' });
 try {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, permissions: ['clipboard-read', 'clipboard-write'] });
   const page = await context.newPage();
   const shot = async name => { const f = path.join(outDir, `${name}.png`); await page.screenshot({ path: f }); console.log('📸', f); };
   // jellyfin-web keeps earlier pages in the DOM, hidden: always address the visible one
@@ -130,13 +130,19 @@ try {
   await page.focus(`${C} #srcListItemsPath`);
   await page.click(`${C} #btnTestSource`);
   await page.waitForSelector(`${C} #pickTree .cm-pick-leaf[data-path="data.videos"]`, { state: 'visible', timeout: 20000 });
-  const rawLength = await page.$eval(`${C} #testResult details:last-of-type pre`, e => e.textContent.length);
-  check('episode list: the raw text is cut, the tree is not (a long list is clickable)', rawLength < 22000 && (await text(page, `${C} #pickTree .cm-pick-leaf[data-path="data.videos"] .cm-pick-val`)) === '[120 éléments]', `raw ${rawLength} chars / ${await text(page, `${C} #pickTree .cm-pick-leaf[data-path="data.videos"] .cm-pick-val`)}`);
+  const rawText = await page.$eval(`${C} #testResult details:last-of-type pre`, e => e.textContent);
+  check('episode list: the raw answer comes in full (past 20 KB, up to its last episode) and the tree stays clickable', rawText.length > 40000 && rawText.includes('"id": "long120"') && !rawText.includes('tronqué') && (await text(page, `${C} #pickTree .cm-pick-leaf[data-path="data.videos"] .cm-pick-val`)) === '[120 éléments]', `raw ${rawText.length} chars`);
+  await page.click(`${C} #testResult details:last-of-type summary`);   // the raw answer is folded until asked for
+  check('episode list: the raw answer shows its size', (await text(page, `${C} #testResult details:last-of-type summary`)).includes('Ko'));
+  await page.click(`${C} #btnCopyRaw`);
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  check('episode list: "Copier la réponse brute" copies the whole answer', copied.length > 40000 && copied.includes('"id": "long120"') && copied.trimEnd().endsWith('}'), `${copied.length} chars`);
   await page.click(`${C} #pickTree .cm-pick-leaf[data-path="data.videos"]`);
   check('episode list: a click on the list writes its path into "Tableau d\'épisodes"', (await page.$eval(`${C} #srcListItemsPath`, e => e.value)) === 'data.videos');
   await page.focus(`${C} #srcListTitle`);
   await page.click(`${C} #btnTestSource`);
   await page.waitForFunction(sel => document.querySelector(sel + ' #testResult .cm-test-status') && /\b120\b/.test(document.querySelector(sel + ' #testResult').textContent), C, { timeout: 20000 });
+  check('episode list: all 120 episodes are listed, not the first 20', (await text(page, `${C} #testResult h4:has-text("épisodes")`)) === '120 épisodes', await text(page, `${C} #testResult h4:has-text("épisodes")`));
   const nested = await page.$$eval(`${C} #pickTree .cm-pick-leaf`, els => els.map(e => e.getAttribute('data-path')));
   check('episode list: the example is the most complete element, not the first (it has fields the first lacks)', nested.includes('data.videos[0].guest.role') && nested.includes('data.videos[0].overview') && nested.includes('data.videos[0].rating'), nested.join(' | ').slice(0, 300));
   const longTitle = nested.find(p => /data\.videos\[0\]\.title$/.test(p));

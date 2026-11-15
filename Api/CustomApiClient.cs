@@ -887,7 +887,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
 
             result.RawJson = fetch.Content.Length > SourceTestResult.MaxRawLength
-                ? fetch.Content.Substring(0, SourceTestResult.MaxRawLength) + "\n… (tronqué)"
+                ? fetch.Content.Substring(0, SourceTestResult.MaxRawLength) + $"\n… (tronqué : {SourceTestResult.MaxRawLength / 1000} Ko affichés sur {fetch.Content.Length / 1000} Ko)"
                 : fetch.Content;
 
             try
@@ -948,8 +948,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     /// </summary>
     public class SourceTestResult
     {
-        public const int MaxRawLength = 20000;
-        public const int MaxEpisodes = 20;
+        // The test screen is where one reads an answer to write the mappings: a big answer (a long synopsis, a list of episodes) must come in full.
+        // The limits only protect the page from an absurd answer; the screen scrolls inside its boxes.
+        public const int MaxRawLength = 3_000_000;
+        public const int MaxEpisodes = 1000;
         public const int MaxImagePreviews = 6;
         public const int MaxPreviewBytes = 600 * 1024;
         public const int PreviewMaxSide = 320;

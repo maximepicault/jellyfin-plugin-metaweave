@@ -1567,10 +1567,13 @@
                     html += '<pre>' + escapeHtml(JSON.stringify(r.Episodes.map(compactEpisode), null, 2)) + '</pre>';
                 }
 
+                lastRawText = '';
                 if (r.RawJson) {
                     var raw = r.RawJson;
                     try { raw = JSON.stringify(JSON.parse(raw), null, 2); } catch (e) { /* truncated or not JSON: raw */ }
-                    html += '<details><summary>Réponse brute</summary><pre>' + escapeHtml(raw) + '</pre></details>';
+                    lastRawText = raw;
+                    html += '<details><summary>Réponse brute (' + (raw.length >= 10000 ? Math.round(raw.length / 1000) + ' Ko' : plural(raw.length, 'caractère', 'caractères')) + ')</summary>'
+                        + '<button type="button" class="cm-linkbtn" id="btnCopyRaw"><span>Copier la réponse brute</span></button><pre>' + escapeHtml(raw) + '</pre></details>';
                 }
 
                 document.querySelector('#testResult').innerHTML = html;
@@ -1579,6 +1582,7 @@
 
             // ---- Clickable response -------------------------------------------------------------
             // The mapping field that receives a clicked path: the last path field focused in a mapping section
+            var lastRawText = '';   // the raw answer as shown, for "Copier la réponse brute"
             var activeMapField = null;
             var pickCounts = {};   // real length of the lists the server cut to their first element, by path
             var MAP_SECTIONS = ['video', 'season', 'series', 'episodes', 'person'];
@@ -1634,13 +1638,13 @@
                         if (rows.length >= MAX_ROWS) { return; }
                         var child = value[key], childPath = path ? path + '.' + key : key;
                         if (Array.isArray(child)) {
-                            leaf(depth, key, childPath, child);
+                            add(depth, 'leaf', key, childPath, child);
                             if (child.length && child[0] !== null && typeof child[0] === 'object' && !Array.isArray(child[0])) { walk(child[0], childPath + '[0]', depth + 1); }
                         } else if (child !== null && typeof child === 'object') {
                             rows.push('<div class="cm-pick-node" style="margin-left:' + (depth * 16) + 'px">' + escapeHtml(key) + '</div>');
                             walk(child, childPath, depth + 1);
                         } else {
-                            leaf(depth, key, childPath, child);
+                            add(depth, 'leaf', key, childPath, child);
                         }
                     });
                 };
