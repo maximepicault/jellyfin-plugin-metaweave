@@ -25,6 +25,7 @@ window.ApiClient = {
   updatePluginConfiguration: function (id, c) { __mock.config = clone(c); __mock.calls.push('PLUGIN'); return Promise.resolve({}); },
   getJSON: function (url) {
     if (/CustomMetadata\\/Refresh\\/Status/.test(url)) { __mock.calls.push('REFRESH-STATUS'); return Promise.resolve({ Running: false, Prefix: __mock.refresh.Prefix, Total: 3, Done: 3, Failed: 0, Series: 1, Seasons: 1, Episodes: 1, LocalFilesKept: __mock.kept || 0 }); }
+    if (/CustomMetadata\\/Status/.test(url)) { return Promise.resolve({ Sources: __mock.config.Sources.length, MissingEpisodes: 3, SourceErrors: 0, People: __mock.people.length, NotEnriched: null }); }
     if (/Library\\/VirtualFolders/.test(url)) { return Promise.resolve(clone(__mock.libraries || [])); }
     if (/CustomMetadata\\/People/.test(url)) { __mock.calls.push('GET people'); return Promise.resolve(clone({ Version: 1, People: __mock.people })); }
     var m = url.match(/CustomMetadata\\/Local\\/(.+)$/);
