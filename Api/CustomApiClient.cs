@@ -862,6 +862,19 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 return result;
             }
 
+            // The clickable tree of the test screen is built from a trimmed copy of the WHOLE answer, not from the raw text below
+            // (cut at MaxRawLength: a list of episodes is easily longer)
+            try
+            {
+                using var sampleDoc = JsonDocument.Parse(fetch.Content);
+                result.PickJson = JsonPickSample.Build(sampleDoc.RootElement, out var pickCounts);
+                result.PickCounts = pickCounts;
+            }
+            catch (JsonException)
+            {
+                // Not JSON: nothing to click, the raw text is still shown
+            }
+
             result.RawJson = fetch.Content.Length > SourceTestResult.MaxRawLength
                 ? fetch.Content.Substring(0, SourceTestResult.MaxRawLength) + "\n… (tronqué)"
                 : fetch.Content;
@@ -944,6 +957,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// <summary>Start of an error response body (Cloudflare page, "Invalid CORS request" message…)</summary>
         public string ErrorBody { get; set; }
         public string RawJson { get; set; }
+
+        /// <summary>Trimmed copy of the whole answer (lists cut to their first element) for the "click to fill" tree; null if it is not JSON</summary>
+        public string PickJson { get; set; }
+
+        /// <summary>Real length of the lists cut in PickJson, by path ("" = a list at the root)</summary>
+        public Dictionary<string, int> PickCounts { get; set; }
+
         public CustomMetadataResponse Metadata { get; set; }
         public PersonData Person { get; set; }
         public List<ImageInfo> Images { get; set; }

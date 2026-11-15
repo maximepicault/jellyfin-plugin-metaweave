@@ -1473,12 +1473,14 @@
 
                 // The clickable answer comes first: it is what the mappings are filled from
                 if (r.RawJson) {
+                    // PickJson: the server's trimmed copy of the WHOLE answer (the raw text is cut at 20 KB, a list of episodes is longer)
                     var parsed;
-                    try { parsed = JSON.parse(r.RawJson); } catch (e) { /* truncated or not JSON */ }
+                    try { parsed = JSON.parse(r.PickJson || r.RawJson); } catch (e) { /* not JSON */ }
+                    pickCounts = r.PickCounts || {};
                     if (parsed !== undefined && parsed !== null && typeof parsed === 'object') {
                         html += '<h4>Remplir un mapping au clic</h4><p class="cm-pick-hint" id="pickHint"></p><div class="cm-pick" id="pickTree">' + pickTreeHtml(parsed) + '</div>';
                     } else if (ok) {
-                        html += '<p class="cm-pick-hint">Réponse trop longue pour être cliquable (elle est coupée à 20 Ko) : tapez les chemins à la main.</p>';
+                        html += '<p class="cm-pick-hint">La réponse n\'est pas du JSON lisible : tapez les chemins à la main.</p>';
                     }
                 }
 
@@ -1533,6 +1535,7 @@
             // ---- Clickable response -------------------------------------------------------------
             // The mapping field that receives a clicked path: the last path field focused in a mapping section
             var activeMapField = null;
+            var pickCounts = {};   // real length of the lists the server cut to their first element, by path
             var MAP_SECTIONS = ['video', 'season', 'series', 'episodes', 'person'];
 
             function isPathField(el) {
@@ -1566,9 +1569,9 @@
                 });
             }
 
-            function pickPreview(value) {
+            function pickPreview(value, path) {
                 if (value === null) { return 'null'; }
-                if (Array.isArray(value)) { return '[' + value.length + (value.length > 1 ? ' éléments' : ' élément') + ']'; }
+                if (Array.isArray(value)) { var size = pickCounts[path] || value.length; return '[' + size + (size > 1 ? ' éléments' : ' élément') + ']'; }
                 var text = typeof value === 'string' ? '"' + value + '"' : String(value);
                 return text.length > 70 ? text.slice(0, 70) + '…' : text;
             }
@@ -1578,7 +1581,7 @@
                 var rows = [], MAX_ROWS = 120, MAX_DEPTH = 5;
                 var leaf = function(depth, key, path, value) {
                     rows.push('<button type="button" class="cm-pick-leaf" data-path="' + escapeHtml(path) + '" style="margin-left:' + (depth * 16) + 'px">'
-                        + '<span class="cm-pick-key">' + escapeHtml(key) + '</span><span class="cm-pick-val">' + escapeHtml(pickPreview(value)) + '</span></button>');
+                        + '<span class="cm-pick-key">' + escapeHtml(key) + '</span><span class="cm-pick-val">' + escapeHtml(pickPreview(value, path)) + '</span></button>');
                 };
                 var walk = function(value, path, depth) {
                     if (rows.length >= MAX_ROWS || depth > MAX_DEPTH) { return; }
@@ -1597,7 +1600,8 @@
                     });
                 };
                 if (Array.isArray(root)) {
-                    rows.push('<div class="cm-pick-node">liste de ' + root.length + (root.length > 1 ? ' éléments' : ' élément') + ' : le premier</div>');
+                    var rootSize = pickCounts[''] || root.length;
+                    rows.push('<div class="cm-pick-node">liste de ' + rootSize + (rootSize > 1 ? ' éléments' : ' élément') + ' : l\'exemple le plus complet</div>');
                     if (root.length && root[0] !== null && typeof root[0] === 'object') { walk(root[0], '[0]', 1); }
                 } else {
                     walk(root, '', 0);
