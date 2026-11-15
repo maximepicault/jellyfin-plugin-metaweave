@@ -30,6 +30,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     {
         private const string ProviderKey = "custom";
         private const string ReportFileName = "missing-episodes.json";
+        private const string IgnoredFileName = "missing-ignored.json";
+        private static readonly object IgnoredLock = new object();
 
         // State shared between the scheduled task and the API controller (separate instances)
         private static readonly SemaphoreSlim _runLock = new SemaphoreSlim(1, 1);
@@ -297,11 +299,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             seasonReport.ApiCount = apiEpisodes.Count;
             DetectOverviewLists(apiEpisodes, source);
 
-            var missing = apiEpisodes
+            var absent = apiEpisodes
                 .Where(e => !localKeys.Contains(EpisodeKey(source, e)))
                 .OrderBy(e => e.IndexNumber ?? int.MaxValue)
                 .ThenBy(e => e.PremiereDate ?? DateTime.MaxValue)
                 .ToList();
+
+            // Episodes the user chose to ignore: not counted, no virtual episode (an existing one is removed below,
+            // like any virtual episode that is no longer missing)
+            var ignoredKeys = LoadIgnored();
+            var missing = absent.Where(e => !ignoredKeys.Contains(EpisodeKey(source, e))).ToList();
+            seasonReport.Ignored = absent.Where(e => ignoredKeys.Contains(EpisodeKey(source, e))).Select(e => new MissingEpisodeEntry
+            {
+                Id = e.Id,
+                Tag = EpisodeKey(source, e),
+                Title = e.Title,
+                IndexNumber = e.IndexNumber,
+                PremiereDate = e.PremiereDate,
+                RunTimeTicks = e.RunTimeTicks
+            }).ToList();
 
             seasonReport.Missing = missing.Select(e => new MissingEpisodeEntry
             {
@@ -1097,6 +1113,97 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             return id != null ? new[] { id } : Array.Empty<string>();
         }
 
+        // ---- Ignored episodes ("I will never have this one"): tags kept in the data folder, lowercase "prefix-id"
+
+        private static string GetIgnoredPath()
+        {
+            var folder = Plugin.Instance?.DataFolderPath;
+            return string.IsNullOrEmpty(folder) ? null : Path.Combine(folder, IgnoredFileName);
+        }
+
+        private HashSet<string> LoadIgnored()
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var path = GetIgnoredPath();
+                if (path != null && File.Exists(path))
+                {
+                    foreach (var tag in JsonSerializer.Deserialize<List<string>>(File.ReadAllText(path)) ?? new List<string>())
+                    {
+                        if (!string.IsNullOrWhiteSpace(tag))
+                        {
+                            set.Add(tag.Trim());
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "🔎 [MISSING] Could not read the ignored episodes");
+            }
+
+            return set;
+        }
+
+        /// <summary>
+        /// Ignores an episode (or takes it back). The last report is updated at once, so the screen follows without a new analysis;
+        /// the virtual episode itself is removed, or created again, by the next analysis.
+        /// </summary>
+        public MissingEpisodesReport SetIgnored(string tag, bool ignored)
+        {
+            tag = (tag ?? string.Empty).Trim().Trim('{', '}').Trim();
+            if (tag.Length == 0)
+            {
+                return GetLastReport();
+            }
+
+            lock (IgnoredLock)
+            {
+                var set = LoadIgnored();
+                if (ignored ? set.Add(tag) : set.Remove(tag))
+                {
+                    try
+                    {
+                        var path = GetIgnoredPath();
+                        if (path != null)
+                        {
+                            Directory.CreateDirectory(Path.GetDirectoryName(path));
+                            File.WriteAllText(path, JsonSerializer.Serialize(set.OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList()));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "🔎 [MISSING] Could not save the ignored episodes");
+                    }
+                }
+
+                var report = GetLastReport();
+                if (report?.Seasons != null)
+                {
+                    foreach (var season in report.Seasons)
+                    {
+                        season.Missing ??= new List<MissingEpisodeEntry>();
+                        season.Ignored ??= new List<MissingEpisodeEntry>();
+                        var from = ignored ? season.Missing : season.Ignored;
+                        var to = ignored ? season.Ignored : season.Missing;
+                        foreach (var entry in from.Where(e => string.Equals(e.Tag, tag, StringComparison.OrdinalIgnoreCase)).ToList())
+                        {
+                            from.Remove(entry);
+                            to.Add(entry);
+                        }
+
+                        season.Missing = season.Missing.OrderBy(e => e.IndexNumber ?? int.MaxValue).ThenBy(e => e.PremiereDate ?? DateTime.MaxValue).ToList();
+                    }
+
+                    SaveReport(report);
+                }
+
+                _logger.LogInformation("🔎 [MISSING] Episode {Tag} {State}", tag, ignored ? "ignored" : "no longer ignored");
+                return report;
+            }
+        }
+
         private static string GetReportPath()
         {
             var folder = Plugin.Instance?.DataFolderPath;
@@ -1153,6 +1260,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public int ApiCount { get; set; }
         public string Error { get; set; }
         public List<MissingEpisodeEntry> Missing { get; set; } = new List<MissingEpisodeEntry>();
+
+        /// <summary>Absent episodes the user ignored: listed apart, never counted as missing, no virtual episode</summary>
+        public List<MissingEpisodeEntry> Ignored { get; set; } = new List<MissingEpisodeEntry>();
     }
 
     public class MissingEpisodeEntry

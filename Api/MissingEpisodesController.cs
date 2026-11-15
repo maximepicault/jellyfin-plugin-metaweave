@@ -63,5 +63,33 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             _taskManager.QueueScheduledTask<MissingEpisodesTask>();
             return NoContent();
         }
+
+        /// <summary>
+        /// Ignores a missing episode ("I will never have it"), or takes it back. Returns the report, already updated.
+        /// </summary>
+        [HttpPost("Ignore")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public ActionResult Ignore([FromBody] IgnoreEpisodeRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request?.Tag))
+            {
+                return BadRequest("Tag manquant");
+            }
+
+            return Ok(new
+            {
+                Running = MissingEpisodeService.IsRunning,
+                Report = _service.SetIgnored(request.Tag, request.Ignored)
+            });
+        }
+    }
+
+    public class IgnoreEpisodeRequest
+    {
+        /// <summary>Tag of the episode: "dm-d1v3" or "{dm-d1v3}"</summary>
+        public string Tag { get; set; }
+
+        public bool Ignored { get; set; } = true;
     }
 }

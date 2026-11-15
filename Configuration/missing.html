@@ -317,6 +317,28 @@
         }
         .me-episode-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 16px; }
         .me-episode-title { font-weight: bold; font-size: 16px; }
+        .me-episode-top { display: flex; align-items: flex-start; gap: 12px; }
+        .me-episode-top .me-episode-title { flex: 1; min-width: 0; }
+        .me-episode-top .me-linkbtn { flex: none; padding: 0; font-size: 13px; }
+        /* Compact list: one line per episode, for long seasons */
+        .me-episodes.me-list { grid-template-columns: 1fr; gap: 8px; }
+        .me-list .me-episode { flex-direction: row; align-items: stretch; }
+        .me-list .me-thumb { width: 150px; flex-shrink: 0; align-self: center; }
+        .me-list .me-thumb .me-placeholder { font-size: 26px; }
+        .me-list .me-episode-info { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 10px 14px; }
+        .me-list .me-episode-top { flex: 1 1 260px; flex-direction: column; gap: 2px; }
+        .me-list .me-episode-meta { flex: 0 0 auto; }
+        .me-list .me-episode-overview { display: none; }
+        .me-list .me-filename { flex: 1 1 340px; margin-top: 0; padding-top: 0; }
+        .me-viewtoggle { display: inline-flex; margin: 0 0 8px; border: 1px solid var(--me-border); border-radius: 6px; overflow: hidden; }
+        .me-viewtoggle button { min-height: 40px; padding: 0 14px; border: 0; background: none; color: var(--me-muted); font: inherit; font-weight: 600; cursor: pointer; }
+        .me-viewtoggle button[aria-pressed="true"] { background: rgba(0, 164, 220, 0.18); color: #fff; }
+        .me-ignored { margin: 22px 0 0; padding: 12px 16px; border: 1px solid var(--me-border); border-radius: 10px; background: var(--me-surface); }
+        .me-ignored summary { cursor: pointer; font-weight: 600; }
+        .me-ignored p { margin: 8px 0; font-size: 13px; color: var(--me-muted); }
+        .me-ignored-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+        .me-ignored-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .me-ignored-row .me-linkbtn { flex: none; }
         .me-episode-title a { color: inherit; text-decoration: none; }
         .me-episode-title a:hover { text-decoration: underline; }
         .me-episode-meta { color: var(--me-muted); font-size: 13px; }
@@ -391,6 +413,7 @@
             .me-search { flex: 1 1 100%; }
             .me-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
             .me-episodes { grid-template-columns: 1fr; }
+            .me-list .me-thumb { display: none; }
             .me-detail-head { flex-wrap: wrap; padding: 14px; gap: 14px; }
             .me-detail-head .me-poster { width: 56px; }
             .me-detail-info h3 { font-size: 18px; }
@@ -451,6 +474,10 @@
                     <input is="emby-checkbox" type="checkbox" id="chkOnlyMissing" checked />
                     <span id="lblOnlyMissing">Seulement les séries incomplètes</span>
                 </label>
+                <div class="me-viewtoggle me-hidden" id="viewToggle" role="group" aria-label="Affichage des épisodes">
+                    <button type="button" data-view="cards" aria-pressed="true">Cartes</button>
+                    <button type="button" data-view="list" aria-pressed="false">Liste</button>
+                </div>
             </div>
 
             <span id="liveMsg" class="me-sr" aria-live="polite"></span>
@@ -572,7 +599,7 @@
             }
 
             function presentCount(season) {
-                return Math.max(0, (season.ApiCount || 0) - missingCount(season));
+                return Math.max(0, (season.ApiCount || 0) - missingCount(season) - (season.Ignored || []).length);
             }
 
             function progressHtml(present, total) {
@@ -863,6 +890,19 @@
                 var filter = filterText('episode');
                 var shown = missing.filter(function (e) { return episodeMatches(e, filter); });
                 var ticks = sumDuration(missing);
+                var ignored = season.Ignored || [];
+                // Ignored episodes: listed apart, with a way back
+                var ignoredHtml = '';
+                if (ignored.length) {
+                    ignoredHtml = '<details class="me-ignored"><summary>' + plural(ignored.length, 'épisode ignoré', 'épisodes ignorés') + '</summary>'
+                        + '<p>Ils ne sont plus comptés comme manquants. Leur épisode grisé disparaît de Jellyfin à la prochaine analyse.</p>';
+                    ignored.forEach(function (e) {
+                        var label = (e.IndexNumber === null || e.IndexNumber === undefined ? '' : 'Épisode ' + e.IndexNumber + ' · ') + (e.Title || '(sans titre)');
+                        ignoredHtml += '<div class="me-ignored-row"><span>' + escapeHtml(label) + '</span>'
+                            + '<button type="button" class="me-linkbtn" data-restore="' + escapeHtml(e.Tag || '') + '">Rétablir</button></div>';
+                    });
+                    ignoredHtml += '</details>';
+                }
 
                 var head = '<div class="me-detail-head">'
                     + '<div class="me-poster">' + imageHtml(imageUrl(season.SeasonId), initial(season.SeasonName), imageUrl(group.id)) + '</div>'
@@ -876,6 +916,7 @@
                         + progressHtml(presentCount(season), season.ApiCount)
                         + (missing.length ? badgeHtml(missing.length, 0) : '')
                         + '<span>' + presenceText(presentCount(season), season.ApiCount || 0, ticks) + '</span>'
+                        + (ignored.length ? '<span class="me-muted">' + ignored.length + (ignored.length > 1 ? ' ignorés' : ' ignoré') + '</span>' : '')
                         + '</div>';
                 }
                 head += '<div><a class="me-link" href="#/details?id=' + escapeHtml(season.SeasonId) + '">Ouvrir la saison dans Jellyfin ↗</a></div>'
@@ -890,13 +931,13 @@
 
                 var html = '';
                 if (missing.length === 0) {
-                    return { head: head, body: '<div class="fieldDescription">' + (season.Error ? 'La liste des épisodes de cette source n\'a pas pu être lue. Vérifiez la source avec « Tester la source » dans la configuration du plugin.' : '✓ Aucun épisode manquant dans cette source.') + '</div>' };
+                    return { head: head, body: '<div class="fieldDescription">' + (season.Error ? 'La liste des épisodes de cette source n\'a pas pu être lue. Vérifiez la source avec « Tester la source » dans la configuration du plugin.' : '✓ Aucun épisode manquant dans cette source.') + '</div>' + ignoredHtml };
                 }
                 if (shown.length === 0) {
                     return { head: head, body: '<div class="fieldDescription">Aucun épisode ne correspond à « ' + escapeHtml(filters.episode.trim()) + ' ».</div>' };
                 }
 
-                html += '<div class="me-episodes">';
+                html += '<div class="me-episodes' + (episodeView === 'list' ? ' me-list' : '') + '">';
                 shown.forEach(function (e) {
                     var number = e.IndexNumber === null || e.IndexNumber === undefined ? '' : 'Épisode ' + escapeHtml(e.IndexNumber) + ' · ';
                     var title = e.Title ? escapeHtml(e.Title) : '<span class="me-muted">(sans titre)</span>';
@@ -914,7 +955,9 @@
                         + (e.RunTimeTicks ? '<span class="me-duration">' + formatDuration(e.RunTimeTicks) + '</span>' : '')
                         + '</div>'
                         + '<div class="me-episode-info">'
-                        + '<div class="me-episode-title">' + number + title + '</div>'
+                        + '<div class="me-episode-top"><div class="me-episode-title">' + number + title + '</div>'
+                        + (e.Tag ? '<button type="button" class="me-linkbtn" data-ignore="' + escapeHtml(e.Tag) + '" title="Je n\'aurai jamais cet épisode : ne plus le compter comme manquant">Ignorer</button>' : '')
+                        + '</div>'
                         + (meta.length ? '<div class="me-episode-meta">' + meta.join(' · ') + '</div>' : '')
                         + (e.Overview
                             ? '<div class="me-episode-overview">' + escapeHtml(e.Overview) + '</div>'
@@ -926,7 +969,7 @@
                         + '</div>'
                         + '</div></div>';
                 });
-                return { head: head, body: html + '</div>' };
+                return { head: head, body: html + '</div>' + ignoredHtml };
             }
 
             function renderCrumbs(group, season) {
@@ -966,6 +1009,7 @@
                 page.querySelector('#lblOnlyMissing').textContent = level === 'season' ? 'Seulement les sources incomplètes' : 'Seulement les séries incomplètes';
                 page.querySelector('#sortContainer').classList.toggle('me-hidden', level !== 'series');
                 page.querySelector('#onlyMissingContainer').classList.toggle('me-hidden', level === 'episode');
+                page.querySelector('#viewToggle').classList.toggle('me-hidden', level !== 'episode');
             }
 
             function currentLevel() {
@@ -1240,6 +1284,13 @@
 
             // Delegated clicks: #context (source header, "Copier les N noms") and #results (cards, episodes)
             function onResultsClick(e) {
+                var ignoreButton = e.target.closest('[data-ignore], [data-restore]');
+                if (ignoreButton) {
+                    var restoring = ignoreButton.hasAttribute('data-restore');
+                    setIgnored(ignoreButton.getAttribute(restoring ? 'data-restore' : 'data-ignore'), !restoring);
+                    return;
+                }
+
                 var copyButton = e.target.closest('[data-copy]');
                 if (copyButton) {
                     var text = copyButton.getAttribute('data-copy');
