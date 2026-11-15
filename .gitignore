@@ -42,3 +42,6 @@ __pycache__/
 *.pyc
 *.log
 .DS_Store
+
+# Node dependencies of the UI test bench (tools/ui-test)
+node_modules/
