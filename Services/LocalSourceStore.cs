@@ -246,7 +246,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var kind = DetectImage(data);
             if (kind == null) { error = "Format non reconnu (JPEG, PNG, WebP ou GIF attendu)"; return null; }
 
-            var node = !string.IsNullOrEmpty(nodeId) && Regex.IsMatch(nodeId, @"^\w{1,40}$") ? nodeId : "img";
+            var node = !string.IsNullOrEmpty(nodeId) && Regex.IsMatch(nodeId, @"^[A-Za-z0-9_]{1,40}$") ? nodeId : "img";
             var name = $"{node}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(3)).ToLowerInvariant()}{kind.Value.Extension}";
             lock (_lock)
             {
