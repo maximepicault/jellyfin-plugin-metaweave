@@ -59,6 +59,8 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddSingleton<CastApplyService>();
 
             serviceCollection.AddSingleton<MissingEpisodeService>();
+            // Saves the chapters of episodes that have a file once their refresh is over
+            serviceCollection.AddHostedService<ChapterService>();
             serviceCollection.AddSingleton<DiagnosticService>();
         }
     }

@@ -63,7 +63,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 case "source":
                     return (source.SourceEndpoint ?? "/sources/{id}", source.SourceFieldMappings ?? new FieldMapping(), "SOURCE/SEASON", "SourceFieldMappings");
                 default:
-                    return (source.VideoEndpoint ?? "/videos/{id}", source.VideoFieldMappings ?? new FieldMapping(), "VIDEO/EPISODE", "VideoFieldMappings");
+                    var video = source.VideoFieldMappings ?? new FieldMapping();
+                    // A local source serves the end of its chapters as "end" (LocalSourceStore.Serve), whatever its saved mapping says
+                    // (sources saved before chapters had an end have none)
+                    if (source.IsLocal && string.IsNullOrWhiteSpace(video.ChapterEnd))
+                    {
+                        video = video.Clone();
+                        video.ChapterEnd = "end";
+                    }
+
+                    return (source.VideoEndpoint ?? "/videos/{id}", video, "VIDEO/EPISODE", "VideoFieldMappings");
             }
         }
 
@@ -200,7 +209,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 Cast = MetadataMerger.UnionCast(new[] { local.Cast, api.Cast }),
                 PremiereDate = local.PremiereDate ?? api.PremiereDate,
                 CommunityRating = local.CommunityRating ?? api.CommunityRating,
-                IndexNumber = local.IndexNumber ?? api.IndexNumber
+                IndexNumber = local.IndexNumber ?? api.IndexNumber,
+                // A list typed locally replaces the API's (two lists of time codes cannot be added together)
+                Chapters = local.Chapters != null && local.Chapters.Count > 0 ? local.Chapters : api.Chapters
             };
         }
 
@@ -991,6 +1002,21 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
         /// <summary>Episode number (FieldMapping.IndexNumber)</summary>
         public int? IndexNumber { get; set; }
+
+        /// <summary>Chapters (time codes and names) of the episode; null when the source gives none</summary>
+        public List<ChapterMark> Chapters { get; set; }
+    }
+
+    /// <summary>A chapter of an episode: a time code and a name</summary>
+    public class ChapterMark
+    {
+        /// <summary>Start, in seconds</summary>
+        public double Seconds { get; set; }
+
+        /// <summary>End, when the source gives one (Jellyfin has none: it closes the chapter with an extra one, see ChapterParser.WithGaps)</summary>
+        public double? EndSeconds { get; set; }
+
+        public string Title { get; set; }
     }
 
     public class CastMember

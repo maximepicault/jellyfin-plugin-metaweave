@@ -92,6 +92,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             // HTML entities ("&amp;") → text, before detecting a list-overview
             HtmlText.DecodeInPlace(response);
             ApplyOverviewList(response, config.OverviewListTarget);
+            response.Chapters = GetChapters(root, config, response.Overview);
 
             _logger.LogInformation("✅ [JSON MAPPER] Mapping completed:");
             _logger.LogInformation("  - Title: {Title}", response.Title ?? "(empty)");
@@ -764,6 +765,71 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// Gets a cast array from a JSON path
         /// If path is empty OR the path does not exist in the JSON, returns an empty list
         /// </summary>
+        /// <summary>
+        /// Chapters of an episode. The path may designate a list of objects ({time, title}), a list of "12:34 Title" texts or a
+        /// multi-line text; the time can be text ("12:34", "1:02:03", "6m12s") or a number (seconds, or milliseconds when the source says so).
+        /// Without a chapters field, the synopsis can be read instead (option). Null when there are none.
+        /// </summary>
+        private List<ChapterMark> GetChapters(JsonElement root, FieldMapping config, string overview)
+        {
+            var marks = new List<ChapterMark>();
+            var milliseconds = string.Equals(config.ChapterTimeUnit, "milliseconds", StringComparison.OrdinalIgnoreCase);
+
+            double? Time(JsonElement item, string path)
+            {
+                if (string.IsNullOrWhiteSpace(path) || !TryNavigateToPath(item, path, out var t))
+                {
+                    return null;
+                }
+
+                if (t.ValueKind == JsonValueKind.Number && t.TryGetDouble(out var n))
+                {
+                    return n >= 0 && n <= 24 * 3600 * (milliseconds ? 1000 : 1) ? (milliseconds ? n / 1000 : n) : (double?)null;
+                }
+
+                return t.ValueKind == JsonValueKind.String ? ChapterParser.ParseSeconds(t.GetString(), milliseconds) : null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(config.ChaptersArray) && TryNavigateToPath(root, config.ChaptersArray, out var list))
+            {
+                if (list.ValueKind == JsonValueKind.String)
+                {
+                    marks.AddRange(ChapterParser.ParseLines(list.GetString(), false));
+                }
+                else if (list.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in list.EnumerateArray())
+                    {
+                        if (item.ValueKind == JsonValueKind.String)
+                        {
+                            marks.AddRange(ChapterParser.ParseLines(item.GetString(), false));
+                        }
+                        else if (item.ValueKind == JsonValueKind.Object && Time(item, config.ChapterTime) is double seconds)
+                        {
+                            marks.Add(new ChapterMark { Seconds = seconds, EndSeconds = Time(item, config.ChapterEnd), Title = HtmlText.Decode(GetStringValue(item, config.ChapterTitle)) });
+                        }
+                    }
+                }
+            }
+
+            if (marks.Count == 0 && config.ChaptersFromOverview)
+            {
+                var fromText = ChapterParser.ParseLines(overview, false);
+                if (fromText.Count >= 2)
+                {
+                    marks.AddRange(fromText);
+                }
+            }
+
+            marks = ChapterParser.Normalize(marks);
+            if (marks.Count > 0)
+            {
+                _logger.LogInformation("🔄 [JSON MAPPER] 🕒 {Count} chapter(s) found", marks.Count);
+            }
+
+            return marks.Count > 0 ? marks : null;
+        }
+
         private List<CastMember> GetCastArray(JsonElement element, FieldMapping config)
         {
             if (string.IsNullOrWhiteSpace(config.Cast))

@@ -146,6 +146,9 @@ namespace Jellyfin.Plugin.CustomMetadata
     /// </summary>
     public class FieldMapping
     {
+        /// <summary>A copy to adjust without touching the saved configuration</summary>
+        public FieldMapping Clone() => (FieldMapping)MemberwiseClone();
+
         // Main metadata
         public string Title { get; set; } = "title";
         public string Overview { get; set; } = "overview";
@@ -172,6 +175,24 @@ namespace Jellyfin.Plugin.CustomMetadata
         /// </summary>
         public string OverviewListTarget { get; set; } = "";
         
+        // Chapters (episodes): time codes and names
+        /// <summary>
+        /// Path of the chapters: a list of objects (time and name fields below), a list of "12:34 Title" texts, or one multi-line text.
+        /// Empty = disabled. Time codes: "mm:ss", "hh:mm:ss", seconds (359), "6m12s", ISO 8601: see ChapterParser.
+        /// </summary>
+        public string ChaptersArray { get; set; } = "chapters";
+        public string ChapterTime { get; set; } = "time";
+        public string ChapterTitle { get; set; } = "title";
+
+        /// <summary>Optional end of each chapter (same forms as the start). Jellyfin has no end: a chapter that ends before the next one starts gets a closing chapter</summary>
+        public string ChapterEnd { get; set; } = "";
+
+        /// <summary>"seconds" or "milliseconds": what a bare number means in a chapter's time code (359 or 359000)</summary>
+        public string ChapterTimeUnit { get; set; } = "seconds";
+
+        /// <summary>No chapters field in the API: read the lines of the synopsis that start with a time code ("12:34 Title"), two at least</summary>
+        public bool ChaptersFromOverview { get; set; } = false;
+
         // Casting
         public string Cast { get; set; } = "cast";
         public string CastName { get; set; } = "name";

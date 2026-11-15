@@ -642,6 +642,39 @@
                             </div>
                             <div class="cm-hint">Reconnaît « #voyage #montagne » ou « Action, Comédie, Drame » (éléments courts, sans phrase). La description est alors vidée et ses éléments ajoutés à la liste choisie. Une vraie description n&#x27;est pas touchée.</div>
                         </div>
+                        <h4>Chapitres</h4>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcVideoChapters">Repères (liste)</label>
+                            <input is="emby-input" type="text" id="srcVideoChapters" placeholder="chapters" data-count="1" />
+                            <div class="cm-hint">Chemin vers une liste de repères (objets avec un temps et un titre), une liste de textes « 12:34 Titre », ou un texte de plusieurs lignes. Vide = désactivé. Un épisode qui a un fichier reçoit des chapitres dans Jellyfin ; un épisode manquant reçoit ses repères dans le synopsis.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoChapterTime">Temps de chaque repère</label>
+                            <input is="emby-input" type="text" id="srcVideoChapterTime" placeholder="time" data-count="1" />
+                            <div class="cm-hint">« 12:34 », « 1:02:03 », des secondes (359 ou 359.5), « 6m12s » ou ISO 8601 (PT6M12S). 00:00 est accepté.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoChapterTitle">Titre de chaque repère</label>
+                            <input is="emby-input" type="text" id="srcVideoChapterTitle" placeholder="title" data-count="1" />
+                            <div class="cm-hint">Sans titre, le repère s&#x27;appelle « Chapitre N ».</div>
+                        </div>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcVideoChapterEnd">Fin de chaque repère (facultatif)</label>
+                            <input is="emby-input" type="text" id="srcVideoChapterEnd" placeholder="end" />
+                            <div class="cm-hint">Jellyfin ne connaît que le début d&#x27;un chapitre : il dure jusqu&#x27;au suivant. Quand un repère se termine avant le suivant (ou avant la fin de la vidéo, pour le dernier), un repère « Hors chapitre » est ajouté à sa fin, pour que le chapitre ne déborde pas. Même formes de temps que le début. Vide = les repères s&#x27;enchaînent.</div>
+                        </div>
+                        <div class="cm-selectfield">
+                            <div class="selectContainer">
+                                <label class="selectLabel" for="srcVideoChapterUnit">Un nombre seul veut dire</label>
+                                <select is="emby-select" id="srcVideoChapterUnit"><option value="seconds">Des secondes</option><option value="milliseconds">Des millisecondes</option></select>
+                            </div>
+                            <div class="cm-hint">359 = 5 min 59 s en secondes ; 359000 en millisecondes. Ne concerne que les nombres : « 12:34 » ou « 6m12s » ne changent pas.</div>
+                        </div>
+                        <label class="checkboxContainer cm-span">
+                            <input is="emby-checkbox" type="checkbox" id="srcVideoChaptersFromOverview" />
+                            <span>À défaut, lire les repères dans la description</span>
+                        </label>
+                        <div class="cm-hint cm-span" style="margin-top: -6px;">Les lignes de la description qui commencent par un temps (« 12:34 Titre », « [1:02:03] Titre »), deux au moins. La description n&#x27;est pas modifiée.</div>
                         <h4>Classement</h4>
                         <div class="inputContainer">
                             <label class="inputLabel" for="srcVideoTags">Tags (tableau)</label>
@@ -1249,6 +1282,12 @@
                 document.querySelector('#srcVideoLogo').value = '';
                 document.querySelector('#srcVideoIndex').value = '';
                 document.querySelector('#srcVideoOverviewList').value = '';
+                document.querySelector('#srcVideoChapters').value = '';
+                document.querySelector('#srcVideoChapterTime').value = '';
+                document.querySelector('#srcVideoChapterTitle').value = '';
+                document.querySelector('#srcVideoChapterEnd').value = '';
+                document.querySelector('#srcVideoChapterUnit').value = 'seconds';
+                document.querySelector('#srcVideoChaptersFromOverview').checked = false;
                 document.querySelector('#srcSeriesOverviewList').value = '';
 
                 document.querySelector('#srcSourceTitle').value = '';
@@ -1319,6 +1358,12 @@
                 document.querySelector('#srcVideoLogo').value = vm.LogoUrl || '';
                 document.querySelector('#srcVideoIndex').value = vm.IndexNumber || '';
                 document.querySelector('#srcVideoOverviewList').value = vm.OverviewListTarget || '';
+                document.querySelector('#srcVideoChapters').value = vm.ChaptersArray || '';
+                document.querySelector('#srcVideoChapterTime').value = vm.ChapterTimeUnit === undefined && vm.ChapterTime === undefined ? 'time' : (vm.ChapterTime || '');
+                document.querySelector('#srcVideoChapterTitle').value = vm.ChapterTitle === undefined ? 'title' : (vm.ChapterTitle || '');
+                document.querySelector('#srcVideoChapterEnd').value = vm.ChapterEnd || '';
+                document.querySelector('#srcVideoChapterUnit').value = vm.ChapterTimeUnit === 'milliseconds' ? 'milliseconds' : 'seconds';
+                document.querySelector('#srcVideoChaptersFromOverview').checked = !!vm.ChaptersFromOverview;
                 document.querySelector('#srcVideoImagesArray').value = vm.ImagesArray || '';
                 
                 // Mappings Sources
@@ -1841,7 +1886,13 @@
                         ThumbUrl: document.querySelector('#srcVideoThumb').value || '',
                         LogoUrl: document.querySelector('#srcVideoLogo').value || '',
                         IndexNumber: document.querySelector('#srcVideoIndex').value || '',
-                        OverviewListTarget: document.querySelector('#srcVideoOverviewList').value || ''
+                        OverviewListTarget: document.querySelector('#srcVideoOverviewList').value || '',
+                        ChaptersArray: document.querySelector('#srcVideoChapters').value || '',
+                        ChapterTime: document.querySelector('#srcVideoChapterTime').value || '',
+                        ChapterTitle: document.querySelector('#srcVideoChapterTitle').value || '',
+                        ChapterEnd: document.querySelector('#srcVideoChapterEnd').value || '',
+                        ChapterTimeUnit: document.querySelector('#srcVideoChapterUnit').value || 'seconds',
+                        ChaptersFromOverview: document.querySelector('#srcVideoChaptersFromOverview').checked
                     },
                     SourceFieldMappings: {
                         Title: document.querySelector('#srcSourceTitle').value || '',
@@ -1946,6 +1997,7 @@
                 '#srcVideoTags': 'tags', '#srcVideoTagsItemField': 'label', '#srcVideoGenres': 'genres', '#srcVideoGenresItemField': 'name',
                 '#srcVideoPoster': 'poster', '#srcVideoBackdrop': 'backdrop', '#srcVideoThumb': 'thumb', '#srcVideoLogo': 'logo',
                 '#srcVideoIndex': 'indexNumber', '#srcVideoImagesArray': 'images',
+                '#srcVideoChapters': 'chapters', '#srcVideoChapterTime': 'time', '#srcVideoChapterTitle': 'title',
                 '#srcSourceTitle': 'title', '#srcSourceOverview': 'overview', '#srcSourcePoster': 'poster', '#srcSourceBackdrop': 'backdrop', '#srcSourceImagesArray': 'images',
                 '#srcSeriesTitle': 'title', '#srcSeriesOverview': 'overview', '#srcSeriesStatus': 'status', '#srcSeriesPoster': 'poster', '#srcSeriesBackdrop': 'backdrop'
             };
@@ -2316,7 +2368,8 @@
             function applyLocalSourceDefaults(source) {
                 var fields = { Title: 'title', Overview: 'overview', PremiereDate: 'premiereDate', CommunityRating: 'communityRating',
                     Tags: 'tags', TagsItemField: 'label', Genres: 'genres', GenresItemField: 'name', SeriesName: '', IndexNumber: 'indexNumber',
-                    PosterUrl: 'poster', BackdropUrl: 'backdrop', ThumbUrl: 'thumb', LogoUrl: 'logo', BannerUrl: 'banner', ImagesArray: 'images', ImageUrl: 'url', ImageType: 'type', OverviewListTarget: '' };
+                    PosterUrl: 'poster', BackdropUrl: 'backdrop', ThumbUrl: 'thumb', LogoUrl: 'logo', BannerUrl: 'banner', ImagesArray: 'images', ImageUrl: 'url', ImageType: 'type', OverviewListTarget: '',
+                    ChaptersArray: 'chapters', ChapterTime: 'time', ChapterTitle: 'title', ChapterEnd: 'end', ChapterTimeUnit: 'seconds', ChaptersFromOverview: false };
                 source.SourceType = 'Local';
                 source.LocalDataId = localDataId;
                 source.BaseUrl = 'local://local';
@@ -2602,7 +2655,10 @@
                     + inputField('Date de sortie', 'PremiereDate', n.PremiereDate, { placeholder: 'AAAA-MM-JJ' });
                 if (kind === 'episode') {
                     html += inputField('Numéro', 'IndexNumber', n.IndexNumber, { type: 'number', min: 0, hint: 'Détermine l\'ordre dans la saison.' })
-                        + inputField('Durée', 'Duration', n.Duration, { placeholder: '24:30', hint: 'mm:ss, hh:mm:ss ou secondes.' });
+                        + inputField('Durée', 'Duration', n.Duration, { placeholder: '24:30', hint: 'mm:ss, hh:mm:ss ou secondes.' })
+                        + '<div class="inputContainer cm-span"><label class="inputLabel" for="lf-Chapters">Repères (chapitres)</label>'
+                        + '<textarea id="lf-Chapters" data-f="Chapters" rows="5" placeholder="0:00-12:34 Introduction&#10;12:34 Le débat&#10;1:02:03 Conclusion">' + escapeHtml(n.Chapters || '') + '</textarea>'
+                        + '<div class="cm-hint">Un repère par ligne : le temps, puis le titre. Le temps s\'écrit « 12:34 », « 1:02:03 », en secondes (« 359 La crevasse ») ou « 6m12s ». Pour donner aussi la fin : « 0:00-12:34 Introduction » ; si elle précède le repère suivant, un repère « Hors chapitre » la marque dans Jellyfin. Avec un fichier : chapitres dans Jellyfin (un temps au-delà de la fin de la vidéo est ignoré). Épisode manquant : repères ajoutés à la description.</div></div>';
                 }
                 html += inputField('Tags', 'Tags', (n.Tags || []).join(', '), { span: true, hint: 'Séparés par des virgules.' })
                     + inputField('Genres', 'Genres', (n.Genres || []).join(', '), { span: true, hint: 'Séparés par des virgules.' })

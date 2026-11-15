@@ -260,6 +260,20 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     }
                 }
 
+                // Chapters: written by ChapterService once the refresh is over (a provider cannot return them) for an episode that has
+                // a file; an episode without one (missing episode) has no video, so its time codes go to the synopsis as text
+                if (metadata.Chapters != null && metadata.Chapters.Count > 0)
+                {
+                    if (!string.IsNullOrEmpty(info.Path))
+                    {
+                        ChapterService.Remember(info.Path, metadata.Chapters);
+                    }
+                    else
+                    {
+                        episode.Overview = ChapterText.AppendToOverview(episode.Overview, metadata.Chapters);
+                    }
+                }
+
                 // Store the custom ID if present
                 if (CustomId.Get(info.ProviderIds) is string customId)
                 {

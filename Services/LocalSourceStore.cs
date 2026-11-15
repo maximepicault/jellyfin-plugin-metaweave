@@ -71,6 +71,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>URL of the preview video (missing episodes only)</summary>
         public string PreviewUrl { get; set; }
 
+        /// <summary>Chapters, one per line: "12:34 Title" (also "1:02:03", "359 Title" in seconds, "6m12s Title"), with an optional end: "0:00-12:34 Title". See ChapterParser</summary>
+        public string Chapters { get; set; }
+
         /// <summary>Cast: people of the directory (PeopleStore), with their role in THIS episode</summary>
         public List<LocalCastEntry> Cast { get; set; } = new List<LocalCastEntry>();
 
@@ -666,6 +669,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         NormalizeNode(episode, usedEpisodes);
                         episode.Duration = Clean(episode.Duration);
                         episode.PreviewUrl = Clean(episode.PreviewUrl);
+                        episode.Chapters = Clean(episode.Chapters)?.Replace("\r\n", "\n");
+                        if (episode.Chapters != null && episode.Chapters.Length > 8000) { episode.Chapters = episode.Chapters.Substring(0, 8000); }
                         episode.Cast = NormalizeCast(episode.Cast);
                         if (episode.ApiBase != null)
                         {
@@ -835,6 +840,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             Put(json, "duration", episode.Duration);
+            // Chapters as {time (seconds), title}: the default mapping reads them like an API's list of objects
+            var chapters = ChapterParser.ParseLines(episode.Chapters, true);
+            if (chapters.Count > 0)
+            {
+                json["chapters"] = chapters.Select(c =>
+                {
+                    var chapter = new Dictionary<string, object> { ["time"] = c.Seconds, ["title"] = c.Title };
+                    if (c.EndSeconds.HasValue) { chapter["end"] = c.EndSeconds.Value; }
+                    return chapter;
+                }).ToList();
+            }
+
             var cast = ResolveCast(episode);
             if (cast.Count > 0)
             {
