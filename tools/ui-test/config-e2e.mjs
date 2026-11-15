@@ -83,7 +83,7 @@ try {
   const cfgUrl = `${J}/web/#/configurationpage?name=Custom%20Metadata%20Provider`;
   const open = async () => { await send('Page.navigate', { url: 'about:blank' }); await wait(300); await send('Page.navigate', { url: cfgUrl });
     await until(`!!document.querySelector('${C} #sourcesList .cm-card')`, 30000); await wait(1000);
-    await evalJs(`window.confirm = function(){ return true; }; true`); };
+    await evalJs(`window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} true`); };
   const getCfg = () => evalJs(`ApiClient.getPluginConfiguration('${PID}')`);
   const setCfg = cfg => evalJs(`ApiClient.updatePluginConfiguration('${PID}', ${JSON.stringify(cfg)}).then(function(){return true})`);
   const set = (id, v) => evalJs(`(function(){var e=document.querySelector('${C} #${id}'); e.value=${JSON.stringify(v)}; e.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
@@ -129,7 +129,7 @@ try {
 
   // 4. cancel without saving, then delete
   // Cards are grouped by prefix, so the card is found by its name; confirm() is answered yes (a native dialog would block the driving)
-  const editByName = name => evalJs(`(function(){window.confirm=function(){return true;}; var c=Array.from(document.querySelectorAll('${C} .cm-card')).find(function(x){return x.textContent.indexOf(${JSON.stringify(name)})>=0;}); if(!c) return false; c.querySelector('button.raised').click(); return true;})()`);
+  const editByName = name => evalJs(`(function(){window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} var c=Array.from(document.querySelectorAll('${C} .cm-card')).find(function(x){return x.textContent.indexOf(${JSON.stringify(name)})>=0;}); if(!c) return false; c.querySelector('button.raised').click(); return true;})()`);
   ok('new source card found', await editByName('Nouvelle')); await wait(500);
   await set('srcName', 'Ne doit pas être gardé'); await click(`${C} #btnCancelEdit`); await wait(500);
   c = await getCfg(); ok('cancel: nothing saved', c.Sources[1].Name === 'Nouvelle', c.Sources[1].Name);

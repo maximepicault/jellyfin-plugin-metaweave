@@ -124,7 +124,7 @@ try {
   }
   await shot('M2-pick-list-1440');
   // nothing is saved: leave the editor without saving
-  await page.evaluate(() => { window.confirm = () => true; });
+  await page.evaluate(() => { window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} });
   await page.click(`${C} #btnCancelEdit`);
 
   // ---- 5. wide screen, phone, accessibility

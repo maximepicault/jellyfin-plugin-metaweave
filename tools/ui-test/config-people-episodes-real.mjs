@@ -68,7 +68,7 @@ try {
   await evalJs(SEED); await wait(500);
   await send('Page.navigate', { url: `${J}/web/#/configurationpage?name=CustomMetadataPeople` });
   await until(`!!document.querySelector('${P} .pp-item')`, 30000); await wait(800);
-  await evalJs(`window.confirm = function () { return true; }; true`);   // a real dialog would block the driving
+  await evalJs(`window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} true`);   // a real dialog would block the driving
   check('Episodes tab hidden at the start', (await evalJs(`document.querySelector('${P} #ppTabEpisodes').hidden`)) === true);
   await click(`${P} [data-pp-tab="episodes"]`);
   // The slow library listing is NOT loaded automatically: only "By identifier" and a button are offered

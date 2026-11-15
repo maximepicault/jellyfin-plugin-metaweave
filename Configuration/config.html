@@ -70,6 +70,16 @@
         #CustomMetadataConfigPage .cmn-count:empty { display: none; }
         #CustomMetadataConfigPage .cmn-count.cmn-alert { background: #c0392b; }
         #CustomMetadataConfigPage .cmn-count.cmn-warn { background: #a8620f; }
+        /* In-page confirmation (replaces the browser's confirm()): same block in config.html, people.html and missing.html */
+        #CustomMetadataConfigPage .cmd-backdrop { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, 0.6); }
+        #CustomMetadataConfigPage .cmd-box { width: 100%; max-width: 480px; box-sizing: border-box; padding: 22px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; background: #202020; color: #fff; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6); }
+        #CustomMetadataConfigPage .cmd-box h3 { margin: 0 0 8px; font-size: 18px; font-weight: 700; line-height: 1.3; }
+        #CustomMetadataConfigPage .cmd-box p { margin: 0 0 6px; font-size: 14px; line-height: 1.5; color: rgba(255, 255, 255, 0.8); }
+        #CustomMetadataConfigPage .cmd-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+        #CustomMetadataConfigPage .cmd-actions button { min-height: 44px; padding: 0 18px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; background: rgba(255, 255, 255, 0.08); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+        #CustomMetadataConfigPage .cmd-actions button:focus-visible { outline: 2px solid #00a4dc; outline-offset: 2px; }
+        #CustomMetadataConfigPage .cmd-actions [data-cmd="ok"] { border-color: #00779f; background: #00779f; }
+        #CustomMetadataConfigPage .cmd-actions [data-cmd="ok"].cmd-danger { border-color: #c0392b; background: #c0392b; }
         #CustomMetadataConfigPage .cm-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
         #CustomMetadataConfigPage .cm-head .sectionTitle { margin: 0; }
         #CustomMetadataConfigPage .cm-head-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 10px; }
@@ -1603,12 +1613,80 @@
                 });
             }
 
+            // ---- In-page confirmation (same code in config.html, people.html and missing.html) ----
+            // ask(message, options) shows the box and resolves to true / false. The first line of the message is the title.
+            var cmdOpen = false, cmdSure = {};
+            function ask(message, options) {
+                options = options || {};
+                return new Promise(function(resolve) {
+                    var root = document.querySelector('#CustomMetadataConfigPage');
+                    var previous = document.activeElement;
+                    var parts = String(message).split('\n');
+                    var back = document.createElement('div');
+                    back.className = 'cmd-backdrop';
+                    var box = document.createElement('div');
+                    box.className = 'cmd-box';
+                    box.setAttribute('role', 'alertdialog');
+                    box.setAttribute('aria-modal', 'true');
+                    box.setAttribute('aria-labelledby', 'cmdTitle');
+                    var title = document.createElement('h3');
+                    title.id = 'cmdTitle';
+                    title.textContent = parts[0];
+                    box.appendChild(title);
+                    parts.slice(1).forEach(function(text) { if (text.trim()) { var p = document.createElement('p'); p.textContent = text; box.appendChild(p); } });
+                    var actions = document.createElement('div');
+                    actions.className = 'cmd-actions';
+                    var cancel = document.createElement('button');
+                    cancel.type = 'button'; cancel.setAttribute('data-cmd', 'cancel'); cancel.textContent = options.cancel || 'Annuler';
+                    var ok = document.createElement('button');
+                    ok.type = 'button'; ok.setAttribute('data-cmd', 'ok'); ok.textContent = options.ok || 'Continuer';
+                    if (options.danger) { ok.className = 'cmd-danger'; }
+                    actions.appendChild(cancel); actions.appendChild(ok);
+                    box.appendChild(actions); back.appendChild(box); root.appendChild(back);
+                    cmdOpen = true;
+                    var done = function(answer) {
+                        back.removeEventListener('keydown', onKey);
+                        root.removeChild(back);
+                        cmdOpen = false;
+                        if (previous && previous.focus && document.contains(previous)) { previous.focus(); }
+                        resolve(answer);
+                    };
+                    var onKey = function(e) {
+                        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); }
+                        // Two buttons only: Tab goes from one to the other and stays in the box
+                        if (e.key === 'Tab') { e.preventDefault(); (document.activeElement === ok ? cancel : ok).focus(); }
+                    };
+                    back.addEventListener('keydown', onKey);
+                    back.addEventListener('click', function(e) {
+                        var button = e.target.closest('[data-cmd]');
+                        if (button) { done(button.getAttribute('data-cmd') === 'ok'); } else if (e.target === back) { done(false); }
+                    });
+                    // A destructive action starts on "Annuler": Enter must not delete by reflex
+                    (options.danger ? cancel : ok).focus();
+                });
+            }
+
+            // For code written around a yes/no question: returns true when the question had to be asked (the caller stops),
+            // then runs replay() once the user agreed; on that second pass it returns false and the caller goes on.
+            function needConfirm(key, message, options, replay) {
+                if (cmdSure[key]) { return false; }
+                ask(message, options).then(function(agreed) {
+                    if (!agreed) { cmdSure = {}; return; }
+                    cmdSure[key] = true;
+                    replay();
+                    // Answers are forgotten once the action went through (a second question may have been opened meanwhile)
+                    if (!cmdOpen) { cmdSure = {}; }
+                });
+                return true;
+            }
+
             // Delete a source (returns true if it was deleted)
             window.deleteSource = function(index) {
                 var source = (currentConfig.Sources || [])[index] || {};
                 var isLocal = source.SourceType === 'Local';
-                if (!confirm('Supprimer la source « ' + (source.Name || 'sans nom') + ' » ?\nLes médias qui portent son tag ne seront plus enrichis.'
-                    + (isLocal ? '\nTout son contenu saisi (séries, saisons, épisodes) sera supprimé.' : '') + ' Cette action est immédiate.')) {
+                if (needConfirm('delete-source', 'Supprimer la source « ' + (source.Name || 'sans nom') + ' » ?\nLes médias qui portent son tag ne seront plus enrichis.'
+                    + (isLocal ? '\nTout son contenu saisi (séries, saisons, épisodes) sera supprimé.' : '') + '\nCette action est immédiate.', { ok: 'Supprimer', danger: true },
+                    function() { document.querySelector('#btnDeleteSource').click(); })) {
                     return false;
                 }
                 if (isLocal && source.LocalDataId) {
@@ -1748,7 +1826,7 @@
                 
                 
                 var source = readSourceFromForm();
-                if (prefixChanged() && !confirm('Changer le préfixe de « ' + editOriginalPrefix + ' » en « ' + source.Prefix + ' » ?\nLes fichiers et dossiers qui portent l\'ancien tag ne seront plus reliés à cette source tant que vous ne les aurez pas renommés.')) {
+                if (prefixChanged() && needConfirm('prefix', 'Changer le préfixe de « ' + editOriginalPrefix + ' » en « ' + source.Prefix + ' » ?\nLes fichiers et dossiers qui portent l\'ancien tag ne seront plus reliés à cette source tant que vous ne les aurez pas renommés.', { ok: 'Changer le préfixe', danger: true }, function() { document.querySelector('#sourceForm').requestSubmit(); })) {
                     return;
                 }
 
@@ -1929,7 +2007,7 @@
             };
 
             function closeEditor(force) {
-                if (!force && dirty && !confirm('Abandonner les modifications non enregistrées de cette source ?')) {
+                if (!force && dirty && needConfirm('discard', 'Abandonner les modifications ?\nCe que vous avez changé dans cette source depuis le dernier enregistrement est perdu.', { ok: 'Abandonner', danger: true }, function() { closeEditor(true); })) {
                     return false;
                 }
                 dirty = false;
@@ -2501,7 +2579,7 @@
                 var hit = findNode(seasonId);
                 if (!hit) { return; }
                 var season = hit.node;
-                if (overwrite && !confirm('Remettre les valeurs de l\'API sur tous les épisodes de cette saison ?\nLes champs que vous avez modifiés sont perdus (pris en compte à l\'enregistrement de la source).')) { return; }
+                if (overwrite && needConfirm('sync-overwrite', 'Remettre les valeurs de l\'API sur tous les épisodes de cette saison ?\nLes champs que vous avez modifiés sont perdus (pris en compte à l\'enregistrement de la source).', { ok: 'Remettre les valeurs', danger: true }, function() { syncEpisodes(seasonId, overwrite); })) { return; }
                 var say = function(text, bad) { var m = qs('#lfSyncMsg'); if (m) { m.textContent = text; m.style.color = bad ? '#e57373' : ''; } };
                 say('Récupération de la liste…');
                 ApiClient.ajax({
@@ -2563,7 +2641,7 @@
                 if (!hit) { return; }
                 var label = (hit.node.Title || 'sans titre');
                 var extra = hit.kind === 'series' ? '\nSes saisons et leurs épisodes sont supprimés avec elle.' : (hit.kind === 'season' ? '\nSes épisodes sont supprimés avec elle.' : '');
-                if (!confirm('Supprimer « ' + label + ' » ?' + extra + '\nPris en compte à l\'enregistrement de la source.')) { return; }
+                if (needConfirm('delete-node', 'Supprimer « ' + label + ' » ?' + extra + '\nPris en compte à l\'enregistrement de la source.', { ok: 'Supprimer', danger: true }, function() { deleteNode(id); })) { return; }
                 hit.list.splice(hit.list.indexOf(hit.node), 1);
                 localSel = null;
                 markDirty();
@@ -2942,7 +3020,7 @@
                 if (!hit || hit.kind !== 'episode') { return; }
                 var others = (hit.parent.Episodes || []).filter(function(e) { return e !== hit.node; });
                 if (!others.length) { castMessage('Cette saison n\'a pas d\'autre épisode.'); return; }
-                if (!confirm('Ajouter cette distribution ' + (others.length > 1 ? 'aux ' + others.length + ' autres épisodes' : 'à l\'autre épisode') + ' de la saison ?\nLes personnes déjà présentes sur un épisode ne sont pas modifiées.')) { return; }
+                if (needConfirm('season', 'Ajouter cette distribution ' + (others.length > 1 ? 'aux ' + others.length + ' autres épisodes' : 'à l\'autre épisode') + ' de la saison ?\nLes personnes déjà présentes sur un épisode ne sont pas modifiées.', { ok: 'Ajouter' }, applyCastToSeason)) { return; }
                 var added = 0;
                 others.forEach(function(e) {
                     e.Cast = e.Cast || [];

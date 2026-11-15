@@ -19,6 +19,16 @@
         }
         #CustomMetadataPeoplePage [data-role="content"] { overflow: visible; }
         #CustomMetadataPeoplePage [hidden] { display: none !important; }
+        /* In-page confirmation (replaces the browser's confirm()): same block in config.html, people.html and missing.html */
+        #CustomMetadataPeoplePage .cmd-backdrop { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, 0.6); }
+        #CustomMetadataPeoplePage .cmd-box { width: 100%; max-width: 480px; box-sizing: border-box; padding: 22px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; background: #202020; color: #fff; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6); }
+        #CustomMetadataPeoplePage .cmd-box h3 { margin: 0 0 8px; font-size: 18px; font-weight: 700; line-height: 1.3; }
+        #CustomMetadataPeoplePage .cmd-box p { margin: 0 0 6px; font-size: 14px; line-height: 1.5; color: rgba(255, 255, 255, 0.8); }
+        #CustomMetadataPeoplePage .cmd-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+        #CustomMetadataPeoplePage .cmd-actions button { min-height: 44px; padding: 0 18px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; background: rgba(255, 255, 255, 0.08); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+        #CustomMetadataPeoplePage .cmd-actions button:focus-visible { outline: 2px solid #00a4dc; outline-offset: 2px; }
+        #CustomMetadataPeoplePage .cmd-actions [data-cmd="ok"] { border-color: #00779f; background: #00779f; }
+        #CustomMetadataPeoplePage .cmd-actions [data-cmd="ok"].cmd-danger { border-color: #c0392b; background: #c0392b; }
         #CustomMetadataPeoplePage .pp-wrap { container-type: inline-size; }
         #CustomMetadataPeoplePage a.pp-link, #CustomMetadataPeoplePage .pp-linkbtn { color: var(--pp-link); text-decoration: none; background: none; border: 0; padding: 6px 0; font: inherit; font-weight: 600; cursor: pointer; }
         #CustomMetadataPeoplePage a.pp-link:hover, #CustomMetadataPeoplePage .pp-linkbtn:hover { text-decoration: underline; }
@@ -253,6 +263,73 @@
             var dirty = false;
             var ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 
+            // ---- In-page confirmation (same code in config.html, people.html and missing.html) ----
+            // ask(message, options) shows the box and resolves to true / false. The first line of the message is the title.
+            var cmdOpen = false, cmdSure = {};
+            function ask(message, options) {
+                options = options || {};
+                return new Promise(function(resolve) {
+                    var root = document.querySelector('#CustomMetadataPeoplePage');
+                    var previous = document.activeElement;
+                    var parts = String(message).split('\n');
+                    var back = document.createElement('div');
+                    back.className = 'cmd-backdrop';
+                    var box = document.createElement('div');
+                    box.className = 'cmd-box';
+                    box.setAttribute('role', 'alertdialog');
+                    box.setAttribute('aria-modal', 'true');
+                    box.setAttribute('aria-labelledby', 'cmdTitle');
+                    var title = document.createElement('h3');
+                    title.id = 'cmdTitle';
+                    title.textContent = parts[0];
+                    box.appendChild(title);
+                    parts.slice(1).forEach(function(text) { if (text.trim()) { var p = document.createElement('p'); p.textContent = text; box.appendChild(p); } });
+                    var actions = document.createElement('div');
+                    actions.className = 'cmd-actions';
+                    var cancel = document.createElement('button');
+                    cancel.type = 'button'; cancel.setAttribute('data-cmd', 'cancel'); cancel.textContent = options.cancel || 'Annuler';
+                    var ok = document.createElement('button');
+                    ok.type = 'button'; ok.setAttribute('data-cmd', 'ok'); ok.textContent = options.ok || 'Continuer';
+                    if (options.danger) { ok.className = 'cmd-danger'; }
+                    actions.appendChild(cancel); actions.appendChild(ok);
+                    box.appendChild(actions); back.appendChild(box); root.appendChild(back);
+                    cmdOpen = true;
+                    var done = function(answer) {
+                        back.removeEventListener('keydown', onKey);
+                        root.removeChild(back);
+                        cmdOpen = false;
+                        if (previous && previous.focus && document.contains(previous)) { previous.focus(); }
+                        resolve(answer);
+                    };
+                    var onKey = function(e) {
+                        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); }
+                        // Two buttons only: Tab goes from one to the other and stays in the box
+                        if (e.key === 'Tab') { e.preventDefault(); (document.activeElement === ok ? cancel : ok).focus(); }
+                    };
+                    back.addEventListener('keydown', onKey);
+                    back.addEventListener('click', function(e) {
+                        var button = e.target.closest('[data-cmd]');
+                        if (button) { done(button.getAttribute('data-cmd') === 'ok'); } else if (e.target === back) { done(false); }
+                    });
+                    // A destructive action starts on "Annuler": Enter must not delete by reflex
+                    (options.danger ? cancel : ok).focus();
+                });
+            }
+
+            // For code written around a yes/no question: returns true when the question had to be asked (the caller stops),
+            // then runs replay() once the user agreed; on that second pass it returns false and the caller goes on.
+            function needConfirm(key, message, options, replay) {
+                if (cmdSure[key]) { return false; }
+                ask(message, options).then(function(agreed) {
+                    if (!agreed) { cmdSure = {}; return; }
+                    cmdSure[key] = true;
+                    replay();
+                    // Answers are forgotten once the action went through (a second question may have been opened meanwhile)
+                    if (!cmdOpen) { cmdSure = {}; }
+                });
+                return true;
+            }
+
             function plural(n, one, many) { return n + ' ' + (n > 1 ? many : one); }
 
             function escapeHtml(text) {
@@ -329,6 +406,58 @@
                 var count = {};
                 people.forEach(function(p) { var k = normalizeName(p.Name); if (k) { count[k] = (count[k] || 0) + 1; } });
                 return count;
+            }
+
+            // "Fusionner" : the other entry disappears into this one (identifiers and casts follow). Same names come first.
+            function mergeBlock(person) {
+                var others = people.filter(function(p) { return p.Id !== person.Id && String(p.Name || '').trim(); });
+                if (!others.length || !person.Id) { return ''; }
+                var mine = normalizeName(person.Name);
+                var same = others.filter(function(p) { return mine && normalizeName(p.Name) === mine; });
+                var rest = others.filter(function(p) { return same.indexOf(p) < 0; });
+                var option = function(p, note) {
+                    var ids = (p.Links || []).map(function(l) { return l.Prefix + '-' + l.ExternalId; }).join(', ') || 'saisie manuelle';
+                    return '<option value="' + escapeHtml(p.Id) + '">' + escapeHtml(p.Name + ' (' + ids + ')' + note) + '</option>';
+                };
+                return '<div class="pp-merge"><div><strong>Fusionner avec une autre fiche</strong>'
+                    + '<span>' + (same.length ? 'Une autre fiche porte le même nom. ' : '') + 'L\'autre fiche disparaît dans celle-ci : ses identifiants et ses distributions passent ici, et sa photo ou sa biographie complètent les vôtres si elles sont vides.</span></div>'
+                    + '<select id="ppMergeWith" aria-label="Fiche à fusionner dans celle-ci">'
+                    + same.map(function(p) { return option(p, ' · même nom'); }).join('') + rest.map(function(p) { return option(p, ''); }).join('') + '</select>'
+                    + '<button is="emby-button" type="button" class="raised" data-merge="1"><span>Fusionner…</span></button>'
+                    + '<div class="pp-msg" id="ppMergeMsg" hidden role="status" style="flex: 1 1 100%;"></div></div>';
+            }
+
+            function mergeInto(person, t) {
+                var other = byId((qs('#ppMergeWith') || {}).value);
+                var say = function(text) { var m = qs('#ppMergeMsg'); if (m) { m.textContent = text; m.hidden = false; } };
+                if (!other) { return; }
+                if (dirty || dirtyEp) { say('Enregistrez d\'abord vos modifications : la fusion s\'applique à l\'annuaire enregistré.'); return; }
+                if (needConfirm('merge', 'Fusionner « ' + other.Name + ' » dans « ' + person.Name + ' » ?\nLa fiche « ' + other.Name + ' » est supprimée ; ses identifiants et ses distributions passent sur « ' + person.Name + ' ».\nCette action est immédiate.', { ok: 'Fusionner', danger: true }, function() { t.click(); })) { return; }
+                Dashboard.showLoadingMsg();
+                ApiClient.ajax({
+                    type: 'POST', url: ApiClient.getUrl('CustomMetadata/People/Merge'),
+                    data: JSON.stringify({ KeepId: person.Id, RemoveId: other.Id }), contentType: 'application/json', dataType: 'json'
+                }).then(function(result) {
+                    people = ((result.Directory || {}).People || []).map(function(p) { p.Links = p.Links || []; return p; });
+                    selected = result.KeptId;
+                    castLoaded = false;              // the casts changed on the server
+                    changedPersons[result.KeptId] = true;   // items in Jellyfin still show the old entry
+                    renderList();
+                    renderDetail();
+                    showApplyNotice();
+                    loadNavStatus();
+                    // The form was redrawn (and has no merge block left when a single entry remains): the result goes at its top
+                    var note = document.createElement('div');
+                    note.className = 'pp-msg';
+                    note.id = 'ppMergeDone';
+                    note.setAttribute('role', 'status');
+                    note.textContent = 'Fusion faite' + (result.Casts ? ' : ' + plural(result.Casts, 'distribution mise à jour', 'distributions mises à jour') : '') + '.';
+                    qs('#ppDetail').insertBefore(note, qs('#ppDetail').firstChild);
+                    Dashboard.hideLoadingMsg();
+                }, function() {
+                    Dashboard.hideLoadingMsg();
+                    say('La fusion a échoué. Rien n\'a été modifié dans l\'annuaire.');
+                });
             }
 
             // ---- Liste ----
@@ -766,7 +895,7 @@
                 var source = episodeCast[epOpen] || [];
                 var others = hit.season.Episodes.filter(function(e) { return typedKey('episode', e.Key) !== epOpen; });
                 if (!others.length) { epMessage('Cette saison n\'a pas d\'autre épisode.'); return; }
-                if (!confirm('Ajouter cette distribution ' + (others.length > 1 ? 'aux ' + others.length + ' autres épisodes' : 'à l\'autre épisode') + ' de la saison ?\nLes personnes déjà présentes sur un épisode ne sont pas modifiées.')) { return; }
+                if (needConfirm('season', 'Ajouter cette distribution ' + (others.length > 1 ? 'aux ' + others.length + ' autres épisodes' : 'à l\'autre épisode') + ' de la saison ?\nLes personnes déjà présentes sur un épisode ne sont pas modifiées.', { ok: 'Ajouter' }, applyEpToSeason)) { return; }
                 var added = 0;
                 others.forEach(function(e) {
                     var tk = typedKey('episode', e.Key);
@@ -868,7 +997,7 @@
                 if (t.hasAttribute('data-cast-add')) { addEpCast(); return; }
                 if (t.hasAttribute('data-cast-season')) { applyEpToSeason(); return; }
                 if (t.hasAttribute('data-element-remove') && epOpen) {
-                    if ((episodeCast[epOpen] || []).length && !confirm('Retirer la distribution de cet élément ?')) { return; }
+                    if ((episodeCast[epOpen] || []).length && needConfirm('element', 'Retirer la distribution de cet élément ?\nPris en compte à l\'enregistrement.', { ok: 'Retirer', danger: true }, function() { t.click(); })) { return; }
                     markEpDirty([epOpen]);
                     delete episodeCast[epOpen];
                     epOpen = null;
@@ -965,7 +1094,7 @@
                     var index = parseInt(t.getAttribute(overwrite ? 'data-link-overwrite' : 'data-link-fill'), 10);
                     var link = person.Links[index];
                     if (!link.Prefix || !link.ExternalId) { linkMessage('Choisissez une source et saisissez un identifiant.', false); return; }
-                    if (overwrite && !confirm('Remplacer le nom, la photo et la biographie de cette fiche par ceux de la source ?')) { return; }
+                    if (overwrite && needConfirm('overwrite', 'Écraser cette fiche avec la source ?\nLe nom, la photo et la biographie saisis ici sont remplacés par ceux de la source.', { ok: 'Écraser', danger: true }, function() { t.click(); })) { return; }
                     linkMessage('Interrogation de la source…', true);
                     fetchPerson(link.Prefix, link.ExternalId).then(function(result) {
                         if (result.Error) { linkMessage(result.Error, false); return; }
@@ -976,7 +1105,7 @@
                     return;
                 }
                 if (t.hasAttribute('data-delete')) {
-                    if (!confirm('Supprimer « ' + (person.Name || 'sans nom') + ' » ?\nPris en compte à l\'enregistrement.')) { return; }
+                    if (needConfirm('delete', 'Supprimer « ' + (person.Name || 'sans nom') + ' » ?\nPris en compte à l\'enregistrement.', { ok: 'Supprimer', danger: true }, function() { t.click(); })) { return; }
                     people = people.filter(function(p) { return p.Id !== person.Id; });
                     markDirty(person.Id);
                     selected = null;
@@ -1064,10 +1193,10 @@
             qs('#ppSave').addEventListener('click', function() {
                 var named = people.filter(function(p) { return String(p.Name || '').trim(); });
                 if (dirty) {
-                    if (named.length !== people.length && !confirm((people.length - named.length > 1 ? (people.length - named.length) + ' fiches sans nom ne seront pas enregistrées' : 'Une fiche sans nom ne sera pas enregistrée') + '. Continuer ?')) { return; }
+                    if (named.length !== people.length && needConfirm('unnamed', 'Enregistrer sans les fiches sans nom ?\n' + (people.length - named.length > 1 ? (people.length - named.length) + ' fiches sans nom ne seront pas enregistrées' : 'Une fiche sans nom ne sera pas enregistrée') + '.', { ok: 'Enregistrer' }, function() { qs('#ppSave').click(); })) { return; }
                     var dups = duplicateNames();
                     var dupCount = Object.keys(dups).filter(function(k) { return dups[k] > 1; }).length;
-                    if (dupCount && !confirm((dupCount > 1 ? dupCount + ' noms existent' : 'Un nom existe') + ' en double dans l\'annuaire. Enregistrer quand même ?')) { return; }
+                    if (dupCount && needConfirm('duplicates', 'Enregistrer avec des doublons ?\n' + (dupCount > 1 ? dupCount + ' noms existent' : 'Un nom existe') + ' en double dans l\'annuaire.', { ok: 'Enregistrer' }, function() { qs('#ppSave').click(); })) { return; }
                 }
                 Dashboard.showLoadingMsg();
                 // The directory first: the casts refer to it by identifier
@@ -1111,7 +1240,7 @@
             });
 
             qs('#ppCancel').addEventListener('click', function() {
-                if ((dirty || dirtyEp) && !confirm('Abandonner les modifications non enregistrées ?')) { return; }
+                if ((dirty || dirtyEp) && needConfirm('discard', 'Abandonner les modifications ?\nCe que vous avez changé depuis le dernier enregistrement est perdu.', { ok: 'Abandonner', danger: true }, function() { qs('#ppCancel').click(); })) { return; }
                 castLoaded = false;
                 changedPersons = {};
                 changedKeys = {};

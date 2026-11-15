@@ -74,7 +74,7 @@ try {
   console.log('distribution :', await evalJs(`Array.from(document.querySelectorAll('${C} .cm-cast-row')).map(function(r){return r.querySelector('.cm-cast-name').textContent+' / '+r.querySelector('.cm-cast-type').value;}).join(' | ')`));
   await shot('R8-cast-1440');
   // Source type choice and editor of a people source
-  await evalJs(`window.confirm=function(){return true;}; document.querySelector('${C} #btnBackToList').click(); true`); await wait(500);
+  await evalJs(`window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} document.querySelector('${C} #btnBackToList').click(); true`); await wait(500);
   await click(`${C} .cm-toolbar .button-submit`); await wait(400);
   await shot('R9-chooser-3-types-1440');
   await click(`${C} [data-new-type="people"]`); await wait(700);

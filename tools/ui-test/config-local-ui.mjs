@@ -64,7 +64,7 @@ window.fetch = function (url, o) {
   return Promise.reject(new Error('fetch inattendu'));
 };
 window.Dashboard = { showLoadingMsg: function () {}, hideLoadingMsg: function () {}, processPluginConfigurationUpdateResult: function () {}, alert: function (m) { __mock.alerts.push(m); } };
-window.confirm = function () { return true; };
+window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});}
 `;
 let html = fs.readFileSync(new URL('../../Configuration/config.html', import.meta.url), 'utf8');
 html = html.replace('<head>', `<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{background:#101010;color:#fff;font:16px/1.4 sans-serif;margin:0;padding:0 16px} input,textarea,select{background:#1e1e1e;color:#fff;border:1px solid #555;padding:8px;width:100%;box-sizing:border-box;font:inherit} button{font:inherit;color:#fff;background:#333;border:1px solid #555;padding:8px 14px;border-radius:4px} .inputContainer{margin:0 0 12px} .inputLabel{display:block;margin-bottom:4px}</style><script>${shim}</script>`);
@@ -451,10 +451,10 @@ try {
   await type('#srcPrefix', 'dm');
   check('prefix restored: warning removed', !(await vis('#prefixWarn')));
   await type('#srcPrefix', 'zz');
-  await ev(`window.confirm = function () { return false; }; true`);
+  await ev(`window.__cmdAnswer='cancel'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} true`);
   await click('#sourceForm button[type=submit]'); await wait(400);
   check('prefix: confirmation refused = stay in the editor, nothing saved', (await vis('#editorView')) && JSON.parse(await ev(`JSON.stringify(__mock.config.Sources.map(function(x){return x.Prefix;}))`))[0] === 'dm');
-  await ev(`window.confirm = function () { return true; }; true`);
+  await ev(`window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} true`);
   await click('#sourceForm button[type=submit]'); await wait(500);
   check('prefix: confirmation = saved', JSON.parse(await ev(`JSON.stringify(__mock.config.Sources.map(function(x){return x.Prefix;}))`))[0] === 'zz');
   // Custom headers: quotes in a value are kept (typed, saved, shown again)
