@@ -24,7 +24,7 @@ window.ApiClient = {
   getPluginConfiguration: function () { return Promise.resolve(clone(__mock.config)); },
   updatePluginConfiguration: function (id, c) { __mock.config = clone(c); __mock.calls.push('PLUGIN'); return Promise.resolve({}); },
   getJSON: function (url) {
-    if (/CustomMetadata\\/Refresh\\/Status/.test(url)) { __mock.calls.push('REFRESH-STATUS'); return Promise.resolve({ Running: false, Prefix: __mock.refresh.Prefix, Total: 3, Done: 3, Failed: 0, Series: 1, Seasons: 1, Episodes: 1 }); }
+    if (/CustomMetadata\\/Refresh\\/Status/.test(url)) { __mock.calls.push('REFRESH-STATUS'); return Promise.resolve({ Running: false, Prefix: __mock.refresh.Prefix, Total: 3, Done: 3, Failed: 0, Series: 1, Seasons: 1, Episodes: 1, LocalFilesKept: __mock.kept || 0 }); }
     if (/CustomMetadata\\/People/.test(url)) { __mock.calls.push('GET people'); return Promise.resolve(clone({ Version: 1, People: __mock.people })); }
     var m = url.match(/CustomMetadata\\/Local\\/(.+)$/);
     __mock.calls.push('GET ' + m[1]);
@@ -409,6 +409,13 @@ try {
   await click('.cm-group-head[data-group="dm"] [data-refresh]'); await wait(1800);
   const sentImages = JSON.parse(await ev(`JSON.stringify(__mock.refresh)`));
   check('refresh: with Images unticked only the metadata is replaced', sentImages.ReplaceImages === false, JSON.stringify(sentImages));
+  // An old poster.jpg left in a media folder: the result says so (Jellyfin would pick it again at the next scan)
+  await ev(`__mock.kept = 2; true`);
+  await click('.cm-group-head[data-group="dm"] [data-refresh]'); await wait(1800);
+  const keptText = await ev(`document.querySelector('.cm-group-status[data-refresh-status="dm"]').textContent`);
+  check('refresh: old image files left in the media folders are reported', /2 anciens fichiers image restent/.test(keptText) && /supprimez-les/.test(keptText), keptText);
+  await shot('L13-refresh-kept-files');
+  await ev(`__mock.kept = 0; true`);
   // 9. API source: the editor is unchanged
   await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
   const apiNav = await ev(`Array.from(document.querySelectorAll('${P} .cm-nav-item')).filter(function(b){return b.offsetParent!==null;}).length`);

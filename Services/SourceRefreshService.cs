@@ -48,6 +48,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public DateTime? StartedAt { get; set; }
         public DateTime? FinishedAt { get; set; }
 
+        /// <summary>Image files left in media folders (poster.jpg…) although the plugin applied another image: they come back at the next scan</summary>
+        public int LocalFilesKept { get; set; }
+
         /// <summary>Why nothing was started (a refresh is already running…)</summary>
         public string Message { get; set; }
     }
@@ -92,7 +95,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private static SourceRefreshStatus Copy(SourceRefreshStatus s) => new SourceRefreshStatus
         {
             Running = s.Running, Prefix = s.Prefix, Total = s.Total, Done = s.Done, Failed = s.Failed,
-            Series = s.Series, Seasons = s.Seasons, Episodes = s.Episodes, StartedAt = s.StartedAt, FinishedAt = s.FinishedAt, Message = s.Message
+            Series = s.Series, Seasons = s.Seasons, Episodes = s.Episodes, StartedAt = s.StartedAt, FinishedAt = s.FinishedAt, Message = s.Message, LocalFilesKept = s.LocalFilesKept
         };
 
         /// <summary>Finds the items, then refreshes them in the background. Returns at once with the counts.</summary>
@@ -242,25 +245,57 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
 
                 bool IsType(ImageInfo i, string name) => string.Equals(i.Type, name, StringComparison.OrdinalIgnoreCase) || (name == "Primary" && string.Equals(i.Type, "Poster", StringComparison.OrdinalIgnoreCase));
+                var folderImages = item is Series || item is Season ? FolderImages.Discover(item.Path) : new List<FolderImage>();
+                var keptLocalFiles = new List<string>();
                 foreach (var (type, name) in new[] { (ImageType.Primary, "Primary"), (ImageType.Thumb, "Thumb"), (ImageType.Logo, "Logo"), (ImageType.Banner, "Banner") })
                 {
-                    // An episode without a poster takes its thumbnail as Primary, like the image provider does
-                    var first = images.FirstOrDefault(i => IsType(i, name)) ?? (item is Episode && name == "Primary" ? images.FirstOrDefault(i => IsType(i, "Thumb")) : null);
-                    if (first != null)
+                    // Candidates in order: the API and the local source, then (episode without a poster) its thumbnail like the image
+                    // provider does, then the matching sub-folder (Primary/, Logo/…) of a series or season folder. The first one that
+                    // can be read wins: an image that no longer exists must not leave the item without any image.
+                    var urls = images.Where(i => IsType(i, name)).Select(i => i.Url).ToList();
+                    if (urls.Count == 0 && item is Episode && name == "Primary")
                     {
-                        var (data, mime) = await Fetch(first.Url, item is Episode && type is ImageType.Primary or ImageType.Thumb && source.LandscapePortraitThumbs);
-                        await Apply(type, 0, data, mime);
+                        urls = images.Where(i => IsType(i, "Thumb")).Select(i => i.Url).ToList();
+                    }
+
+                    byte[] data = null;
+                    string mime = null;
+                    foreach (var url in urls.Where(u => !string.IsNullOrEmpty(u)).Distinct())
+                    {
+                        (data, mime) = await Fetch(url, item is Episode && type is ImageType.Primary or ImageType.Thumb && source.LandscapePortraitThumbs);
+                        if (data != null && data.Length > 0)
+                        {
+                            break;
+                        }
+
+                        _logger.LogWarning("🔁 [SOURCE REFRESH] ⚠️ '{Name}': {Type} image {Url} could not be read - trying the next one", item.Name, name, url);
+                    }
+
+                    if (data == null || data.Length == 0)
+                    {
+                        var fromFolder = folderImages.FirstOrDefault(i => i.Type == name);
+                        if (fromFolder != null)
+                        {
+                            data = await File.ReadAllBytesAsync(fromFolder.FullPath);
+                            mime = FolderImages.MimeOf(fromFolder.File);
+                        }
+                    }
+
+                    if (data == null || data.Length == 0)
+                    {
                         continue;
                     }
 
-                    // Nothing from the API or the local source: the first image of the matching sub-folder (Primary/, Logo/…) of a series or season folder
-                    if (item is Series || item is Season)
+                    var previous = item.GetImageInfo(type, 0)?.Path;
+                    await Apply(type, 0, data, mime);
+
+                    // An image file left in the media folder (poster.jpg…) is not deleted by Jellyfin and is picked again at the next
+                    // library scan: say so, the person has to remove it (or move it into the Primary/… sub-folder)
+                    var current = item.GetImageInfo(type, 0)?.Path;
+                    if (!string.IsNullOrEmpty(previous) && !string.Equals(previous, current, StringComparison.OrdinalIgnoreCase) && File.Exists(previous)
+                        && !previous.StartsWith(item.GetInternalMetadataPath(), StringComparison.OrdinalIgnoreCase))
                     {
-                        var fromFolder = FolderImages.Discover(item.Path).FirstOrDefault(i => i.Type == name);
-                        if (fromFolder != null)
-                        {
-                            await Apply(type, 0, await File.ReadAllBytesAsync(fromFolder.FullPath), FolderImages.MimeOf(fromFolder.File));
-                        }
+                        keptLocalFiles.Add(previous);
                     }
                 }
 
@@ -279,26 +314,46 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         AddBackdrop(data, mime);
                     }
 
-                    foreach (var file in FolderImages.Discover(item.Path).Where(i => i.Type == "Backdrop"))
+                    foreach (var file in folderImages.Where(i => i.Type == "Backdrop"))
                     {
                         AddBackdrop(await File.ReadAllBytesAsync(file.FullPath), FolderImages.MimeOf(file.File));
                     }
 
+                    var previousBackdrops = item.GetImages(ImageType.Backdrop).Select(i => i.Path).ToList();
                     for (var i = 0; i < backdrops.Count; i++)
                     {
                         await Apply(ImageType.Backdrop, i, backdrops[i].Data, backdrops[i].Mime);
+                    }
+
+                    // Same as above for an old backdrop.jpg / fanart.jpg left in the media folder and no longer used
+                    if (backdrops.Count > 0)
+                    {
+                        var currentBackdrops = new HashSet<string>(item.GetImages(ImageType.Backdrop).Select(i => i.Path), StringComparer.OrdinalIgnoreCase);
+                        keptLocalFiles.AddRange(previousBackdrops.Where(path => !string.IsNullOrEmpty(path) && !currentBackdrops.Contains(path) && File.Exists(path)
+                            && !path.StartsWith(item.GetInternalMetadataPath(), StringComparison.OrdinalIgnoreCase)));
                     }
 
                     var extra = backdrops.Count >= 2 ? item.GetImages(ImageType.Backdrop).Skip(backdrops.Count).ToList() : new List<ItemImageInfo>();
                     if (extra.Count > 0)
                     {
                         item.RemoveImages(extra);
-                        await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, CancellationToken.None);
                         changed.Add("-" + extra.Count + " old backdrop(s)");
                     }
                 }
 
+                // ImageSaver only sets the new paths on the item in memory: without this the database keeps the old image list, and the
+                // images vanish as soon as Jellyfin reloads the item (restart, or cache eviction in a big library)
+                if (changed.Count > 0)
+                {
+                    await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, CancellationToken.None);
+                }
+
                 _logger.LogInformation("🔁 [SOURCE REFRESH] 🖼️ '{Name}': {Result}", item.Name, changed.Count == 0 ? "images already up to date" : "images applied by the plugin: " + string.Join(", ", changed));
+                if (keptLocalFiles.Count > 0)
+                {
+                    lock (StatusLock) { _status.LocalFilesKept += keptLocalFiles.Count; }
+                    _logger.LogWarning("🔁 [SOURCE REFRESH] ⚠️ '{Name}': old image file(s) still in the media folder, Jellyfin will pick them again at the next library scan - remove them or move them into the image sub-folder: {Files}", item.Name, string.Join(", ", keptLocalFiles));
+                }
             }
             catch (Exception ex)
             {

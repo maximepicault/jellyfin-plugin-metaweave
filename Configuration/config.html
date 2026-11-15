@@ -100,6 +100,7 @@
         #CustomMetadataConfigPage .cm-group-head [data-refresh] { margin: 0; }
         #CustomMetadataConfigPage .cm-group-head [data-refresh][disabled] { opacity: .45; cursor: not-allowed; }
         #CustomMetadataConfigPage .cm-group-status { flex-basis: 100%; font-size: 13px; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-group-warn { display: block; margin-top: 4px; color: #e6b450; }
         #CustomMetadataConfigPage .cm-card-head { display: flex; align-items: flex-start; gap: 12px; }
         #CustomMetadataConfigPage .cm-card-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
         #CustomMetadataConfigPage .cm-card h3 { margin: 0; font-size: 18px; font-weight: 700; }
@@ -1762,9 +1763,12 @@
 
             // Enabled / Disabled switch of a card: saved immediately, like the rest of the sources
             // Targeted refresh of a prefix (the group header of the Sources tab): only the library items that carry it, in the background
-            function refreshSay(prefix, text, bad) {
+            function refreshSay(prefix, text, bad, warning) {
                 Array.prototype.forEach.call(document.querySelectorAll('#sourcesList [data-refresh-status]'), function(el) {
-                    if (el.getAttribute('data-refresh-status') === prefix) { el.textContent = text; el.style.color = bad ? '#e57373' : ''; }
+                    if (el.getAttribute('data-refresh-status') !== prefix) { return; }
+                    el.textContent = text; el.style.color = bad ? '#e57373' : '';
+                    // A warning is its own line in amber: the refresh itself succeeded
+                    if (warning) { var w = document.createElement('span'); w.className = 'cm-group-warn'; w.textContent = warning; el.appendChild(w); }
                 });
             }
             function refreshProgress(prefix, status) {
@@ -1781,7 +1785,12 @@
                         refreshSay(prefix, 'Actualisation en cours : ' + refreshProgress(prefix, st));
                         setTimeout(function() { pollRefresh(prefix); }, 1500);
                     } else {
-                        refreshSay(prefix, 'Terminé : ' + refreshProgress(prefix, st) + '.', !!st.Failed);
+                        // An old poster.jpg… left in a media folder is picked again by Jellyfin at the next scan: the person has to remove it
+                        var n = st.LocalFilesKept || 0, many = n > 1;
+                        var kept = n ? n + (many ? ' anciens fichiers image restent' : ' ancien fichier image reste') + ' dans les dossiers média (poster.jpg, backdrop.jpg…). Jellyfin '
+                            + (many ? 'les' : 'le') + ' reprendra au prochain scan : supprimez-' + (many ? 'les' : 'le') + ' ou déplacez-' + (many ? 'les' : 'le')
+                            + ' dans le sous-dossier d\'images. Le journal du serveur donne les chemins.' : '';
+                        refreshSay(prefix, 'Terminé : ' + refreshProgress(prefix, st) + '.', !!st.Failed, kept);
                         Array.prototype.forEach.call(document.querySelectorAll('#sourcesList [data-refresh]'), function(b) { b.disabled = false; });
                     }
                 });
