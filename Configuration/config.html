@@ -445,6 +445,7 @@
                         <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataMissingEpisodes">Épisodes manquants <span class="cmn-count" data-cmn-count="missing"></span></a>
                         <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataPeople">Personnes <span class="cmn-count" data-cmn-count="people"></span></a>
                         <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDiagnostic">Diagnostic <span class="cmn-count" data-cmn-count="diagnostic"></span></a>
+                        <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataTaxonomy">Genres et tags <span class="cmn-count" data-cmn-count="taxonomy"></span></a>
                     </nav>
                     <div class="cm-head">
                         <h2 class="sectionTitle">Configuration</h2>
@@ -1103,6 +1104,7 @@
                     lastStatus = s;
                     renderSetupGuide();
                     set('diagnostic', s.NotEnriched, s.NotEnriched > 0 ? 'warn' : '', s.NotEnriched == null ? '' : n(s.NotEnriched, 'élément non enrichi', 'éléments non enrichis'));
+                    set('taxonomy', s.TaxonomyRules, '', s.TaxonomyRules == null ? '' : n(s.TaxonomyRules, 'règle', 'règles'));
                     centre();
                 }, function() { /* counters are a comfort: the page works without them */ });
             }

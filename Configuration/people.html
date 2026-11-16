@@ -176,6 +176,7 @@
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataMissingEpisodes">Épisodes manquants <span class="cmn-count" data-cmn-count="missing"></span></a>
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataPeople" aria-current="page">Personnes <span class="cmn-count" data-cmn-count="people"></span></a>
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDiagnostic">Diagnostic <span class="cmn-count" data-cmn-count="diagnostic"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataTaxonomy">Genres et tags <span class="cmn-count" data-cmn-count="taxonomy"></span></a>
                 </nav>
                 <h2>Personnes</h2>
                 <p class="pp-lead">L'annuaire du casting, commun à toutes les sources. Chaque personne peut venir d'une ou plusieurs API (un identifiant par source) ou être saisie à la main. Elles s'ajoutent ensuite à la distribution des épisodes : dans la source pour une source locale, dans l'onglet « Distribution des épisodes d'API » pour une source API.</p>
@@ -1305,6 +1306,7 @@
                         s.MissingEpisodes == null ? '' : n(s.MissingEpisodes, 'épisode manquant', 'épisodes manquants') + (s.SourceErrors > 0 ? ', ' + n(s.SourceErrors, 'source en erreur', 'sources en erreur') : ''));
                     set('people', s.People, '', n(s.People, 'personne', 'personnes'));
                     set('diagnostic', s.NotEnriched, s.NotEnriched > 0 ? 'warn' : '', s.NotEnriched == null ? '' : n(s.NotEnriched, 'élément non enrichi', 'éléments non enrichis'));
+                    set('taxonomy', s.TaxonomyRules, '', s.TaxonomyRules == null ? '' : n(s.TaxonomyRules, 'règle', 'règles'));
                     centre();
                 }, function() { /* counters are a comfort: the page works without them */ });
             }

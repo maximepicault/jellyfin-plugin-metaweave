@@ -34,10 +34,10 @@ try {
   await page.waitForFunction(() => !location.hash.includes('login'));
 
   // ---- 1. the shared tab bar on the four pages
-  for (const [name, root, label] of [['Custom%20Metadata%20Provider', C, 'Configuration'], ['CustomMetadataMissingEpisodes', M, 'Épisodes manquants'], ['CustomMetadataPeople', P, 'Personnes'], ['CustomMetadataDiagnostic', D, 'Diagnostic']]) {
+  for (const [name, root, label] of [['Custom%20Metadata%20Provider', C, 'Configuration'], ['CustomMetadataMissingEpisodes', M, 'Épisodes manquants'], ['CustomMetadataPeople', P, 'Personnes'], ['CustomMetadataDiagnostic', D, 'Diagnostic'], ['CustomMetadataTaxonomy', '#CustomMetadataTaxonomyPage', 'Genres et tags']]) {
     await open(name, root);
     const tabs = await page.$$eval(`${root} .cmn-tab`, els => els.map(e => e.firstChild.textContent.trim()));
-    check(`tab bar on ${label}: four tabs`, tabs.join('|') === 'Configuration|Épisodes manquants|Personnes|Diagnostic', tabs.join('|'));
+    check(`tab bar on ${label}: five tabs`, tabs.join('|') === 'Configuration|Épisodes manquants|Personnes|Diagnostic|Genres et tags', tabs.join('|'));
     check(`tab bar on ${label}: current tab marked`, (await page.$eval(`${root} .cmn-tab[aria-current="page"]`, e => e.firstChild.textContent.trim())) === label);
   }
   await open('CustomMetadataMissingEpisodes', M);

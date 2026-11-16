@@ -85,6 +85,7 @@
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataMissingEpisodes">Épisodes manquants <span class="cmn-count" data-cmn-count="missing"></span></a>
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataPeople">Personnes <span class="cmn-count" data-cmn-count="people"></span></a>
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDiagnostic" aria-current="page">Diagnostic <span class="cmn-count" data-cmn-count="diagnostic"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataTaxonomy">Genres et tags <span class="cmn-count" data-cmn-count="taxonomy"></span></a>
                 </nav>
                 <h2>Diagnostic</h2>
                 <p class="dg-lead">Pourquoi un fichier ou un dossier n'est pas enrichi par le plugin : le chemin complet est rejoué, de son nom jusqu'aux images, et s'arrête à la première étape qui bloque. Rien n'est modifié.</p>
@@ -151,6 +152,7 @@
                         s.MissingEpisodes == null ? '' : n(s.MissingEpisodes, 'épisode manquant', 'épisodes manquants') + (s.SourceErrors > 0 ? ', ' + n(s.SourceErrors, 'source en erreur', 'sources en erreur') : ''));
                     set('people', s.People, '', n(s.People, 'personne', 'personnes'));
                     set('diagnostic', s.NotEnriched, s.NotEnriched > 0 ? 'warn' : '', s.NotEnriched == null ? '' : n(s.NotEnriched, 'élément non enrichi', 'éléments non enrichis'));
+                    set('taxonomy', s.TaxonomyRules, '', s.TaxonomyRules == null ? '' : n(s.TaxonomyRules, 'règle', 'règles'));
                     centre();
                 }, function() { /* counters are a comfort: the page works without them */ });
             }

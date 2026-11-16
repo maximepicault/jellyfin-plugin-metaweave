@@ -61,6 +61,13 @@ namespace Jellyfin.Plugin.CustomMetadata
                     Name = "CustomMetadataDiagnostic",
                     DisplayName = "Diagnostic",
                     EmbeddedResourcePath = GetType().Namespace + ".Configuration.diagnostic.html"
+                },
+                new PluginPageInfo
+                {
+                    // "Genres et tags" screen: rules on the terms given to Jellyfin. Reached from the tab bar, not from the left menu.
+                    Name = "CustomMetadataTaxonomy",
+                    DisplayName = "Genres et tags",
+                    EmbeddedResourcePath = GetType().Namespace + ".Configuration.taxonomy.html"
                 }
             };
         }
