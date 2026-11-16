@@ -145,10 +145,10 @@ try {
 
   await page.fill(`${T} #txAddName`, 'Zeste');
   await page.click(`${T} #txAddForm button[type=submit]`);
-  check('screen: a created term is listed at once, marked "créé ici"', (await page.$eval(row('zeste'), e => e.textContent)).includes('créé ici') && (await text(page, `${T} #txDirty`)) === 'Modifications non enregistrées');
+  check('screen: a created term is listed at once, marked "créé ici"', (await page.$eval(row('zeste'), e => e.textContent)).includes('créé ici') && /non enregistrée/.test(await text(page, `${T} #txDirty`)) && (await page.$eval(row('zeste'), e => e.getAttribute('data-changed'))) === 'true');
   await page.click(`${row('docu')} [data-unify]`);
-  check('screen: "Unifier" turns it into a spelling rule', (await page.$eval(`${row('docu')} .tx-state`, e => e.value)) === 'replace' && (await page.$eval(`${row('docu')} .tx-target`, e => e.value)) === 'Docu' && (await page.$eval(row('docu'), e => e.textContent)).includes('orthographe fixée'));
-  await page.selectOption(`${row('voyage')} .tx-state`, 'replace');
+  check('screen: "Unifier" turns it into a spelling rule', (await page.$eval(row('docu'), e => e.getAttribute('data-state'))) === 'replace' && (await page.$eval(`${row('docu')} .tx-target`, e => e.value)) === 'Docu' && (await page.$eval(row('docu'), e => e.textContent)).includes('orthographe fixée'));
+  await page.click(`${row('voyage')} [data-act="replace"]`);
   await page.fill(`${row('voyage')} .tx-target`, 'Voyages');
   await page.check(`${row('aventure')} .tx-check`);
   await page.check(`${row('zeste')} .tx-check`);
@@ -156,16 +156,22 @@ try {
   await page.fill(`${T} #txMergeTarget`, 'Exploration');
   await page.click(`${T} #txMergeBtn`);
   check('screen: merging makes both terms point to the common name', (await page.$eval(`${row('aventure')} .tx-target`, e => e.value)) === 'Exploration' && (await page.$eval(`${row('zeste')} .tx-target`, e => e.value)) === 'Exploration');
+  check('screen: the mirror button offers to copy the genre rules to the tags', await page.isVisible(`${T} #txMirror`) && /règle/.test(await text(page, `${T} #txMirror`)), await text(page, `${T} #txMirror`));
+  await page.click(`${T} #txMirror`);
+  check('screen: mirrored rules appear in the other list, as unsaved changes', /reportée/.test(await text(page, `${T} #txAddMsg`)) && !(await page.isVisible(`${T} #txMirror`)));
   await page.click(`${T} .tx-pill[data-kind="tag"]`);
+  await page.waitForSelector(row('voyage'));
+  check('screen: the tag carries the same rename as the genre', (await page.$eval(row('voyage'), e => e.getAttribute('data-state'))) === 'replace' && (await page.$eval(`${row('voyage')} .tx-target`, e => e.value)) === 'Voyages');
   await page.waitForSelector(row('perso'));
-  await page.selectOption(`${row('perso')} .tx-state`, 'ignore');
+  await page.click(`${row('perso')} [data-act="ignore"]`);
   check('screen: an ignored term is struck through', (await page.$eval(row('perso'), e => e.getAttribute('data-state'))) === 'ignore');
   await page.click(`${T} .tx-pill[data-kind="genre"]`);
+  check('screen: the filter chips count the changed terms and list only them', await (async () => { await page.click(`${T} [data-filter="changed"]`); const keys = await page.$$eval(`${T} .tx-row[data-key]`, els => els.map(e => e.getAttribute('data-key'))); await page.click(`${T} [data-filter=""]`); return keys.includes('voyage') && keys.includes('zeste') && keys.includes('docu'); })());
   await shot('X2-edited-1440');
 
   // a rename without a name is refused with the term named, not dropped in silence
-  await page.selectOption(`${row('docu')} .tx-state`, 'keep');
-  await page.selectOption(`${row('docu')} .tx-state`, 'replace');
+  await page.click(`${row('docu')} [data-act="keep"]`);
+  await page.click(`${row('docu')} [data-act="replace"]`);
   await page.click(`${T} #txSave`);
   check('screen: a rename without a new name stops the save and says which term', (await text(page, `${T} #txDirty`)).includes('nouveau nom') && (await page.$eval(`${row('docu')} .tx-target`, e => e.classList.contains('tx-bad'))));
   await page.fill(`${row('docu')} .tx-target`, 'Docu');
@@ -176,6 +182,18 @@ try {
   const stored = (await api('GET', '/CustomMetadata/Taxonomy')).json;
   check('screen: the rules are stored (spelling, rename, merge, ignored tag, created term)', !!term(stored, 'genre', 'Voyage') && pick(term(stored, 'genre', 'Voyage'), 'ReplaceWith') === 'Voyages' && pick(term(stored, 'genre', 'Aventure'), 'ReplaceWith') === 'Exploration' && pick(term(stored, 'tag', 'Perso'), 'Ignored') === true);
   check('screen: after saving, a renamed term folds into the row of the term it joins', !(await page.$(row('aventure'))) && (await page.$eval(row('exploration'), e => e.textContent)).includes('Fusionné ici') && !!(await page.$(`${row('exploration')} [data-unfold]`)));
+  // A rename that is already saved (folded under its target) can still be copied to the other list
+  check('screen: a saved, folded rename is mirrored to the tags after the tag side was undone', await (async () => {
+    await page.click(`${T} .tx-pill[data-kind="tag"]`);
+    await page.click(`${row('exploration')} [data-unfold]`);
+    await page.click(`${T} .tx-pill[data-kind="genre"]`);
+    const offered = await page.isVisible(`${T} #txMirror`);
+    await page.click(`${T} #txMirror`);
+    await page.click(`${T} .tx-pill[data-kind="tag"]`);
+    const back = (await page.$eval(row('aventure'), e => e.getAttribute('data-state'))) === 'replace' && (await page.$eval(`${row('aventure')} .tx-target`, e => e.value)) === 'Exploration';
+    await page.click(`${T} .tx-pill[data-kind="genre"]`);
+    return offered && back;
+  })());
   check('screen: "Masquer les ignorés" hides the ignored terms that are saved', await (async () => { await page.click(`${T} .tx-pill[data-kind="tag"]`); const before = await page.$(row('perso')); await page.check(`${T} #txHideIgnored`); const hidden = !(await page.$(row('perso'))); await page.uncheck(`${T} #txHideIgnored`); await page.click(`${T} .tx-pill[data-kind="genre"]`); await page.click(`${T} .tx-pill[data-kind="tag"]`); const back = !!(await page.$(row('perso'))); await page.click(`${T} .tx-pill[data-kind="genre"]`); return !!before && hidden && back; })());
   await shot('X3-saved-1440');
   await page.click(`${T} #txApply`);
