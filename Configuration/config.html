@@ -706,6 +706,20 @@
                             <div class="cm-hint">Langue, qualité, release… séparés par des espaces ou des virgules. Les blocs <code>[…]</code>, <code>{…}</code> et <code>(…)</code> et le « S01E02 » sont déjà retirés avant la comparaison.</div>
                         </div>
                         </div>
+                        <div class="cm-grid" style="margin-top: 22px;"><h4>Images</h4></div>
+                        <div class="cm-rows" style="margin: 10px 0 0;">
+                        <label class="cm-row">
+                            <span class="cm-row-text"><span class="cm-row-title">Donner les images du dump à Jellyfin</span><span class="cm-row-hint">Décoché : aucune affiche, aucun fond ni aucune miniature n&#x27;est envoyé à Jellyfin, même si le mapping « Vidéo / épisode » les lit. Elles ne servent plus qu&#x27;à l&#x27;aperçu de l&#x27;écran « Épisodes manquants » → Catalogues.</span></span>
+                            <input type="checkbox" class="cm-switch" id="srcDumpUseImages" />
+                        </label>
+                        </div>
+                        <div class="cm-grid" style="margin-top: 16px;">
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcDumpPreview">Image d&#x27;aperçu (écran Catalogues)</label>
+                            <input is="emby-input" type="text" id="srcDumpPreview" placeholder="cover_url || poster_url" />
+                            <div class="cm-hint">Chemin de l&#x27;image montrée sur chaque entrée de l&#x27;écran Catalogues. Vide = la première trouvée parmi miniature, affiche et fond. Le serveur la télécharge avec les en-têtes de la source (un navigateur est souvent refusé par la protection anti-hotlink) ; rien n&#x27;est donné à Jellyfin.</div>
+                        </div>
+                        </div>
                     </section>
                     <section class="cm-pane cm-mono" data-section="endpoints" aria-labelledby="paneTitle-endpoints" hidden>
                         <div><h3 class="cm-pane-title" id="paneTitle-endpoints">Endpoints</h3><p class="cm-pane-intro">Chemins appelés sur l&#x27;API. Utilisez {id} à l&#x27;endroit où l&#x27;identifiant doit être inséré.</p></div>
@@ -1276,6 +1290,7 @@
                     
                     // Show the sources (always on the list: an old editing state no longer makes sense)
                     renderSourcesList(config.Sources || []);
+                    resumeRefresh();
                     checkLibraryProviders(config);
                     closeEditor(true);
                     // The Diagnostic page asks for a source to be opened (its editor, or its test)
@@ -1401,6 +1416,7 @@
                 container.innerHTML = html;
                 loadLocalStats();
                 loadDumpStats();
+                restoreRefreshSay();
             };
 
             // Ouvrir modal ajout
@@ -2492,7 +2508,12 @@
 
             // Enabled / Disabled switch of a card: saved immediately, like the rest of the sources
             // Targeted refresh of a prefix (the group header of the Sources tab): only the library items that carry it, in the background
-            function refreshSay(prefix, text, bad, warning) {
+            var refreshMemory = {};   // prefix → last message: the list is redrawn (a switch, a save) and would lose it
+            function restoreRefreshSay() {
+                Object.keys(refreshMemory).forEach(function(prefix) { var m = refreshMemory[prefix]; refreshSay(prefix, m.text, m.bad, m.warning, true); });
+            }
+            function refreshSay(prefix, text, bad, warning, restoring) {
+                if (!restoring) { refreshMemory[prefix] = { text: text, bad: bad, warning: warning }; }
                 Array.prototype.forEach.call(document.querySelectorAll('#sourcesList [data-refresh-status]'), function(el) {
                     if (el.getAttribute('data-refresh-status') !== prefix) { return; }
                     el.textContent = text; el.style.color = bad ? '#e57373' : '';
@@ -2505,15 +2526,24 @@
                 if (status.Series) { kinds.push(status.Series + ' série' + (status.Series > 1 ? 's' : '')); }
                 if (status.Seasons) { kinds.push(status.Seasons + ' saison' + (status.Seasons > 1 ? 's' : '')); }
                 if (status.Episodes) { kinds.push(status.Episodes + ' épisode' + (status.Episodes > 1 ? 's' : '')); }
-                return status.Done + ' / ' + status.Total + ' actualisé' + (status.Total > 1 ? 's' : '') + ' (' + kinds.join(', ') + ')' + (status.Failed ? ', ' + status.Failed + ' en échec (voir le journal)' : '');
+                var percent = status.Total > 0 ? ' · ' + Math.floor(status.Done * 100 / status.Total) + ' %' : '';
+                return status.Done + ' / ' + status.Total.toLocaleString('fr-FR') + ' actualisé' + (status.Total > 1 ? 's' : '') + percent + ' (' + kinds.join(', ') + ')' + (status.Failed ? ', ' + status.Failed + ' en échec (voir le journal)' : '');
             }
-            function pollRefresh(prefix) {
+            // The follow-up survives a busy server: one failed or slow answer (a long refresh keeps Jellyfin busy) only delays the next
+            // look, it never stops it. The refresh itself runs on the server whatever this page shows.
+            var refreshPolling = {};
+            function pollRefresh(prefix, failures) {
+                failures = failures || 0;
+                if (failures === 0 && refreshPolling[prefix]) { return; }   // already followed (a second click, a return to the page)
+                refreshPolling[prefix] = true;
                 ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Refresh/Status')).then(function(st) {
-                    if (st.Prefix !== prefix) { return; }
+                    if (st.Prefix !== prefix) { refreshPolling[prefix] = false; return; }
                     if (st.Running) {
                         refreshSay(prefix, 'Actualisation en cours : ' + refreshProgress(prefix, st));
-                        setTimeout(function() { pollRefresh(prefix); }, 1500);
+                        refreshPolling[prefix] = false;
+                        setTimeout(function() { pollRefresh(prefix); }, st.Total > 2000 ? 4000 : 1500);
                     } else {
+                        refreshPolling[prefix] = false;
                         // An old poster.jpg… left in a media folder is picked again by Jellyfin at the next scan: the person has to remove it
                         var n = st.LocalFilesKept || 0, many = n > 1;
                         var kept = n ? n + (many ? ' anciens fichiers image restent' : ' ancien fichier image reste') + ' dans les dossiers média (poster.jpg, backdrop.jpg…). Jellyfin '
@@ -2522,7 +2552,27 @@
                         refreshSay(prefix, 'Terminé : ' + refreshProgress(prefix, st) + '.', !!st.Failed, kept);
                         Array.prototype.forEach.call(document.querySelectorAll('#sourcesList [data-refresh]'), function(b) { b.disabled = false; });
                     }
+                }, function() {
+                    // No answer: keep trying for a few minutes before saying the follow-up is lost
+                    if (failures >= 40) {
+                        refreshPolling[prefix] = false;
+                        refreshSay(prefix, 'Le suivi n\'a plus de réponse du serveur. L\'actualisation continue en arrière-plan : rouvrez cette page pour reprendre le suivi, ou consultez le journal (🔁 [SOURCE REFRESH]).', true);
+                        Array.prototype.forEach.call(document.querySelectorAll('#sourcesList [data-refresh]'), function(b) { b.disabled = false; });
+                        return;
+                    }
+                    refreshSay(prefix, 'Le serveur est occupé, nouvelle tentative…');
+                    setTimeout(function() { pollRefresh(prefix, failures + 1); }, 3000);
                 });
+            }
+
+            // Back on the page while a refresh is running: pick the follow-up up again
+            function resumeRefresh() {
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Refresh/Status')).then(function(st) {
+                    if (!st || !st.Running || !st.Prefix) { return; }
+                    Array.prototype.forEach.call(document.querySelectorAll('#sourcesList [data-refresh]'), function(b) { b.disabled = true; });
+                    refreshSay(st.Prefix, 'Actualisation en cours : ' + refreshProgress(st.Prefix, st));
+                    pollRefresh(st.Prefix);
+                }, function() { /* nothing to resume */ });
             }
             qs('#sourcesList').addEventListener('click', function(e) {
                 var button = e.target.closest('[data-refresh]');
@@ -2571,7 +2621,7 @@
             // ---- Dump source: catalogue settings (form <-> source) and its test ----
             var DUMP_NOISE = 'raw vostfr vosta vostf vosten vf vo va multi mult subbed dubbed uncensored censored 1080p 720p 480p 2160p 4k x264 x265 h264 h265 hevc aac flac web webrip webdl bluray bdrip hdtv';
             var DUMP_DEFAULTS = { ItemsPath: 'data', IdPath: 'id', NamePath: 'name', SlugPath: 'slug', SearchTitlesPath: 'search_titles', GroupPath: 'brand',
-                LikesPath: 'likes', DislikesPath: 'dislikes', CacheMinutes: 60, MatchWithoutTag: true, MatchBySlug: true, MatchByName: true, MinScore: 70, NoiseWords: DUMP_NOISE };
+                LikesPath: 'likes', DislikesPath: 'dislikes', UseImages: true, PreviewImagePath: 'cover_url || poster_url', CacheMinutes: 60, MatchWithoutTag: true, MatchBySlug: true, MatchByName: true, MinScore: 70, NoiseWords: DUMP_NOISE };
             // What a dump entry usually looks like: the video mapping a NEW dump source starts with
             var DUMP_VIDEO_MAPPING = { '#srcVideoTitle': 'name', '#srcVideoOverview': 'description', '#srcVideoDate': 'released_at || created_at', '#srcVideoRating': 'communityRating',
                 '#srcVideoSeriesName': '', '#srcVideoTags': 'tags', '#srcVideoTagsItemField': '', '#srcVideoGenres': '', '#srcVideoGenresItemField': '', '#srcVideoStudio': 'brand',
@@ -2594,6 +2644,8 @@
                 qs('#srcDumpLikes').value = d.LikesPath || '';
                 qs('#srcDumpDislikes').value = d.DislikesPath || '';
                 qs('#srcDumpCache').value = d.CacheMinutes || 60;
+                qs('#srcDumpUseImages').checked = d.UseImages !== false;
+                qs('#srcDumpPreview').value = d.PreviewImagePath || '';
                 qs('#srcDumpNoTag').checked = d.MatchWithoutTag !== false;
                 qs('#srcDumpBySlug').checked = d.MatchBySlug !== false;
                 qs('#srcDumpByName').checked = d.MatchByName !== false;
@@ -2609,6 +2661,7 @@
                     SlugPath: qs('#srcDumpSlug').value.trim(), SearchTitlesPath: qs('#srcDumpSearch').value.trim(), GroupPath: qs('#srcDumpGroup').value.trim(),
                     LikesPath: qs('#srcDumpLikes').value.trim(), DislikesPath: qs('#srcDumpDislikes').value.trim(),
                     CacheMinutes: Math.max(1, readInt('#srcDumpCache', 60, 1)),
+                    UseImages: qs('#srcDumpUseImages').checked, PreviewImagePath: qs('#srcDumpPreview').value.trim(),
                     MatchWithoutTag: qs('#srcDumpNoTag').checked, MatchBySlug: qs('#srcDumpBySlug').checked, MatchByName: qs('#srcDumpByName').checked,
                     MinScore: parseInt(qs('#srcDumpMinScore').value, 10) || 70, NoiseWords: qs('#srcDumpNoise').value
                 };
