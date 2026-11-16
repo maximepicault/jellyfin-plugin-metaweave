@@ -206,6 +206,23 @@ try {
     const card = page.locator(`${C} #sourcesList .cm-card`, { hasText: 'Démo dump' });
     check('sources: the dump card is badged "Dump" and links to its coverage', (await card.locator('.cm-kind').innerText()) === 'Dump' && (await card.locator('[data-open-coverage]').count()) === 1);
     check('sources: the dump card tells what it holds', /entrées en mémoire/.test(await card.locator('.cm-stats').innerText()), await card.locator('.cm-stats').innerText());
+    // the refresh bar of a dump: no series / season boxes (a dump has none), episodes + movies, a library picker
+    const head = page.locator(`${C} .cm-group-head[data-group="dp"]`);
+    check('refresh bar of a dump: Épisodes and Films boxes, no Séries / Saisons', (await head.locator('[data-rf="episode"]').count()) === 1 && (await head.locator('[data-rf="movie"]').count()) === 1 && (await head.locator('[data-rf="series"]').count()) === 0 && (await head.locator('[data-rf="season"]').count()) === 0);
+    await page.waitForSelector(`${C} .cm-libpick summary`, { timeout: 10000 });
+    check('refresh bar of a dump: a library picker, all libraries by default', /Médiathèques : toutes/.test(await head.locator('.cm-libpick summary').innerText()), await head.locator('.cm-libpick summary').innerText());
+    await head.locator('.cm-libpick summary').click();
+    await page.waitForTimeout(300);
+    await shot('D1b-refresh-library-picker-1440');
+    await head.locator('.cm-libpick summary').click();
+    await head.locator('button[data-refresh]').click();
+    await page.waitForFunction(sel => /étape|Terminé|Aucun/.test(document.querySelector(sel).textContent), `${C} [data-refresh-status="dp"]`, { timeout: 30000 });
+    check('refresh button of a dump: it says something right away (it used to do nothing)', true);
+    await page.waitForFunction(sel => /Terminé/.test(document.querySelector(sel).textContent), `${C} [data-refresh-status="dp"]`, { timeout: 120000 });
+    check('refresh button of a dump: it ends with a summary, two steps', /Terminé : étape 2\/2/.test(await head.locator('[data-refresh-status]').innerText()), await head.locator('[data-refresh-status]').innerText());
+    await page.waitForTimeout(600);
+    check('refresh button of a dump: usable again once it is over', await head.locator('button[data-refresh]').isEnabled());
+    await shot('D1c-refresh-done-1440');
     await shot('D1-sources-1440');
 
     // editor
@@ -382,6 +399,23 @@ try {
   try { log = execSync('docker logs cm-uitest 2>&1', { maxBuffer: 256 * 1024 * 1024 }).toString(); } catch (e) { log = String(e.stdout || ''); }
   check('the server log says it: "EPISODE PROVIDER ... Matched in the dump" for each file', (log.match(/EPISODE PROVIDER\] 📦 Matched in the dump/g) || []).length >= 2, 'none found');
   check('the server log also says when nothing matches (Information level, not Debug)', /\[DUMP\] ❔ No match for 'Documentaire inconnu sans rapport/.test(log));
+  // ---- 9. targeted refresh of a dump: files with NO tag, chosen libraries
+  const libs = (await api('GET', '/Library/VirtualFolders')).json || [];
+  const libId = name => libs.find(l => l.Name === name)?.ItemId;
+  const runRefresh = async body => {
+    await api('POST', '/CustomMetadata/Refresh', body);
+    let st = null;
+    for (let i = 0; i < 90; i++) { await wait(1000); st = (await api('GET', '/CustomMetadata/Refresh/Status')).json; if (st && !pick(st, 'Running')) { break; } }
+    return st;
+  };
+  const stAll = await runRefresh({ Prefix: 'dp', Types: ['episode', 'movie'], ReplaceImages: false, LibraryIds: [libId('Dump')] });
+  check('dump refresh, one library: looks at its 7 files, recognises 6 (the tagged one, by name, by id…), refreshes them', pick(stAll, 'Scanned') === 7 && pick(stAll, 'Matched') === 6 && pick(stAll, 'Total') === 6 && pick(stAll, 'Done') === 6, JSON.stringify(stAll));
+  const stSeries = await runRefresh({ Prefix: 'dp', Types: ['episode'], ReplaceImages: false, LibraryIds: [libId('DumpSeries')] });
+  check('dump refresh, the series library: its 2 untagged episodes are found by name', pick(stSeries, 'Scanned') === 2 && pick(stSeries, 'Matched') === 2 && pick(stSeries, 'Done') === 2, JSON.stringify(stSeries));
+  const stNone = await runRefresh({ Prefix: 'dp', Types: ['movie'], ReplaceImages: false, LibraryIds: [libId('DumpSeries')] });
+  check('dump refresh: a type with no file in the chosen library says nothing to do', pick(stNone, 'Total') === 0 && !pick(stNone, 'Running'), JSON.stringify(stNone));
+  log = ''; try { log = execSync('docker logs cm-uitest 2>&1', { maxBuffer: 256 * 1024 * 1024 }).toString(); } catch (e) { log = String(e.stdout || ''); }
+  check('the log tells the refresh: files looked at, files recognised, done', /SOURCE REFRESH\] 📦 Dump 'Démo dump' \(prefix 'dp'\): looking at 7 file/.test(log) && /6 of 7 file\(s\) recognised/.test(log) && /Done for dump prefix 'dp': 6\/6/.test(log));
   check('the server log says it: "[DUMP] 🎯 … → …" lines', /\[DUMP\] 🎯 'Épisode démo 10 S01E01/.test(log));
 } finally {
   if (seriesLibraryCreated) {

@@ -314,6 +314,17 @@
         #CustomMetadataConfigPage #editorView[data-source-type="people"] [data-types]:not([data-types~="people"]),
         #CustomMetadataConfigPage #editorView[data-source-type="dump"] [data-types]:not([data-types~="dump"]) { display: none !important; }
 
+        /* Library picker of the targeted refresh of a dump */
+        #CustomMetadataConfigPage .cm-libpick { position: relative; }
+        #CustomMetadataConfigPage .cm-libpick > summary { cursor: pointer; padding: 6px 10px; border: 1px solid var(--cm-border); border-radius: 6px; list-style: none; white-space: nowrap; }
+        #CustomMetadataConfigPage .cm-libpick > summary::-webkit-details-marker { display: none; }
+        #CustomMetadataConfigPage .cm-libpick > summary::after { content: " ▾"; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-libpick[open] > summary { border-color: var(--cm-accent); }
+        #CustomMetadataConfigPage .cm-libpick-list { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 240px; max-width: 360px; display: flex; flex-direction: column; gap: 2px; padding: 8px; border: 1px solid var(--cm-border); border-radius: 8px; background: #202020; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+        #CustomMetadataConfigPage .cm-libpick-list label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-libpick-list label:hover { background: rgba(255, 255, 255, 0.08); }
+        #CustomMetadataConfigPage .cm-libpick-list .cm-libpick-all { border-bottom: 1px solid var(--cm-border); margin-bottom: 4px; font-weight: 600; }
+
         /* Dump source: catalogue pane and its test */
         #CustomMetadataConfigPage .cm-area { display: block; width: 100%; box-sizing: border-box; min-height: 84px; padding: 10px 12px; resize: vertical; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; line-height: 1.45; border: 1px solid transparent; border-radius: 4px; }
         #CustomMetadataConfigPage .cm-area:focus { outline: none; border-color: var(--cm-accent); }
@@ -1381,9 +1392,10 @@
                     if (enriches && g.prefix) {
                         head = '<div class="cm-group-head" data-group="' + escapeHtml(g.prefix) + '">'
                             + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span><span class="cm-group-opts"><span class="cm-group-optlabel">Actualiser dans Jellyfin :</span>'
-                            + (dumpOnly ? '' : '<label><input type="checkbox" class="cm-check" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
+                            + (dumpOnly ? '<span class="cm-libpick-slot" data-libpick="' + escapeHtml(g.prefix) + '"></span>' : '<label><input type="checkbox" class="cm-check" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
                             + '<label><input type="checkbox" class="cm-check" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>')
                             + '<label><input type="checkbox" class="cm-check" data-rf="episode" checked aria-label="Actualiser les épisodes" /> Épisodes</label>'
+                            + (dumpOnly ? '<label><input type="checkbox" class="cm-check" data-rf="movie" checked aria-label="Actualiser les films" /> Films</label>' : '')
                             + '<span class="cm-group-optsep" aria-hidden="true"></span>'
                             + '<label title="Décochez pour ne remplacer que les métadonnées"><input type="checkbox" class="cm-check" data-rf="images" checked aria-label="Remplacer aussi les images" /> Remplacer les images</label></span>'
                             + '<button is="emby-button" type="button" class="raised" data-refresh="' + escapeHtml(g.prefix) + '"' + (allOff ? ' disabled' : '') + ' title="Actualise uniquement les éléments de la médiathèque qui portent ce préfixe (l\'API d\'abord, puis la source locale par-dessus), sans scanner la médiathèque"><span>Actualiser les éléments</span></button>'
@@ -1429,6 +1441,7 @@
                 container.innerHTML = html;
                 loadLocalStats();
                 loadDumpStats();
+                loadLibraryPickers();
                 restoreRefreshSay();
             };
 
@@ -2535,6 +2548,17 @@
                 });
             }
             function refreshProgress(prefix, status) {
+                // Dump: first the files are looked at, then the recognised ones are refreshed
+                if (status.Phase === 'scan') {
+                    return 'étape 1/2, recherche des fichiers reconnus par le dump : ' + status.Done.toLocaleString('fr-FR') + ' / ' + status.Total.toLocaleString('fr-FR') + ' regardés · ' + status.Matched.toLocaleString('fr-FR') + ' reconnus';
+                }
+                if (status.Phase === 'refresh') {
+                    var parts = [];
+                    if (status.Episodes) { parts.push(status.Episodes + ' épisode' + (status.Episodes > 1 ? 's' : '')); }
+                    if (status.Movies) { parts.push(status.Movies + ' film' + (status.Movies > 1 ? 's' : '')); }
+                    var pc = status.Total > 0 ? ' · ' + Math.floor(status.Done * 100 / status.Total) + ' %' : '';
+                    return 'étape 2/2, actualisation : ' + status.Done.toLocaleString('fr-FR') + ' / ' + status.Total.toLocaleString('fr-FR') + pc + ' (' + parts.join(', ') + ')' + (status.Failed ? ', ' + status.Failed + ' en échec (voir le journal)' : '');
+                }
                 var kinds = [];
                 if (status.Series) { kinds.push(status.Series + ' série' + (status.Series > 1 ? 's' : '')); }
                 if (status.Seasons) { kinds.push(status.Seasons + ' saison' + (status.Seasons > 1 ? 's' : '')); }
@@ -2592,17 +2616,21 @@
                 if (!button) { return; }
                 var prefix = button.getAttribute('data-refresh');
                 var head = button.closest('.cm-group-head');
-                var types = ['series', 'season', 'episode'].filter(function(t) { return head.querySelector('[data-rf="' + t + '"]').checked; });
-                if (!types.length) { refreshSay(prefix, 'Cochez au moins un type : séries, saisons ou épisodes.', true); return; }
+                // Only the types this group offers (a dump has no series or season boxes)
+                var types = ['series', 'season', 'episode', 'movie'].filter(function(t) { var box = head.querySelector('[data-rf="' + t + '"]'); return box && box.checked; });
+                if (!types.length) { refreshSay(prefix, 'Cochez au moins un type à actualiser.', true); return; }
+                var picker = head.querySelector('[data-libpick]');
+                var libraryIds = picker ? selectedLibraries(picker) : [];
+                if (picker && libraryIds === null) { refreshSay(prefix, 'Cochez au moins une médiathèque.', true); return; }
                 var images = head.querySelector('[data-rf="images"]').checked;
                 button.disabled = true;
-                refreshSay(prefix, 'Recherche des éléments…');
+                refreshSay(prefix, picker ? 'Recherche des fichiers dans les médiathèques…' : 'Recherche des éléments…');
                 ApiClient.ajax({
                     type: 'POST', url: ApiClient.getUrl('CustomMetadata/Refresh'),
-                    data: JSON.stringify({ Prefix: prefix, Types: types, ReplaceImages: images }), contentType: 'application/json', dataType: 'json'
+                    data: JSON.stringify({ Prefix: prefix, Types: types, ReplaceImages: images, LibraryIds: libraryIds || [] }), contentType: 'application/json', dataType: 'json'
                 }).then(function(st) {
                     if (st.Message) { refreshSay(prefix, st.Message, true); button.disabled = false; return; }
-                    if (!st.Total) { refreshSay(prefix, 'Aucun élément de la médiathèque ne porte ce préfixe pour les types choisis.'); button.disabled = false; return; }
+                    if (!st.Total) { refreshSay(prefix, picker ? 'Aucun fichier (épisode ou film) dans les médiathèques cochées.' : 'Aucun élément de la médiathèque ne porte ce préfixe pour les types choisis.'); button.disabled = false; return; }
                     refreshSay(prefix, 'Actualisation lancée : ' + refreshProgress(prefix, st));
                     setTimeout(function() { pollRefresh(prefix); }, 1200);
                 }, function() { refreshSay(prefix, 'L\'actualisation n\'a pas pu être lancée.', true); button.disabled = false; });
@@ -2811,6 +2839,45 @@
             function plural(n, one, many) { return n + ' ' + (n > 1 ? many : one); }
 
             // "2 séries · 3 saisons · 14 épisodes" on the local source cards
+            // Library picker of a dump group: choose where the refresh looks, instead of every library. The choice is kept per prefix.
+            var libraryList = null;
+            function loadLibraryPickers() {
+                var slots = document.querySelectorAll('#sourcesList [data-libpick]');
+                if (!slots.length) { return; }
+                var fill = function(list) {
+                    Array.prototype.forEach.call(slots, function(slot) {
+                        var prefix = slot.getAttribute('data-libpick');
+                        var saved = null;
+                        try { saved = JSON.parse(localStorage.getItem('cm-refresh-libs:' + prefix) || 'null'); } catch (err) { /* private window */ }
+                        var options = list.map(function(l) {
+                            var on = !saved || saved.indexOf(l.ItemId) >= 0;
+                            return '<label><input type="checkbox" class="cm-check" data-lib="' + escapeHtml(l.ItemId) + '"' + (on ? ' checked' : '') + ' /> ' + escapeHtml(l.Name) + '</label>';
+                        }).join('');
+                        slot.innerHTML = '<details class="cm-libpick"><summary></summary><div class="cm-libpick-list"><label class="cm-libpick-all"><input type="checkbox" class="cm-check" data-lib-all /> Toutes les médiathèques</label>' + options + '</div></details>';
+                        updateLibraryPicker(slot);
+                    });
+                };
+                if (libraryList) { fill(libraryList); return; }
+                ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')).then(function(libs) {
+                    // Only the libraries that can hold episodes or movies
+                    libraryList = (libs || []).filter(function(l) { return !l.CollectionType || ['tvshows', 'movies', 'mixed', 'homevideos'].indexOf(l.CollectionType) >= 0; });
+                    fill(libraryList);
+                }, function() { Array.prototype.forEach.call(slots, function(slot) { slot.textContent = ''; }); });
+            }
+            function updateLibraryPicker(slot) {
+                var boxes = Array.prototype.slice.call(slot.querySelectorAll('[data-lib]'));
+                var checked = boxes.filter(function(b) { return b.checked; });
+                slot.querySelector('[data-lib-all]').checked = checked.length === boxes.length;
+                slot.querySelector('summary').textContent = checked.length === boxes.length ? 'Médiathèques : toutes' : (checked.length === 0 ? 'Médiathèques : aucune' : 'Médiathèques : ' + checked.length + ' sur ' + boxes.length);
+            }
+            // null = nothing ticked; [] = all of them (the server then looks everywhere)
+            function selectedLibraries(slot) {
+                var boxes = Array.prototype.slice.call(slot.querySelectorAll('[data-lib]'));
+                var checked = boxes.filter(function(b) { return b.checked; }).map(function(b) { return b.getAttribute('data-lib'); });
+                if (boxes.length > 0 && checked.length === 0) { return null; }
+                return checked.length === boxes.length ? [] : checked;
+            }
+
             // What a dump source holds, once it has been downloaded (nothing is downloaded just to draw the card)
             function loadDumpStats() {
                 var spans = document.querySelectorAll('#sourcesList [data-dump-stats]');
@@ -3910,6 +3977,17 @@
 
             // ---- Type choice and banner after saving ----
             // "Couverture" on a dump card: the missing-episodes page opens on that dump
+            qs('#sourcesList').addEventListener('change', function(e) {
+                var box = e.target.closest('[data-lib], [data-lib-all]');
+                if (!box) { return; }
+                var slot = box.closest('[data-libpick]');
+                if (box.hasAttribute('data-lib-all')) {
+                    Array.prototype.forEach.call(slot.querySelectorAll('[data-lib]'), function(b) { b.checked = box.checked; });
+                }
+                updateLibraryPicker(slot);
+                var ids = Array.prototype.filter.call(slot.querySelectorAll('[data-lib]'), function(b) { return b.checked; }).map(function(b) { return b.getAttribute('data-lib'); });
+                try { localStorage.setItem('cm-refresh-libs:' + slot.getAttribute('data-libpick'), JSON.stringify(ids)); } catch (err) { /* private window */ }
+            });
             qs('#sourcesList').addEventListener('click', function(e) {
                 var link = e.target.closest('[data-open-coverage]');
                 if (link) { try { sessionStorage.setItem('cm-missing-dump', link.getAttribute('data-open-coverage')); } catch (err) { /* private window */ } }

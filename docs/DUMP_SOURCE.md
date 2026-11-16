@@ -56,7 +56,11 @@ Compares the catalogue with the library: an entry is **owned** when an episode o
 
 The coverage screen opens on series cards, like the Séries tab; a click lists the entries of that series. Entries whose names only differ by a trailing number ("Title", "Title 2") form a series (minimum entries in the Catalogue section, 0 = off, then the entries are listed directly); the others are under "Épisodes seuls". The "Format de l'aperçu" setting (16:9 or 2:3) shapes the pictures. The number is a hint only: it may be a season or an episode, so it is never turned into `SxxExx`, and it stays in the copied name. When an entry of the series is already in the library as an episode of a series, the group shows that series and its seasons.
 
+## Refreshing what the dump recognises
+
+On the Sources tab, a dump group\'s "Actualiser les éléments" does not need tags: pick the libraries (all by default) and the types (episodes, movies). It first looks at the files of those libraries and keeps the ones the dump recognises (step 1/2), then refreshes only those (step 2/2). A file that matches nothing, or is tagged for another source, is left alone. The log (`🔁 [SOURCE REFRESH] 📦`) tells how many files were looked at, recognised and refreshed.
+
 ## Limits
 
 - The dump is kept in memory only: it is downloaded again after a Jellyfin restart.
-- "Actualiser les éléments" (targeted refresh) covers the episodes of a dump prefix, not movies.
+- The noise words are compared in lower case without accents: "VOSTFR" and "vostfr" are the same word.

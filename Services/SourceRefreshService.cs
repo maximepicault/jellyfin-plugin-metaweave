@@ -22,8 +22,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>Prefix of the sources to refresh: an API source and a local source that share it are one group</summary>
         public string Prefix { get; set; }
 
-        /// <summary>"series", "season", "episode" (empty = all three)</summary>
+        /// <summary>"series", "season", "episode" (empty = all three). A dump source: "episode" and "movie" (empty = both)</summary>
         public List<string> Types { get; set; } = new List<string>();
+
+        /// <summary>Dump sources only: the libraries to look into (ids from Library/VirtualFolders). Empty = every library</summary>
+        public List<string> LibraryIds { get; set; } = new List<string>();
 
         /// <summary>Also replace the images (default: metadata only)</summary>
         public bool ReplaceImages { get; set; }
@@ -45,6 +48,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public int Series { get; set; }
         public int Seasons { get; set; }
         public int Episodes { get; set; }
+        public int Movies { get; set; }
+
+        /// <summary>Dump sources: "scan" (looking for the files the dump recognises) then "refresh"; empty for the other sources</summary>
+        public string Phase { get; set; }
+
+        /// <summary>Dump sources: the files looked at, and how many of them the dump recognised</summary>
+        public int Scanned { get; set; }
+        public int Matched { get; set; }
         public DateTime? StartedAt { get; set; }
         public DateTime? FinishedAt { get; set; }
 
@@ -73,9 +84,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly CustomApiClient _api;
         private readonly SourceResolver _resolver;
         private readonly IProviderManager _providerManager;
+        private readonly DumpStore _dump;
 
-        public SourceRefreshService(ILibraryManager libraryManager, IFileSystem fileSystem, ILogger logger, CustomApiClient api, SourceResolver resolver, IProviderManager providerManager)
+        public SourceRefreshService(ILibraryManager libraryManager, IFileSystem fileSystem, ILogger logger, CustomApiClient api, SourceResolver resolver, IProviderManager providerManager, DumpStore dump = null)
         {
+            _dump = dump;
             _api = api;
             _resolver = resolver;
             _providerManager = providerManager;
@@ -95,7 +108,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private static SourceRefreshStatus Copy(SourceRefreshStatus s) => new SourceRefreshStatus
         {
             Running = s.Running, Prefix = s.Prefix, Total = s.Total, Done = s.Done, Failed = s.Failed,
-            Series = s.Series, Seasons = s.Seasons, Episodes = s.Episodes, StartedAt = s.StartedAt, FinishedAt = s.FinishedAt, Message = s.Message, LocalFilesKept = s.LocalFilesKept
+            Series = s.Series, Seasons = s.Seasons, Episodes = s.Episodes, Movies = s.Movies, Phase = s.Phase, Scanned = s.Scanned, Matched = s.Matched, StartedAt = s.StartedAt, FinishedAt = s.FinishedAt, Message = s.Message, LocalFilesKept = s.LocalFilesKept
         };
 
         /// <summary>Finds the items, then refreshes them in the background. Returns at once with the counts.</summary>
@@ -112,6 +125,22 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var current = Status();
                 current.Message = "Une actualisation est déjà en cours";
                 return current;
+            }
+
+            // A dump recognises files by their NAME: the files that carry no tag are the point, so they cannot be found by tag
+            var dumpSource = (Plugin.Instance?.Configuration?.Sources ?? new List<Configuration.SourceConfiguration>())
+                .FirstOrDefault(s => s.IsDump && s.Enabled && string.Equals(s.Prefix, prefix, StringComparison.OrdinalIgnoreCase));
+            if (dumpSource != null && _dump != null)
+            {
+                try
+                {
+                    return StartDump(request, prefix, dumpSource);
+                }
+                catch
+                {
+                    RunLock.Release();
+                    throw;
+                }
             }
 
             List<BaseItem> items;
@@ -150,41 +179,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 try
                 {
                     // Series first, then seasons, then episodes: a child refreshed after its parent sees the parent's new data
-                    foreach (var item in items.OrderBy(i => i is Series ? 0 : (i is Season ? 1 : 2)))
-                    {
-                        try
-                        {
-                            var imagesBefore = replaceImages ? ImageSignature(item) : null;
-                            await item.RefreshMetadata(
-                                new MetadataRefreshOptions(new DirectoryService(_fileSystem))
-                                {
-                                    MetadataRefreshMode = MetadataRefreshMode.FullRefresh,
-                                    ReplaceAllMetadata = true,
-                                    ImageRefreshMode = replaceImages ? MetadataRefreshMode.FullRefresh : MetadataRefreshMode.None,
-                                    ReplaceAllImages = replaceImages,
-                                    IsAutomated = false   // a user request: the plugin's cache is bypassed
-                                },
-                                CancellationToken.None);
-                            if (replaceImages)
-                            {
-                                var imagesAfter = ImageSignature(item);
-                                _logger.LogInformation("🔁 [SOURCE REFRESH] 🖼️ '{Name}': Jellyfin refresh {State} the images (before: {Before} | after: {After})",
-                                    item.Name, imagesBefore == imagesAfter ? "left UNCHANGED" : "replaced", imagesBefore, imagesAfter);
-                            }
-
-                            if (replaceImages)
-                            {
-                                await ApplyImagesAsync(item);
-                            }
-
-                            lock (StatusLock) { _status.Done++; }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "🔁 [SOURCE REFRESH] ⚠️ Could not refresh '{Name}': {Message}", item.Name, ex.Message);
-                            lock (StatusLock) { _status.Failed++; }
-                        }
-                    }
+                    await RefreshItemsAsync(items.OrderBy(i => i is Series ? 0 : (i is Season ? 1 : 2)).ToList(), replaceImages);
                 }
                 finally
                 {
@@ -195,6 +190,158 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     }
 
                     _logger.LogInformation("🔁 [SOURCE REFRESH] ✅ Done for prefix '{Prefix}': {Done}/{Total} refreshed, {Failed} failed", Status().Prefix, Status().Done, Status().Total, Status().Failed);
+                    RunLock.Release();
+                }
+            });
+
+            return Status();
+        }
+
+        /// <summary>Refreshes the items one at a time (full refresh, plugin cache bypassed); a failure is counted and logged, never fatal</summary>
+        private async Task RefreshItemsAsync(List<BaseItem> items, bool replaceImages)
+        {
+            foreach (var item in items)
+            {
+                try
+                {
+                    var imagesBefore = replaceImages ? ImageSignature(item) : null;
+                    await item.RefreshMetadata(
+                        new MetadataRefreshOptions(new DirectoryService(_fileSystem))
+                        {
+                            MetadataRefreshMode = MetadataRefreshMode.FullRefresh,
+                            ReplaceAllMetadata = true,
+                            ImageRefreshMode = replaceImages ? MetadataRefreshMode.FullRefresh : MetadataRefreshMode.None,
+                            ReplaceAllImages = replaceImages,
+                            IsAutomated = false   // a user request: the plugin's cache is bypassed
+                        },
+                        CancellationToken.None);
+                    if (replaceImages)
+                    {
+                        var imagesAfter = ImageSignature(item);
+                        _logger.LogInformation("🔁 [SOURCE REFRESH] 🖼️ '{Name}': Jellyfin refresh {State} the images (before: {Before} | after: {After})",
+                            item.Name, imagesBefore == imagesAfter ? "left UNCHANGED" : "replaced", imagesBefore, imagesAfter);
+                        await ApplyImagesAsync(item);
+                    }
+
+                    lock (StatusLock) { _status.Done++; }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "🔁 [SOURCE REFRESH] ⚠️ Could not refresh '{Name}': {Message}", item.Name, ex.Message);
+                    lock (StatusLock) { _status.Failed++; }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Targeted refresh of a DUMP source. A dump recognises files by their name, so the files to refresh are NOT found by a tag:
+        /// every episode / movie file of the chosen libraries is looked at (phase "scan"), the ones the dump recognises are kept
+        /// and only those are refreshed (phase "refresh"). A file tagged for another source, or that matches nothing, is left alone.
+        /// </summary>
+        private SourceRefreshStatus StartDump(SourceRefreshRequest request, string prefix, Configuration.SourceConfiguration source)
+        {
+            var wanted = new HashSet<string>((request.Types == null || request.Types.Count == 0 ? new List<string> { "episode", "movie" } : request.Types)
+                .Select(t => (t ?? string.Empty).Trim().ToLowerInvariant()));
+            var kinds = new List<BaseItemKind>();
+            if (wanted.Contains("episode")) { kinds.Add(BaseItemKind.Episode); }
+            if (wanted.Contains("movie")) { kinds.Add(BaseItemKind.Movie); }
+
+            var libraryIds = (request.LibraryIds ?? new List<string>()).Select(i => Guid.TryParse(i, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToArray();
+            var candidates = new List<BaseItem>();
+            if (kinds.Count > 0)
+            {
+                var query = new InternalItemsQuery { IncludeItemTypes = kinds.ToArray(), Recursive = true, IsVirtualItem = false };
+                if (libraryIds.Length > 0)
+                {
+                    // One query per library: AncestorIds means "below ALL of these"
+                    foreach (var id in libraryIds)
+                    {
+                        query.AncestorIds = new[] { id };
+                        candidates.AddRange(_libraryManager.GetItemList(query));
+                    }
+                }
+                else
+                {
+                    candidates.AddRange(_libraryManager.GetItemList(query));
+                }
+
+                candidates = candidates.Where(i => !string.IsNullOrEmpty(i.Path)).GroupBy(i => i.Id).Select(g => g.First()).ToList();
+            }
+
+            lock (StatusLock)
+            {
+                _status = new SourceRefreshStatus
+                {
+                    Running = candidates.Count > 0, Prefix = prefix, Total = candidates.Count, Scanned = candidates.Count, Phase = "scan",
+                    StartedAt = DateTime.UtcNow, FinishedAt = candidates.Count > 0 ? null : DateTime.UtcNow
+                };
+            }
+
+            if (candidates.Count == 0)
+            {
+                RunLock.Release();
+                _logger.LogInformation("🔁 [SOURCE REFRESH] 📦 Dump '{Source}': no episode or movie file in the chosen libraries", source.Name);
+                return Status();
+            }
+
+            var replaceImages = request.ReplaceImages;
+            _logger.LogInformation("🔁 [SOURCE REFRESH] 📦 Dump '{Source}' (prefix '{Prefix}'): looking at {Count} file(s) in {Libraries}, then refreshing the ones the dump recognises ({Images})",
+                source.Name, prefix, candidates.Count, libraryIds.Length == 0 ? "every library" : libraryIds.Length + " librarie(s)", replaceImages ? "metadata and images" : "metadata only");
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var matched = new List<BaseItem>();
+                    foreach (var item in candidates)
+                    {
+                        try
+                        {
+                            var match = await _dump.ResolveAsync(item.Path, item.Name, item.ProviderIds, CancellationToken.None);
+                            if (match != null && string.Equals(match.Source.Prefix, prefix, StringComparison.OrdinalIgnoreCase))
+                            {
+                                matched.Add(item);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "🔁 [SOURCE REFRESH] ⚠️ Could not look at '{Name}': {Message}", item.Name, ex.Message);
+                        }
+
+                        int done;
+                        lock (StatusLock) { done = ++_status.Done; _status.Matched = matched.Count; }
+                        if (done % 500 == 0)
+                        {
+                            _logger.LogInformation("🔁 [SOURCE REFRESH] 📦 Looked at {Done}/{Total} file(s), {Matched} recognised so far", done, candidates.Count, matched.Count);
+                        }
+                    }
+
+                    lock (StatusLock)
+                    {
+                        _status.Phase = "refresh";
+                        _status.Total = matched.Count;
+                        _status.Done = 0;
+                        _status.Episodes = matched.Count(i => i is Episode);
+                        _status.Movies = matched.Count(i => i is MediaBrowser.Controller.Entities.Movies.Movie);
+                    }
+
+                    _logger.LogInformation("🔁 [SOURCE REFRESH] 📦 {Matched} of {Total} file(s) recognised by the dump ({Left} left alone: no match, or tagged for another source)",
+                        matched.Count, candidates.Count, candidates.Count - matched.Count);
+                    await RefreshItemsAsync(matched, replaceImages);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "🔁 [SOURCE REFRESH] ❌ The dump refresh stopped: {Message}", ex.Message);
+                }
+                finally
+                {
+                    lock (StatusLock)
+                    {
+                        _status.Running = false;
+                        _status.FinishedAt = DateTime.UtcNow;
+                    }
+
+                    _logger.LogInformation("🔁 [SOURCE REFRESH] ✅ Done for dump prefix '{Prefix}': {Done}/{Total} refreshed, {Failed} failed", Status().Prefix, Status().Done, Status().Total, Status().Failed);
                     RunLock.Release();
                 }
             });

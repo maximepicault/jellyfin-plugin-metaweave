@@ -62,7 +62,8 @@ namespace Jellyfin.Plugin.CustomMetadata
                 sp.GetRequiredService<ILogger<SourceRefreshService>>(),
                 sp.GetRequiredService<CustomApiClient>(),
                 sp.GetRequiredService<SourceResolver>(),
-                sp.GetRequiredService<MediaBrowser.Controller.Providers.IProviderManager>()));
+                sp.GetRequiredService<MediaBrowser.Controller.Providers.IProviderManager>(),
+                sp.GetRequiredService<DumpStore>()));
 
             serviceCollection.AddSingleton<CastCatalog>();
             serviceCollection.AddSingleton<CastInheritance>();
