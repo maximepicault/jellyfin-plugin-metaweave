@@ -23,6 +23,10 @@ def video_json(vid):
     sid, nid, i, (t, d, dur) = VIDS[vid]
     j = {"id": vid, "title": t, "overview": OV if i % 2 else None, "premiereDate": d, "indexNumber": i, "duration": dur, "thumb": f"{BASE}/img/{vid}.jpg"}
     if vid in CHAPTERS: j["chapters"] = CHAPTERS[vid]
+    # Genres and tags with case variants and terms one would not want: the rules of the "Genres et tags" screen act on them
+    if vid in ("d1v1", "d1v2"):
+        j["genres"] = ["Docu", "DOCU", "Voyage", "Sponsorisé"]
+        j["tags"] = ["tech", "Sponsorisé", "sponsorisé", "conférence"]
     # Time codes only in the synopsis (the option "read the chapters in the synopsis")
     if vid == "d1v2": j["overview"] = "Un épisode avec des repères dans le texte.\n0:00 Ouverture\n0:01 Suite du texte"
     return j
