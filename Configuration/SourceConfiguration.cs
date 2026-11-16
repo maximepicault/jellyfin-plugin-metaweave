@@ -249,6 +249,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         /// </summary>
         public string PreviewImagePath { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Entries whose names only differ by a trailing number ("Title", "Title 2") are grouped into a "series" on the coverage
+        /// screen when at least this many share the name. 0 = no grouping. The number is only a hint (season or episode: the
+        /// title cannot tell), never used to build an SxxExx.
+        /// </summary>
+        public int SeriesMinEntries { get; set; } = 2;
+
         /// <summary>How long the downloaded dump is reused, in minutes</summary>
         public int CacheMinutes { get; set; } = 60;
 

@@ -145,24 +145,34 @@ try {
 
   // ---- 6. coverage
   const cov = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=missing&pageSize=10')).json;
-  check('coverage: 40 in the dump, 6 owned, 34 missing', pick(cov, 'Total') === 40 && pick(cov, 'Owned') === 6 && pick(cov, 'Missing') === 34, JSON.stringify({ t: pick(cov, 'Total'), o: pick(cov, 'Owned'), m: pick(cov, 'Missing') }));
-  check('coverage: a page of 10 over 34 missing, 4 pages', (pick(cov, 'Items') || []).length === 10 && pick(cov, 'Matching') === 34 && pick(cov, 'Pages') === 4, JSON.stringify({ n: (pick(cov, 'Items') || []).length, m: pick(cov, 'Matching'), p: pick(cov, 'Pages') }));
+  check('coverage: 40 in the dump, 7 owned, 33 missing', pick(cov, 'Total') === 40 && pick(cov, 'Owned') === 7 && pick(cov, 'Missing') === 33, JSON.stringify({ t: pick(cov, 'Total'), o: pick(cov, 'Owned'), m: pick(cov, 'Missing') }));
+  check('coverage: a page of 10 over 33 missing, 4 pages', (pick(cov, 'Items') || []).length === 10 && pick(cov, 'Matching') === 33 && pick(cov, 'Pages') === 4, JSON.stringify({ n: (pick(cov, 'Items') || []).length, m: pick(cov, 'Matching'), p: pick(cov, 'Pages') }));
   const groups = pick(cov, 'Groups') || [];
   check('coverage: 4 groups, most missing first', groups.length === 4 && groups[0].Missing >= groups[3].Missing, JSON.stringify(groups));
   const owned = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=owned')).json;
-  check('coverage: the owned ones are the 6 matched entries', pick(owned, 'Matching') === 6 && (pick(owned, 'Items') || []).map(i => i.Id).sort().join() === '1001,1002,1003,1005,1006,1007', JSON.stringify((pick(owned, 'Items') || []).map(i => i.Id)));
+  check('coverage: the owned ones are the 6 matched entries and the tagged episode of a series', pick(owned, 'Matching') === 7 && (pick(owned, 'Items') || []).map(i => i.Id).sort().join() === '1001,1002,1003,1004,1005,1006,1007', JSON.stringify((pick(owned, 'Items') || []).map(i => i.Id)));
   const q = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&q=' + encodeURIComponent('PHARE'))).json;
   check('coverage: the search ignores case and accents', pick(q, 'Matching') === 1 && pick(q, 'Items')[0].Id === '1006', JSON.stringify(pick(q, 'Items')?.map(i => i.Id)));
   const byGroup = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=missing&group=' + encodeURIComponent('Boréal Films'))).json;
   check('coverage: filter by group', (pick(byGroup, 'Items') || []).length > 0 && (pick(byGroup, 'Items') || []).every(i => i.Group === 'Boréal Films'), JSON.stringify(pick(byGroup, 'Matching')));
   const csv = await api('GET', '/CustomMetadata/Dump/Export?prefix=dp&status=owned');
-  check('export: a CSV with the owned entries', csv.status === 200 && /tag;id;nom/.test(csv.text) && /dp-1001/.test(csv.text) && /possédé/.test(csv.text) && csv.text.trim().split('\n').length === 7, csv.text.slice(0, 200));
+  check('export: a CSV with the owned entries', csv.status === 200 && /tag;id;nom/.test(csv.text) && /dp-1001/.test(csv.text) && /possédé/.test(csv.text) && csv.text.trim().split('\n').length === 8, csv.text.slice(0, 200));
   const withImage = (pick(cov, 'Items') || []).filter(i => i.HasImage || i.hasImage);
   check('coverage: entries tell whether they have a preview picture (the address stays on the server)', withImage.length === 10 && !JSON.stringify(cov).includes('172.17.0.1'), JSON.stringify(pick(cov, 'Items')?.[0]));
   const img = await fetch(`${J}/CustomMetadata/Dump/Image?prefix=dp&id=1008`, { headers: H });
   check('preview: the server downloads the picture itself and serves it', img.status === 200 && /^image\//.test(img.headers.get('content-type') || '') && (await img.arrayBuffer()).byteLength > 500, String(img.status));
   const noImg = await fetch(`${J}/CustomMetadata/Dump/Image?prefix=dp&id=nope`, { headers: H });
   check('preview: an unknown entry is a 404', noImg.status === 404, String(noImg.status));
+  // series inferred from the names, linked to the library
+  const seriesList = pick(cov, 'Series') || [];
+  const foret = seriesList.find(x => x.Name === 'Chroniques de la forêt');
+  check('series: "Chroniques de la forêt" and "… 2" are grouped (2 entries, 2 owned)', !!foret && foret.Total === 2 && foret.Owned === 2, JSON.stringify(seriesList.slice(0, 3)));
+  check('series: the group is linked to the library series that holds one of its entries', foret?.LibrarySeries === 'Série liée au dump' && (foret?.LibrarySeasons || []).join() === '1', JSON.stringify(foret));
+  const demo = seriesList.find(x => x.Name === 'Épisode démo');
+  check('series: "Épisode démo N" entries form one group of 33', !!demo && demo.Total === 33 && demo.Missing === 33, JSON.stringify(demo));
+  check('series: a one-off title is not a series', !seriesList.some(x => /Voyage|Sentiers|Rivages|Dernier/.test(x.Name)), JSON.stringify(seriesList.map(x => x.Name)));
+  const bySeries = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&series=' + encodeURIComponent(foret?.Key || 'x'))).json;
+  check('series: filtering by a series lists its entries, number hint kept in the title', pick(bySeries, 'Matching') === 2 && (pick(bySeries, 'Items') || []).some(i => i.Number === 2), JSON.stringify(pick(bySeries, 'Items')?.map(i => [i.Name, i.Number])));
   const unknown = await api('GET', '/CustomMetadata/Dump/Coverage?prefix=nope');
   check('coverage: an unknown source is a 404', unknown.status === 404, String(unknown.status));
 
@@ -234,11 +244,11 @@ try {
     await page.evaluate(() => sessionStorage.setItem('cm-missing-dump', 'dp'));
     await open('CustomMetadataMissingEpisodes', M, '.cmn-nav');
     await page.waitForSelector(`${M} #dcResults .dc-entry`, { state: 'visible', timeout: 30000 });
-    check('coverage screen: opens on the catalogue and shows the totals', /40/.test(await page.locator(`${M} #dcSummary`).innerText()) && /34/.test(await page.locator(`${M} #dcSummary`).innerText()), await page.locator(`${M} #dcSummary`).innerText());
-    check('coverage screen: groups listed with their missing count', (await page.locator(`${M} .dc-group`).count()) === 4, String(await page.locator(`${M} .dc-group`).count()));
+    check('coverage screen: opens on the catalogue and shows the totals', /40/.test(await page.locator(`${M} #dcSummary`).innerText()) && /33/.test(await page.locator(`${M} #dcSummary`).innerText()), await page.locator(`${M} #dcSummary`).innerText());
+    check('coverage screen: groups listed with their missing count', (await page.locator(`${M} .dc-group[data-group]`).count()) === 4, String(await page.locator(`${M} .dc-group[data-group]`).count()));
     await page.waitForTimeout(600);
     await shot('D5-coverage-1440');
-    await page.locator(`${M} .dc-group`).first().click();
+    await page.locator(`${M} .dc-group[data-group]`).first().click();
     await page.waitForFunction(sel => document.querySelector(sel).textContent.includes('Groupe :'), `${M} #dcChips`);
     check('coverage screen: clicking a group filters and adds a removable chip', (await page.locator(`${M} .dc-chip`).count()) === 1);
     await shot('D6-coverage-group-1440');

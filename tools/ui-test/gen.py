@@ -52,6 +52,11 @@ from data import DUMP
 for did, *_ in DUMP:
     make(f"{img}/dump{did}.jpg", 400, 600, (60 + did % 9 * 14, 90, 150), str(did), 70)
     make(f"{img}/dump{did}c.jpg", 640, 360, (150, 60 + did % 7 * 15, 90), "#%d" % did, 70)
+# An episode of a SERIES of the library that is also an entry of the dump (tagged): the coverage screen links the dump's series to it
+sdump = os.path.join(T, "media", "series", "Série liée au dump", "Season 1", "Chroniques de la forêt {dp-1004}.mkv")
+os.makedirs(os.path.dirname(sdump), exist_ok=True)
+if not os.path.exists(sdump):
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=2", "-c:v", "libx264", "-t", "2", sdump], check=True)
 ddir = os.path.join(T, "media", "dump"); os.makedirs(ddir, exist_ok=True)
 for fname in ["Voyage {dp-1001}.mkv", "Les Sentiers du Nord.mkv", "Rivages oublies VOSTFR 1080p.mkv", "Chroniques de la forêt S01E02 (RAW) [x264].mkv",
               "The Last Lighthouse.mkv", "Machin {1007}.mkv", "Documentaire inconnu sans rapport.mkv"]:

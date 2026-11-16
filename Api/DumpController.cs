@@ -11,6 +11,8 @@ using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.CustomMetadata.Configuration;
 using Jellyfin.Plugin.CustomMetadata.Services;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.TV;
+using System.Text.RegularExpressions;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -186,11 +188,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
 
             var rows = RowsOf(catalog, source);
-            var owned = OwnedIds(source);
-            foreach (var row in rows)
-            {
-                row.Owned = owned.Contains(row.Id);
-            }
+            LinkOwned(rows, OwnedIds(source));
 
             var coverage = new DumpCoverage
             {
@@ -210,6 +208,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 .OrderByDescending(t => t.Count).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase).Take(120).ToList();
             coverage.Years = rows.Where(r => r.Year.HasValue).Select(r => r.Year.Value).Distinct().OrderByDescending(y => y).ToList();
 
+            coverage.Series = SeriesOf(rows);
             var filtered = Filter(rows, query).ToList();
             coverage.Matching = filtered.Count;
             var size = Math.Clamp(query.PageSize <= 0 ? 24 : query.PageSize, 10, 200);
@@ -238,11 +237,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
 
             var rows = RowsOf(catalog, source);
-            var owned = OwnedIds(source);
-            foreach (var row in rows)
-            {
-                row.Owned = owned.Contains(row.Id);
-            }
+            LinkOwned(rows, OwnedIds(source));
 
             var sb = new StringBuilder("﻿tag;id;nom;groupe;date;tags;statut\r\n");
             foreach (var row in Filter(rows, query))
@@ -289,6 +284,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             if (!string.IsNullOrWhiteSpace(q.Group))
             {
                 result = result.Where(r => string.Equals(r.Group, q.Group.Trim(), StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (!string.IsNullOrWhiteSpace(q.Series))
+            {
+                result = result.Where(r => string.Equals(r.SeriesKey, q.Series.Trim(), StringComparison.Ordinal));
             }
 
             if (!string.IsNullOrWhiteSpace(q.Tag))
@@ -344,7 +344,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             var mapping = source.VideoFieldMappings ?? new FieldMapping();
             // The mapping can change without the dump changing: the cache is only valid for the same mapping
             var previewPath = source.Dump?.PreviewImagePath;
-            var mappingKey = string.Join("|", mapping.PremiereDate, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, previewPath, source.Prefix);
+            var mappingKey = string.Join("|", mapping.PremiereDate, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, previewPath, source.Dump?.SeriesMinEntries, source.Prefix);
             if (RowCache.TryGetValue(catalog, out var cached) && cached.Item1 == mappingKey)
             {
                 return cached.Item2.Select(r => r.Copy()).ToList();
@@ -395,8 +395,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     Year = date?.Year,
                     Tags = tags,
                     ImageUrl = image,
-                    Search = DumpStore.Normalize($"{entry.Name} {entry.Slug} {group} {string.Join(' ', tags)} {entry.Id}")
+                    Search = DumpStore.Normalize($"{entry.Name} {entry.Slug} {group} {string.Join(' ', tags)} {entry.Id}"),
+                    Number = SplitNumber(entry.Name, out var seriesBase),
+                    Series = seriesBase
                 });
+            }
+
+            GroupSeries(rows, Math.Max(0, source.Dump?.SeriesMinEntries ?? 2));
+            foreach (var row in rows)
+            {
+                row.Search = (row.Search + " " + DumpStore.Normalize(row.Series ?? string.Empty)).Trim();
             }
 
             RowCache.Remove(catalog);
@@ -404,21 +412,35 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return rows.Select(r => r.Copy()).ToList();
         }
 
+        private sealed class OwnedInfo
+        {
+            public string Series;
+            public int? Season;
+        }
+
         /// <summary>
-        /// Ids of this dump that the library already holds: an item that carries the "custom" id "prefix-id" (stored by a
-        /// match) or the {prefix-id} tag in its own file name. Episodes and movies, every library.
+        /// Entries of this dump that the library already holds: an item that carries the "custom" id "prefix-id" (stored by a
+        /// match) or the {prefix-id} tag in its own file name. Episodes and movies, every library. For an episode, the series and
+        /// season Jellyfin files it under (so the screen can speak of "your series").
         /// </summary>
-        private HashSet<string> OwnedIds(SourceConfiguration source)
+        private Dictionary<string, OwnedInfo> OwnedIds(SourceConfiguration source)
         {
             var prefix = (source.Prefix ?? string.Empty).Trim();
-            var owned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var owned = new Dictionary<string, OwnedInfo>(StringComparer.OrdinalIgnoreCase);
 
-            void Add(string tag)
+            void Add(string tag, BaseItem item)
             {
                 var dash = (tag ?? string.Empty).IndexOf('-');
                 if (dash > 0 && string.Equals(tag.Substring(0, dash), prefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    owned.Add(tag.Substring(dash + 1));
+                    var info = new OwnedInfo();
+                    if (item is Episode episode && !string.IsNullOrWhiteSpace(episode.SeriesName))
+                    {
+                        info.Series = episode.SeriesName;
+                        info.Season = episode.Season?.IndexNumber ?? episode.ParentIndexNumber;
+                    }
+
+                    owned[tag.Substring(dash + 1)] = info;
                 }
             }
 
@@ -431,17 +453,97 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             foreach (var item in items)
             {
-                Add(CustomId.Get(item.ProviderIds));
+                Add(CustomId.Get(item.ProviderIds), item);
                 if (!string.IsNullOrEmpty(item.Path))
                 {
                     foreach (var tag in TagParser.ExtractAll(TagParser.GetOwnName(item.Path)))
                     {
-                        Add(tag);
+                        Add(tag, item);
                     }
                 }
             }
 
             return owned;
+        }
+
+        private static void LinkOwned(List<DumpRow> rows, Dictionary<string, OwnedInfo> owned)
+        {
+            foreach (var row in rows)
+            {
+                if (owned.TryGetValue(row.Id, out var info))
+                {
+                    row.Owned = true;
+                    row.LibrarySeries = info.Series;
+                    row.LibrarySeason = info.Season;
+                }
+            }
+        }
+
+        // "Title 2", "Title - Ep 3", "Title #4", "Title Partie 2": the trailing number (1-3 digits, a 4-digit one is a year)
+        private static readonly Regex TrailingNumber = new Regex(
+            @"^(?<base>.*?)[\s\-–:._]*(?:(?:ep|épisode|episode|partie|part|saison|season|vol|volume|n°|#)\.?\s*)?(?<n>\d{1,3})\s*$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+
+        /// <summary>The name without its trailing number, and that number (null when there is none)</summary>
+        private static int? SplitNumber(string name, out string baseName)
+        {
+            baseName = (name ?? string.Empty).Trim();
+            var m = TrailingNumber.Match(baseName);
+            if (m.Success && m.Groups["base"].Value.Trim().Length >= 3)
+            {
+                baseName = m.Groups["base"].Value.Trim().TrimEnd('-', '–', ':', '.', '_', ' ');
+                return int.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Entries that share a name once the trailing number is removed form a "series" when there are at least
+        /// <paramref name="min"/> of them. The display name is the one of the unnumbered entry when there is one.
+        /// </summary>
+        private static void GroupSeries(List<DumpRow> rows, int min)
+        {
+            if (min <= 0)
+            {
+                foreach (var r in rows) { r.Series = null; }
+                return;
+            }
+
+            foreach (var group in rows.GroupBy(r => DumpStore.Normalize(r.Series ?? string.Empty)))
+            {
+                var members = group.ToList();
+                if (group.Key.Length < 3 || members.Count < min)
+                {
+                    foreach (var r in members) { r.Series = null; }
+                    continue;
+                }
+
+                var name = (members.FirstOrDefault(r => r.Number == null) ?? members[0]).Series;
+                foreach (var r in members)
+                {
+                    r.SeriesKey = group.Key;
+                    r.Series = name;
+                }
+            }
+        }
+
+        private static List<DumpSeriesCoverage> SeriesOf(List<DumpRow> rows)
+        {
+            return rows.Where(r => r.SeriesKey != null).GroupBy(r => r.SeriesKey).Select(g =>
+            {
+                var linked = g.Where(r => r.Owned && !string.IsNullOrWhiteSpace(r.LibrarySeries)).ToList();
+                return new DumpSeriesCoverage
+                {
+                    Key = g.Key,
+                    Name = g.First().Series,
+                    LibrarySeries = linked.GroupBy(r => r.LibrarySeries).OrderByDescending(x => x.Count()).Select(x => x.Key).FirstOrDefault(),
+                    LibrarySeasons = linked.Where(r => r.LibrarySeason.HasValue).Select(r => r.LibrarySeason.Value).Distinct().OrderBy(x => x).ToList(),
+                    Total = g.Count(),
+                    Owned = g.Count(r => r.Owned),
+                    Missing = g.Count(r => !r.Owned)
+                };
+            }).OrderByDescending(x => x.Missing).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Take(300).ToList();
         }
     }
 
@@ -517,6 +619,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public int? Year { get; set; }
         public string Q { get; set; }
 
+        /// <summary>Key of an inferred series</summary>
+        public string Series { get; set; }
+
         /// <summary>group (default) | name | date | id</summary>
         public string Sort { get; set; }
         public bool Desc { get; set; }
@@ -546,6 +651,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public bool HasImage => !string.IsNullOrWhiteSpace(ImageUrl);
         public bool Owned { get; set; }
 
+        /// <summary>Inferred series (entries whose names only differ by a trailing number); null when alone</summary>
+        public string SeriesKey { get; set; }
+        public string Series { get; set; }
+
+        /// <summary>The trailing number of the name: a season OR an episode, the title cannot tell. A hint only</summary>
+        public int? Number { get; set; }
+
+        /// <summary>Owned entries: the series and season Jellyfin files this episode under (null for a movie or an untagged file)</summary>
+        public string LibrarySeries { get; set; }
+        public int? LibrarySeason { get; set; }
+
         [System.Text.Json.Serialization.JsonIgnore]
         public string Search { get; set; }
 
@@ -555,6 +671,21 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     public class DumpGroupCoverage
     {
         public string Group { get; set; }
+        public int Total { get; set; }
+        public int Owned { get; set; }
+        public int Missing { get; set; }
+    }
+
+    public class DumpSeriesCoverage
+    {
+        public string Key { get; set; }
+
+        /// <summary>The name inferred from the dump</summary>
+        public string Name { get; set; }
+
+        /// <summary>The series Jellyfin files the owned entries under (set when one of them is an episode of a series)</summary>
+        public string LibrarySeries { get; set; }
+        public List<int> LibrarySeasons { get; set; } = new List<int>();
         public int Total { get; set; }
         public int Owned { get; set; }
         public int Missing { get; set; }
@@ -580,6 +711,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public List<DumpGroupCoverage> Groups { get; set; } = new List<DumpGroupCoverage>();
         public List<DumpTagCount> Tags { get; set; } = new List<DumpTagCount>();
         public List<int> Years { get; set; } = new List<int>();
+
+        /// <summary>Inferred series, the most incomplete first</summary>
+        public List<DumpSeriesCoverage> Series { get; set; } = new List<DumpSeriesCoverage>();
 
         /// <summary>Entries matching the filters</summary>
         public int Matching { get; set; }

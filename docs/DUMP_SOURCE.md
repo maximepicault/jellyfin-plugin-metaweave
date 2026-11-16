@@ -52,6 +52,10 @@ The Catalogue section tells where the entries are (`data`, empty = the response 
 
 Compares the catalogue with the library: an entry is **owned** when an episode or movie carries its `{prefix-id}` tag or was related to it. A file that was never matched counts as missing (go and see why: Identify, the test panel, the log tagged `📦 [DUMP]`). Groups (the "Groupe" path) show their own coverage; filters, sort, "Copier le nom" and a CSV export of the current filters are available.
 
+## Series inferred from the names
+
+Entries whose names only differ by a trailing number ("Title", "Title 2") form a series on the coverage screen (minimum entries in the Catalogue section, 0 = off). The number is a hint only: it may be a season or an episode, so it is never turned into `SxxExx`, and it stays in the copied name. When an entry of the series is already in the library as an episode of a series, the group shows that series and its seasons.
+
 ## Limits
 
 - The dump is kept in memory only: it is downloaded again after a Jellyfin restart.

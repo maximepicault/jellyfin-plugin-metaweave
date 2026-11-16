@@ -450,6 +450,8 @@
         #CustomMetadataMissingPage .dc-group-nums strong { color: #ff7a6b; font-weight: 600; }
         #CustomMetadataMissingPage .dc-group-nums strong.dc-done { color: #6fd6a2; }
         #CustomMetadataMissingPage .dc-group .me-progress { height: 4px; }
+        #CustomMetadataMissingPage .dc-series-sub { font-size: 12px; color: var(--me-muted); overflow-wrap: anywhere; }
+        #CustomMetadataMissingPage .dc-series-link { font-size: 13px; color: #8be0b9; overflow-wrap: anywhere; }
         #CustomMetadataMissingPage .dc-filters { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin: 6px 0 10px; }
         #CustomMetadataMissingPage .dc-filters .selectContainer { margin: 0; min-width: 150px; }
         #CustomMetadataMissingPage .dc-filters .dc-order { height: 44px; min-width: 44px; padding: 0 12px; border: 1px solid var(--me-border); border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 18px; cursor: pointer; }
@@ -561,6 +563,7 @@
                 <div class="me-summary" id="dcSummary"></div>
                 <div class="dc-cover" id="dcCover"></div>
                 <div id="dcGroupsBox"></div>
+                <div id="dcSeriesBox"></div>
                 <div class="dc-filters" id="dcFilters">
                     <div class="inputContainer me-search"><input is="emby-input" type="search" id="dcQ" label="Rechercher (nom, groupe, tag, identifiant)" /></div>
                     <div class="selectContainer"><select is="emby-select" id="dcStatusSel" label="Afficher"><option value="missing">Les manquants</option><option value="owned">Les possédés</option><option value="all">Tout le catalogue</option></select></div>
@@ -1541,11 +1544,11 @@
             var page = document.querySelector('#CustomMetadataMissingPage');
             var $ = function (selector) { return page.querySelector(selector); };
             var sources = [];
-            var state = { prefix: '', status: 'missing', group: '', tag: '', year: '', q: '', sort: 'group', desc: false, page: 1, view: 'cards' };
+            var state = { prefix: '', status: 'missing', group: '', series: '', tag: '', year: '', q: '', sort: 'group', desc: false, page: 1, view: 'cards' };
             var mode = 'series';
-            var timer = null, seq = 0, lastData = null, groupsExpanded = false;
+            var timer = null, seq = 0, lastData = null, groupsExpanded = false, seriesExpanded = false;
             var ICON_COPY = '<svg class="me-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a1 1 0 0 1 1-1h10"></path></svg>';
-            var GROUPS_SHOWN = 12;
+            var GROUPS_SHOWN = 12, SERIES_SHOWN = 12;
 
             function esc(v) { return String(v === null || v === undefined ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
             function plural(n, one, many) { return n.toLocaleString('fr-FR') + ' ' + (n > 1 ? (many || one + 's') : one); }
@@ -1608,7 +1611,7 @@
 
             // ---- data ----
             function query(extra) {
-                var q = { prefix: state.prefix, status: state.status, group: state.group, tag: state.tag, year: state.year, q: state.q, sort: state.sort, desc: state.desc, page: state.page };
+                var q = { prefix: state.prefix, status: state.status, group: state.group, series: state.series, tag: state.tag, year: state.year, q: state.q, sort: state.sort, desc: state.desc, page: state.page };
                 Object.keys(extra || {}).forEach(function (k) { q[k] = extra[k]; });
                 Object.keys(q).forEach(function (k) { if (q[k] === '' || q[k] === null || q[k] === undefined || q[k] === false) { delete q[k]; } });
                 return q;
@@ -1652,6 +1655,7 @@
                     + '<div class="dc-cover-line"><span>« Possédé » : un fichier porte le tag de l\'entrée ou lui a été rapproché. Un fichier jamais rapproché compte comme manquant.</span></div>';
 
                 renderGroups(d);
+                renderSeries(d);
                 fillSelect('#dcTag', 'Tous les tags', (d.Tags || []).map(function (t) { return { v: t.Name, t: t.Name + ' (' + t.Count + ')' }; }), state.tag);
                 fillSelect('#dcYear', 'Toutes les années', (d.Years || []).map(function (y) { return { v: String(y), t: String(y) }; }), state.year);
                 $('#dcStatusSel').value = state.status;
@@ -1663,6 +1667,7 @@
                 // Active filters as removable chips
                 var chips = [];
                 if (state.group) { chips.push(['group', 'Groupe : ' + state.group]); }
+                if (state.series) { var picked = (d.Series || []).filter(function (s) { return s.Key === state.series; })[0]; chips.push(['series', 'Série : ' + (picked ? (picked.LibrarySeries || picked.Name) : state.series)]); }
                 if (state.tag) { chips.push(['tag', 'Tag : ' + state.tag]); }
                 if (state.year) { chips.push(['year', 'Année : ' + state.year]); }
                 if (state.q) { chips.push(['q', 'Recherche : ' + state.q]); }
@@ -1698,6 +1703,27 @@
                 $('#dcGroupsBox').innerHTML = html + '</div>';
             }
 
+            // Series inferred from the names (entries that only differ by a trailing number), linked to the library's series when one is owned
+            function renderSeries(d) {
+                var list = d.Series || [];
+                if (!list.length) { $('#dcSeriesBox').innerHTML = ''; return; }
+                var shown = seriesExpanded ? list : list.slice(0, SERIES_SHOWN);
+                var html = '<div class="dc-h"><span>Par série</span><span style="text-transform:none; letter-spacing:0; font-weight:400;">(' + list.length + ' regroupées d\'après les noms, du plus incomplet au plus complet)</span>'
+                    + (list.length > SERIES_SHOWN ? '<button type="button" class="me-linkbtn" id="dcSeriesMore">' + (seriesExpanded ? 'Réduire' : 'Tout afficher (' + list.length + ')') + '</button>' : '') + '</div><div class="dc-groups">';
+                shown.forEach(function (s) {
+                    var on = state.series === s.Key;
+                    var link = s.LibrarySeries
+                        ? '<span class="dc-series-link" title="Une entrée de ce groupe est déjà dans votre médiathèque, rangée sous cette série">✓ Dans votre médiathèque : ' + esc(s.LibrarySeries) + (s.LibrarySeasons.length ? ' · saison ' + s.LibrarySeasons.join(', ') : '') + '</span>' : '';
+                    html += '<button type="button" class="dc-group" data-series="' + esc(s.Key) + '" aria-pressed="' + (on ? 'true' : 'false') + '" title="' + (on ? 'Retirer le filtre' : 'Voir les entrées de cette série') + '">'
+                        + '<span class="dc-group-name">' + esc(s.LibrarySeries || s.Name) + '</span>'
+                        + (s.LibrarySeries && s.LibrarySeries.toLowerCase() !== String(s.Name).toLowerCase() ? '<span class="dc-series-sub">Nom dans le dump : ' + esc(s.Name) + '</span>' : '')
+                        + link
+                        + '<span class="dc-group-nums"><span>' + s.Owned + ' / ' + s.Total + '</span>' + (s.Missing ? '<strong>' + plural(s.Missing, 'manquant') + '</strong>' : '<strong class="dc-done">Complète</strong>') + '</span>'
+                        + '<span class="me-progress" aria-hidden="true"><span style="display:block;height:100%;width:' + pct(s.Owned, s.Total) + '%;background:var(--me-accent);"></span></span></button>';
+                });
+                $('#dcSeriesBox').innerHTML = html + '</div>';
+            }
+
             function renderItems(d) {
                 var box = $('#dcResults');
                 if (!d.Items.length) {
@@ -1712,6 +1738,8 @@
                     var meta = [];
                     if (r.Group && r.Group !== '(sans groupe)') { meta.push(esc(r.Group)); }
                     if (r.Date) { meta.push(esc(formatDate(r.Date))); }
+                    if (r.Series && r.Number !== null && r.Number !== undefined) { meta.push('<span title="Le chiffre final du titre : une saison ou un épisode, le titre ne le dit pas">n° ' + esc(r.Number) + ' d\'après le titre</span>'); }
+                    if (r.Owned && r.LibrarySeries) { meta.push('✓ ' + esc(r.LibrarySeries) + (r.LibrarySeason !== null && r.LibrarySeason !== undefined ? ' · saison ' + esc(r.LibrarySeason) : '')); }
                     html += '<div class="me-episode dc-entry" data-file="' + esc(name) + '">'
                         + '<div class="me-thumb">' + (r.HasImage ? '<img src="' + esc(ApiClient.getUrl('CustomMetadata/Dump/Image', { prefix: state.prefix, id: r.Id, api_key: ApiClient.accessToken() })) + '" alt="" loading="lazy" />' : '<div class="me-placeholder">🎞</div>')
                         + '<span class="me-badge ' + (r.Owned ? 'me-badge-ok' : 'me-badge-missing') + '">' + (r.Owned ? '✓ Possédé' : 'Manquant') + '</span></div>'
@@ -1736,7 +1764,7 @@
             function change(patch) { Object.keys(patch).forEach(function (k) { state[k] = patch[k]; }); if (!('page' in patch)) { state.page = 1; } refresh(false); }
 
             $('#modeSwitch').addEventListener('click', function (e) { var b = e.target.closest('[data-mode]'); if (b) { setMode(b.getAttribute('data-mode')); } });
-            $('#dcSource').addEventListener('change', function (e) { lastData = null; groupsExpanded = false; change({ prefix: e.target.value, group: '', tag: '', year: '', q: '' }); $('#dcQ').value = ''; });
+            $('#dcSource').addEventListener('change', function (e) { lastData = null; groupsExpanded = false; change({ prefix: e.target.value, group: '', series: '', tag: '', year: '', q: '' }); $('#dcQ').value = ''; });
             $('#dcStatusSel').addEventListener('change', function (e) { change({ status: e.target.value }); });
             $('#dcTag').addEventListener('change', function (e) { change({ tag: e.target.value }); });
             $('#dcYear').addEventListener('change', function (e) { change({ year: e.target.value }); });
@@ -1755,6 +1783,9 @@
             page.querySelector('#dumpView').addEventListener('click', function (e) {
                 var group = e.target.closest('[data-group]');
                 if (group) { var g = group.getAttribute('data-group'); change({ group: state.group && state.group.toLowerCase() === g.toLowerCase() ? '' : g }); return; }
+                var ser = e.target.closest('[data-series]');
+                if (ser) { var k = ser.getAttribute('data-series'); change({ series: state.series === k ? '' : k }); return; }
+                if (e.target.closest('#dcSeriesMore')) { seriesExpanded = !seriesExpanded; if (lastData) { renderSeries(lastData); } return; }
                 if (e.target.closest('#dcGroupsMore')) { groupsExpanded = !groupsExpanded; if (lastData) { renderGroups(lastData); } return; }
                 var clear = e.target.closest('[data-clear]');
                 if (clear) { var key = clear.getAttribute('data-clear'); var patch = {}; patch[key] = ''; if (key === 'q') { $('#dcQ').value = ''; } change(patch); return; }

@@ -706,6 +706,12 @@
                             <div class="cm-hint">Langue, qualité, release… séparés par des espaces ou des virgules. Les blocs <code>[…]</code>, <code>{…}</code> et <code>(…)</code> et le « S01E02 » sont déjà retirés avant la comparaison.</div>
                         </div>
                         </div>
+                        <div class="cm-grid" style="margin-top: 22px;"><h4>Séries</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpSeriesMin">Regrouper en séries à partir de</label>
+                            <input is="emby-input" type="number" id="srcDumpSeriesMin" min="0" max="50" step="1" />
+                            <div class="cm-hint">Des entrées dont les noms ne diffèrent que par un numéro final (« Titre », « Titre 2 ») forment une série dans l&#x27;écran Catalogues, quand elles sont au moins ce nombre. 0 = pas de regroupement. Le numéro n&#x27;est qu&#x27;un indice (saison ou épisode, le titre ne le dit pas) et reste dans le nom copié.</div>
+                        </div></div>
                         <div class="cm-grid" style="margin-top: 22px;"><h4>Images</h4></div>
                         <div class="cm-rows" style="margin: 10px 0 0;">
                         <label class="cm-row">
@@ -2621,7 +2627,7 @@
             // ---- Dump source: catalogue settings (form <-> source) and its test ----
             var DUMP_NOISE = 'raw vostfr vosta vostf vosten vf vo va multi mult subbed dubbed uncensored censored 1080p 720p 480p 2160p 4k x264 x265 h264 h265 hevc aac flac web webrip webdl bluray bdrip hdtv';
             var DUMP_DEFAULTS = { ItemsPath: 'data', IdPath: 'id', NamePath: 'name', SlugPath: 'slug', SearchTitlesPath: 'search_titles', GroupPath: 'brand',
-                LikesPath: 'likes', DislikesPath: 'dislikes', UseImages: true, PreviewImagePath: 'cover_url || poster_url', CacheMinutes: 60, MatchWithoutTag: true, MatchBySlug: true, MatchByName: true, MinScore: 70, NoiseWords: DUMP_NOISE };
+                LikesPath: 'likes', DislikesPath: 'dislikes', SeriesMinEntries: 2, UseImages: true, PreviewImagePath: 'cover_url || poster_url', CacheMinutes: 60, MatchWithoutTag: true, MatchBySlug: true, MatchByName: true, MinScore: 70, NoiseWords: DUMP_NOISE };
             // What a dump entry usually looks like: the video mapping a NEW dump source starts with
             var DUMP_VIDEO_MAPPING = { '#srcVideoTitle': 'name', '#srcVideoOverview': 'description', '#srcVideoDate': 'released_at || created_at', '#srcVideoRating': 'communityRating',
                 '#srcVideoSeriesName': '', '#srcVideoTags': 'tags', '#srcVideoTagsItemField': '', '#srcVideoGenres': '', '#srcVideoGenresItemField': '', '#srcVideoStudio': 'brand',
@@ -2645,6 +2651,7 @@
                 qs('#srcDumpDislikes').value = d.DislikesPath || '';
                 qs('#srcDumpCache').value = d.CacheMinutes || 60;
                 qs('#srcDumpUseImages').checked = d.UseImages !== false;
+                qs('#srcDumpSeriesMin').value = d.SeriesMinEntries === 0 || d.SeriesMinEntries ? d.SeriesMinEntries : 2;
                 qs('#srcDumpPreview').value = d.PreviewImagePath || '';
                 qs('#srcDumpNoTag').checked = d.MatchWithoutTag !== false;
                 qs('#srcDumpBySlug').checked = d.MatchBySlug !== false;
@@ -2661,7 +2668,7 @@
                     SlugPath: qs('#srcDumpSlug').value.trim(), SearchTitlesPath: qs('#srcDumpSearch').value.trim(), GroupPath: qs('#srcDumpGroup').value.trim(),
                     LikesPath: qs('#srcDumpLikes').value.trim(), DislikesPath: qs('#srcDumpDislikes').value.trim(),
                     CacheMinutes: Math.max(1, readInt('#srcDumpCache', 60, 1)),
-                    UseImages: qs('#srcDumpUseImages').checked, PreviewImagePath: qs('#srcDumpPreview').value.trim(),
+                    SeriesMinEntries: Math.max(0, readInt('#srcDumpSeriesMin', 2, 0)), UseImages: qs('#srcDumpUseImages').checked, PreviewImagePath: qs('#srcDumpPreview').value.trim(),
                     MatchWithoutTag: qs('#srcDumpNoTag').checked, MatchBySlug: qs('#srcDumpBySlug').checked, MatchByName: qs('#srcDumpByName').checked,
                     MinScore: parseInt(qs('#srcDumpMinScore').value, 10) || 70, NoiseWords: qs('#srcDumpNoise').value
                 };
