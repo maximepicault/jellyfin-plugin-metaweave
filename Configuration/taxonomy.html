@@ -131,6 +131,7 @@
                         <option value="items">Les plus utilisés</option>
                         <option value="name">Nom</option>
                     </select>
+                    <label class="tx-count" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="txHideIgnored" /> Masquer les ignorés</label>
                     <span class="tx-count" id="txCount"></span>
                 </div>
 
@@ -295,17 +296,19 @@
 
             // A rename that is saved folds into the row of the term it joins; while it is being edited it stays where it is
             function markSaved() {
-                terms.forEach(function (t) { t.Saved = stateOf(t) === 'replace' && keyOf(t.ReplaceWith) !== t.Key && !!find(t.Kind, t.ReplaceWith); });
+                terms.forEach(function (t) { t.SavedIgnored = !!t.Ignored; t.Saved = stateOf(t) === 'replace' && keyOf(t.ReplaceWith) !== t.Key && !!find(t.Kind, t.ReplaceWith); });
             }
             function foldedInto(t) {
                 return terms.filter(function (f) { return f.Kind === t.Kind && f.Saved && !f.Ignored && keyOf(f.ReplaceWith) === t.Key; });
             }
 
             function shown() {
+                var hideIgnored = qs('#txHideIgnored').checked;
                 var search = keyOf(qs('#txSearch').value), mode = qs('#txFilter').value, sort = qs('#txSort').value;
                 var list = terms.filter(function (t) {
                     if (t.Kind !== kind) { return false; }
                     if (t.Saved && !search && !mode) { return false; }
+                    if (hideIgnored && t.SavedIgnored && t.Ignored && mode !== 'ignored') { return false; }
                     if (search && (t.Key + ' ' + keyOf(t.Name)).indexOf(search) < 0 && !(t.Variants || []).some(function (v) { return keyOf(v.Name).indexOf(search) >= 0; })) { return false; }
                     if (mode === 'ignored') { return !!t.Ignored; }
                     if (mode === 'replaced') { return stateOf(t) === 'replace'; }
@@ -463,7 +466,7 @@
                 qs('#txAddName').setAttribute('label', kind === 'genre' ? 'Nouveau genre' : 'Nouveau tag');
                 render();
             });
-            ['#txSearch', '#txFilter', '#txSort'].forEach(function (sel) { qs(sel).addEventListener('input', render); qs(sel).addEventListener('change', render); });
+            ['#txSearch', '#txFilter', '#txSort', '#txHideIgnored'].forEach(function (sel) { qs(sel).addEventListener('input', render); qs(sel).addEventListener('change', render); });
 
             qs('#txAddForm').addEventListener('submit', function (e) {
                 e.preventDefault();
