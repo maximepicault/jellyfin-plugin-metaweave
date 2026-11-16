@@ -182,6 +182,26 @@ try {
   const a2 = eps.find(e => e.Id === itemA.Id), b2 = eps.find(e => e.Id === itemB.Id);
   check('apply from the screen: variants unified, renamed, merged, ignored tag removed', JSON.stringify([...(a2?.Genres || [])].sort()) === JSON.stringify(['Docu', 'Voyages']) && JSON.stringify([...(b2?.Genres || [])].sort()) === JSON.stringify(['Docu', 'Exploration']) && !(b2?.Tags || []).includes('Perso'), JSON.stringify([a2?.Genres, b2?.Genres, b2?.Tags]));
   check('tab bar: the Genres et tags tab counts the rules that ignore or rename', Number(await text(page, `${T} [data-cmn-count="taxonomy"]`)) >= 4, await text(page, `${T} [data-cmn-count="taxonomy"]`));
+  // A rename lands on the term that already exists, and a genre can be opened (its click finds the episodes)
+  await api('PUT', '/CustomMetadata/Taxonomy', { Rules: [] });
+  await setTerms(itemA.Id, ['Zorro'], []);
+  await setTerms(itemB.Id, ['ZORRO', 'Mauvais', 'Zeb/Test9'], []);
+  await wait(1500);
+  const merged = (await api('PUT', '/CustomMetadata/Taxonomy', { Rules: [{ Kind: 'genre', Name: 'Mauvais', ReplaceWith: 'zorro' }] })).json;
+  check('rename onto an existing term: the target is written as the library spells it', pick(term(merged, 'genre', 'Mauvais'), 'ReplaceWith') === 'Zorro', JSON.stringify(pick(term(merged, 'genre', 'Mauvais') || {}, 'ReplaceWith')));
+  check('rename onto an existing term: a spelling rule unifies the target\'s variants', pick(term(merged, 'genre', 'Zorro'), 'ReplaceWith') === 'Zorro');
+  await applyAndWait();
+  eps = await episodes();
+  const a3 = eps.find(e => e.Id === itemA.Id), b3 = eps.find(e => e.Id === itemB.Id);
+  check('rename onto an existing term: every item ends with the one spelling', JSON.stringify(a3?.Genres) === JSON.stringify(['Zorro']) && JSON.stringify([...(b3?.Genres || [])].sort()) === JSON.stringify(['Zeb/Test9', 'Zorro']), JSON.stringify([a3?.Genres, b3?.Genres]));
+  const detail = (await api('GET', `/Users/${auth.User.Id}/Items/${itemA.Id}`)).json;
+  const zorro = (detail.GenreItems || []).find(g => g.Name === 'Zorro');
+  const clicked = (await api('GET', `/Items?IncludeItemTypes=Episode&Recursive=true&GenreIds=${zorro?.Id}&userId=${auth.User.Id}`)).json;
+  check('genre click: filtering on the genre id finds both episodes', pick(clicked, 'TotalRecordCount') === 2, String(pick(clicked, 'TotalRecordCount')));
+  const detailB = (await api('GET', `/Users/${auth.User.Id}/Items/${itemB.Id}`)).json;
+  const slash = (detailB.GenreItems || []).find(g => g.Name === 'Zeb/Test9');
+  const clickedSlash = (await api('GET', `/Items?IncludeItemTypes=Episode&Recursive=true&GenreIds=${slash?.Id}&userId=${auth.User.Id}`)).json;
+  check('genre click: a name with a slash finds its episode too', pick(clickedSlash, 'TotalRecordCount') === 1, String(pick(clickedSlash, 'TotalRecordCount')));
   await page.setViewportSize({ width: 412, height: 1500 });
   await page.waitForTimeout(600);
   check('phone: no horizontal scroll on the Genres et tags page', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));

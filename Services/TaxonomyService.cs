@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -41,6 +42,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public bool Ignored { get; set; }
         public string ReplaceWith { get; set; }
         public bool Created { get; set; }
+
+        /// <summary>Genres only: Jellyfin cannot open this name (its genre entry gets another name), so clicking it finds no episode</summary>
+        public bool Unopenable { get; set; }
     }
 
     public class TaxonomyImpact
@@ -109,13 +113,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private void OnItemChanged(object sender, ItemChangeEventArgs e)
         {
             // Cheap checks first: this event fires for every item of the library
-            if (!(e.Item is Series || e.Item is Season || e.Item is Episode) || _store.Load().Rules.Count == 0)
+            if (!(e.Item is Series || e.Item is Season || e.Item is Episode))
             {
                 return;
             }
 
             var item = e.Item;
-            if (!Change(item, out _, out _, out _, out _) || !IsManaged(item))
+            if (!IsManaged(item))
             {
                 return;
             }
@@ -124,18 +128,51 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 try
                 {
-                    if (Change(item, out var genres, out var tags, out _, out _))
+                    if (_store.Load().Rules.Count > 0 && Change(item, out var genres, out var tags, out _, out _))
                     {
                         if (genres != null) { item.Genres = genres; }
                         if (tags != null) { item.Tags = tags; }
                         await item.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, CancellationToken.None);
                     }
+
+                    EnsureGenres(item.Genres);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "🏷️ [TAXONOMY] ⚠️ Could not apply the rules to '{Name}'", item.Name);
                 }
             });
+        }
+
+        // Genre name → Jellyfin can open it. Jellyfin only creates a genre's own entry when something asks for it, and clicking a genre
+        // filters on that entry's id: without it the click finds no episode. Done once per name and process.
+        private static readonly ConcurrentDictionary<string, bool> Ensured = new ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
+
+        /// <summary>Makes sure Jellyfin has an entry for each genre, and remembers the names it cannot open</summary>
+        private void EnsureGenres(IEnumerable<string> names)
+        {
+            foreach (var name in (names ?? Array.Empty<string>()).Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).Distinct(StringComparer.Ordinal))
+            {
+                if (Ensured.ContainsKey(name))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var genre = _library.GetGenre(name);
+                    var ok = genre != null && string.Equals(genre.Name, name, StringComparison.Ordinal);
+                    Ensured[name] = ok;
+                    if (!ok)
+                    {
+                        _logger.LogWarning("🏷️ [TAXONOMY] ⚠️ Jellyfin cannot open the genre '{Name}' (its entry is named '{Entry}'): clicking it will find nothing", name, genre?.Name);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "🏷️ [TAXONOMY] ⚠️ Could not create the genre entry '{Name}'", name);
+                }
+            }
         }
 
         private static HashSet<string> SourcePrefixes()
@@ -237,6 +274,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 // The spelling a rule fixes ("docu" → "Docu") wins, then the most used one
                 var fixedSpelling = term.ReplaceWith != null && TaxonomyStore.Key(term.ReplaceWith) == term.Key ? term.ReplaceWith.Trim() : null;
                 term.Name = fixedSpelling ?? (found.Count > 0 ? BySpelling(found).First().Key : term.Name);
+                term.Unopenable = term.Kind == TaxonomyStore.GenreKind
+                    && (found.Keys.Append(term.Name).Any(n => Ensured.TryGetValue(n, out var ok) && !ok));
             }
 
             return byKey.Values.OrderBy(t => t.Kind, StringComparer.Ordinal).ThenByDescending(t => t.Items).ThenBy(t => t.Key, StringComparer.Ordinal).ToList();
@@ -250,6 +289,56 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         {
             static bool LikeAName(string s) => s.Length > 0 && char.IsUpper(s[0]) && !s.Skip(1).All(c => !char.IsLetter(c) || char.IsUpper(c)) || (s.Length == 1 && char.IsUpper(s[0]));
             return found.OrderByDescending(f => f.Value).ThenByDescending(f => LikeAName(f.Key)).ThenBy(f => f.Key, StringComparer.Ordinal);
+        }
+
+        /// <summary>
+        /// A rename must land on the term that already exists: the target is written as the library spells it (typed "docu" for "Docu"),
+        /// and when that term is spelled several ways in the library a spelling rule is added, otherwise the renamed items would keep
+        /// a spelling of their own and Jellyfin would list two entries.
+        /// </summary>
+        public TaxonomyFile NormalizeTargets(TaxonomyFile file)
+        {
+            var rules = file?.Rules ?? new List<TaxonomyRule>();
+            var terms = Catalog().GroupBy(t => t.Kind + "|" + t.Key).ToDictionary(g => g.Key, g => g.First());
+            var added = new List<TaxonomyRule>();
+
+            TaxonomyRule RuleOf(string kind, string key)
+                => rules.Concat(added).FirstOrDefault(r => TaxonomyStore.NormalizeKind(r.Kind) == kind && TaxonomyStore.Key(r.Name) == key);
+
+            foreach (var rule in rules.Where(r => r != null && !r.Ignored && !string.IsNullOrWhiteSpace(r.ReplaceWith)).ToList())
+            {
+                var kind = TaxonomyStore.NormalizeKind(rule.Kind);
+                var key = TaxonomyStore.Key(rule.ReplaceWith);
+                if (kind == null || key == TaxonomyStore.Key(rule.Name))
+                {
+                    continue;   // a spelling fix chosen by hand
+                }
+
+                var targetRule = RuleOf(kind, key);
+                string canonical = null;
+                if (targetRule != null && !targetRule.Ignored && !string.IsNullOrWhiteSpace(targetRule.ReplaceWith) && TaxonomyStore.Key(targetRule.ReplaceWith) == key)
+                {
+                    canonical = targetRule.ReplaceWith.Trim();   // the spelling already chosen for the target
+                }
+                else if (terms.TryGetValue(kind + "|" + key, out var term))
+                {
+                    canonical = term.Name;
+                }
+
+                if (canonical == null)
+                {
+                    continue;
+                }
+
+                rule.ReplaceWith = canonical;
+                if (targetRule == null && terms.TryGetValue(kind + "|" + key, out var spelled) && spelled.Variants.Count > 1)
+                {
+                    added.Add(new TaxonomyRule { Kind = kind, Name = canonical, ReplaceWith = canonical });
+                }
+            }
+
+            rules.AddRange(added);
+            return file;
         }
 
         /// <summary>The names to suggest in a field (not ignored, not renamed away), the most used first</summary>
@@ -340,6 +429,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
                 finally
                 {
+                    try { EnsureGenres(ManagedItems().SelectMany(i => i.Genres ?? Array.Empty<string>())); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "🏷️ [TAXONOMY] ⚠️ Could not create the genre entries"); }
                     _status.Running = false;
                     _status.FinishedAt = DateTime.UtcNow;
                     _logger.LogInformation("🏷️ [TAXONOMY] ✅ {Changed} item(s) rewritten, {Failed} failed", _status.Changed, _status.Failed);

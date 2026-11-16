@@ -312,7 +312,7 @@
                 var counts = plural(t.Items, 'élément', 'éléments') + (t.Seen ? ' · reçu ' + plural(t.Seen, 'fois', 'fois') : '');
                 return '<div class="tx-row" role="listitem" data-key="' + escapeHtml(t.Key) + '" data-state="' + state + '">'
                     + '<input type="checkbox" class="tx-check" data-select="' + escapeHtml(t.Key) + '" aria-label="Sélectionner ' + escapeHtml(t.Name) + '"' + (selected[kind + '|' + t.Key] ? ' checked' : '') + ' />'
-                    + '<div class="tx-name"><span><strong>' + escapeHtml(t.Name) + '</strong>' + (t.Created ? '<span class="tx-badge">créé ici</span>' : '') + (same ? '<span class="tx-badge">orthographe fixée</span>' : '') + '</span>' + variants + '</div>'
+                    + '<div class="tx-name"><span><strong>' + escapeHtml(t.Name) + '</strong>' + (t.Created ? '<span class="tx-badge">créé ici</span>' : '') + (same ? '<span class="tx-badge">orthographe fixée</span>' : '') + (t.Unopenable ? '<span class="tx-badge" style="background:rgba(255,210,127,.2);color:#ffd27f" title="Jellyfin ne sait pas ouvrir ce nom : un clic dessus ne trouve aucun épisode. Renommez-le (par exemple sans « / »).">ouverture impossible</span>' : '') + '</span>' + variants + '</div>'
                     + '<div class="tx-counts">' + counts + '</div>'
                     + '<div class="tx-rule"><select class="tx-state" data-state-of="' + escapeHtml(t.Key) + '" aria-label="Règle pour ' + escapeHtml(t.Name) + '">'
                     + '<option value="keep"' + (state === 'keep' ? ' selected' : '') + '>Conserver</option><option value="ignore"' + (state === 'ignore' ? ' selected' : '') + '>Ignorer</option>'

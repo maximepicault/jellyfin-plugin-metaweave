@@ -39,7 +39,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 return BadRequest("Règles manquantes");
             }
 
-            _store.Save(file);
+            _store.Save(_service.NormalizeTargets(file));
             return Ok(new TaxonomyCatalog { Terms = _service.Catalog() });
         }
 
