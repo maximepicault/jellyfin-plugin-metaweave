@@ -54,7 +54,7 @@ Compares the catalogue with the library: an entry is **owned** when an episode o
 
 ## Series inferred from the names
 
-Entries whose names only differ by a trailing number ("Title", "Title 2") form a series on the coverage screen (minimum entries in the Catalogue section, 0 = off). The number is a hint only: it may be a season or an episode, so it is never turned into `SxxExx`, and it stays in the copied name. When an entry of the series is already in the library as an episode of a series, the group shows that series and its seasons.
+The coverage screen opens on series cards, like the Séries tab; a click lists the entries of that series. Entries whose names only differ by a trailing number ("Title", "Title 2") form a series (minimum entries in the Catalogue section, 0 = off, then the entries are listed directly); the others are under "Épisodes seuls". The "Format de l'aperçu" setting (16:9 or 2:3) shapes the pictures. The number is a hint only: it may be a season or an episode, so it is never turned into `SxxExx`, and it stays in the copied name. When an entry of the series is already in the library as an episode of a series, the group shows that series and its seasons.
 
 ## Limits
 

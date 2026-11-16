@@ -208,7 +208,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 .OrderByDescending(t => t.Count).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase).Take(120).ToList();
             coverage.Years = rows.Where(r => r.Year.HasValue).Select(r => r.Year.Value).Distinct().OrderByDescending(y => y).ToList();
 
-            coverage.Series = SeriesOf(rows);
+            coverage.PreviewRatio = PreviewRatioOf(source);
+            if (!string.IsNullOrWhiteSpace(query.Series) && query.Series != AloneKey)
+            {
+                coverage.SeriesInfo = SeriesOf(rows.Where(r => r.SeriesKey == query.Series.Trim()).ToList()).FirstOrDefault();
+            }
+
             var filtered = Filter(rows, query).ToList();
             coverage.Matching = filtered.Count;
             var size = Math.Clamp(query.PageSize <= 0 ? 24 : query.PageSize, 10, 200);
@@ -218,6 +223,98 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             coverage.Page = Math.Clamp(query.Page <= 0 ? 1 : query.Page, 1, pages);
             coverage.Items = filtered.Skip((coverage.Page - 1) * size).Take(size).ToList();
             return Ok(coverage);
+        }
+
+        /// <summary>Key of the pseudo-series that holds the entries that belong to no series</summary>
+        public const string AloneKey = "_alone";
+
+        /// <summary>
+        /// The first level of the catalogue screen: one card per inferred series (plus one for the entries that belong to none),
+        /// like the series cards of the missing-episodes screen. Filtered, sorted and paged here.
+        /// </summary>
+        [HttpGet("Series")]
+        public async Task<ActionResult<DumpSeriesPage>> SeriesCards([FromQuery] DumpSeriesQuery query, CancellationToken cancellationToken)
+        {
+            var source = FindSource(query.Prefix);
+            if (source == null)
+            {
+                return NotFound("Source de dump introuvable");
+            }
+
+            var (catalog, error) = await _dump.GetCatalogAsync(source, query.Refresh, cancellationToken);
+            if (catalog == null)
+            {
+                return Ok(new DumpSeriesPage { Prefix = source.Prefix, SourceName = source.Name, Error = error });
+            }
+
+            var rows = RowsOf(catalog, source);
+            LinkOwned(rows, OwnedIds(source));
+            var page = new DumpSeriesPage
+            {
+                Prefix = source.Prefix, SourceName = source.Name, LoadedAtUtc = catalog.LoadedAtUtc, Error = error,
+                Total = rows.Count, Owned = rows.Count(r => r.Owned)
+            };
+            page.Missing = page.Total - page.Owned;
+            page.Groups = rows.GroupBy(r => r.Group, StringComparer.OrdinalIgnoreCase)
+                .Select(g => new DumpGroupCoverage { Group = g.Key, Total = g.Count(), Owned = g.Count(r => r.Owned), Missing = g.Count(r => !r.Owned) })
+                .OrderBy(g => g.Group, StringComparer.OrdinalIgnoreCase).ToList();
+            page.HasSeries = rows.Any(r => r.SeriesKey != null);
+            page.PreviewRatio = PreviewRatioOf(source);
+
+            IEnumerable<DumpRow> scope = rows;
+            if (!string.IsNullOrWhiteSpace(query.Group))
+            {
+                scope = scope.Where(r => string.Equals(r.Group, query.Group.Trim(), StringComparison.OrdinalIgnoreCase));
+            }
+
+            var words = DumpStore.Normalize(query.Q ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var cards = new List<DumpSeriesCard>();
+            foreach (var g in scope.GroupBy(r => r.SeriesKey ?? AloneKey))
+            {
+                var members = g.ToList();
+                if (words.Length > 0 && !members.Any(r => words.All(w => r.Search.Contains(w, StringComparison.Ordinal))))
+                {
+                    continue;
+                }
+
+                var alone = g.Key == AloneKey;
+                var linked = members.Where(r => r.Owned && !string.IsNullOrWhiteSpace(r.LibrarySeries)).ToList();
+                var withImage = members.Where(r => r.HasImage).OrderBy(r => r.Owned).FirstOrDefault();
+                cards.Add(new DumpSeriesCard
+                {
+                    Key = g.Key,
+                    Alone = alone,
+                    Name = alone ? "Épisodes seuls" : members[0].Series,
+                    LibrarySeries = alone ? null : linked.GroupBy(r => r.LibrarySeries).OrderByDescending(x => x.Count()).Select(x => x.Key).FirstOrDefault(),
+                    LibrarySeasons = linked.Where(r => r.LibrarySeason.HasValue).Select(r => r.LibrarySeason.Value).Distinct().OrderBy(x => x).ToList(),
+                    // Only when every entry has the same group: otherwise the card would claim a brand it does not belong to
+                    Group = members.Select(r => r.Group).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1 && !string.IsNullOrWhiteSpace(members[0].Group) && members[0].Group != "(sans groupe)" ? members[0].Group : null,
+                    Total = members.Count,
+                    Owned = members.Count(r => r.Owned),
+                    Missing = members.Count(r => !r.Owned),
+                    ImageId = withImage?.Id
+                });
+            }
+
+            if (query.OnlyIncomplete)
+            {
+                cards = cards.Where(c => c.Missing > 0).ToList();
+            }
+
+            IEnumerable<DumpSeriesCard> ordered = (query.Sort ?? "missing").ToLowerInvariant() switch
+            {
+                "name" => cards.OrderBy(c => c.Alone).ThenBy(c => c.LibrarySeries ?? c.Name, StringComparer.OrdinalIgnoreCase),
+                "progress" => cards.OrderBy(c => c.Alone).ThenBy(c => c.Total == 0 ? 1d : (double)c.Owned / c.Total).ThenByDescending(c => c.Missing),
+                _ => cards.OrderBy(c => c.Alone).ThenByDescending(c => c.Missing).ThenBy(c => c.LibrarySeries ?? c.Name, StringComparer.OrdinalIgnoreCase)
+            };
+            var list = ordered.ToList();
+            var size = Math.Clamp(query.PageSize <= 0 ? 24 : query.PageSize, 6, 120);
+            page.Matching = list.Count;
+            page.PageSize = size;
+            page.Pages = Math.Max(1, (int)Math.Ceiling(list.Count / (double)size));
+            page.Page = Math.Clamp(query.Page <= 0 ? 1 : query.Page, 1, page.Pages);
+            page.Items = list.Skip((page.Page - 1) * size).Take(size).ToList();
+            return Ok(page);
         }
 
         /// <summary>The same filters, every matching entry, as CSV</summary>
@@ -262,6 +359,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return value.IndexOfAny(new[] { ';', '"', '\n', '\r' }) >= 0 ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;
         }
 
+        private static string PreviewRatioOf(SourceConfiguration source) => source.Dump?.PreviewRatio == "2:3" ? "2:3" : "16:9";
+
         private static SourceConfiguration FindSource(string prefix)
         {
             return (Plugin.Instance?.Configuration?.Sources ?? new List<SourceConfiguration>())
@@ -288,7 +387,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             if (!string.IsNullOrWhiteSpace(q.Series))
             {
-                result = result.Where(r => string.Equals(r.SeriesKey, q.Series.Trim(), StringComparison.Ordinal));
+                result = q.Series.Trim() == AloneKey
+                    ? result.Where(r => r.SeriesKey == null)
+                    : result.Where(r => string.Equals(r.SeriesKey, q.Series.Trim(), StringComparison.Ordinal));
             }
 
             if (!string.IsNullOrWhiteSpace(q.Tag))
@@ -437,7 +538,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     if (item is Episode episode && !string.IsNullOrWhiteSpace(episode.SeriesName))
                     {
                         info.Series = episode.SeriesName;
-                        info.Season = episode.Season?.IndexNumber ?? episode.ParentIndexNumber;
+                        // ParentIndexNumber is stored on the episode; the season item is only loaded when it is missing
+                        info.Season = episode.ParentIndexNumber ?? episode.Season?.IndexNumber;
                     }
 
                     owned[tag.Substring(dash + 1)] = info;
@@ -676,6 +778,63 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public int Missing { get; set; }
     }
 
+    public class DumpSeriesQuery
+    {
+        public string Prefix { get; set; }
+        public string Q { get; set; }
+        public string Group { get; set; }
+
+        /// <summary>Only the series that miss something (default on the screen)</summary>
+        public bool OnlyIncomplete { get; set; }
+
+        /// <summary>missing (default) | name | progress</summary>
+        public string Sort { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public bool Refresh { get; set; }
+    }
+
+    public class DumpSeriesCard
+    {
+        public string Key { get; set; }
+
+        /// <summary>The pseudo-series of the entries that belong to no series</summary>
+        public bool Alone { get; set; }
+        public string Name { get; set; }
+        public string LibrarySeries { get; set; }
+        public List<int> LibrarySeasons { get; set; } = new List<int>();
+
+        /// <summary>The group (brand…) shared by all its entries; null when they differ</summary>
+        public string Group { get; set; }
+        public int Total { get; set; }
+        public int Owned { get; set; }
+        public int Missing { get; set; }
+
+        /// <summary>An entry whose preview picture stands for the series</summary>
+        public string ImageId { get; set; }
+    }
+
+    public class DumpSeriesPage
+    {
+        public string Prefix { get; set; }
+        public string SourceName { get; set; }
+        public DateTime? LoadedAtUtc { get; set; }
+        public string Error { get; set; }
+        public int Total { get; set; }
+        public int Owned { get; set; }
+        public int Missing { get; set; }
+
+        /// <summary>false: no entry belongs to a series (grouping off or names too different): the screen lists the entries directly</summary>
+        public bool HasSeries { get; set; }
+        public string PreviewRatio { get; set; } = "16:9";
+        public List<DumpGroupCoverage> Groups { get; set; } = new List<DumpGroupCoverage>();
+        public int Matching { get; set; }
+        public int Page { get; set; }
+        public int Pages { get; set; }
+        public int PageSize { get; set; }
+        public List<DumpSeriesCard> Items { get; set; } = new List<DumpSeriesCard>();
+    }
+
     public class DumpSeriesCoverage
     {
         public string Key { get; set; }
@@ -712,8 +871,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public List<DumpTagCount> Tags { get; set; } = new List<DumpTagCount>();
         public List<int> Years { get; set; } = new List<int>();
 
-        /// <summary>Inferred series, the most incomplete first</summary>
-        public List<DumpSeriesCoverage> Series { get; set; } = new List<DumpSeriesCoverage>();
+        /// <summary>The series being looked at (when the entries are filtered on one)</summary>
+        public DumpSeriesCoverage SeriesInfo { get; set; }
+
+        public string PreviewRatio { get; set; } = "16:9";
 
         /// <summary>Entries matching the filters</summary>
         public int Matching { get; set; }

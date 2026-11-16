@@ -256,6 +256,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         /// </summary>
         public int SeriesMinEntries { get; set; } = 2;
 
+        /// <summary>Shape of the preview pictures on the coverage screen: "16:9" (landscape, the default) or "2:3" (poster)</summary>
+        public string PreviewRatio { get; set; } = "16:9";
+
         /// <summary>How long the downloaded dump is reused, in minutes</summary>
         public int CacheMinutes { get; set; } = 60;
 

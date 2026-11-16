@@ -450,6 +450,21 @@
         #CustomMetadataMissingPage .dc-group-nums strong { color: #ff7a6b; font-weight: 600; }
         #CustomMetadataMissingPage .dc-group-nums strong.dc-done { color: #6fd6a2; }
         #CustomMetadataMissingPage .dc-group .me-progress { height: 4px; }
+        /* The tools of the level are items of the same row as the search (the wrapper only exists to hide them together) */
+        #CustomMetadataMissingPage .dc-tools-series, #CustomMetadataMissingPage .dc-tools-entries { display: contents; }
+        #CustomMetadataMissingPage .dc-tools-series.me-hidden, #CustomMetadataMissingPage .dc-tools-entries.me-hidden { display: none !important; }
+        #CustomMetadataMissingPage .dc-tools-series .checkboxContainer { flex: 0 0 auto; width: auto; }
+        #CustomMetadataMissingPage .dc-link { color: #8be0b9; }
+        #CustomMetadataMissingPage .dc-seriesline { margin: 4px 0 12px; color: var(--me-muted); }
+        #CustomMetadataMissingPage .dc-seriesline strong { color: #fff; }
+        /* Series cards and entry thumbnails follow the shape of the dump's pictures (the source's "Format de l'aperçu") */
+        #CustomMetadataMissingPage #dumpView[data-ratio="16:9"] .dc-series-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+        #CustomMetadataMissingPage #dumpView[data-ratio="16:9"] .dc-series-card .me-poster { aspect-ratio: 16 / 9; }
+        #CustomMetadataMissingPage #dumpView[data-ratio="16:9"] .me-thumb { aspect-ratio: 16 / 9; }
+        #CustomMetadataMissingPage #dumpView[data-ratio="16:9"] .me-list .me-thumb { width: 200px; flex: none; }
+        #CustomMetadataMissingPage #dumpView[data-ratio="2:3"] .me-thumb { aspect-ratio: 2 / 3; max-height: 460px; }
+        #CustomMetadataMissingPage #dumpView[data-ratio="2:3"] .me-list .me-thumb { width: 110px; flex: none; max-height: none; }
+        #CustomMetadataMissingPage .dc-series-card .me-card-body { flex: 1; }
         #CustomMetadataMissingPage .dc-series-sub { font-size: 12px; color: var(--me-muted); overflow-wrap: anywhere; }
         #CustomMetadataMissingPage .dc-series-link { font-size: 13px; color: #8be0b9; overflow-wrap: anywhere; }
         #CustomMetadataMissingPage .dc-filters { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin: 6px 0 10px; }
@@ -547,7 +562,7 @@
             <div id="results"></div>
             </div>
 
-            <!-- Catalogues: the dump sources (filled by the second script) -->
+            <!-- Catalogues: the dump sources (filled by the second script). Level 1 = series cards, level 2 = the entries of one series -->
             <div id="dumpView" class="me-hidden">
                 <div class="dc-bar">
                     <h2 class="sectionTitle">Catalogue</h2>
@@ -562,18 +577,25 @@
                 <p class="dc-status" id="dcStatus" role="status"></p>
                 <div class="me-summary" id="dcSummary"></div>
                 <div class="dc-cover" id="dcCover"></div>
-                <div id="dcGroupsBox"></div>
-                <div id="dcSeriesBox"></div>
+                <nav class="me-crumbs" id="dcCrumbs" aria-label="Fil d'Ariane du catalogue"></nav>
+                <div id="dcSeriesHead"></div>
                 <div class="dc-filters" id="dcFilters">
-                    <div class="inputContainer me-search"><input is="emby-input" type="search" id="dcQ" label="Rechercher (nom, groupe, tag, identifiant)" /></div>
-                    <div class="selectContainer"><select is="emby-select" id="dcStatusSel" label="Afficher"><option value="missing">Les manquants</option><option value="owned">Les possédés</option><option value="all">Tout le catalogue</option></select></div>
-                    <div class="selectContainer"><select is="emby-select" id="dcTag" label="Tag"><option value="">Tous les tags</option></select></div>
-                    <div class="selectContainer"><select is="emby-select" id="dcYear" label="Année"><option value="">Toutes les années</option></select></div>
-                    <div class="selectContainer"><select is="emby-select" id="dcSort" label="Trier par"><option value="group">Groupe</option><option value="name">Nom</option><option value="date">Date de sortie</option><option value="id">Identifiant</option></select></div>
-                    <button type="button" class="dc-order" id="dcOrder" aria-label="Ordre croissant" title="Inverser l'ordre">↑</button>
-                    <div class="me-viewtoggle" id="dcView" role="group" aria-label="Affichage des entrées" style="margin: 0;">
-                        <button type="button" data-view="cards" aria-pressed="true">Cartes</button>
-                        <button type="button" data-view="list" aria-pressed="false">Liste</button>
+                    <div class="inputContainer me-search"><input is="emby-input" type="search" id="dcQ" label="Rechercher" /></div>
+                    <div class="selectContainer"><select is="emby-select" id="dcGroup" label="Groupe"><option value="">Tous les groupes</option></select></div>
+                    <div class="dc-tools-series">
+                        <div class="selectContainer"><select is="emby-select" id="dcSeriesSort" label="Trier par"><option value="missing">Plus de manquants</option><option value="name">Nom</option><option value="progress">Moins complètes</option></select></div>
+                        <label class="checkboxContainer" style="margin: 0 0 8px;"><input is="emby-checkbox" type="checkbox" id="dcIncomplete" checked /><span>Seulement les séries incomplètes</span></label>
+                    </div>
+                    <div class="dc-tools-entries">
+                        <div class="selectContainer"><select is="emby-select" id="dcStatusSel" label="Afficher"><option value="missing">Les manquants</option><option value="owned">Les possédés</option><option value="all">Tout</option></select></div>
+                        <div class="selectContainer"><select is="emby-select" id="dcTag" label="Tag"><option value="">Tous les tags</option></select></div>
+                        <div class="selectContainer"><select is="emby-select" id="dcYear" label="Année"><option value="">Toutes les années</option></select></div>
+                        <div class="selectContainer"><select is="emby-select" id="dcSort" label="Trier par"><option value="date">Date de sortie</option><option value="name">Nom</option><option value="id">Identifiant</option><option value="group">Groupe</option></select></div>
+                        <button type="button" class="dc-order" id="dcOrder" aria-label="Ordre croissant" title="Inverser l'ordre">↑</button>
+                        <div class="me-viewtoggle" id="dcView" role="group" aria-label="Affichage des entrées" style="margin: 0;">
+                            <button type="button" data-view="cards" aria-pressed="true">Cartes</button>
+                            <button type="button" data-view="list" aria-pressed="false">Liste</button>
+                        </div>
                     </div>
                 </div>
                 <div class="dc-chips" id="dcChips"></div>
@@ -1540,19 +1562,21 @@
     </script>
     <script type="text/javascript">
         // ===== Catalogues: what a dump source holds against what the library owns =====
+        // Level 1: one card per series inferred from the names (like the series of the first view); level 2: the entries of one series.
         (function () {
             var page = document.querySelector('#CustomMetadataMissingPage');
             var $ = function (selector) { return page.querySelector(selector); };
             var sources = [];
-            var state = { prefix: '', status: 'missing', group: '', series: '', tag: '', year: '', q: '', sort: 'group', desc: false, page: 1, view: 'cards' };
+            var state = { prefix: '', series: '', seriesName: '', group: '', q: '', incomplete: true, seriesSort: 'missing', status: 'missing', tag: '', year: '', sort: 'date', desc: false, page: 1, view: 'cards' };
             var mode = 'series';
-            var timer = null, seq = 0, lastData = null, groupsExpanded = false, seriesExpanded = false;
+            var flat = false;          // no entry belongs to a series: the entries are listed directly
+            var timer = null, seq = 0, lastData = null, lastLevel = 'series';
             var ICON_COPY = '<svg class="me-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a1 1 0 0 1 1-1h10"></path></svg>';
-            var GROUPS_SHOWN = 12, SERIES_SHOWN = 12;
 
             function esc(v) { return String(v === null || v === undefined ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
             function plural(n, one, many) { return n.toLocaleString('fr-FR') + ' ' + (n > 1 ? (many || one + 's') : one); }
             function pct(part, total) { return total > 0 ? Math.round(part * 100 / total) : 0; }
+            function level() { return state.series || flat ? 'entries' : 'series'; }
 
             try { state.view = localStorage.getItem('cm-missing-view') === 'list' ? 'list' : 'cards'; } catch (e) { /* private window */ }
 
@@ -1575,7 +1599,7 @@
                 });
             }
 
-            // "Title {prefix-id}", without the characters a file name cannot hold
+            // "Title {prefix-id}", without the characters a file name cannot hold. The number of the title is kept: it tells two files apart
             function fileName(row) {
                 var title = String(row.Name || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/[{}]/g, '').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
                 return title ? title + ' {' + row.Tag + '}' : '{' + row.Tag + '}';
@@ -1585,6 +1609,8 @@
                 var d = new Date(iso);
                 return isNaN(d) ? '' : d.toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' });
             }
+
+            function imageSrc(id) { return ApiClient.getUrl('CustomMetadata/Dump/Image', { prefix: state.prefix, id: id, api_key: ApiClient.accessToken() }); }
 
             // ---- mode: series (the usual screen) or catalogues ----
             function setMode(next) {
@@ -1610,22 +1636,33 @@
             }
 
             // ---- data ----
-            function query(extra) {
-                var q = { prefix: state.prefix, status: state.status, group: state.group, series: state.series, tag: state.tag, year: state.year, q: state.q, sort: state.sort, desc: state.desc, page: state.page };
-                Object.keys(extra || {}).forEach(function (k) { q[k] = extra[k]; });
+            function clean(q) {
                 Object.keys(q).forEach(function (k) { if (q[k] === '' || q[k] === null || q[k] === undefined || q[k] === false) { delete q[k]; } });
                 return q;
+            }
+            function seriesQuery(extra) {
+                return clean(Object.assign({ prefix: state.prefix, q: state.q, group: state.group, onlyIncomplete: state.incomplete, sort: state.seriesSort, page: state.page }, extra || {}));
+            }
+            function entryQuery(extra) {
+                var key = flat ? '_alone' : state.series;
+                return clean(Object.assign({ prefix: state.prefix, series: key, status: state.status, group: state.group, tag: state.tag, year: state.year, q: state.q, sort: state.sort, desc: state.desc, page: state.page }, extra || {}));
             }
 
             function refresh(force) {
                 if (!state.prefix) { return; }
                 var mine = ++seq;
+                var wanted = level();
                 $('#dcResults').setAttribute('aria-busy', 'true');
                 if (!lastData) { $('#dcResults').innerHTML = '<p class="dc-count">Chargement du catalogue…</p>'; }
-                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Dump/Coverage', query(force ? { refresh: true } : {}))).then(function (data) {
+                var url = wanted === 'series'
+                    ? ApiClient.getUrl('CustomMetadata/Dump/Series', seriesQuery(force ? { refresh: true } : {}))
+                    : ApiClient.getUrl('CustomMetadata/Dump/Coverage', entryQuery(force ? { refresh: true } : {}));
+                ApiClient.getJSON(url).then(function (data) {
                     if (mine !== seq) { return; }
-                    lastData = data;
-                    render(data);
+                    // Nothing is grouped into a series: go straight to the entries
+                    if (wanted === 'series' && !data.Error && data.HasSeries === false) { flat = true; state.page = 1; refresh(false); return; }
+                    lastData = data; lastLevel = wanted;
+                    render(data, wanted);
                 }, function (err) {
                     if (mine !== seq) { return; }
                     $('#dcResults').innerHTML = '<div class="dc-empty"><strong>Impossible de lire le catalogue.</strong>Le serveur a répondu' + (err && err.status ? ' (HTTP ' + err.status + ')' : ' par une erreur') + '. Vérifiez que la source existe et est activée, puis consultez le journal du serveur (étiquette 📦 [DUMP]).</div>';
@@ -1634,18 +1671,19 @@
             }
 
             // ---- rendering ----
-            function render(d) {
+            function render(d, which) {
                 $('#dcResults').removeAttribute('aria-busy');
+                $('#dumpView').setAttribute('data-ratio', d.PreviewRatio === '2:3' ? '2:3' : '16:9');
                 var status = $('#dcStatus');
                 if (d.Error && !d.Total) {
                     status.textContent = '';
-                    $('#dcSummary').innerHTML = ''; $('#dcCover').innerHTML = ''; $('#dcGroupsBox').innerHTML = ''; $('#dcChips').innerHTML = ''; $('#dcCount').textContent = ''; $('#dcPager').innerHTML = '';
+                    ['#dcSummary', '#dcCover', '#dcCrumbs', '#dcChips', '#dcPager', '#dcSeriesHead'].forEach(function (s) { $(s).innerHTML = ''; });
+                    $('#dcCount').textContent = '';
                     $('#dcResults').innerHTML = '<div class="dc-empty"><strong>Le dump n\'a pas pu être chargé.</strong>' + esc(d.Error) + '<br />Corrigez l\'URL ou les chemins dans l\'éditeur de la source (section « Catalogue », panneau « Tester la source »), puis rechargez.</div>';
                     return;
                 }
                 var when = d.LoadedAtUtc ? new Date(d.LoadedAtUtc).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '';
                 status.innerHTML = esc(d.SourceName || d.Prefix) + ' · catalogue téléchargé le ' + esc(when) + (d.Error ? ' <span class="dc-warn">· ⚠ la dernière mise à jour a échoué (' + esc(d.Error) + ') : cette copie est conservée</span>' : '');
-
                 $('#dcSummary').innerHTML =
                     '<div class="me-stat"><div class="me-stat-value">' + d.Total.toLocaleString('fr-FR') + '</div><div class="me-stat-label">Dans le catalogue</div></div>'
                     + '<div class="me-stat"><div class="me-stat-value">' + d.Owned.toLocaleString('fr-FR') + '</div><div class="me-stat-label">Dans votre médiathèque</div></div>'
@@ -1654,30 +1692,32 @@
                 $('#dcCover').innerHTML = '<div class="me-progress" role="img" aria-label="' + pct(d.Owned, d.Total) + ' % du catalogue est dans la médiathèque"><div style="width:' + pct(d.Owned, d.Total) + '%"></div></div>'
                     + '<div class="dc-cover-line"><span>« Possédé » : un fichier porte le tag de l\'entrée ou lui a été rapproché. Un fichier jamais rapproché compte comme manquant.</span></div>';
 
-                renderGroups(d);
-                renderSeries(d);
-                fillSelect('#dcTag', 'Tous les tags', (d.Tags || []).map(function (t) { return { v: t.Name, t: t.Name + ' (' + t.Count + ')' }; }), state.tag);
-                fillSelect('#dcYear', 'Toutes les années', (d.Years || []).map(function (y) { return { v: String(y), t: String(y) }; }), state.year);
-                $('#dcStatusSel').value = state.status;
-                $('#dcSort').value = state.sort;
-                $('#dcOrder').textContent = state.desc ? '↓' : '↑';
-                $('#dcOrder').setAttribute('aria-label', state.desc ? 'Ordre décroissant' : 'Ordre croissant');
-                Array.prototype.forEach.call(page.querySelectorAll('#dcView [data-view]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-view') === state.view ? 'true' : 'false'); });
+                fillSelect('#dcGroup', 'Tous les groupes', (d.Groups || []).map(function (g) { return { v: g.Group, t: g.Group + ' (' + g.Missing + '/' + g.Total + ')' }; }), state.group);
+                var entries = which === 'entries';
+                page.querySelector('.dc-tools-series').classList.toggle('me-hidden', entries);
+                page.querySelector('.dc-tools-entries').classList.toggle('me-hidden', !entries);
+                $('#dcSeriesSort').value = state.seriesSort;
+                $('#dcIncomplete').checked = state.incomplete;
+                renderCrumbs(d, entries);
 
-                // Active filters as removable chips
                 var chips = [];
                 if (state.group) { chips.push(['group', 'Groupe : ' + state.group]); }
-                if (state.series) { var picked = (d.Series || []).filter(function (s) { return s.Key === state.series; })[0]; chips.push(['series', 'Série : ' + (picked ? (picked.LibrarySeries || picked.Name) : state.series)]); }
-                if (state.tag) { chips.push(['tag', 'Tag : ' + state.tag]); }
-                if (state.year) { chips.push(['year', 'Année : ' + state.year]); }
+                if (entries && state.tag) { chips.push(['tag', 'Tag : ' + state.tag]); }
+                if (entries && state.year) { chips.push(['year', 'Année : ' + state.year]); }
                 if (state.q) { chips.push(['q', 'Recherche : ' + state.q]); }
                 $('#dcChips').innerHTML = chips.map(function (c) { return '<button type="button" class="dc-chip" data-clear="' + c[0] + '" aria-label="Retirer le filtre ' + esc(c[1]) + '">' + esc(c[1]) + '<i aria-hidden="true">×</i></button>'; }).join('');
 
-                var what = state.status === 'missing' ? (d.Matching > 1 ? 'entrées manquantes' : 'entrée manquante') : (state.status === 'owned' ? (d.Matching > 1 ? 'entrées possédées' : 'entrée possédée') : (d.Matching > 1 ? 'entrées' : 'entrée'));
-                $('#dcCount').textContent = d.Matching.toLocaleString('fr-FR') + ' ' + what + (chips.length ? ' avec ces filtres' : '') + (d.Pages > 1 ? ' · page ' + d.Page + ' sur ' + d.Pages : '');
-
-                renderItems(d);
+                if (entries) { renderEntries(d, chips.length); } else { renderSeriesCards(d, chips.length); }
                 renderPager(d);
+            }
+
+            function renderCrumbs(d, entries) {
+                if (!entries || flat) { $('#dcCrumbs').innerHTML = ''; $('#dcSeriesHead').innerHTML = ''; return; }
+                var sep = '<span class="me-sep" aria-hidden="true">›</span>';
+                $('#dcCrumbs').innerHTML = '<button type="button" data-nav="series">← Toutes les séries</button>' + sep + '<span class="me-crumb-current">' + esc(state.seriesName || 'Série') + '</span>';
+                var s = d.SeriesInfo;
+                $('#dcSeriesHead').innerHTML = s ? '<p class="dc-seriesline">' + (s.LibrarySeries ? '✓ Dans votre médiathèque : <strong>' + esc(s.LibrarySeries) + '</strong>' + (s.LibrarySeasons && s.LibrarySeasons.length ? ' · saison ' + esc(s.LibrarySeasons.join(', ')) : '') + ' · ' : '')
+                    + s.Owned + ' / ' + s.Total + ' entrées possédées</p>' : '';
             }
 
             function fillSelect(selector, first, options, value) {
@@ -1687,49 +1727,46 @@
                 if (value && el.value !== value) { el.innerHTML += '<option value="' + esc(value) + '">' + esc(value) + '</option>'; el.value = value; }
             }
 
-            function renderGroups(d) {
-                var groups = (d.Groups || []).filter(function (g) { return d.Groups.length > 1 || g.Group !== '(sans groupe)'; });
-                if (groups.length < 2) { $('#dcGroupsBox').innerHTML = ''; return; }
-                var shown = groupsExpanded ? groups : groups.slice(0, GROUPS_SHOWN);
-                var html = '<div class="dc-h"><span>Par groupe</span><span style="text-transform:none; letter-spacing:0; font-weight:400;">(' + groups.length + ', du plus incomplet au plus complet)</span>'
-                    + (groups.length > GROUPS_SHOWN ? '<button type="button" class="me-linkbtn" id="dcGroupsMore">' + (groupsExpanded ? 'Réduire' : 'Tout afficher (' + groups.length + ')') + '</button>' : '') + '</div><div class="dc-groups">';
-                shown.forEach(function (g) {
-                    var on = state.group && state.group.toLowerCase() === g.Group.toLowerCase();
-                    html += '<button type="button" class="dc-group" data-group="' + esc(g.Group) + '" aria-pressed="' + (on ? 'true' : 'false') + '" title="' + (on ? 'Retirer le filtre' : 'Filtrer sur ce groupe') + '">'
-                        + '<span class="dc-group-name">' + esc(g.Group) + '</span>'
-                        + '<span class="dc-group-nums"><span>' + g.Owned + ' / ' + g.Total + '</span>' + (g.Missing ? '<strong>' + plural(g.Missing, 'manquant') + '</strong>' : '<strong class="dc-done">Complet</strong>') + '</span>'
-                        + '<span class="me-progress" aria-hidden="true"><span style="display:block;height:100%;width:' + pct(g.Owned, g.Total) + '%;background:var(--me-accent);"></span></span></button>';
+            // Level 1: the series, like the series cards of the first view
+            function renderSeriesCards(d, hasFilters) {
+                $('#dcCount').textContent = plural(d.Matching, 'série', 'séries') + (state.incomplete ? ' incomplète' + (d.Matching > 1 ? 's' : '') : '') + (hasFilters ? ' avec ces filtres' : '') + (d.Pages > 1 ? ' · page ' + d.Page + ' sur ' + d.Pages : '');
+                if (!d.Items.length) {
+                    $('#dcResults').innerHTML = '<div class="dc-empty"><strong>' + (hasFilters ? 'Aucune série avec ces filtres.' : (state.incomplete ? 'Aucune série incomplète.' : 'Aucune série.')) + '</strong>'
+                        + (hasFilters ? 'Retirez un filtre (les pastilles ci-dessus) pour élargir la liste.' : (state.incomplete ? 'Décochez « Seulement les séries incomplètes » pour voir aussi les complètes.' : 'Aucune entrée du catalogue.')) + '</div>';
+                    return;
+                }
+                var html = '<div class="me-grid dc-series-grid">';
+                d.Items.forEach(function (c) {
+                    var title = c.LibrarySeries || c.Name;
+                    var badge = c.Missing > 0 ? '<span class="me-badge me-badge-missing">' + plural(c.Missing, 'manquant') + '</span>' : '<span class="me-badge me-badge-ok">✓ Complète</span>';
+                    html += '<button type="button" class="me-card dc-series-card" data-series="' + esc(c.Key) + '" data-name="' + esc(title) + '" title="Voir les entrées de ' + esc(title) + '">'
+                        + '<div class="me-poster">' + (c.ImageId ? '<img src="' + esc(imageSrc(c.ImageId)) + '" alt="" loading="lazy" />' : '<div class="me-placeholder">' + esc((title || '?').trim().charAt(0).toUpperCase()) + '</div>') + badge + '</div>'
+                        + '<div class="me-card-body"><div class="me-card-title">' + esc(title) + '</div>'
+                        + (c.LibrarySeries ? '<div class="me-card-sub dc-link">✓ Dans votre médiathèque' + (c.LibrarySeasons && c.LibrarySeasons.length ? ' · saison ' + esc(c.LibrarySeasons.join(', ')) : '') + '</div>' : '')
+                        + (c.LibrarySeries && c.LibrarySeries.toLowerCase() !== String(c.Name).toLowerCase() && !c.Alone ? '<div class="me-card-sub">Dump : ' + esc(c.Name) + '</div>' : '')
+                        + (c.Group ? '<div class="me-card-sub">' + esc(c.Group) + '</div>' : '')
+                        + '<div class="me-card-sub me-strong">' + c.Owned + ' / ' + c.Total + ' possédées</div>'
+                        + '<div class="me-progress" title="' + pct(c.Owned, c.Total) + ' % possédées"><div style="width:' + pct(c.Owned, c.Total) + '%"></div></div></div></button>';
                 });
-                $('#dcGroupsBox').innerHTML = html + '</div>';
+                $('#dcResults').innerHTML = html + '</div>';
             }
 
-            // Series inferred from the names (entries that only differ by a trailing number), linked to the library's series when one is owned
-            function renderSeries(d) {
-                var list = d.Series || [];
-                if (!list.length) { $('#dcSeriesBox').innerHTML = ''; return; }
-                var shown = seriesExpanded ? list : list.slice(0, SERIES_SHOWN);
-                var html = '<div class="dc-h"><span>Par série</span><span style="text-transform:none; letter-spacing:0; font-weight:400;">(' + list.length + ' regroupées d\'après les noms, du plus incomplet au plus complet)</span>'
-                    + (list.length > SERIES_SHOWN ? '<button type="button" class="me-linkbtn" id="dcSeriesMore">' + (seriesExpanded ? 'Réduire' : 'Tout afficher (' + list.length + ')') + '</button>' : '') + '</div><div class="dc-groups">';
-                shown.forEach(function (s) {
-                    var on = state.series === s.Key;
-                    var link = s.LibrarySeries
-                        ? '<span class="dc-series-link" title="Une entrée de ce groupe est déjà dans votre médiathèque, rangée sous cette série">✓ Dans votre médiathèque : ' + esc(s.LibrarySeries) + (s.LibrarySeasons.length ? ' · saison ' + s.LibrarySeasons.join(', ') : '') + '</span>' : '';
-                    html += '<button type="button" class="dc-group" data-series="' + esc(s.Key) + '" aria-pressed="' + (on ? 'true' : 'false') + '" title="' + (on ? 'Retirer le filtre' : 'Voir les entrées de cette série') + '">'
-                        + '<span class="dc-group-name">' + esc(s.LibrarySeries || s.Name) + '</span>'
-                        + (s.LibrarySeries && s.LibrarySeries.toLowerCase() !== String(s.Name).toLowerCase() ? '<span class="dc-series-sub">Nom dans le dump : ' + esc(s.Name) + '</span>' : '')
-                        + link
-                        + '<span class="dc-group-nums"><span>' + s.Owned + ' / ' + s.Total + '</span>' + (s.Missing ? '<strong>' + plural(s.Missing, 'manquant') + '</strong>' : '<strong class="dc-done">Complète</strong>') + '</span>'
-                        + '<span class="me-progress" aria-hidden="true"><span style="display:block;height:100%;width:' + pct(s.Owned, s.Total) + '%;background:var(--me-accent);"></span></span></button>';
-                });
-                $('#dcSeriesBox').innerHTML = html + '</div>';
-            }
-
-            function renderItems(d) {
+            // Level 2: the entries of one series
+            function renderEntries(d, hasFilters) {
+                fillSelect('#dcTag', 'Tous les tags', (d.Tags || []).map(function (t) { return { v: t.Name, t: t.Name + ' (' + t.Count + ')' }; }), state.tag);
+                fillSelect('#dcYear', 'Toutes les années', (d.Years || []).map(function (y) { return { v: String(y), t: String(y) }; }), state.year);
+                $('#dcStatusSel').value = state.status;
+                $('#dcSort').value = state.sort;
+                $('#dcOrder').textContent = state.desc ? '↓' : '↑';
+                $('#dcOrder').setAttribute('aria-label', state.desc ? 'Ordre décroissant' : 'Ordre croissant');
+                Array.prototype.forEach.call(page.querySelectorAll('#dcView [data-view]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-view') === state.view ? 'true' : 'false'); });
+                var what = state.status === 'missing' ? (d.Matching > 1 ? 'entrées manquantes' : 'entrée manquante') : (state.status === 'owned' ? (d.Matching > 1 ? 'entrées possédées' : 'entrée possédée') : (d.Matching > 1 ? 'entrées' : 'entrée'));
+                $('#dcCount').textContent = d.Matching.toLocaleString('fr-FR') + ' ' + what + (hasFilters ? ' avec ces filtres' : '') + (d.Pages > 1 ? ' · page ' + d.Page + ' sur ' + d.Pages : '');
                 var box = $('#dcResults');
                 if (!d.Items.length) {
                     var filtered = state.group || state.tag || state.year || state.q;
-                    box.innerHTML = '<div class="dc-empty"><strong>' + (filtered ? 'Aucune entrée avec ces filtres.' : (state.status === 'missing' ? 'Rien ne manque.' : 'Aucune entrée.')) + '</strong>'
-                        + (filtered ? 'Retirez un filtre (les pastilles ci-dessus) pour élargir la liste.' : (state.status === 'missing' ? 'Toutes les entrées du catalogue sont dans votre médiathèque.' : 'Le catalogue est vide ou les chemins de la source ne trouvent rien : testez-la dans son éditeur.')) + '</div>';
+                    box.innerHTML = '<div class="dc-empty"><strong>' + (filtered ? 'Aucune entrée avec ces filtres.' : (state.status === 'missing' ? 'Rien ne manque ici.' : 'Aucune entrée.')) + '</strong>'
+                        + (filtered ? 'Retirez un filtre (les pastilles ci-dessus) pour élargir la liste.' : (state.status === 'missing' ? 'Toutes les entrées sont dans votre médiathèque. « Afficher : Tout » les liste quand même.' : 'Le catalogue est vide ou les chemins de la source ne trouvent rien : testez-la dans son éditeur.')) + '</div>';
                     return;
                 }
                 var html = '<div class="me-episodes' + (state.view === 'list' ? ' me-list' : '') + '">';
@@ -1741,7 +1778,7 @@
                     if (r.Series && r.Number !== null && r.Number !== undefined) { meta.push('<span title="Le chiffre final du titre : une saison ou un épisode, le titre ne le dit pas">n° ' + esc(r.Number) + ' d\'après le titre</span>'); }
                     if (r.Owned && r.LibrarySeries) { meta.push('✓ ' + esc(r.LibrarySeries) + (r.LibrarySeason !== null && r.LibrarySeason !== undefined ? ' · saison ' + esc(r.LibrarySeason) : '')); }
                     html += '<div class="me-episode dc-entry" data-file="' + esc(name) + '">'
-                        + '<div class="me-thumb">' + (r.HasImage ? '<img src="' + esc(ApiClient.getUrl('CustomMetadata/Dump/Image', { prefix: state.prefix, id: r.Id, api_key: ApiClient.accessToken() })) + '" alt="" loading="lazy" />' : '<div class="me-placeholder">🎞</div>')
+                        + '<div class="me-thumb">' + (r.HasImage ? '<img src="' + esc(imageSrc(r.Id)) + '" alt="" loading="lazy" />' : '<div class="me-placeholder">🎞</div>')
                         + '<span class="me-badge ' + (r.Owned ? 'me-badge-ok' : 'me-badge-missing') + '">' + (r.Owned ? '✓ Possédé' : 'Manquant') + '</span></div>'
                         + '<div class="me-episode-info">'
                         + '<div class="me-episode-top"><div class="me-episode-title">' + (r.Name ? esc(r.Name) : '<span class="me-muted">(sans nom)</span>') + '</div><span class="dc-id">#' + esc(r.Id) + '</span></div>'
@@ -1762,9 +1799,14 @@
 
             // ---- interactions ----
             function change(patch) { Object.keys(patch).forEach(function (k) { state[k] = patch[k]; }); if (!('page' in patch)) { state.page = 1; } refresh(false); }
+            function openSeries(key, name) { lastData = null; window.scrollTo({ top: 0 }); change({ series: key, seriesName: name, status: 'missing', tag: '', year: '' }); }
+            function backToSeries() { lastData = null; flat = false; change({ series: '', seriesName: '', tag: '', year: '' }); }
 
             $('#modeSwitch').addEventListener('click', function (e) { var b = e.target.closest('[data-mode]'); if (b) { setMode(b.getAttribute('data-mode')); } });
-            $('#dcSource').addEventListener('change', function (e) { lastData = null; groupsExpanded = false; change({ prefix: e.target.value, group: '', series: '', tag: '', year: '', q: '' }); $('#dcQ').value = ''; });
+            $('#dcSource').addEventListener('change', function (e) { lastData = null; flat = false; change({ prefix: e.target.value, series: '', seriesName: '', group: '', tag: '', year: '', q: '' }); $('#dcQ').value = ''; });
+            $('#dcGroup').addEventListener('change', function (e) { change({ group: e.target.value }); });
+            $('#dcSeriesSort').addEventListener('change', function (e) { change({ seriesSort: e.target.value }); });
+            $('#dcIncomplete').addEventListener('change', function (e) { change({ incomplete: e.target.checked }); });
             $('#dcStatusSel').addEventListener('change', function (e) { change({ status: e.target.value }); });
             $('#dcTag').addEventListener('change', function (e) { change({ tag: e.target.value }); });
             $('#dcYear').addEventListener('change', function (e) { change({ year: e.target.value }); });
@@ -1776,17 +1818,14 @@
                 if (!b) { return; }
                 state.view = b.getAttribute('data-view');
                 try { localStorage.setItem('cm-missing-view', state.view); } catch (err) { /* private window */ }
-                if (lastData) { render(lastData); }
+                if (lastData && lastLevel === 'entries') { render(lastData, 'entries'); }
             });
             $('#dcReload').addEventListener('click', function () { var b = $('#dcReload'); b.disabled = true; refresh(true); setTimeout(function () { b.disabled = false; }, 800); });
 
             page.querySelector('#dumpView').addEventListener('click', function (e) {
-                var group = e.target.closest('[data-group]');
-                if (group) { var g = group.getAttribute('data-group'); change({ group: state.group && state.group.toLowerCase() === g.toLowerCase() ? '' : g }); return; }
-                var ser = e.target.closest('[data-series]');
-                if (ser) { var k = ser.getAttribute('data-series'); change({ series: state.series === k ? '' : k }); return; }
-                if (e.target.closest('#dcSeriesMore')) { seriesExpanded = !seriesExpanded; if (lastData) { renderSeries(lastData); } return; }
-                if (e.target.closest('#dcGroupsMore')) { groupsExpanded = !groupsExpanded; if (lastData) { renderGroups(lastData); } return; }
+                var card = e.target.closest('[data-series]');
+                if (card) { openSeries(card.getAttribute('data-series'), card.getAttribute('data-name')); return; }
+                if (e.target.closest('[data-nav="series"]')) { backToSeries(); return; }
                 var clear = e.target.closest('[data-clear]');
                 if (clear) { var key = clear.getAttribute('data-clear'); var patch = {}; patch[key] = ''; if (key === 'q') { $('#dcQ').value = ''; } change(patch); return; }
                 var tag = e.target.closest('[data-tag]');
@@ -1801,7 +1840,7 @@
                 }
             });
 
-            // A picture that does not load (hotlink protection, dead link) falls back to the placeholder
+            // A picture that does not load falls back to the placeholder
             page.querySelector('#dumpView').addEventListener('error', function (e) {
                 var img = e.target;
                 if (img && img.tagName === 'IMG' && img.parentNode) { var ph = document.createElement('div'); ph.className = 'me-placeholder'; ph.textContent = '🎞'; img.parentNode.replaceChild(ph, img); }
@@ -1809,7 +1848,8 @@
 
             // CSV: fetched with the session token (a plain link cannot send it), saved as a file
             $('#dcExport').addEventListener('click', function () {
-                var q = query({ page: '' }); delete q.page;
+                var q = entryQuery({}); delete q.page;
+                if (level() === 'series') { delete q.series; }
                 var url = ApiClient.getUrl('CustomMetadata/Dump/Export', q);
                 var button = $('#dcExport');
                 button.disabled = true;
@@ -1827,7 +1867,7 @@
                 loadSources().then(function () {
                     if (wanted && sources.some(function (s) { return String(s.Prefix).toLowerCase() === wanted.toLowerCase(); })) {
                         state.prefix = sources.filter(function (s) { return String(s.Prefix).toLowerCase() === wanted.toLowerCase(); })[0].Prefix;
-                        $('#dcSource').value = state.prefix; lastData = null;
+                        $('#dcSource').value = state.prefix; lastData = null; flat = false; state.series = ''; state.seriesName = '';
                         setMode('dump');
                     } else if (mode === 'dump') { refresh(false); }
                 });
