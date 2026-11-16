@@ -163,16 +163,24 @@ try {
   check('preview: the server downloads the picture itself and serves it', img.status === 200 && /^image\//.test(img.headers.get('content-type') || '') && (await img.arrayBuffer()).byteLength > 500, String(img.status));
   const noImg = await fetch(`${J}/CustomMetadata/Dump/Image?prefix=dp&id=nope`, { headers: H });
   check('preview: an unknown entry is a 404', noImg.status === 404, String(noImg.status));
-  // series inferred from the names, linked to the library
-  const seriesList = pick(cov, 'Series') || [];
-  const foret = seriesList.find(x => x.Name === 'Chroniques de la forêt');
-  check('series: "Chroniques de la forêt" and "… 2" are grouped (2 entries, 2 owned)', !!foret && foret.Total === 2 && foret.Owned === 2, JSON.stringify(seriesList.slice(0, 3)));
+  // series inferred from the names, linked to the library: the first level of the screen
+  const sp = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&pageSize=50')).json;
+  const cards = pick(sp, 'Items') || [];
+  const foret = cards.find(x => x.Name === 'Chroniques de la forêt');
+  check('series: the page tells it has series and the preview ratio (16:9 by default)', pick(sp, 'HasSeries') === true && pick(sp, 'PreviewRatio') === '16:9', JSON.stringify({ h: pick(sp, 'HasSeries'), r: pick(sp, 'PreviewRatio') }));
+  check('series: "Chroniques de la forêt" and "… 2" are grouped (2 entries, 2 owned)', !!foret && foret.Total === 2 && foret.Owned === 2, JSON.stringify(cards.slice(0, 3)));
   check('series: the group is linked to the library series that holds one of its entries', foret?.LibrarySeries === 'Série liée au dump' && (foret?.LibrarySeasons || []).join() === '1', JSON.stringify(foret));
-  const demo = seriesList.find(x => x.Name === 'Épisode démo');
-  check('series: "Épisode démo N" entries form one group of 33', !!demo && demo.Total === 33 && demo.Missing === 33, JSON.stringify(demo));
-  check('series: a one-off title is not a series', !seriesList.some(x => /Voyage|Sentiers|Rivages|Dernier/.test(x.Name)), JSON.stringify(seriesList.map(x => x.Name)));
+  const demo = cards.find(x => x.Name === 'Épisode démo');
+  check('series: "Épisode démo N" entries form one group of 33, with a picture', !!demo && demo.Total === 33 && demo.Missing === 33 && !!demo.ImageId, JSON.stringify(demo));
+  const alone = cards.find(x => x.Alone);
+  check('series: the entries of no series are one "Épisodes seuls" card (5 of them)', !!alone && alone.Total === 5 && alone.Name === 'Épisodes seuls', JSON.stringify(alone));
+  check('series: a one-off title is not a series', !cards.some(x => !x.Alone && /Voyage|Sentiers|Rivages|Dernier/.test(x.Name)), JSON.stringify(cards.map(x => x.Name)));
+  const incomplete = pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&onlyIncomplete=true')).json, 'Items') || [];
+  check('series: "only incomplete" hides the complete ones', incomplete.length === 1 && incomplete[0].Name === 'Épisode démo', JSON.stringify(incomplete.map(x => x.Name)));
   const bySeries = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&series=' + encodeURIComponent(foret?.Key || 'x'))).json;
-  check('series: filtering by a series lists its entries, number hint kept in the title', pick(bySeries, 'Matching') === 2 && (pick(bySeries, 'Items') || []).some(i => i.Number === 2), JSON.stringify(pick(bySeries, 'Items')?.map(i => [i.Name, i.Number])));
+  check('series: the entries of a series, number hint kept, series info given', pick(bySeries, 'Matching') === 2 && (pick(bySeries, 'Items') || []).some(i => i.Number === 2) && pick(pick(bySeries, 'SeriesInfo'), 'LibrarySeries') === 'Série liée au dump', JSON.stringify(pick(bySeries, 'Items')?.map(i => [i.Name, i.Number])));
+  const aloneRows = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&series=_alone')).json;
+  check('series: "_alone" lists the entries that belong to no series', pick(aloneRows, 'Matching') === 5, String(pick(aloneRows, 'Matching')));
   const unknown = await api('GET', '/CustomMetadata/Dump/Coverage?prefix=nope');
   check('coverage: an unknown source is a 404', unknown.status === 404, String(unknown.status));
 
@@ -240,26 +248,44 @@ try {
     check('new dump: the mapping starts with the usual dump paths', (await page.inputValue(`${C} #srcVideoTitle`)) === 'name' && (await page.inputValue(`${C} #srcVideoPoster`)) === 'poster_url' && (await page.inputValue(`${C} #srcVideoDate`)) === 'released_at || created_at');
     await page.click(`${C} #btnCancelEdit`);
 
-    // the coverage screen
+    // the coverage screen: series cards first, like the series of the first view
     await page.evaluate(() => sessionStorage.setItem('cm-missing-dump', 'dp'));
     await open('CustomMetadataMissingEpisodes', M, '.cmn-nav');
-    await page.waitForSelector(`${M} #dcResults .dc-entry`, { state: 'visible', timeout: 30000 });
+    await page.waitForSelector(`${M} #dcResults .dc-series-card`, { state: 'visible', timeout: 30000 });
     check('coverage screen: opens on the catalogue and shows the totals', /40/.test(await page.locator(`${M} #dcSummary`).innerText()) && /33/.test(await page.locator(`${M} #dcSummary`).innerText()), await page.locator(`${M} #dcSummary`).innerText());
-    check('coverage screen: groups listed with their missing count', (await page.locator(`${M} .dc-group[data-group]`).count()) === 4, String(await page.locator(`${M} .dc-group[data-group]`).count()));
-    await page.waitForTimeout(600);
+    check('coverage screen: level 1 is series cards (only the incomplete one by default)', (await page.locator(`${M} .dc-series-card`).count()) === 1, String(await page.locator(`${M} .dc-series-card`).count()));
+    check('coverage screen: no entry list at level 1', (await page.locator(`${M} .dc-entry`).count()) === 0);
+    const ratio = await page.evaluate(sel => { const r = document.querySelector(sel).getBoundingClientRect(); return r.width / r.height; }, `${M} .dc-series-card .me-poster`);
+    check('coverage screen: series cards are 16:9 (the source\'s preview format)', Math.abs(ratio - 16 / 9) < 0.05, String(ratio));
+    // the pictures come through the server (never straight from the dump's site): every card ends up with a real image
+    const loaded = await page.waitForFunction(sel => { const imgs = [...document.querySelectorAll(sel)]; return imgs.length > 0 && imgs.every(i => i.complete && i.naturalWidth > 0); }, `${M} .dc-series-card img`, { timeout: 15000 }).then(() => true, () => false);
+    check('coverage screen: the series pictures load (served by the plugin)', loaded);
     await shot('D5-coverage-1440');
-    await page.locator(`${M} .dc-group[data-group]`).first().click();
-    await page.waitForFunction(sel => document.querySelector(sel).textContent.includes('Groupe :'), `${M} #dcChips`);
-    check('coverage screen: clicking a group filters and adds a removable chip', (await page.locator(`${M} .dc-chip`).count()) === 1);
-    await shot('D6-coverage-group-1440');
-    await page.locator(`${M} .dc-chip`).click();
-    await page.waitForFunction(sel => document.querySelector(sel).children.length === 0, `${M} #dcChips`);
+    await page.locator(`${M} .dc-tools-series .checkboxContainer`).click();
+    await page.waitForFunction(sel => document.querySelectorAll(sel).length === 3, `${M} .dc-series-card`, { timeout: 8000 });
+    check('coverage screen: unticking "only incomplete" shows the complete series too', (await page.locator(`${M} .dc-series-card`).count()) === 3);
+    const loadedAll = await page.waitForFunction(sel => { const imgs = [...document.querySelectorAll(sel)]; return imgs.length === 3 && imgs.every(i => i.complete && i.naturalWidth > 0); }, `${M} .dc-series-card img`, { timeout: 15000 }).then(() => true, () => false);
+    check('coverage screen: all the cards with a picture show it', loadedAll);
+    check('coverage screen: the card of a series found in the library says so', /Dans votre médiathèque/.test(await page.locator(`${M} .dc-series-card`, { hasText: 'Série liée au dump' }).innerText()));
+    await shot('D6-coverage-all-series-1440');
+    await page.locator(`${M} .dc-tools-series .checkboxContainer`).click();
+    await page.waitForFunction(sel => document.querySelectorAll(sel).length === 1, `${M} .dc-series-card`, { timeout: 8000 });
+    // a search over the series
     await page.fill(`${M} #dcQ`, 'zzzz-aucun');
     await page.waitForSelector(`${M} .dc-empty`, { timeout: 8000 });
     check('coverage screen: a search without result says what to do', /Retirez un filtre/.test(await page.locator(`${M} .dc-empty`).innerText()));
     await shot('D7-coverage-empty-1440');
     await page.fill(`${M} #dcQ`, '');
+    await page.waitForSelector(`${M} .dc-series-card`, { timeout: 8000 });
+    // open a series
+    await page.locator(`${M} .dc-series-card`, { hasText: 'Épisode démo' }).click();
     await page.waitForSelector(`${M} #dcResults .dc-entry`, { timeout: 8000 });
+    check('coverage screen: a click opens the entries of the series, with a breadcrumb back', /Toutes les séries/.test(await page.locator(`${M} #dcCrumbs`).innerText()) && /Épisode démo/.test(await page.locator(`${M} #dcCrumbs`).innerText()));
+    check('coverage screen: 33 missing entries over 2 pages of 24', /33 entrées manquantes/.test(await page.locator(`${M} #dcCount`).innerText()) && (await page.locator(`${M} #dcResults .dc-entry`).count()) === 24);
+    check('coverage screen: the title keeps its number in the copied name', /Épisode démo \d+ \{dp-\d+\}/.test(await page.locator(`${M} #dcResults .dc-entry`).first().getAttribute('data-file')));
+    const thumbRatio = await page.evaluate(sel => { const r = document.querySelector(sel).getBoundingClientRect(); return r.width / r.height; }, `${M} .dc-entry .me-thumb`);
+    check('coverage screen: entry thumbnails are 16:9', Math.abs(thumbRatio - 16 / 9) < 0.05, String(thumbRatio));
+    await shot('D8-coverage-series-entries-1440');
     // real mouse click on the copy button (clipboard needs a user gesture)
     const firstName = await page.locator(`${M} #dcResults .dc-entry`).first().getAttribute('data-file');
     await page.locator(`${M} #dcResults .me-copy`).first().click();
@@ -267,30 +293,39 @@ try {
     const clip = await page.evaluate(() => navigator.clipboard.readText()).catch(() => null);
     check('coverage screen: "Copier" puts "Name {dp-id}" on the clipboard', clip === firstName && /\{dp-\d+\}$/.test(clip || ''), String(clip));
     // pager
-    await page.selectOption(`${M} #dcStatusSel`, 'all');
-    await page.waitForFunction(sel => /40 entrées/.test(document.querySelector(sel).textContent), `${M} #dcCount`, { timeout: 8000 });
-    check('coverage screen: 40 entries make 2 pages of 24', /Page 1 sur 2/.test(await page.locator(`${M} #dcPager`).innerText()) && (await page.locator(`${M} #dcResults .dc-entry`).count()) === 24);
     await page.click(`${M} #dcPager [data-page="2"]`);
     await page.waitForFunction(sel => /Page 2 sur 2/.test(document.querySelector(sel).textContent), `${M} #dcPager`, { timeout: 8000 });
-    check('coverage screen: the second page holds the 16 others', (await page.locator(`${M} #dcResults .dc-entry`).count()) === 16);
+    check('coverage screen: the second page holds the 9 others', (await page.locator(`${M} #dcResults .dc-entry`).count()) === 9);
     await page.click(`${M} #dcPager [data-page="1"]`);
     await page.waitForFunction(sel => /Page 1 sur 2/.test(document.querySelector(sel).textContent), `${M} #dcPager`, { timeout: 8000 });
-    // list view
+    // list view: the 16:9 thumbnail is not cropped to a strip, and the tag stays visible
     await page.click(`${M} #dcView [data-view="list"]`);
     await page.waitForTimeout(300);
+    const listRatio = await page.evaluate(sel => { const r = document.querySelector(sel).getBoundingClientRect(); return r.width / r.height; }, `${M} .me-list .me-thumb`);
+    check('coverage screen: in the list, thumbnails stay 16:9', Math.abs(listRatio - 16 / 9) < 0.05, String(listRatio));
     const tagVisible = await page.evaluate(sel => { const t = document.querySelector(sel + ' .dc-fn-tag'); const code = t.closest('code'); return t.getBoundingClientRect().right <= code.getBoundingClientRect().right + 1; }, `${M} #dcResults .me-list`);
     check('coverage screen: in the list, a long name gives way before its tag', tagVisible);
-    await shot('D8-coverage-list-1440');
+    await shot('D9-coverage-list-1440');
     await page.click(`${M} #dcView [data-view="cards"]`);
+    // back to the series
+    await page.click(`${M} #dcCrumbs [data-nav="series"]`);
+    await page.waitForSelector(`${M} .dc-series-card`, { timeout: 8000 });
+    check('coverage screen: the breadcrumb goes back to the series cards', (await page.locator(`${M} .dc-entry`).count()) === 0);
+    // the group filter works at level 1
+    await page.selectOption(`${M} #dcGroup`, 'Delta Prod');
+    await page.waitForFunction(sel => /Groupe : Delta Prod/.test(document.querySelector(sel).textContent), `${M} #dcChips`, { timeout: 8000 });
+    check('coverage screen: a group filter adds a removable chip', (await page.locator(`${M} .dc-chip`).count()) === 1);
+    await page.locator(`${M} .dc-chip`).click();
+    await page.waitForFunction(sel => document.querySelector(sel).children.length === 0, `${M} #dcChips`);
     // the series view is still there
     await page.click(`${M} #modeSwitch [data-mode="series"]`);
     check('mode switch: back to the series view', await page.locator(`${M} #seriesView`).isVisible() && !(await page.locator(`${M} #dumpView`).isVisible()));
     await page.click(`${M} #modeSwitch [data-mode="dump"]`);
-    await page.waitForSelector(`${M} #dcResults .dc-entry`, { timeout: 8000 });
+    await page.waitForSelector(`${M} .dc-series-card`, { timeout: 8000 });
 
     // widths
-    await page.setViewportSize({ width: 1920, height: 1100 }); await page.waitForTimeout(500); await shot('D9-coverage-1920');
-    await page.setViewportSize({ width: 412, height: 900 }); await page.waitForTimeout(500); await shot('D10-coverage-mobile');
+    await page.setViewportSize({ width: 1920, height: 1100 }); await page.waitForTimeout(500); await shot('D10-coverage-1920');
+    await page.setViewportSize({ width: 412, height: 900 }); await page.waitForTimeout(500); await shot('D11-coverage-mobile');
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     check('coverage screen: no horizontal scroll on a phone', !overflow);
     await page.setViewportSize({ width: 1440, height: 1000 });
