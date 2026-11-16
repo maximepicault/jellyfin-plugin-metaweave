@@ -175,6 +175,7 @@ try {
   check('screen: after saving, the notice says how many items still hold the old terms', /élément/.test(await text(page, `${T} #txNoticeText`)) && (await text(page, `${T} #txDirty`)) === 'Aucune modification', await text(page, `${T} #txNoticeText`));
   const stored = (await api('GET', '/CustomMetadata/Taxonomy')).json;
   check('screen: the rules are stored (spelling, rename, merge, ignored tag, created term)', !!term(stored, 'genre', 'Voyage') && pick(term(stored, 'genre', 'Voyage'), 'ReplaceWith') === 'Voyages' && pick(term(stored, 'genre', 'Aventure'), 'ReplaceWith') === 'Exploration' && pick(term(stored, 'tag', 'Perso'), 'Ignored') === true);
+  check('screen: after saving, a renamed term folds into the row of the term it joins', !(await page.$(row('aventure'))) && (await page.$eval(row('exploration'), e => e.textContent)).includes('Fusionné ici') && !!(await page.$(`${row('exploration')} [data-unfold]`)));
   await shot('X3-saved-1440');
   await page.click(`${T} #txApply`);
   await page.waitForFunction(sel => /réécrit|Rien à réécrire/.test(document.querySelector(sel).textContent), `${T} #txNoticeText`, { timeout: 30000 });

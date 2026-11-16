@@ -269,6 +269,15 @@
                 var key = keyOf(name);
                 return terms.filter(function (t) { return t.Kind === k && t.Key === key; })[0];
             }
+            // What typing a name does: joins an existing term (and how many items it holds) or makes a new name
+            function hintText(t) {
+                var name = String(t.ReplaceWith || '').trim();
+                if (!name || keyOf(name) === t.Key) { return ''; }
+                var target = find(t.Kind, name);
+                return target && (target.Items > 0 || target.Seen > 0)
+                    ? 'Fusionne avec « ' + target.Name + ' » (' + plural(target.Items, 'élément', 'éléments') + ')'
+                    : 'Nouveau nom, aucun terme existant';
+            }
             function stateOf(t) { return t.Ignored ? 'ignore' : (t.ReplaceWith !== null && t.ReplaceWith !== undefined ? 'replace' : 'keep'); }
 
             function markDirty() {
@@ -284,10 +293,19 @@
                     .map(function (t) { return { Kind: t.Kind, Name: t.Name, Ignored: !!t.Ignored, ReplaceWith: t.Ignored ? null : t.ReplaceWith, Created: !!t.Created }; });
             }
 
+            // A rename that is saved folds into the row of the term it joins; while it is being edited it stays where it is
+            function markSaved() {
+                terms.forEach(function (t) { t.Saved = stateOf(t) === 'replace' && keyOf(t.ReplaceWith) !== t.Key && !!find(t.Kind, t.ReplaceWith); });
+            }
+            function foldedInto(t) {
+                return terms.filter(function (f) { return f.Kind === t.Kind && f.Saved && !f.Ignored && keyOf(f.ReplaceWith) === t.Key; });
+            }
+
             function shown() {
                 var search = keyOf(qs('#txSearch').value), mode = qs('#txFilter').value, sort = qs('#txSort').value;
                 var list = terms.filter(function (t) {
                     if (t.Kind !== kind) { return false; }
+                    if (t.Saved && !search && !mode) { return false; }
                     if (search && (t.Key + ' ' + keyOf(t.Name)).indexOf(search) < 0 && !(t.Variants || []).some(function (v) { return keyOf(v.Name).indexOf(search) >= 0; })) { return false; }
                     if (mode === 'ignored') { return !!t.Ignored; }
                     if (mode === 'replaced') { return stateOf(t) === 'replace'; }
@@ -309,6 +327,11 @@
                         + ' <button type="button" class="tx-linkbtn" data-unify="' + escapeHtml(t.Key) + '">Unifier sous « ' + escapeHtml(t.Name) + ' »</button></div>'
                     : '';
                 var same = state === 'replace' && keyOf(t.ReplaceWith) === t.Key;
+                var folded = foldedInto(t);
+                if (folded.length) {
+                    variants += '<div class="tx-variants">Fusionné ici : ' + folded.map(function (f) { return escapeHtml(f.Name) + ' (' + f.Items + ')'; }).join(' · ')
+                        + ' <button type="button" class="tx-linkbtn" data-unfold="' + escapeHtml(t.Key) + '">Défaire</button></div>';
+                }
                 var counts = plural(t.Items, 'élément', 'éléments') + (t.Seen ? ' · reçu ' + plural(t.Seen, 'fois', 'fois') : '');
                 return '<div class="tx-row" role="listitem" data-key="' + escapeHtml(t.Key) + '" data-state="' + state + '">'
                     + '<input type="checkbox" class="tx-check" data-select="' + escapeHtml(t.Key) + '" aria-label="Sélectionner ' + escapeHtml(t.Name) + '"' + (selected[kind + '|' + t.Key] ? ' checked' : '') + ' />'
@@ -317,7 +340,7 @@
                     + '<div class="tx-rule"><select class="tx-state" data-state-of="' + escapeHtml(t.Key) + '" aria-label="Règle pour ' + escapeHtml(t.Name) + '">'
                     + '<option value="keep"' + (state === 'keep' ? ' selected' : '') + '>Conserver</option><option value="ignore"' + (state === 'ignore' ? ' selected' : '') + '>Ignorer</option>'
                     + '<option value="replace"' + (state === 'replace' ? ' selected' : '') + '>Remplacer par…</option></select>'
-                    + '<input type="text" class="tx-target" data-target-of="' + escapeHtml(t.Key) + '" list="txNames" placeholder="Nouveau nom" aria-label="Nom qui remplace ' + escapeHtml(t.Name) + '" value="' + escapeHtml(t.ReplaceWith || '') + '"' + (state === 'replace' ? '' : ' hidden') + ' autocomplete="off" /></div>'
+                    + '<input type="text" class="tx-target" data-target-of="' + escapeHtml(t.Key) + '" list="txNames" placeholder="Nouveau nom" aria-label="Nom qui remplace ' + escapeHtml(t.Name) + '" value="' + escapeHtml(t.ReplaceWith || '') + '"' + (state === 'replace' ? '' : ' hidden') + ' autocomplete="off" /><div class="tx-hint" data-hint-of="' + escapeHtml(t.Key) + '" style="font-size:12px;opacity:.75;margin-top:4px">' + (state === 'replace' ? escapeHtml(hintText(t)) : '') + '</div></div>'
                     + '<div class="tx-rowact">' + (t.Created && t.Items === 0 && state === 'keep' ? '<button type="button" class="tx-linkbtn" data-remove="' + escapeHtml(t.Key) + '">Retirer</button>' : '') + '</div>'
                     + '</div>';
             }
@@ -352,6 +375,7 @@
                 Dashboard.showLoadingMsg();
                 return ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Taxonomy')).then(function (data) {
                     terms = data.Terms || [];
+                    markSaved();
                     selected = {};
                     snapshot = JSON.stringify(rulesOf());
                     dirty = false;
@@ -379,6 +403,7 @@
                 Dashboard.showLoadingMsg();
                 ApiClient.ajax({ type: 'PUT', url: ApiClient.getUrl('CustomMetadata/Taxonomy'), data: JSON.stringify({ Rules: rulesOf() }), contentType: 'application/json', dataType: 'json' }).then(function (data) {
                     terms = data.Terms || [];
+                    markSaved();
                     selected = {};
                     snapshot = JSON.stringify(rulesOf());
                     markDirty();
@@ -485,10 +510,18 @@
                 var t = find(kind, e.target.getAttribute('data-target-of'));
                 if (!t) { return; }
                 t.ReplaceWith = e.target.value;
+                var hint = qs('[data-hint-of="' + t.Key.replace(/"/g, '\\"') + '"]');
+                if (hint) { hint.textContent = hintText(t); }
                 e.target.classList.remove('tx-bad');
                 markDirty();
             });
             page.addEventListener('click', function (e) {
+                var unfold = e.target.closest('[data-unfold]');
+                if (unfold) {
+                    var into = find(kind, unfold.getAttribute('data-unfold'));
+                    if (into) { foldedInto(into).forEach(function (f) { f.Saved = false; f.ReplaceWith = null; }); markDirty(); render(); }
+                    return;
+                }
                 var unify = e.target.closest('[data-unify]');
                 if (unify) {
                     // One spelling for the term: the one shown (the most used), the others are rewritten to it
