@@ -479,7 +479,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
             else
             {
-                _logger.LogDebug("{Tag} No match for '{File}'", Tag, ownName);
+                // Said at Information level: a dump source is configured, so "nothing matched" is what someone looks for in the log.
+                // The nearest miss (and its score against the threshold) tells whether lowering the minimum or tagging the file would help.
+                var near = new List<string>();
+                foreach (var source in NameMatchingSources())
+                {
+                    var catalog = Peek(source);
+                    if (catalog == null)
+                    {
+                        continue;
+                    }
+
+                    var miss = FindCandidates(catalog, source.Dump, path, lookupName, 1, 40, out _).FirstOrDefault();
+                    if (miss.Entry != null)
+                    {
+                        near.Add($"'{miss.Entry.Name}' ({source.Prefix}-{miss.Entry.Id}) score {miss.Score:F0} < {source.Dump.MinScore}");
+                    }
+                }
+
+                _logger.LogInformation("{Tag} ❔ No match for '{File}'{Near}", Tag, ownName, near.Count > 0 ? " - nearest: " + string.Join("; ", near) : " - nothing close in the dump");
             }
 
             return best;

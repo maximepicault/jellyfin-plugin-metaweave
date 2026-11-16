@@ -63,3 +63,10 @@ for fname in ["Voyage {dp-1001}.mkv", "Les Sentiers du Nord.mkv", "Rivages oubli
     out = os.path.join(ddir, fname)
     if not os.path.exists(out):
         subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=2", "-c:v", "libx264", "-t", "2", out], check=True)
+
+# Episodes of a SERIES library with no tag at all: a dump source must recognise them by name (dump-real.mjs, last phase)
+for fname in ["Épisode démo 10 S01E01.mkv", "Épisode démo 11 S01E02.mkv"]:
+    out = os.path.join(T, "media", "seriesdump", "Série sans tag", "Season 1", fname)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    if not os.path.exists(out):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=2", "-c:v", "libx264", "-t", "2", out], check=True)

@@ -6,6 +6,7 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -51,6 +52,7 @@ const dumpSource = {
 config.Sources.push(dumpSource);
 config.EnableCache = false;
 let libraryCreated = false;
+let seriesLibraryCreated = false;
 
 try {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
@@ -336,7 +338,37 @@ try {
   } finally {
     await browser.close();
   }
+
+  // ---- 8. the EPISODE path: files of a series library with no tag, recognised by their name
+  const episodes = async () => ((await api('GET', `/Items?IncludeItemTypes=Episode&Recursive=true&Fields=ProviderIds,Path&userId=${auth.User.Id}`)).json?.Items || []).filter(e => /seriesdump/.test(e.Path || ''));
+  const typed = t => ({ Type: t, MetadataFetchers: ['Custom Metadata Provider'], MetadataFetcherOrder: ['Custom Metadata Provider'], ImageFetchers: ['Custom Image Provider'], ImageFetcherOrder: ['Custom Image Provider'] });
+  await api('DELETE', '/Library/VirtualFolders?name=DumpSeries&refreshLibrary=true');
+  const slib = await api('POST', '/Library/VirtualFolders?name=DumpSeries&collectionType=tvshows&refreshLibrary=true', {
+    LibraryOptions: { EnableRealtimeMonitor: false, PathInfos: [{ Path: '/media/seriesdump' }], TypeOptions: [typed('Series'), typed('Season'), typed('Episode')], SaveLocalMetadata: false, EnableChapterImageExtraction: false }
+  });
+  seriesLibraryCreated = slib.status < 300;
+  check('a series library over /media/seriesdump (no tag anywhere) is created', seriesLibraryCreated, String(slib.status));
+  let eps = [];
+  for (let i = 0; i < 60; i++) {
+    eps = await episodes();
+    if (eps.length >= 2 && eps.every(e => Object.keys(e.ProviderIds || {}).some(k => k.toLowerCase() === 'custom'))) { break; }
+    // an item scanned before an earlier run's cleanup is not refreshed by itself: force it
+    if (i === 15) { for (const e of eps) { await api('POST', `/Items/${e.Id}/Refresh?MetadataRefreshMode=FullRefresh&ImageRefreshMode=None&ReplaceAllMetadata=true&ReplaceAllImages=false`); } }
+    await wait(2000);
+  }
+  check('2 episodes scanned', eps.length === 2, String(eps.length));
+  const byName = n => eps.find(e => e.Name === n);
+  check('episode with no tag: "Épisode démo 10 S01E01" → the dump entry 1010 (id stored, title from the dump)', !!byName('Épisode démo 10') && Object.values(byName('Épisode démo 10').ProviderIds || {}).includes('dp-1010'), JSON.stringify(eps.map(e => [e.Name, e.ProviderIds])));
+  check('episode with no tag: "Épisode démo 11 S01E02" → 1011', !!byName('Épisode démo 11') && Object.values(byName('Épisode démo 11').ProviderIds || {}).includes('dp-1011'), JSON.stringify(eps.map(e => [e.Name, e.ProviderIds])));
+  let log = '';
+  try { log = execSync('docker logs cm-uitest 2>&1', { maxBuffer: 256 * 1024 * 1024 }).toString(); } catch (e) { log = String(e.stdout || ''); }
+  check('the server log says it: "EPISODE PROVIDER ... Matched in the dump" for each file', (log.match(/EPISODE PROVIDER\] 📦 Matched in the dump/g) || []).length >= 2, 'none found');
+  check('the server log also says when nothing matches (Information level, not Debug)', /\[DUMP\] ❔ No match for 'Documentaire inconnu sans rapport/.test(log));
+  check('the server log says it: "[DUMP] 🎯 … → …" lines', /\[DUMP\] 🎯 'Épisode démo 10 S01E01/.test(log));
 } finally {
+  if (seriesLibraryCreated) {
+    await api('DELETE', '/Library/VirtualFolders?name=DumpSeries&refreshLibrary=true');
+  }
   if (libraryCreated) {
     await api('DELETE', '/Library/VirtualFolders?name=Dump&refreshLibrary=true');
   }
