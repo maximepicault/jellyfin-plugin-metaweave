@@ -327,6 +327,10 @@
         #CustomMetadataConfigPage .cm-guide li[data-done="true"] b { background: #24734a; color: #fff; }
         #CustomMetadataConfigPage .cm-guide li[data-next="true"] strong { color: #fff; }
         #CustomMetadataConfigPage .cm-guide li small { grid-column: 2; font-size: 13px; line-height: 1.45; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        #CustomMetadataConfigPage .cm-chip { min-height: 32px; padding: 0 12px; border: 1px dashed rgba(255, 255, 255, 0.35); border-radius: 16px; background: none; color: rgba(255, 255, 255, 0.85); font: inherit; font-size: 13px; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-chip:hover { border-color: var(--cm-accent); color: #fff; background: rgba(0, 164, 220, 0.14); }
+        #CustomMetadataConfigPage .cm-chip:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 2px; }
         #CustomMetadataConfigPage .cm-ltabs { display: flex; flex-wrap: wrap; gap: 8px; }
         #CustomMetadataConfigPage .cm-ltab { height: 38px; padding: 0 14px; display: inline-flex; align-items: center; gap: 8px; background: none; border: 1px solid var(--cm-border); border-radius: 19px; color: var(--cm-muted); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
         #CustomMetadataConfigPage .cm-ltab[aria-selected="true"] { color: #fff; border-color: var(--cm-accent); background: rgba(0, 164, 220, 0.16); }
@@ -1272,6 +1276,7 @@
                 editOriginalPrefix = '';
                 localDataId = type === 'local' ? randomHex(16) : '';
                 localContent = type === 'local' ? { Series: [] } : null;
+                if (type === 'local') { loadTermNames(); }
                 localSel = null;
                 localCollapsed = {};
                 document.querySelector('#modalTitle').textContent = 'Nouvelle source';
@@ -2466,7 +2471,38 @@
                 });
             }
 
+            // Terms of the "Genres et tags" screen, offered under the Tags and Genres fields (one click adds one)
+            var termNames = { genre: [], tag: [] };
+            function loadTermNames() {
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Taxonomy/Names')).then(function(names) {
+                    termNames = { genre: (names && names.genre) || [], tag: (names && names.tag) || [] };
+                    renderTermChips();
+                }, function() { /* suggestions are a comfort: the fields work without them */ });
+            }
+
+            function renderTermChips() {
+                var hit = localSel ? findNode(localSel) : null;
+                if (!hit) { return; }
+                [['Tags', 'tag'], ['Genres', 'genre']].forEach(function(pair) {
+                    var field = qs('#lf-' + pair[0]), box = field && field.closest('.inputContainer');
+                    if (!box) { return; }
+                    var old = box.querySelector('.cm-chips');
+                    if (old) { old.remove(); }
+                    var have = (hit.node[pair[0]] || []).map(function(t) { return String(t).toLowerCase(); });
+                    var left = (termNames[pair[1]] || []).filter(function(name) { return have.indexOf(name.toLowerCase()) < 0; }).slice(0, 14);
+                    if (!left.length) { return; }
+                    var chips = document.createElement('div');
+                    chips.className = 'cm-chips';
+                    chips.setAttribute('aria-label', 'Suggestions');
+                    chips.innerHTML = left.map(function(name) {
+                        return '<button type="button" class="cm-chip" data-chip="' + pair[0] + '" data-term="' + escapeHtml(name) + '" aria-label="Ajouter ' + escapeHtml(name) + '">+ ' + escapeHtml(name) + '</button>';
+                    }).join('');
+                    box.appendChild(chips);
+                });
+            }
+
             function loadLocalContent() {
+                loadTermNames();
                 renderLocalEditor();
                 ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Local/' + localDataId)).then(function(content) {
                     content.Series = content.Series || [];
@@ -2787,8 +2823,8 @@
                         + '<textarea id="lf-Chapters" data-f="Chapters" rows="5" placeholder="0:00-12:34 Introduction&#10;12:34 Le débat&#10;1:02:03 Conclusion">' + escapeHtml(n.Chapters || '') + '</textarea>'
                         + '<div class="cm-hint">Un repère par ligne : le temps, puis le titre. Le temps s\'écrit « 12:34 », « 1:02:03 », en secondes (« 359 La crevasse ») ou « 6m12s ». Pour donner aussi la fin : « 0:00-12:34 Introduction » ; si elle précède le repère suivant, un repère « Hors chapitre » la marque dans Jellyfin. Avec un fichier : chapitres dans Jellyfin (un temps au-delà de la fin de la vidéo est ignoré). Épisode manquant : repères ajoutés à la description.</div></div>';
                 }
-                html += inputField('Tags', 'Tags', (n.Tags || []).join(', '), { span: true, hint: 'Séparés par des virgules.' })
-                    + inputField('Genres', 'Genres', (n.Genres || []).join(', '), { span: true, hint: 'Séparés par des virgules.' })
+                html += inputField('Tags', 'Tags', (n.Tags || []).join(', '), { span: true, hint: 'Séparés par des virgules. Les règles de la page « Genres et tags » s\'appliquent : un terme ignoré n\'est pas donné à Jellyfin, un terme renommé l\'est sous son nouveau nom.' })
+                    + inputField('Genres', 'Genres', (n.Genres || []).join(', '), { span: true, hint: 'Séparés par des virgules. Mêmes règles que les tags.' })
                     + '</div><div class="cm-grid" data-lpanel="images">';
                 if (kind === 'episode') {
                     html += imageField('Miniature', 'Thumb', n.Thumb, 'Affichée dans la liste des épisodes de la saison. Envoyez un fichier ou indiquez une adresse web.')
@@ -2822,6 +2858,7 @@
                     + '<span>' + (children ? 'Son contenu (' + (kind === 'series' ? plural(children, 'saison', 'saisons') : plural(children, 'épisode', 'épisodes')) + ') est supprimé avec elle. ' : '') + 'Pris en compte à l\'enregistrement.</span></div>'
                     + '<button is="emby-button" type="button" class="raised" data-del="' + nodeKey(kind, n.Id) + '"><span>Supprimer…</span></button></div>';
                 qs('#localDetail').innerHTML = html;
+                renderTermChips();
             }
 
             function renderLocalEditor() {
@@ -3409,7 +3446,7 @@
             function onLocalClick(e) {
                 var ltab = e.target.closest('[data-ltab-btn]');
                 if (ltab) { localTab = ltab.getAttribute('data-ltab-btn'); renderLocalDetail(); return; }
-                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-upload-video],[data-clear-video],[data-clear-img],[data-gal-sel],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
+                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-upload-video],[data-clear-video],[data-chip],[data-clear-img],[data-gal-sel],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
                 if (!target || !localContent) { return; }
                 if (target.hasAttribute('data-node')) { selectNode(target.getAttribute('data-node')); return; }
                 if (target.hasAttribute('data-toggle-node')) {
@@ -3432,6 +3469,17 @@
                 if (target.hasAttribute('data-cast-remove')) {
                     var holder = localSel ? findNode(localSel) : null;
                     if (holder && holder.node.Cast) { holder.node.Cast.splice(parseInt(target.getAttribute('data-cast-remove'), 10), 1); markDirty(); renderLocalDetail(); }
+                    return;
+                }
+                if (target.hasAttribute('data-chip')) {
+                    var chipHit = localSel ? findNode(localSel) : null;
+                    var chipField = target.getAttribute('data-chip'), chipTerm = target.getAttribute('data-term');
+                    if (chipHit) {
+                        chipHit.node[chipField] = (chipHit.node[chipField] || []).concat([chipTerm]);
+                        qs('#lf-' + chipField).value = chipHit.node[chipField].join(', ');
+                        markDirty();
+                        renderTermChips();
+                    }
                     return;
                 }
                 if (target.hasAttribute('data-upload-video')) {

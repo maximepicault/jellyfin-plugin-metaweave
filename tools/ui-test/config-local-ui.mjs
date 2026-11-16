@@ -25,6 +25,7 @@ window.ApiClient = {
   updatePluginConfiguration: function (id, c) { __mock.config = clone(c); __mock.calls.push('PLUGIN'); return Promise.resolve({}); },
   getJSON: function (url) {
     if (/CustomMetadata\\/Refresh\\/Status/.test(url)) { __mock.calls.push('REFRESH-STATUS'); return Promise.resolve({ Running: false, Prefix: __mock.refresh.Prefix, Total: 3, Done: 3, Failed: 0, Series: 1, Seasons: 1, Episodes: 1, LocalFilesKept: __mock.kept || 0 }); }
+    if (/CustomMetadata\\/Taxonomy\\/Names/.test(url)) { return Promise.resolve({ genre: ['Documentaire', 'Voyage', 'Aventure'], tag: ['Technologie'] }); }
     if (/CustomMetadata\\/Status/.test(url)) { return Promise.resolve({ Sources: __mock.config.Sources.length, MissingEpisodes: 3, SourceErrors: 0, People: __mock.people.length, NotEnriched: null, TaggedSeries: __mock.tagged || 0 }); }
     if (/Library\\/VirtualFolders/.test(url)) { return Promise.resolve(clone(__mock.libraries || [])); }
     if (/CustomMetadata\\/People/.test(url)) { __mock.calls.push('GET people'); return Promise.resolve(clone({ Version: 1, People: __mock.people })); }
@@ -136,6 +137,10 @@ try {
   check('image: "Retirer" button offered', await vis('[data-clear-img="Thumb"]'));
   check('sub-tabs: an episode has Informations / Images / Distribution', (await ev(`Array.from(document.querySelectorAll('[data-ltab-btn]')).map(function(b){return b.getAttribute('data-ltab-btn');}).join()`)) === 'info,images,cast');
   check('sub-tabs: the title field is hidden while Images is open', !(await vis('#lf-Title')));
+  await ltab('info');
+  check('suggestions: the terms of the "Genres et tags" screen are offered under Genres and Tags', (await ev(`Array.from(document.querySelectorAll('[data-chip="Genres"]')).map(function(b){return b.getAttribute('data-term');}).join()`)) === 'Documentaire,Voyage,Aventure' && (await ev(`Array.from(document.querySelectorAll('[data-chip="Tags"]')).map(function(b){return b.getAttribute('data-term');}).join()`)) === 'Technologie', await ev(`'genres=' + document.querySelectorAll('[data-chip="Genres"]').length + ' tags=' + document.querySelectorAll('[data-chip="Tags"]').length + ' lfGenres=' + !!document.querySelector('#lf-Genres') + ' sel=' + document.querySelector('#localDetail h4')?.textContent`));
+  await click('[data-chip="Genres"][data-term="Voyage"]'); await wait(150);
+  check('suggestions: a click adds the term to the field and the chip goes away', (await ev(`document.querySelector('#lf-Genres').value`)).includes('Voyage') && (await ev(`document.querySelectorAll('[data-chip="Genres"][data-term="Voyage"]').length`)) === 0 && (await ev(`document.querySelector('#dirtyState').textContent`)).includes('non enregistrées'));
   await ev(`(function(){var dt=new DataTransfer(); dt.items.add(new File([new Uint8Array([255,216,255,224,0,16,74,70,73,70,0,1])],'a.jpg',{type:'image/jpeg'})); var i=document.querySelector('[data-file="Thumb"]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(400);
   check('image: file sent to the server', (await ev(`__mock.calls.filter(function(c){return c.indexOf('UPLOAD')===0;}).length`)) === 1);
   const uploadCall = await ev(`__mock.calls.filter(function(c){return c.indexOf('UPLOAD')===0;})[0]`);
