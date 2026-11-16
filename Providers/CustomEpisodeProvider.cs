@@ -246,18 +246,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     tagsList.Insert(0, metadata.SeriesName);
                     _logger.LogInformation("🎬 [EPISODE PROVIDER] Added series name '{SeriesName}' as default tag", metadata.SeriesName);
                 }
+                // The rules of the "Genres et tags" screen come last and win over everything above (API, local source, series name)
+                tagsList = TaxonomyStore.Tags(tagsList).ToList();
                 if (tagsList.Any())
                 {
                     episode.Tags = tagsList.ToArray();
                 }
 
                 // Add the genres
-                if (metadata.Genres != null && metadata.Genres.Any())
+                foreach (var genre in TaxonomyStore.Genres(metadata.Genres))
                 {
-                    foreach (var genre in metadata.Genres)
-                    {
-                        episode.AddGenre(genre);
-                    }
+                    episode.AddGenre(genre);
                 }
 
                 // Chapters: written by ChapterService once the refresh is over (a provider cannot return them) for an episode that has

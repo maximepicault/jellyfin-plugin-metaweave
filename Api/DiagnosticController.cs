@@ -26,10 +26,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         private readonly MissingEpisodeService _missing;
         private readonly PeopleStore _people;
         private readonly ILibraryManager _library;
+        private readonly TaxonomyStore _taxonomy;
 
-        public DiagnosticController(DiagnosticService diagnostic, MissingEpisodeService missing, PeopleStore people, ILibraryManager library)
+        public DiagnosticController(DiagnosticService diagnostic, MissingEpisodeService missing, PeopleStore people, ILibraryManager library, TaxonomyStore taxonomy)
         {
             _library = library;
+            _taxonomy = taxonomy;
             _diagnostic = diagnostic;
             _missing = missing;
             _people = people;
@@ -78,7 +80,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 SourceErrors = seasons?.Count(s => !string.IsNullOrEmpty(s.Error)) ?? 0,
                 People = _people.Load()?.People?.Count ?? 0,
                 NotEnriched = _diagnostic.GetLast()?.Total,
-                TaggedSeries = CountTaggedSeries()
+                TaggedSeries = CountTaggedSeries(),
+                TaxonomyRules = _taxonomy.Load().Rules.Count(r => r.Ignored || r.ReplaceWith != null)
             });
         }
 
@@ -125,5 +128,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
         /// <summary>Series folders carrying a tag of a configured source</summary>
         public int TaggedSeries { get; set; }
+
+        /// <summary>Rules of the "Genres et tags" screen that ignore or rename a term</summary>
+        public int TaxonomyRules { get; set; }
     }
 }

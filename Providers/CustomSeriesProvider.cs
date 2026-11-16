@@ -139,18 +139,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 };
 
                 // Add the tags (labels)
-                if (metadata.Tags != null && metadata.Tags.Any())
+                // The rules of the "Genres et tags" screen win over what the source gives
+                var seriesTags = TaxonomyStore.Tags(metadata.Tags);
+                if (seriesTags.Length > 0)
                 {
-                    series.Tags = metadata.Tags.ToArray();
+                    series.Tags = seriesTags;
                 }
 
                 // Add the genres
-                if (metadata.Genres != null && metadata.Genres.Any())
+                foreach (var genre in TaxonomyStore.Genres(metadata.Genres))
                 {
-                    foreach (var genre in metadata.Genres)
-                    {
-                        series.AddGenre(genre);
-                    }
+                    series.AddGenre(genre);
                 }
 
                 // Store the custom ID for future reference (with prefix)

@@ -144,9 +144,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 };
 
                 // Add the tags
-                if (metadata.Tags != null && metadata.Tags.Any())
+                // The rules of the "Genres et tags" screen win over what the source gives
+                var seasonTags = TaxonomyStore.Tags(metadata.Tags);
+                if (seasonTags.Length > 0)
                 {
-                    season.Tags = metadata.Tags.ToArray();
+                    season.Tags = seasonTags;
                 }
 
                 // Store the source ID in the ProviderIds (with prefix)

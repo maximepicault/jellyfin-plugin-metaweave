@@ -829,7 +829,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var changed = false;
             if (OverviewListDetector.IsGenres(source.VideoFieldMappings?.OverviewListTarget))
             {
-                foreach (var genre in item.OverviewItems.Where(g => !episode.Genres.Contains(g, StringComparer.OrdinalIgnoreCase)))
+                // A list read in the synopsis goes through the same rules as any other term
+                foreach (var genre in TaxonomyStore.Genres(item.OverviewItems).Where(g => !episode.Genres.Contains(g, StringComparer.OrdinalIgnoreCase)))
                 {
                     episode.AddGenre(genre);
                     changed = true;
@@ -837,7 +838,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
             else
             {
-                var missing = item.OverviewItems.Where(t => !episode.Tags.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();
+                var missing = TaxonomyStore.Tags(item.OverviewItems).Where(t => !episode.Tags.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();
                 if (missing.Count > 0)
                 {
                     episode.Tags = episode.Tags.Concat(missing).ToArray();

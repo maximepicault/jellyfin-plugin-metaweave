@@ -43,6 +43,10 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddSingleton(sp => new SourceResolver(
                 sp.GetRequiredService<ILogger<SourceResolver>>()));
 
+            // Rules on genres and tags: also reachable as TaxonomyStore.Current by the providers and static helpers
+            serviceCollection.AddSingleton(sp => new TaxonomyStore(sp.GetRequiredService<ILogger<TaxonomyStore>>()));
+            serviceCollection.AddHostedService(sp => sp.GetRequiredService<TaxonomyStore>());
+
             serviceCollection.AddSingleton(sp => new CastOverlayStore(
                 sp.GetRequiredService<ILogger<CastOverlayStore>>()));
 
@@ -59,6 +63,9 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddSingleton<CastApplyService>();
 
             serviceCollection.AddSingleton<MissingEpisodeService>();
+            serviceCollection.AddSingleton<TaxonomyService>();
+            // Applies the rules to a managed item each time it is saved
+            serviceCollection.AddHostedService(sp => sp.GetRequiredService<TaxonomyService>());
             // Saves the chapters of episodes that have a file once their refresh is over
             serviceCollection.AddHostedService<ChapterService>();
             serviceCollection.AddSingleton<DiagnosticService>();
