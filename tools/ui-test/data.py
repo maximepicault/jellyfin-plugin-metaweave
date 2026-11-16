@@ -17,3 +17,21 @@ SERIES = {
 PEOPLE = {"p1": ("Camille Durand", "Comédienne et animatrice, à l'antenne depuis 2015."),
           "p2": ("Émile Lefèvre", "Réalisateur &amp; scénariste."),
           "p3": ("camille  DURAND", "Même personne, autre API.")}
+
+# Demo "dump": ONE call returns the whole catalogue of standalone episodes ({"data": [...]}), as a real dump source does.
+# The first entries are the targets of tools/ui-test/dump-real.mjs (see gen.py for the files that match them).
+_DUMP_BRANDS = ["Aurora Studio", "Boréal Films", "Cinéma Lumen", "Delta Prod"]
+_DUMP_FIXED = [
+    (1001, "Voyage au bout de la nuit", 0, "voyage au bout de la nuit", ["aventure", "nuit"]),
+    (1002, "Les Sentiers du Nord", 0, "les sentiers du nordthe northern pathsdie nordpfade", ["nature", "voyage"]),
+    (1003, "Rivages oubliés", 1, "rivages oublies", ["mer", "nature"]),
+    (1004, "Chroniques de la forêt 1", 1, "chroniques de la foret 1", ["nature", "forêt"]),
+    (1005, "Chroniques de la forêt 2", 1, "chroniques de la foret 2", ["nature", "forêt"]),
+    (1006, "Le Dernier Phare", 2, "le dernier pharethe last lighthousedas letzte leuchtfeuer", ["mer", "drame"]),
+    (1007, "Un titre &amp; son <b>secret</b>", 2, "un titre et son secret", ["drame"]),
+]
+DUMP = []
+for _id, _name, _brand, _search, _tags in _DUMP_FIXED:
+    DUMP.append((_id, _name, _brand, _search, _tags))
+for _i in range(8, 41):
+    DUMP.append((1000 + _i, "Épisode démo %d" % _i, _i % 4, "episode demo %d" % _i, [["aventure", "drame", "nature", "voyage"][_i % 4], "démo"]))

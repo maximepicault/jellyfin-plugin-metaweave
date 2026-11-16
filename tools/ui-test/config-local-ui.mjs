@@ -107,7 +107,7 @@ try {
   check('list: 1 API source', (await ev(`document.querySelectorAll('${P} #sourcesList .cm-card').length`)) === 1);
   check('list: no type choice at the start', !(await vis('#typeChooserWrap')));
   await click(`${P} .cm-toolbar .button-submit`); await wait(200);
-  check('"Ajouter une source" offers API / Locale / Personnes', (await vis('#typeChooser')) && (await ev(`document.querySelectorAll('#typeChooser [data-new-type]').length`)) === 3);
+  check('"Ajouter une source" offers API / Locale / Dump / Personnes', (await vis('#typeChooser')) && (await ev(`document.querySelectorAll('#typeChooser [data-new-type]').length`)) === 4);
   await shot('L1-chooser-1440');
 
   // 2. Local source: the editor only shows Général / Contenu / Miniatures
@@ -398,7 +398,7 @@ try {
 
   // 8b. People source: third type, dedicated editor
   await click(`${P} .cm-toolbar .button-submit`); await wait(200);
-  check('type choice: 3 options', (await ev(`document.querySelectorAll('#typeChooser [data-new-type]').length`)) === 3);
+  check('type choice: 4 options', (await ev(`document.querySelectorAll('#typeChooser [data-new-type]').length`)) === 4);
   await click('#typeChooser [data-new-type="people"]'); await wait(300);
   const pnav = await ev(`Array.from(document.querySelectorAll('${P} .cm-nav-item')).filter(function(b){return b.offsetParent!==null;}).map(function(b){return b.getAttribute('data-go');}).join(',')`);
   check('people source: sections = general,person,network,thumbs', pnav === 'general,person,network,thumbs', pnav);

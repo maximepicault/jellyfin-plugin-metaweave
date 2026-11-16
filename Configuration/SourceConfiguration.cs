@@ -45,6 +45,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         /// <summary>People source: JSON fields of the response</summary>
         public PersonMapping PersonMappings { get; set; } = new PersonMapping();
 
+        /// <summary>
+        /// "Dump" source: ONE call returns the whole catalogue ({ "data": [ … ] }). The plugin keeps it in memory
+        /// (DumpStore) and serves each entry in place of an API call, so a file is enriched by the tag
+        /// {prefix-id} OR, without a tag, by matching its name against the catalogue.
+        /// </summary>
+        [System.Xml.Serialization.XmlIgnore]
+        public bool IsDump => string.Equals(SourceType, "Dump", System.StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Dump source: where the entries are in the response, how a file is matched to them</summary>
+        public DumpSettings Dump { get; set; } = new DumpSettings();
+
         [System.Xml.Serialization.XmlIgnore]
         public bool IsLocal => string.Equals(SourceType, "Local", System.StringComparison.OrdinalIgnoreCase);
 
@@ -193,6 +204,58 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
                 Enabled = true
             };
         }
+    }
+
+    /// <summary>
+    /// Settings of a "Dump" source (SourceType = "Dump"). The URL of the dump is the source's BaseUrl; what is
+    /// shown in Jellyfin comes from the source's VideoFieldMappings, applied to each entry.
+    /// </summary>
+    public class DumpSettings
+    {
+        /// <summary>Path of the list of entries in the response. Empty = the response is the list itself</summary>
+        public string ItemsPath { get; set; } = "data";
+
+        /// <summary>Identifier of an entry (what {prefix-id} designates)</summary>
+        public string IdPath { get; set; } = "id";
+
+        /// <summary>Name of an entry, used to match a file that has no tag</summary>
+        public string NamePath { get; set; } = "name";
+
+        /// <summary>Slug of an entry (exact match of the file name). Empty = none</summary>
+        public string SlugPath { get; set; } = "slug";
+
+        /// <summary>
+        /// Other titles of an entry, usually several languages glued together WITHOUT a separator:
+        /// only used as a substring search. Empty = none
+        /// </summary>
+        public string SearchTitlesPath { get; set; } = "search_titles";
+
+        /// <summary>Group of an entry (brand, studio, channel…): the coverage screen groups the missing entries by it</summary>
+        public string GroupPath { get; set; } = "brand";
+
+        /// <summary>Counters turned into a community rating: likes / (likes + dislikes) × 10. Both empty = no rating</summary>
+        public string LikesPath { get; set; } = "likes";
+        public string DislikesPath { get; set; } = "dislikes";
+
+        /// <summary>How long the downloaded dump is reused, in minutes</summary>
+        public int CacheMinutes { get; set; } = 60;
+
+        /// <summary>A file with no {prefix-id} tag is matched against the dump by its name (otherwise tags only)</summary>
+        public bool MatchWithoutTag { get; set; } = true;
+
+        /// <summary>…first by the entry's slug, then by its normalised name</summary>
+        public bool MatchBySlug { get; set; } = true;
+
+        /// <summary>…then by a fuzzy score on the name and the other titles</summary>
+        public bool MatchByName { get; set; } = true;
+
+        /// <summary>Minimum score (0-100) to accept a fuzzy match</summary>
+        public int MinScore { get; set; } = 70;
+
+        /// <summary>Words ignored when matching by name (languages, quality, release…), separated by spaces or commas</summary>
+        public string NoiseWords { get; set; } =
+            "raw vostfr vosta vostf vosten vf vo va multi mult subbed dubbed uncensored censored "
+            + "1080p 720p 480p 2160p 4k x264 x265 h264 h265 hevc aac flac web webrip webdl bluray bdrip hdtv";
     }
 
     /// <summary>

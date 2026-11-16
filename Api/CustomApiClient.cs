@@ -25,13 +25,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             IHttpClientFactory httpClientFactory, 
             ILogger logger,
             MetadataCacheService cacheService,
-            LocalSourceStore localStore = null)
+            LocalSourceStore localStore = null,
+            DumpStore dumpStore = null)
         {
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _cacheService = cacheService;
             _fieldMapper = new JsonFieldMapper(logger);
-            _http = new ResilientHttp(logger, localStore);
+            _http = new ResilientHttp(logger, localStore, dumpStore);
             _localStore = localStore;
         }
 
@@ -55,6 +56,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             string itemType,
             SourceConfiguration source)
         {
+            // A dump holds standalone episodes only, served at one fixed address (DumpStore.ServeAsync): the endpoints
+            // typed in a saved configuration do not matter
+            if (source.IsDump)
+            {
+                var kind = itemType?.ToLowerInvariant();
+                var entryEndpoint = kind is "series" or "season" or "source" ? "/unsupported/{id}" : DumpStore.ItemEndpoint;
+                return (entryEndpoint, source.VideoFieldMappings ?? new FieldMapping(), "DUMP ENTRY", "VideoFieldMappings");
+            }
+
             switch (itemType?.ToLowerInvariant())
             {
                 case "series":
@@ -206,6 +216,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 // Lists are added together (local first), never one instead of the other
                 Tags = UnionText(local.Tags, api.Tags),
                 Genres = UnionText(local.Genres, api.Genres),
+                Studios = UnionText(local.Studios, api.Studios),
                 Cast = MetadataMerger.UnionCast(new[] { local.Cast, api.Cast }),
                 PremiereDate = local.PremiereDate ?? api.PremiereDate,
                 CommunityRating = local.CommunityRating ?? api.CommunityRating,
@@ -234,7 +245,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             // Local source: reads a local file, no API to spare. No cache: a change
             // typed in the plugin is taken into account immediately, without waiting for expiry
-            if (source.IsLocal)
+            if (source.IsLocal || source.IsDump)
             {
                 return await FetchMetadataFromApiAsync(itemId, itemType, source, cancellationToken);
             }
@@ -346,7 +357,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
                 // Parse and map the JSON
                 using var jsonDoc = JsonDocument.Parse(content);
-                var metadata = _fieldMapper.MapToMetadata(jsonDoc, mapping, source?.IsLocal == true);
+                var metadata = _fieldMapper.MapToMetadata(jsonDoc, mapping, source?.IsLocal == true || source?.IsDump == true);
 
                 _logger.LogInformation("✅ [API SUCCESS] Metadata fetched for {ItemType} {ItemId}", itemType, itemId);
                 return metadata;
@@ -397,7 +408,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             
             var cacheKey = $"images:{GetCacheId(source, itemId)}:{itemType}";
 
-            if (!IsCacheEnabled() || source.IsLocal)
+            if (!IsCacheEnabled() || source.IsLocal || source.IsDump)
             {
                 return await FetchImagesFromApiAsync(itemId, itemType, source, cancellationToken);
             }
@@ -478,7 +489,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 
                 // Extract the images from the JSON with the right mapping
                 using var jsonDoc = JsonDocument.Parse(content);
-                return _fieldMapper.MapToImages(jsonDoc, mapping, source?.IsLocal == true);
+                return _fieldMapper.MapToImages(jsonDoc, mapping, source?.IsLocal == true || source?.IsDump == true);
             }
             catch (Exception ex)
             {
@@ -998,6 +1009,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string SeriesName { get; set; }
         public List<string> Tags { get; set; }
         public List<string> Genres { get; set; }
+
+        /// <summary>Studios (FieldMapping.Studio)</summary>
+        public List<string> Studios { get; set; }
         public List<CastMember> Cast { get; set; }
         public DateTime? PremiereDate { get; set; }
         public float? CommunityRating { get; set; }

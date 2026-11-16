@@ -8,9 +8,10 @@ A file or folder whose name carries a `{prefix-ID}` tag (for example `{dm-1234}`
 
 ## What it does
 
-- **Three kinds of sources**
+- **Four kinds of sources**
   - **API**: title, overview, date, rating, tags, genres, cast and images read from your API's JSON, with a configurable field mapping (dotted paths).
   - **Local**: series, seasons and episodes typed in the plugin, including episodes you do not have yet. The data lives in the plugin, not in Jellyfin's database, so a forced "Replace all metadata" never erases it. Images can be uploaded or given as web addresses.
+  - **Dump**: one call returns a whole catalogue of standalone episodes (`{ "data": [ … ] }`). The plugin keeps it in memory and finds each file in it, by its `{prefix-id}` tag or, without a tag, by its name (slug, exact name, fuzzy score with a configurable threshold). A "Catalogues" view of the missing-episodes screen shows what the dump holds that your library does not. See [docs/DUMP_SOURCE.md](docs/DUMP_SOURCE.md).
   - **People**: an API that describes people (name, photo, biography), queried by identifier.
 - **Missing episodes**: from an episode list provided by the API (or a local source), the plugin creates greyed-out "virtual" episodes for those that have no file, with thumbnail, duration, overview and a preview video. A dedicated screen ("Épisodes manquants") lists what is missing, with a "copy name" button (`Title {prefix-ID}`) to name the future file.
 - **Cast**: a people directory shared by all sources (deduplicated by identifier and by name, with photos), hand-entered casts for local episodes, and casts for series, seasons and episodes of API sources attached by tag, without modifying the API.

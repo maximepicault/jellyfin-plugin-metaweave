@@ -422,6 +422,60 @@
             .me-copy-all { height: 48px; }
             .me-filename code, .me-copy { height: 44px; }
         }
+
+        /* ===== Catalogues (dump sources): what a catalogue holds against what the library owns ===== */
+        #CustomMetadataMissingPage .dc-modes { margin: 0 0 18px; }
+        #CustomMetadataMissingPage .dc-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; margin: 0 0 6px; }
+        #CustomMetadataMissingPage .dc-bar h2 { margin: 0; }
+        #CustomMetadataMissingPage .dc-bar-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        #CustomMetadataMissingPage .dc-bar-actions .emby-button { margin: 0; }
+        #CustomMetadataMissingPage .dc-source { margin: 0; min-width: 200px; }
+        #CustomMetadataMissingPage .dc-status { margin: 4px 0 0; color: var(--me-muted); font-size: 14px; }
+        #CustomMetadataMissingPage .dc-status .dc-warn { color: var(--me-warn-text); }
+        #CustomMetadataMissingPage .dc-cover { margin: 0 0 22px; }
+        #CustomMetadataMissingPage .dc-cover .me-progress { height: 8px; margin-top: 4px; }
+        #CustomMetadataMissingPage .dc-cover .me-progress > div { background: var(--me-ok); }
+        #CustomMetadataMissingPage .dc-cover-line { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; color: var(--me-muted); font-size: 13px; }
+        /* The tag is what the file name needs: the title gives way first when the line is short */
+        #CustomMetadataMissingPage .dc-fn-title { flex: 0 1 auto; min-width: 0; }
+        #CustomMetadataMissingPage .dc-fn-tag { flex: none; overflow: visible !important; margin-left: 0.5ch; }
+        #CustomMetadataMissingPage .dc-h { margin: 22px 0 10px; font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--me-muted); display: flex; align-items: baseline; gap: 12px; }
+        #CustomMetadataMissingPage .dc-h .me-linkbtn { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; }
+        #CustomMetadataMissingPage .dc-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 10px; }
+        #CustomMetadataMissingPage .dc-group { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 10px 12px; border: 1px solid var(--me-border); border-radius: 8px; background: var(--me-surface); color: inherit; font: inherit; cursor: pointer; }
+        #CustomMetadataMissingPage .dc-group:hover, #CustomMetadataMissingPage .dc-group:focus-visible { border-color: var(--me-accent); background: var(--me-surface-hover); outline: none; }
+        #CustomMetadataMissingPage .dc-group[aria-pressed="true"] { border-color: var(--me-accent); background: rgba(0, 164, 220, 0.16); }
+        #CustomMetadataMissingPage .dc-group-name { font-weight: 700; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        #CustomMetadataMissingPage .dc-group-nums { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--me-muted); font-variant-numeric: tabular-nums; }
+        #CustomMetadataMissingPage .dc-group-nums strong { color: #ff7a6b; font-weight: 600; }
+        #CustomMetadataMissingPage .dc-group-nums strong.dc-done { color: #6fd6a2; }
+        #CustomMetadataMissingPage .dc-group .me-progress { height: 4px; }
+        #CustomMetadataMissingPage .dc-filters { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin: 6px 0 10px; }
+        #CustomMetadataMissingPage .dc-filters .selectContainer { margin: 0; min-width: 150px; }
+        #CustomMetadataMissingPage .dc-filters .dc-order { height: 44px; min-width: 44px; padding: 0 12px; border: 1px solid var(--me-border); border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 18px; cursor: pointer; }
+        #CustomMetadataMissingPage .dc-filters .dc-order:hover { border-color: var(--me-accent); }
+        #CustomMetadataMissingPage .dc-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+        #CustomMetadataMissingPage .dc-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 6px 0 12px; border: 1px solid rgba(0, 164, 220, 0.6); border-radius: 16px; background: rgba(0, 164, 220, 0.14); color: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+        #CustomMetadataMissingPage .dc-chip i { display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; border-radius: 10px; background: rgba(255, 255, 255, 0.18); font-style: normal; }
+        #CustomMetadataMissingPage .dc-chip:hover i { background: rgba(255, 255, 255, 0.32); }
+        #CustomMetadataMissingPage .dc-count { margin: 0 0 12px; color: var(--me-muted); font-size: 14px; }
+        #CustomMetadataMissingPage .dc-entry .me-badge { position: absolute; top: 10px; right: 10px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+        #CustomMetadataMissingPage .dc-entry .me-thumb { }
+        #CustomMetadataMissingPage .dc-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+        #CustomMetadataMissingPage .dc-tag { padding: 2px 9px; border: 1px solid var(--me-border); border-radius: 12px; background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.85); font: inherit; font-size: 12px; cursor: pointer; }
+        #CustomMetadataMissingPage .dc-tag:hover { border-color: var(--me-accent); }
+        #CustomMetadataMissingPage .dc-id { color: var(--me-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+        #CustomMetadataMissingPage .dc-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 8px; color: var(--me-muted); }
+        #CustomMetadataMissingPage .dc-pager button { min-height: 44px; padding: 0 18px; border: 1px solid var(--me-border); border-radius: 6px; background: var(--me-surface); color: #fff; font: inherit; cursor: pointer; }
+        #CustomMetadataMissingPage .dc-pager button:hover:not(:disabled) { border-color: var(--me-accent); }
+        #CustomMetadataMissingPage .dc-pager button:disabled { opacity: 0.4; cursor: default; }
+        #CustomMetadataMissingPage .dc-empty { padding: 28px 18px; border: 1px dashed rgba(255, 255, 255, 0.22); border-radius: 10px; line-height: 1.6; max-width: 720px; }
+        #CustomMetadataMissingPage .dc-empty strong { display: block; margin-bottom: 4px; font-size: 16px; }
+        @media (max-width: 640px) {
+            #CustomMetadataMissingPage #dcSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            #CustomMetadataMissingPage .dc-bar-actions { margin-left: 0; width: 100%; }
+            #CustomMetadataMissingPage .dc-filters .selectContainer, #CustomMetadataMissingPage .dc-filters .me-search { flex: 1 1 100%; }
+        }
     </style>
     <div data-role="content">
         <div class="content-primary">
@@ -433,6 +487,12 @@
                 <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDiagnostic">Diagnostic <span class="cmn-count" data-cmn-count="diagnostic"></span></a>
                 <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataTaxonomy">Genres et tags <span class="cmn-count" data-cmn-count="taxonomy"></span></a>
             </nav>
+            <div class="me-viewtoggle dc-modes me-hidden" id="modeSwitch" role="group" aria-label="Ce que l'écran analyse">
+                <button type="button" data-mode="series" aria-pressed="true">Séries</button>
+                <button type="button" data-mode="dump" aria-pressed="false">Catalogues</button>
+            </div>
+
+            <div id="seriesView">
             <div class="me-head">
                 <h2 class="sectionTitle">Épisodes manquants</h2>
                 <div class="me-head-actions">
@@ -483,6 +543,41 @@
 
             <span id="liveMsg" class="me-sr" aria-live="polite"></span>
             <div id="results"></div>
+            </div>
+
+            <!-- Catalogues: the dump sources (filled by the second script) -->
+            <div id="dumpView" class="me-hidden">
+                <div class="dc-bar">
+                    <h2 class="sectionTitle">Catalogue</h2>
+                    <div class="selectContainer dc-source me-hidden" id="dcSourceBox">
+                        <select is="emby-select" id="dcSource" label="Source"></select>
+                    </div>
+                    <div class="dc-bar-actions">
+                        <button is="emby-button" type="button" id="dcReload" class="raised" title="Télécharge le dump de nouveau, sans attendre la fin de son cache"><span>Recharger le dump</span></button>
+                        <button is="emby-button" type="button" id="dcExport" class="raised" title="Exporte les entrées qui correspondent aux filtres actuels"><span>Exporter en CSV</span></button>
+                    </div>
+                </div>
+                <p class="dc-status" id="dcStatus" role="status"></p>
+                <div class="me-summary" id="dcSummary"></div>
+                <div class="dc-cover" id="dcCover"></div>
+                <div id="dcGroupsBox"></div>
+                <div class="dc-filters" id="dcFilters">
+                    <div class="inputContainer me-search"><input is="emby-input" type="search" id="dcQ" label="Rechercher (nom, groupe, tag, identifiant)" /></div>
+                    <div class="selectContainer"><select is="emby-select" id="dcStatusSel" label="Afficher"><option value="missing">Les manquants</option><option value="owned">Les possédés</option><option value="all">Tout le catalogue</option></select></div>
+                    <div class="selectContainer"><select is="emby-select" id="dcTag" label="Tag"><option value="">Tous les tags</option></select></div>
+                    <div class="selectContainer"><select is="emby-select" id="dcYear" label="Année"><option value="">Toutes les années</option></select></div>
+                    <div class="selectContainer"><select is="emby-select" id="dcSort" label="Trier par"><option value="group">Groupe</option><option value="name">Nom</option><option value="date">Date de sortie</option><option value="id">Identifiant</option></select></div>
+                    <button type="button" class="dc-order" id="dcOrder" aria-label="Ordre croissant" title="Inverser l'ordre">↑</button>
+                    <div class="me-viewtoggle" id="dcView" role="group" aria-label="Affichage des entrées" style="margin: 0;">
+                        <button type="button" data-view="cards" aria-pressed="true">Cartes</button>
+                        <button type="button" data-view="list" aria-pressed="false">Liste</button>
+                    </div>
+                </div>
+                <div class="dc-chips" id="dcChips"></div>
+                <p class="dc-count" id="dcCount" aria-live="polite"></p>
+                <div id="dcResults"></div>
+                <div class="dc-pager" id="dcPager"></div>
+            </div>
         </div>
     </div>
 
@@ -1438,6 +1533,274 @@
             });
 
             page.addEventListener('pagehide', stopPolling);
+        })();
+    </script>
+    <script type="text/javascript">
+        // ===== Catalogues: what a dump source holds against what the library owns =====
+        (function () {
+            var page = document.querySelector('#CustomMetadataMissingPage');
+            var $ = function (selector) { return page.querySelector(selector); };
+            var sources = [];
+            var state = { prefix: '', status: 'missing', group: '', tag: '', year: '', q: '', sort: 'group', desc: false, page: 1, view: 'cards' };
+            var mode = 'series';
+            var timer = null, seq = 0, lastData = null, groupsExpanded = false;
+            var ICON_COPY = '<svg class="me-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a1 1 0 0 1 1-1h10"></path></svg>';
+            var GROUPS_SHOWN = 12;
+
+            function esc(v) { return String(v === null || v === undefined ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+            function plural(n, one, many) { return n.toLocaleString('fr-FR') + ' ' + (n > 1 ? (many || one + 's') : one); }
+            function pct(part, total) { return total > 0 ? Math.round(part * 100 / total) : 0; }
+
+            try { state.view = localStorage.getItem('cm-missing-view') === 'list' ? 'list' : 'cards'; } catch (e) { /* private window */ }
+
+            function copyText(text) {
+                if (navigator.clipboard && window.isSecureContext) {
+                    return navigator.clipboard.writeText(text).catch(function () { return legacyCopy(text); });
+                }
+                return legacyCopy(text);
+            }
+            // Jellyfin is often served over http://IP: navigator.clipboard does not exist there
+            function legacyCopy(text) {
+                return new Promise(function (resolve, reject) {
+                    var area = document.createElement('textarea');
+                    area.value = text; area.setAttribute('readonly', ''); area.style.position = 'fixed'; area.style.opacity = '0';
+                    document.body.appendChild(area); area.select();
+                    var ok = false;
+                    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+                    document.body.removeChild(area);
+                    if (ok) { resolve(); } else { reject(); }
+                });
+            }
+
+            // "Title {prefix-id}", without the characters a file name cannot hold
+            function fileName(row) {
+                var title = String(row.Name || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/[{}]/g, '').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
+                return title ? title + ' {' + row.Tag + '}' : '{' + row.Tag + '}';
+            }
+
+            function formatDate(iso) {
+                var d = new Date(iso);
+                return isNaN(d) ? '' : d.toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' });
+            }
+
+            // ---- mode: series (the usual screen) or catalogues ----
+            function setMode(next) {
+                mode = next;
+                $('#seriesView').classList.toggle('me-hidden', mode !== 'series');
+                $('#dumpView').classList.toggle('me-hidden', mode !== 'dump');
+                Array.prototype.forEach.call(page.querySelectorAll('#modeSwitch [data-mode]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-mode') === mode ? 'true' : 'false'); });
+                if (mode === 'dump') { refresh(false); }
+            }
+
+            function loadSources() {
+                return ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Dump/Sources')).then(function (list) {
+                    sources = (list || []).filter(function (s) { return s.Enabled !== false; });
+                    var any = sources.length > 0;
+                    $('#modeSwitch').classList.toggle('me-hidden', !any);
+                    if (!any) { setMode('series'); return; }
+                    var select = $('#dcSource');
+                    select.innerHTML = sources.map(function (s) { return '<option value="' + esc(s.Prefix) + '">' + esc(s.Name || s.Prefix) + ' {' + esc(s.Prefix) + '-…}</option>'; }).join('');
+                    if (!sources.some(function (s) { return s.Prefix === state.prefix; })) { state.prefix = sources[0].Prefix; }
+                    select.value = state.prefix;
+                    $('#dcSourceBox').classList.toggle('me-hidden', sources.length < 2);
+                }, function () { $('#modeSwitch').classList.add('me-hidden'); });
+            }
+
+            // ---- data ----
+            function query(extra) {
+                var q = { prefix: state.prefix, status: state.status, group: state.group, tag: state.tag, year: state.year, q: state.q, sort: state.sort, desc: state.desc, page: state.page };
+                Object.keys(extra || {}).forEach(function (k) { q[k] = extra[k]; });
+                Object.keys(q).forEach(function (k) { if (q[k] === '' || q[k] === null || q[k] === undefined || q[k] === false) { delete q[k]; } });
+                return q;
+            }
+
+            function refresh(force) {
+                if (!state.prefix) { return; }
+                var mine = ++seq;
+                $('#dcResults').setAttribute('aria-busy', 'true');
+                if (!lastData) { $('#dcResults').innerHTML = '<p class="dc-count">Chargement du catalogue…</p>'; }
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Dump/Coverage', query(force ? { refresh: true } : {}))).then(function (data) {
+                    if (mine !== seq) { return; }
+                    lastData = data;
+                    render(data);
+                }, function (err) {
+                    if (mine !== seq) { return; }
+                    $('#dcResults').innerHTML = '<div class="dc-empty"><strong>Impossible de lire le catalogue.</strong>Le serveur a répondu' + (err && err.status ? ' (HTTP ' + err.status + ')' : ' par une erreur') + '. Vérifiez que la source existe et est activée, puis consultez le journal du serveur (étiquette 📦 [DUMP]).</div>';
+                    $('#dcResults').removeAttribute('aria-busy');
+                });
+            }
+
+            // ---- rendering ----
+            function render(d) {
+                $('#dcResults').removeAttribute('aria-busy');
+                var status = $('#dcStatus');
+                if (d.Error && !d.Total) {
+                    status.textContent = '';
+                    $('#dcSummary').innerHTML = ''; $('#dcCover').innerHTML = ''; $('#dcGroupsBox').innerHTML = ''; $('#dcChips').innerHTML = ''; $('#dcCount').textContent = ''; $('#dcPager').innerHTML = '';
+                    $('#dcResults').innerHTML = '<div class="dc-empty"><strong>Le dump n\'a pas pu être chargé.</strong>' + esc(d.Error) + '<br />Corrigez l\'URL ou les chemins dans l\'éditeur de la source (section « Catalogue », panneau « Tester la source »), puis rechargez.</div>';
+                    return;
+                }
+                var when = d.LoadedAtUtc ? new Date(d.LoadedAtUtc).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+                status.innerHTML = esc(d.SourceName || d.Prefix) + ' · catalogue téléchargé le ' + esc(when) + (d.Error ? ' <span class="dc-warn">· ⚠ la dernière mise à jour a échoué (' + esc(d.Error) + ') : cette copie est conservée</span>' : '');
+
+                $('#dcSummary').innerHTML =
+                    '<div class="me-stat"><div class="me-stat-value">' + d.Total.toLocaleString('fr-FR') + '</div><div class="me-stat-label">Dans le catalogue</div></div>'
+                    + '<div class="me-stat"><div class="me-stat-value">' + d.Owned.toLocaleString('fr-FR') + '</div><div class="me-stat-label">Dans votre médiathèque</div></div>'
+                    + '<div class="me-stat me-stat-missing"><div class="me-stat-value">' + d.Missing.toLocaleString('fr-FR') + '</div><div class="me-stat-label">' + (d.Missing > 1 ? 'Manquants' : 'Manquant') + '</div></div>'
+                    + '<div class="me-stat"><div class="me-stat-value">' + pct(d.Owned, d.Total) + ' %</div><div class="me-stat-label">Couverture</div></div>';
+                $('#dcCover').innerHTML = '<div class="me-progress" role="img" aria-label="' + pct(d.Owned, d.Total) + ' % du catalogue est dans la médiathèque"><div style="width:' + pct(d.Owned, d.Total) + '%"></div></div>'
+                    + '<div class="dc-cover-line"><span>« Possédé » : un fichier porte le tag de l\'entrée ou lui a été rapproché. Un fichier jamais rapproché compte comme manquant.</span></div>';
+
+                renderGroups(d);
+                fillSelect('#dcTag', 'Tous les tags', (d.Tags || []).map(function (t) { return { v: t.Name, t: t.Name + ' (' + t.Count + ')' }; }), state.tag);
+                fillSelect('#dcYear', 'Toutes les années', (d.Years || []).map(function (y) { return { v: String(y), t: String(y) }; }), state.year);
+                $('#dcStatusSel').value = state.status;
+                $('#dcSort').value = state.sort;
+                $('#dcOrder').textContent = state.desc ? '↓' : '↑';
+                $('#dcOrder').setAttribute('aria-label', state.desc ? 'Ordre décroissant' : 'Ordre croissant');
+                Array.prototype.forEach.call(page.querySelectorAll('#dcView [data-view]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-view') === state.view ? 'true' : 'false'); });
+
+                // Active filters as removable chips
+                var chips = [];
+                if (state.group) { chips.push(['group', 'Groupe : ' + state.group]); }
+                if (state.tag) { chips.push(['tag', 'Tag : ' + state.tag]); }
+                if (state.year) { chips.push(['year', 'Année : ' + state.year]); }
+                if (state.q) { chips.push(['q', 'Recherche : ' + state.q]); }
+                $('#dcChips').innerHTML = chips.map(function (c) { return '<button type="button" class="dc-chip" data-clear="' + c[0] + '" aria-label="Retirer le filtre ' + esc(c[1]) + '">' + esc(c[1]) + '<i aria-hidden="true">×</i></button>'; }).join('');
+
+                var what = state.status === 'missing' ? (d.Matching > 1 ? 'entrées manquantes' : 'entrée manquante') : (state.status === 'owned' ? (d.Matching > 1 ? 'entrées possédées' : 'entrée possédée') : (d.Matching > 1 ? 'entrées' : 'entrée'));
+                $('#dcCount').textContent = d.Matching.toLocaleString('fr-FR') + ' ' + what + (chips.length ? ' avec ces filtres' : '') + (d.Pages > 1 ? ' · page ' + d.Page + ' sur ' + d.Pages : '');
+
+                renderItems(d);
+                renderPager(d);
+            }
+
+            function fillSelect(selector, first, options, value) {
+                var el = $(selector);
+                el.innerHTML = '<option value="">' + esc(first) + '</option>' + options.map(function (o) { return '<option value="' + esc(o.v) + '">' + esc(o.t) + '</option>'; }).join('');
+                el.value = value || '';
+                if (value && el.value !== value) { el.innerHTML += '<option value="' + esc(value) + '">' + esc(value) + '</option>'; el.value = value; }
+            }
+
+            function renderGroups(d) {
+                var groups = (d.Groups || []).filter(function (g) { return d.Groups.length > 1 || g.Group !== '(sans groupe)'; });
+                if (groups.length < 2) { $('#dcGroupsBox').innerHTML = ''; return; }
+                var shown = groupsExpanded ? groups : groups.slice(0, GROUPS_SHOWN);
+                var html = '<div class="dc-h"><span>Par groupe</span><span style="text-transform:none; letter-spacing:0; font-weight:400;">(' + groups.length + ', du plus incomplet au plus complet)</span>'
+                    + (groups.length > GROUPS_SHOWN ? '<button type="button" class="me-linkbtn" id="dcGroupsMore">' + (groupsExpanded ? 'Réduire' : 'Tout afficher (' + groups.length + ')') + '</button>' : '') + '</div><div class="dc-groups">';
+                shown.forEach(function (g) {
+                    var on = state.group && state.group.toLowerCase() === g.Group.toLowerCase();
+                    html += '<button type="button" class="dc-group" data-group="' + esc(g.Group) + '" aria-pressed="' + (on ? 'true' : 'false') + '" title="' + (on ? 'Retirer le filtre' : 'Filtrer sur ce groupe') + '">'
+                        + '<span class="dc-group-name">' + esc(g.Group) + '</span>'
+                        + '<span class="dc-group-nums"><span>' + g.Owned + ' / ' + g.Total + '</span>' + (g.Missing ? '<strong>' + plural(g.Missing, 'manquant') + '</strong>' : '<strong class="dc-done">Complet</strong>') + '</span>'
+                        + '<span class="me-progress" aria-hidden="true"><span style="display:block;height:100%;width:' + pct(g.Owned, g.Total) + '%;background:var(--me-accent);"></span></span></button>';
+                });
+                $('#dcGroupsBox').innerHTML = html + '</div>';
+            }
+
+            function renderItems(d) {
+                var box = $('#dcResults');
+                if (!d.Items.length) {
+                    var filtered = state.group || state.tag || state.year || state.q;
+                    box.innerHTML = '<div class="dc-empty"><strong>' + (filtered ? 'Aucune entrée avec ces filtres.' : (state.status === 'missing' ? 'Rien ne manque.' : 'Aucune entrée.')) + '</strong>'
+                        + (filtered ? 'Retirez un filtre (les pastilles ci-dessus) pour élargir la liste.' : (state.status === 'missing' ? 'Toutes les entrées du catalogue sont dans votre médiathèque.' : 'Le catalogue est vide ou les chemins de la source ne trouvent rien : testez-la dans son éditeur.')) + '</div>';
+                    return;
+                }
+                var html = '<div class="me-episodes' + (state.view === 'list' ? ' me-list' : '') + '">';
+                d.Items.forEach(function (r) {
+                    var name = fileName(r);
+                    var meta = [];
+                    if (r.Group && r.Group !== '(sans groupe)') { meta.push(esc(r.Group)); }
+                    if (r.Date) { meta.push(esc(formatDate(r.Date))); }
+                    html += '<div class="me-episode dc-entry" data-file="' + esc(name) + '">'
+                        + '<div class="me-thumb">' + (r.Image ? '<img src="' + esc(r.Image) + '" alt="" loading="lazy" referrerpolicy="no-referrer" />' : '<div class="me-placeholder">🎞</div>')
+                        + '<span class="me-badge ' + (r.Owned ? 'me-badge-ok' : 'me-badge-missing') + '">' + (r.Owned ? '✓ Possédé' : 'Manquant') + '</span></div>'
+                        + '<div class="me-episode-info">'
+                        + '<div class="me-episode-top"><div class="me-episode-title">' + (r.Name ? esc(r.Name) : '<span class="me-muted">(sans nom)</span>') + '</div><span class="dc-id">#' + esc(r.Id) + '</span></div>'
+                        + (meta.length ? '<div class="me-episode-meta">' + meta.join(' · ') + '</div>' : '')
+                        + ((r.Tags || []).length ? '<div class="dc-tags">' + r.Tags.slice(0, 6).map(function (t) { return '<button type="button" class="dc-tag" data-tag="' + esc(t) + '" title="Filtrer sur ce tag">' + esc(t) + '</button>'; }).join('') + (r.Tags.length > 6 ? '<span class="me-muted" style="font-size:12px;">+' + (r.Tags.length - 6) + '</span>' : '') + '</div>' : '')
+                        + '<div class="me-filename" title="Nom à donner au fichier (garder l\'extension : .mkv, .mp4…)"><code><span class="dc-fn-title">' + esc(name.replace(/\s*\{[^{}]*\}$/, '')) + '</span><span class="dc-fn-tag">{' + esc(r.Tag) + '}</span></code>'
+                        + '<button type="button" class="me-copy" data-copy="' + esc(name) + '" aria-label="Copier le nom : ' + esc(name) + '">' + ICON_COPY + '<span>Copier</span></button></div>'
+                        + '</div></div>';
+                });
+                box.innerHTML = html + '</div>';
+            }
+
+            function renderPager(d) {
+                var box = $('#dcPager');
+                if (d.Pages <= 1) { box.innerHTML = ''; return; }
+                box.innerHTML = '<button type="button" data-page="' + (d.Page - 1) + '"' + (d.Page <= 1 ? ' disabled' : '') + '>← Précédent</button><span>Page ' + d.Page + ' sur ' + d.Pages + '</span><button type="button" data-page="' + (d.Page + 1) + '"' + (d.Page >= d.Pages ? ' disabled' : '') + '>Suivant →</button>';
+            }
+
+            // ---- interactions ----
+            function change(patch) { Object.keys(patch).forEach(function (k) { state[k] = patch[k]; }); if (!('page' in patch)) { state.page = 1; } refresh(false); }
+
+            $('#modeSwitch').addEventListener('click', function (e) { var b = e.target.closest('[data-mode]'); if (b) { setMode(b.getAttribute('data-mode')); } });
+            $('#dcSource').addEventListener('change', function (e) { lastData = null; groupsExpanded = false; change({ prefix: e.target.value, group: '', tag: '', year: '', q: '' }); $('#dcQ').value = ''; });
+            $('#dcStatusSel').addEventListener('change', function (e) { change({ status: e.target.value }); });
+            $('#dcTag').addEventListener('change', function (e) { change({ tag: e.target.value }); });
+            $('#dcYear').addEventListener('change', function (e) { change({ year: e.target.value }); });
+            $('#dcSort').addEventListener('change', function (e) { change({ sort: e.target.value }); });
+            $('#dcOrder').addEventListener('click', function () { change({ desc: !state.desc }); });
+            $('#dcQ').addEventListener('input', function (e) { var value = e.target.value; clearTimeout(timer); timer = setTimeout(function () { change({ q: value.trim() }); }, 250); });
+            $('#dcView').addEventListener('click', function (e) {
+                var b = e.target.closest('[data-view]');
+                if (!b) { return; }
+                state.view = b.getAttribute('data-view');
+                try { localStorage.setItem('cm-missing-view', state.view); } catch (err) { /* private window */ }
+                if (lastData) { render(lastData); }
+            });
+            $('#dcReload').addEventListener('click', function () { var b = $('#dcReload'); b.disabled = true; refresh(true); setTimeout(function () { b.disabled = false; }, 800); });
+
+            page.querySelector('#dumpView').addEventListener('click', function (e) {
+                var group = e.target.closest('[data-group]');
+                if (group) { var g = group.getAttribute('data-group'); change({ group: state.group && state.group.toLowerCase() === g.toLowerCase() ? '' : g }); return; }
+                if (e.target.closest('#dcGroupsMore')) { groupsExpanded = !groupsExpanded; if (lastData) { renderGroups(lastData); } return; }
+                var clear = e.target.closest('[data-clear]');
+                if (clear) { var key = clear.getAttribute('data-clear'); var patch = {}; patch[key] = ''; if (key === 'q') { $('#dcQ').value = ''; } change(patch); return; }
+                var tag = e.target.closest('[data-tag]');
+                if (tag) { change({ tag: tag.getAttribute('data-tag') }); return; }
+                var pg = e.target.closest('[data-page]');
+                if (pg && !pg.disabled) { change({ page: parseInt(pg.getAttribute('data-page'), 10) }); window.scrollTo({ top: 0 }); return; }
+                var copy = e.target.closest('[data-copy]');
+                if (copy) {
+                    var span = copy.querySelector('span');
+                    copyText(copy.getAttribute('data-copy')).then(function () { copy.classList.add('me-copied'); span.textContent = 'Copié'; setTimeout(function () { copy.classList.remove('me-copied'); span.textContent = 'Copier'; }, 1500); },
+                        function () { span.textContent = 'Sélectionnez le texte'; setTimeout(function () { span.textContent = 'Copier'; }, 2500); });
+                }
+            });
+
+            // A picture that does not load (hotlink protection, dead link) falls back to the placeholder
+            page.querySelector('#dumpView').addEventListener('error', function (e) {
+                var img = e.target;
+                if (img && img.tagName === 'IMG' && img.parentNode) { var ph = document.createElement('div'); ph.className = 'me-placeholder'; ph.textContent = '🎞'; img.parentNode.replaceChild(ph, img); }
+            }, true);
+
+            // CSV: fetched with the session token (a plain link cannot send it), saved as a file
+            $('#dcExport').addEventListener('click', function () {
+                var q = query({ page: '' }); delete q.page;
+                var url = ApiClient.getUrl('CustomMetadata/Dump/Export', q);
+                var button = $('#dcExport');
+                button.disabled = true;
+                fetch(url, { headers: { 'X-Emby-Token': ApiClient.accessToken() } }).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.blob(); }).then(function (blob) {
+                    var a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob); a.download = state.prefix + '-dump.csv';
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+                }).catch(function () { Dashboard.alert('L\'export a échoué. Consultez le journal du serveur.'); }).then(function () { button.disabled = false; });
+            });
+
+            page.addEventListener('pageshow', function () {
+                var wanted = '';
+                try { wanted = sessionStorage.getItem('cm-missing-dump') || ''; sessionStorage.removeItem('cm-missing-dump'); } catch (e) { /* private window */ }
+                loadSources().then(function () {
+                    if (wanted && sources.some(function (s) { return String(s.Prefix).toLowerCase() === wanted.toLowerCase(); })) {
+                        state.prefix = sources.filter(function (s) { return String(s.Prefix).toLowerCase() === wanted.toLowerCase(); })[0].Prefix;
+                        $('#dcSource').value = state.prefix; lastData = null;
+                        setMode('dump');
+                    } else if (mode === 'dump') { refresh(false); }
+                });
+            });
         })();
     </script>
 </div>

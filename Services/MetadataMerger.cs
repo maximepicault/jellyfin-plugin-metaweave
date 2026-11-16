@@ -43,6 +43,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 IndexNumber = primary.IndexNumber,
                 Tags = primary.Tags,
                 Genres = primary.Genres,
+                Studios = primary.Studios,
                 Cast = primary.Cast,
                 // Time codes belong to ONE video: the reference id's, never a mix of several episodes' (a bundled file's other ids only fill gaps)
                 Chapters = primary.Chapters
@@ -60,6 +61,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             merged.Tags = Union(new[] { primary.Tags }.Concat(extras.Select(e => e.Tags)));
             merged.Genres = Union(new[] { primary.Genres }.Concat(extras.Select(e => e.Genres)));
+            merged.Studios = Union(new[] { primary.Studios }.Concat(extras.Select(e => e.Studios)));
             merged.Cast = UnionCast(new[] { primary.Cast }.Concat(extras.Select(e => e.Cast)));
             return merged;
         }
@@ -82,6 +84,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 IndexNumber = response.IndexNumber,
                 Tags = response.Tags,
                 Genres = response.Genres,
+                Studios = response.Studios,
                 Cast = UnionCast(new[] { response.Cast, extra }),
                 Chapters = response.Chapters
             };

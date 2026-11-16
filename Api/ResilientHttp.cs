@@ -59,11 +59,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
         private readonly ILogger _logger;
         private readonly Services.LocalSourceStore _local;
+        private readonly Services.DumpStore _dump;
 
-        public ResilientHttp(ILogger logger, Services.LocalSourceStore local = null)
+        public ResilientHttp(ILogger logger, Services.LocalSourceStore local = null, Services.DumpStore dump = null)
         {
             _logger = logger;
             _local = local;
+            _dump = dump;
         }
 
         /// <summary>
@@ -108,6 +110,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             if (source != null && source.IsLocal && _local != null)
             {
                 return _local.Serve(source, url);
+            }
+
+            // Dump source: the entries of the catalogue downloaded once answer in place of the API
+            if (source != null && source.IsDump && _dump != null)
+            {
+                return await _dump.ServeAsync(source, url, cancellationToken).ConfigureAwait(false);
             }
 
             var timeout = TimeSpan.FromSeconds(source != null && source.TimeoutSeconds > 0 ? source.TimeoutSeconds : DefaultTimeoutSeconds);

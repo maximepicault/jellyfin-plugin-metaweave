@@ -30,6 +30,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         private readonly CastOverlayStore _castOverlay;
         private readonly PeopleStore _people;
         private readonly CastInheritance _inheritance;
+        private readonly DumpStore _dump;
 
         public CustomEpisodeProvider(
             IHttpClientFactory httpClientFactory,
@@ -38,8 +39,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             SourceResolver sourceResolver,
             CastOverlayStore castOverlay,
             PeopleStore people,
-            CastInheritance inheritance)
+            CastInheritance inheritance,
+            DumpStore dump)
         {
+            _dump = dump;
             _inheritance = inheritance;
             _castOverlay = castOverlay;
             _people = people;
@@ -89,6 +92,19 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 // Ex: {mv1-123}, {yt-456}, {custom-789}
                 var idWithPrefix = GetEpisodeIdentifier(info);
                 
+                // No tag: a "Dump" source may recognise the file by its name (slug, title, fuzzy score)
+                var matchedByDump = false;
+                if (string.IsNullOrEmpty(idWithPrefix) && !string.IsNullOrEmpty(info.Path))
+                {
+                    var dumpMatch = await _dump.ResolveAsync(info.Path, info.Name, info.ProviderIds, cancellationToken);
+                    if (dumpMatch != null)
+                    {
+                        idWithPrefix = dumpMatch.Tag;
+                        matchedByDump = true;
+                        _logger.LogInformation("🎬 [EPISODE PROVIDER] 📦 Matched in the dump '{Source}' ({How}, score {Score:F0}): {Tag}", dumpMatch.Source.Name, dumpMatch.How, dumpMatch.Score, idWithPrefix);
+                    }
+                }
+
                 // If there is no custom ID, use the parent series + S/E
                 if (string.IsNullOrEmpty(idWithPrefix))
                 {
@@ -259,6 +275,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     episode.AddGenre(genre);
                 }
 
+                if (metadata.Studios != null && metadata.Studios.Any())
+                {
+                    episode.Studios = metadata.Studios.ToArray();
+                }
+
                 // Chapters: written by ChapterService once the refresh is over (a provider cannot return them) for an episode that has
                 // a file; an episode without one (missing episode) has no video, so its time codes go to the synopsis as text
                 if (metadata.Chapters != null && metadata.Chapters.Count > 0)
@@ -273,10 +294,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     }
                 }
 
-                // Store the custom ID if present
+                // Store the custom ID if present. A file recognised by its name keeps it too: the next refreshes
+                // then go straight to the same entry, and the coverage screen counts it as owned
                 if (CustomId.Get(info.ProviderIds) is string customId)
                 {
                     episode.ProviderIds[CustomId.Key] = customId;
+                }
+                else if (matchedByDump)
+                {
+                    episode.ProviderIds[CustomId.Key] = idWithPrefix;
                 }
 
                 result.Item = episode;
@@ -311,11 +337,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 .ToList();
         }
 
+        /// <summary>"Identify" screen: the best candidates of the dump sources (the others have no search)</summary>
         public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(
             EpisodeInfo searchInfo,
             CancellationToken cancellationToken)
         {
-            return await Task.FromResult(Enumerable.Empty<RemoteSearchResult>());
+            return await DumpSearch.ToSearchResultsAsync(_dump, searchInfo.Path, searchInfo.Name, Name, cancellationToken);
         }
 
         public Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)

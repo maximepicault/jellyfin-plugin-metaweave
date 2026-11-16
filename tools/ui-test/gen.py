@@ -45,3 +45,16 @@ if not os.path.exists(os.path.join(img, "big.jpg")):
     import random
     big = Image.frombytes("RGB", (2400, 3200), random.Random(1).randbytes(2400 * 3200 * 3))
     big.save(os.path.join(img, "big.jpg"), quality=95)
+
+# Demo dump: images of its entries, and the files of the dump library (/media/dump): tagged, exact name, noisy name,
+# SxxExx, other title (search_titles), bare {id}, and one file that matches nothing. Targets of dump-real.mjs.
+from data import DUMP
+for did, *_ in DUMP:
+    make(f"{img}/dump{did}.jpg", 400, 600, (60 + did % 9 * 14, 90, 150), str(did), 70)
+    make(f"{img}/dump{did}c.jpg", 640, 360, (150, 60 + did % 7 * 15, 90), "#%d" % did, 70)
+ddir = os.path.join(T, "media", "dump"); os.makedirs(ddir, exist_ok=True)
+for fname in ["Voyage {dp-1001}.mkv", "Les Sentiers du Nord.mkv", "Rivages oublies VOSTFR 1080p.mkv", "Chroniques de la forêt S01E02 (RAW) [x264].mkv",
+              "The Last Lighthouse.mkv", "Machin {1007}.mkv", "Documentaire inconnu sans rapport.mkv"]:
+    out = os.path.join(ddir, fname)
+    if not os.path.exists(out):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=2", "-c:v", "libx264", "-t", "2", out], check=True)

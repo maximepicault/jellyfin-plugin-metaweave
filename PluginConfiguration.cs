@@ -158,6 +158,13 @@ namespace Jellyfin.Plugin.CustomMetadata
         public string TagsItemField { get; set; } = "label";  // Field to extract if tags is an array of objects
 
         public string SeriesName { get; set; } = "";
+
+        /// <summary>Studio(s): a text, a list of texts or a list of objects (with the same item field as the tags). Empty = ignored</summary>
+        public string Studio { get; set; } = "studio";
+
+        /// <summary>The overview is HTML (br, p, li, entities): converted to plain text. Off by default</summary>
+        public bool OverviewIsHtml { get; set; } = false;
+
         public string Genres { get; set; } = "genres";
         public string GenresItemField { get; set; } = "name";  // Field to extract if genres is an array of objects
         

@@ -85,12 +85,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 CommunityRating = GetFloatValue(root, config.CommunityRating, "CommunityRating"),
                 SeriesName = GetStringValue(root, config.SeriesName, "SeriesName"),                Tags = GetStringArrayValue(root, config.Tags, config.TagsItemField, "Tags"),
                 Genres = GetStringArrayValue(root, config.Genres, config.GenresItemField, "Genres"),
+                Studios = GetStringArrayValue(root, config.Studio, config.TagsItemField, "Studio"),
                 Cast = GetCastArray(root, config),
                 IndexNumber = GetIntValue(root, config.IndexNumber)
             };
 
             // HTML entities ("&amp;") → text, before detecting a list-overview
             HtmlText.DecodeInPlace(response);
+            if (config.OverviewIsHtml)
+            {
+                response.Overview = HtmlText.ToPlainText(response.Overview);
+            }
+
             ApplyOverviewList(response, config.OverviewListTarget);
             response.Chapters = GetChapters(root, config, response.Overview);
 

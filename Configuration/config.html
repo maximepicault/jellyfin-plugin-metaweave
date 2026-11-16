@@ -29,6 +29,8 @@
         #CustomMetadataConfigPage a.cm-link { color: var(--cm-link); text-decoration: none; }
         #CustomMetadataConfigPage a.cm-link:hover { text-decoration: underline; }
         #CustomMetadataConfigPage .cm-linkbtn { background: none; border: 0; padding: 6px 0; color: var(--cm-link); font: inherit; font-weight: 600; cursor: pointer; }
+        #CustomMetadataConfigPage a.cm-linkbtn { text-decoration: none; }
+        #CustomMetadataConfigPage a.cm-linkbtn:hover { text-decoration: underline; }
         #CustomMetadataConfigPage .cm-linkbtn:hover { text-decoration: underline; }
         #CustomMetadataConfigPage .cm-linkbtn:focus-visible, #CustomMetadataConfigPage .cm-tab:focus-visible, #CustomMetadataConfigPage .cm-nav-item:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 2px; }
 
@@ -309,7 +311,31 @@
         /* Local source: only the useful sections are shown */
         #CustomMetadataConfigPage #editorView[data-source-type="api"] [data-types]:not([data-types~="api"]),
         #CustomMetadataConfigPage #editorView[data-source-type="local"] [data-types]:not([data-types~="local"]),
-        #CustomMetadataConfigPage #editorView[data-source-type="people"] [data-types]:not([data-types~="people"]) { display: none !important; }
+        #CustomMetadataConfigPage #editorView[data-source-type="people"] [data-types]:not([data-types~="people"]),
+        #CustomMetadataConfigPage #editorView[data-source-type="dump"] [data-types]:not([data-types~="dump"]) { display: none !important; }
+
+        /* Dump source: catalogue pane and its test */
+        #CustomMetadataConfigPage .cm-area { display: block; width: 100%; box-sizing: border-box; min-height: 84px; padding: 10px 12px; resize: vertical; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; line-height: 1.45; border: 1px solid transparent; border-radius: 4px; }
+        #CustomMetadataConfigPage .cm-area:focus { outline: none; border-color: var(--cm-accent); }
+        #CustomMetadataConfigPage .cm-score-field { display: flex; align-items: center; gap: 14px; }
+        #CustomMetadataConfigPage .cm-score-field input[type=range] { flex: 1; min-width: 0; accent-color: var(--cm-accent); }
+        #CustomMetadataConfigPage .cm-score-field output { min-width: 3ch; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+        #CustomMetadataConfigPage .cm-dt-block { display: flex; flex-direction: column; gap: 10px; }
+        #CustomMetadataConfigPage .cm-dt-sep { margin: 2px 0; padding-top: 14px; border-top: 1px solid var(--cm-border); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-dt-stats { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 13px; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-dt-stats b { color: inherit; font-weight: 700; color: #fff; }
+        #CustomMetadataConfigPage .cm-dt-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+        #CustomMetadataConfigPage .cm-dt-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 8px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); font-size: 13px; }
+        #CustomMetadataConfigPage .cm-dt-list li small { grid-column: 1; color: var(--cm-muted); overflow-wrap: anywhere; }
+        #CustomMetadataConfigPage .cm-dt-list .cm-dt-name { overflow-wrap: anywhere; font-weight: 600; }
+        #CustomMetadataConfigPage .cm-dt-list .cm-dt-score { grid-row: 1 / span 2; grid-column: 2; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 64px; }
+        #CustomMetadataConfigPage .cm-dt-score b { font-size: 15px; font-variant-numeric: tabular-nums; }
+        #CustomMetadataConfigPage .cm-dt-bar { width: 64px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+        #CustomMetadataConfigPage .cm-dt-bar i { display: block; height: 100%; background: #3fb27f; }
+        #CustomMetadataConfigPage .cm-dt-list li[data-accepted="false"] .cm-dt-bar i { background: #e6b450; }
+        #CustomMetadataConfigPage .cm-dt-verdict { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        #CustomMetadataConfigPage .cm-dt-verdict.ok { background: rgba(63, 178, 127, 0.2); color: #8be0b9; }
+        #CustomMetadataConfigPage .cm-dt-verdict.ko { background: rgba(230, 180, 80, 0.18); color: #f0c980; }
         @container (min-width: 1020px) {
             #CustomMetadataConfigPage #editorView[data-source-type="local"] .cm-layout { grid-template-columns: 220px minmax(0, 1fr); }
         }
@@ -481,6 +507,7 @@
                         <div id="typeChooser" class="cm-chooser" role="group" aria-labelledby="typeChooserTitle">
                             <button type="button" class="cm-choice" data-new-type="api"><strong>Source API</strong><span>Les métadonnées viennent d'une API REST : vous indiquez son URL et comment lire ses réponses.</span></button>
                             <button type="button" class="cm-choice" data-new-type="local"><strong>Source locale</strong><span>Vous saisissez vous-même les séries, saisons et épisodes, y compris ceux que vous n'avez pas encore. Rien n'est perdu quand Jellyfin rafraîchit les métadonnées.</span></button>
+                            <button type="button" class="cm-choice" data-new-type="dump"><strong>Dump (catalogue)</strong><span>Un seul appel renvoie tout un catalogue d'épisodes : le plugin le garde en mémoire et y retrouve vos fichiers, avec ou sans tag dans leur nom.</span></button>
                             <button type="button" class="cm-choice" data-new-type="people"><strong>Source de personnes</strong><span>Une API qui décrit des personnes (nom, photo, bio) : alimente l'annuaire du casting, dans l'écran Personnes.</span></button>
                         </div>
                         </div>
@@ -552,16 +579,17 @@
                         <nav class="cm-nav" aria-label="Sections de la source">
                     <span class="cm-nav-group">Source</span>
                     <button type="button" class="cm-nav-item" data-go="general" aria-current="page"><span>Général</span><span class="cm-count" data-count-for="general"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="dump" data-types="dump"><span>Catalogue</span><span class="cm-count" data-count-for="dump"></span></button>
                     <button type="button" class="cm-nav-item" data-go="content" data-types="local"><span>Contenu</span><span class="cm-count" data-count-for="content"></span></button>
                     <button type="button" class="cm-nav-item" data-go="person" data-types="people"><span>Personne</span><span class="cm-count" data-count-for="person"></span></button>
                     <button type="button" class="cm-nav-item" data-go="endpoints" data-types="api"><span>Endpoints</span><span class="cm-count" data-count-for="endpoints"></span></button>
-                    <span class="cm-nav-group" data-types="api">Mappings JSON</span>
-                    <button type="button" class="cm-nav-item" data-go="video" data-types="api"><span>Vidéo / épisode</span><span class="cm-count" data-count-for="video"></span></button>
+                    <span class="cm-nav-group" data-types="api dump">Mappings JSON</span>
+                    <button type="button" class="cm-nav-item" data-go="video" data-types="api dump"><span>Vidéo / épisode</span><span class="cm-count" data-count-for="video"></span></button>
                     <button type="button" class="cm-nav-item" data-go="season" data-types="api"><span>Source / saison</span><span class="cm-count" data-count-for="season"></span></button>
                     <button type="button" class="cm-nav-item" data-go="series" data-types="api"><span>Série</span><span class="cm-count" data-count-for="series"></span></button>
                     <button type="button" class="cm-nav-item" data-go="episodes" data-types="api"><span>Liste des épisodes</span><span class="cm-count" data-count-for="episodes"></span></button>
                     <span class="cm-nav-group">Avancé</span>
-                    <button type="button" class="cm-nav-item" data-go="network" data-types="api people"><span>Réseau</span><span class="cm-count" data-count-for="network"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="network" data-types="api people dump"><span>Réseau</span><span class="cm-count" data-count-for="network"></span></button>
                     <button type="button" class="cm-nav-item" data-go="thumbs"><span>Miniatures</span><span class="cm-count" data-count-for="thumbs"></span></button>
                         </nav>
                         <div style="min-width: 0;">
@@ -579,16 +607,20 @@
                             <div class="cm-hint">Sans tiret. Il s&#x27;écrit {préfixe-123} dans les noms de vos fichiers et dossiers.</div>
                             <div class="cm-hint cm-warnline" id="prefixWarn" role="alert" hidden></div>
                         </div>
-                        <div class="inputContainer cm-span" data-types="api people">
-                            <label class="inputLabel" for="srcBaseUrl">URL de base *</label>
+                        <div class="inputContainer cm-span" data-types="api people dump">
+                            <label class="inputLabel" for="srcBaseUrl" id="lblBaseUrl">URL de base *</label>
                             <input is="emby-input" type="url" id="srcBaseUrl" required data-count="1" />
-                            <div class="cm-hint">Par exemple https://api.example.com</div>
+                            <div class="cm-hint" id="hintBaseUrl">Par exemple https://api.example.com</div>
                         </div>
-                        <div class="inputContainer cm-span" data-types="api people">
+                        <div class="inputContainer cm-span" data-types="api people dump">
                             <label class="inputLabel" for="srcApiKey">Clé API</label>
                             <input is="emby-input" type="text" id="srcApiKey" />
-                            <div class="cm-hint">Facultative. Envoyée dans l&#x27;en-tête X-API-Key.</div>
+                            <div class="cm-hint">Facultative. Envoyée dans l&#x27;en-tête X-API-Key. Pour un autre en-tête (Authorization…), voir « Réseau ».</div>
                         </div>
+                        </div>
+                        <div class="cm-callout cm-callout-info" data-types="dump">
+                            <span aria-hidden="true">ⓘ</span>
+                            <span><strong>Source de type dump.</strong> L&#x27;URL ci-dessus renvoie <em>tout</em> le catalogue en un seul appel. Le plugin le garde en mémoire (section « Catalogue ») puis retrouve chaque fichier : par le tag <code>{préfixe-123}</code> s&#x27;il y en a un, sinon par son nom. L&#x27;écran « Épisodes manquants » montre ce que le catalogue contient et que vous n&#x27;avez pas.</span>
                         </div>
                         <div class="cm-callout cm-callout-info" data-types="local">
                             <span aria-hidden="true">ⓘ</span>
@@ -597,6 +629,82 @@
                         <div class="cm-danger" id="dangerZone">
                             <div><strong>Supprimer cette source</strong><span id="dangerText">Les médias qui portent son tag ne seront plus enrichis. Les métadonnées déjà enregistrées restent.</span></div>
                             <button is="emby-button" type="button" class="raised" id="btnDeleteSource"><span>Supprimer…</span></button>
+                        </div>
+                    </section>
+                    <section class="cm-pane cm-mono" data-section="dump" data-types="dump" aria-labelledby="paneTitle-dump" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-dump">Catalogue du dump</h3><p class="cm-pane-intro">Où sont les entrées dans la réponse, et comment retrouver un fichier. Les chemins se lisent dans <strong>une entrée</strong> de la liste (même syntaxe que les mappings) ; ce que Jellyfin affiche se règle dans « Vidéo / épisode ».</p></div>
+                        <div class="cm-grid">
+                        <h4>Où sont les entrées</h4>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcDumpItems">Liste des entrées</label>
+                            <input is="emby-input" type="text" id="srcDumpItems" placeholder="data" />
+                            <div class="cm-hint">Chemin de la liste dans la réponse, par exemple <code>data</code>. Vide = la réponse est directement la liste.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpId">Identifiant</label>
+                            <input is="emby-input" type="text" id="srcDumpId" placeholder="id" data-count="1" />
+                            <div class="cm-hint">Ce que désigne <code>{préfixe-123}</code>. Une entrée sans identifiant est ignorée.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpGroup">Groupe</label>
+                            <input is="emby-input" type="text" id="srcDumpGroup" placeholder="brand" data-count="1" />
+                            <div class="cm-hint">Marque, studio, chaîne… L&#x27;écran « Épisodes manquants » regroupe les manquants par groupe. Vide = pas de groupe.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpLikes">Mentions « j&#x27;aime »</label>
+                            <input is="emby-input" type="text" id="srcDumpLikes" placeholder="likes" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpDislikes">Mentions « je n&#x27;aime pas »</label>
+                            <input is="emby-input" type="text" id="srcDumpDislikes" placeholder="dislikes" data-count="1" />
+                        </div>
+                        <div class="cm-hint cm-span" style="margin-top: -6px;">La note est calculée : j&#x27;aime ÷ (j&#x27;aime + je n&#x27;aime pas) × 10. Les deux vides = pas de note calculée. Elle est servie dans le champ <code>communityRating</code> ; une entrée qui en a déjà une la garde.</div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpCache">Durée du cache (minutes)</label>
+                            <input is="emby-input" type="number" id="srcDumpCache" min="1" max="10080" step="1" />
+                            <div class="cm-hint">Le dump n&#x27;est téléchargé qu&#x27;une fois par période, même pour des milliers de fichiers. Si un téléchargement échoue, l&#x27;ancienne copie continue de servir.</div>
+                        </div>
+                        <h4>Retrouver un fichier par son nom</h4>
+                        </div>
+                        <div class="cm-rows" style="margin: 0;">
+                        <label class="cm-row">
+                            <span class="cm-row-text"><span class="cm-row-title">Reconnaître aussi les fichiers sans tag</span><span class="cm-row-hint">Un fichier qui porte <code>{préfixe-123}</code> est toujours relié à l&#x27;entrée 123. Activé : les autres sont comparés au catalogue d&#x27;après leur nom. À éviter dans une médiathèque qui mélange d&#x27;autres contenus, que le plugin pourrait rapprocher à tort.</span></span>
+                            <input type="checkbox" class="cm-switch" id="srcDumpNoTag" />
+                        </label>
+                        <label class="cm-row">
+                            <span class="cm-row-text"><span class="cm-row-title">Par le slug ou le nom exact</span><span class="cm-row-hint">Le nom de fichier nettoyé est identique au slug ou au nom d&#x27;une entrée. Aucun doute possible : score 100.</span></span>
+                            <input type="checkbox" class="cm-switch" id="srcDumpBySlug" />
+                        </label>
+                        <label class="cm-row">
+                            <span class="cm-row-text"><span class="cm-row-title">Par ressemblance</span><span class="cm-row-hint">Compare les mots du nom de fichier à ceux du nom et des autres titres. Un « S01E03 » dont le numéro n&#x27;est pas confirmé par l&#x27;entrée ne suffit jamais : l&#x27;entrée est seulement proposée dans « Identifier ».</span></span>
+                            <input type="checkbox" class="cm-switch" id="srcDumpByName" />
+                        </label>
+                        </div>
+                        <div class="cm-grid" style="margin-top: 16px;">
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcDumpName">Nom</label>
+                            <input is="emby-input" type="text" id="srcDumpName" placeholder="name" data-count="1" />
+                            <div class="cm-hint">Titre de l&#x27;entrée, comparé au nom du fichier.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpSlug">Slug</label>
+                            <input is="emby-input" type="text" id="srcDumpSlug" placeholder="slug" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpSearch">Autres titres</label>
+                            <input is="emby-input" type="text" id="srcDumpSearch" placeholder="search_titles" data-count="1" />
+                            <div class="cm-hint">Souvent plusieurs titres ou langues collés sans séparateur : ils ne servent qu&#x27;à chercher un morceau de texte.</div>
+                        </div>
+                        <div class="cm-span">
+                            <label class="inputLabel" for="srcDumpMinScore" id="lblDumpMinScore">Score minimum : 70</label>
+                            <div class="cm-score-field"><input type="range" id="srcDumpMinScore" min="30" max="100" step="1" aria-describedby="hintDumpMinScore" /><output id="outDumpMinScore" for="srcDumpMinScore">70</output></div>
+                            <div class="cm-hint" id="hintDumpMinScore">En dessous, le fichier n&#x27;est pas rapproché automatiquement (il reste proposé dans « Identifier »). Plus haut = plus sûr, mais plus de fichiers laissés de côté. Le panneau de test à droite montre le score d&#x27;un nom de fichier.</div>
+                        </div>
+                        <div class="cm-span">
+                            <label class="inputLabel" for="srcDumpNoise">Mots ignorés dans le nom du fichier</label>
+                            <textarea id="srcDumpNoise" class="cm-area" rows="3" spellcheck="false"></textarea>
+                            <div class="cm-hint">Langue, qualité, release… séparés par des espaces ou des virgules. Les blocs <code>[…]</code>, <code>{…}</code> et <code>(…)</code> et le « S01E02 » sont déjà retirés avant la comparaison.</div>
+                        </div>
                         </div>
                     </section>
                     <section class="cm-pane cm-mono" data-section="endpoints" aria-labelledby="paneTitle-endpoints" hidden>
@@ -646,6 +754,16 @@
                             <input is="emby-input" type="text" id="srcVideoSeriesName" placeholder="seriesName" data-count="1" />
                             <div class="cm-hint">Ajouté comme tag par défaut sur les épisodes.</div>
                         </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoStudio">Studio</label>
+                            <input is="emby-input" type="text" id="srcVideoStudio" placeholder="studio" data-count="1" />
+                            <div class="cm-hint">Un texte, une liste de textes ou <code>studios[].name</code>. Devient le studio de l&#x27;élément dans Jellyfin.</div>
+                        </div>
+                        <label class="checkboxContainer cm-span">
+                            <input is="emby-checkbox" type="checkbox" id="srcVideoOverviewHtml" />
+                            <span>La description contient du HTML</span>
+                        </label>
+                        <div class="cm-hint cm-span" style="margin-top: -6px;">Convertie en texte lisible : <code>&lt;br&gt;</code> et paragraphes en sauts de ligne, listes en puces, entités décodées, balises retirées.</div>
                         <div class="inputContainer cm-span">
                             <label class="inputLabel" for="srcVideoIndex">Numéro d&#x27;épisode</label>
                             <input is="emby-input" type="text" id="srcVideoIndex" placeholder="indexNumber" data-count="1" />
@@ -960,12 +1078,22 @@
                         </div>
                     </section>
                         </div>
-                        <aside class="cm-test" aria-labelledby="testTitle" data-types="api people">
+                        <aside class="cm-test" aria-labelledby="testTitle" data-types="api people dump">
                             <div>
                                 <h3 id="testTitle">Tester la source</h3>
-                                <p>Appelle l'API avec les valeurs du formulaire, même non enregistrées. Sans cache.</p>
+                                <p data-types="api people">Appelle l'API avec les valeurs du formulaire, même non enregistrées. Sans cache.</p>
+                                <p data-types="dump">Télécharge le dump avec les valeurs du formulaire, même non enregistrées, et montre à quelle entrée correspond un nom de fichier.</p>
                             </div>
-                            <div class="selectContainer">
+                            <div class="cm-dt-block" data-types="dump">
+                                <div class="inputContainer">
+                                    <label class="inputLabel" for="dumpTestName">Nom de fichier à essayer</label>
+                                    <input is="emby-input" type="text" id="dumpTestName" placeholder="Mon épisode S01E02 VOSTFR.mkv" autocomplete="off" />
+                                </div>
+                                <button is="emby-button" type="button" class="raised button-submit" id="btnTestDump"><span>Télécharger le dump et tester</span></button>
+                                <div id="dumpTestResult" aria-live="polite"><p class="cm-test-idle">Le nombre d'entrées trouvées s'affiche ici. Ajoutez un nom de fichier pour voir les candidats et leur score.</p></div>
+                                <div class="cm-dt-sep">Lire une entrée avec les mappings</div>
+                            </div>
+                            <div class="selectContainer" data-types="api people">
                                 <label class="selectLabel" for="testItemType">Type</label>
                                 <select is="emby-select" id="testItemType">
                                     <option value="person" data-for="people">Personne</option>
@@ -1012,10 +1140,17 @@
                 if (!active) { libraryIssues = 0; renderSetupGuide(); return; }
                 ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')).then(function(libraries) {
                     var issues = 0;
-                    var kinds = [['Series', 'séries'], ['Season', 'saisons'], ['Episode', 'épisodes']];
+                    var enabledSources = (config.Sources || []).filter(function(s) { return s.Enabled !== false && s.SourceType !== 'People'; });
+                    var hasDump = enabledSources.some(function(s) { return s.SourceType === 'Dump'; });
+                    var hasTree = enabledSources.some(function(s) { return s.SourceType !== 'Dump'; });
                     (libraries || []).forEach(function(library) {
-                        // Series live in TV libraries and in mixed ones (no type)
-                        if (library.CollectionType && library.CollectionType !== 'tvshows' && library.CollectionType !== 'mixed') { return; }
+                        // Series live in TV libraries and in mixed ones (no type); a dump's standalone files also live in movie libraries
+                        var tv = !library.CollectionType || library.CollectionType === 'tvshows' || library.CollectionType === 'mixed';
+                        var movies = hasDump && (!library.CollectionType || library.CollectionType === 'movies' || library.CollectionType === 'mixed');
+                        if (!tv && !movies) { return; }
+                        var kinds = [];
+                        if (tv) { kinds = hasTree ? [['Series', 'séries'], ['Season', 'saisons'], ['Episode', 'épisodes']] : [['Episode', 'épisodes']]; }
+                        if (movies) { kinds.push(['Movie', 'films']); }
                         var options = (library.LibraryOptions || {}).TypeOptions || [];
                         var noImages = [], noMetadata = [];
                         kinds.forEach(function(kind) {
@@ -1057,12 +1192,16 @@
                 var enabled = sources.filter(function(s) { return s.Enabled !== false; });
                 var withList = enabled.some(function(s) { return !!s.EpisodeListEndpoint; });
                 var prefix = (enabled[0] || sources[0] || {}).Prefix || 'préfixe';
+                // A dump holds standalone episodes: no series folder to tag, files are tagged (or recognised by their name)
+                var onlyDump = enabled.length > 0 && enabled.every(function(s) { return s.SourceType === 'Dump'; });
                 var steps = [
-                    ['Créer une source', sources.length > 0, 'Bouton « Ajouter une source » : une API, ou une source locale que vous remplissez vous-même.'],
-                    ['Activer la source', enabled.length > 0, 'Interrupteur « Activée » sur la carte de la source.'],
-                    ['Mettre un tag dans le nom d\'un dossier de série', lastStatus.TaggedSeries > 0, 'Par exemple « Ma série {' + prefix + '-123} », puis lancez un scan de la médiathèque dans Jellyfin.'],
-                    ['Cocher le plugin dans la médiathèque', libraryIssues === 0, libraryIssues === null ? 'Vérification en cours…' : 'Le détail est dans l\'encadré orange ci-dessous.']
+                    ['Créer une source', sources.length > 0, 'Bouton « Ajouter une source » : une API, un dump (catalogue), ou une source locale que vous remplissez vous-même.'],
+                    ['Activer la source', enabled.length > 0, 'Interrupteur « Activée » sur la carte de la source.']
                 ];
+                if (!onlyDump) {
+                    steps.push(['Mettre un tag dans le nom d\'un dossier de série', lastStatus.TaggedSeries > 0, 'Par exemple « Ma série {' + prefix + '-123} », puis lancez un scan de la médiathèque dans Jellyfin.']);
+                }
+                steps.push(['Cocher le plugin dans la médiathèque', libraryIssues === 0, libraryIssues === null ? 'Vérification en cours…' : 'Le détail est dans l\'encadré orange ci-dessous.']);
                 if (withList) {
                     steps.push(['Lancer l\'analyse des épisodes manquants', lastStatus.MissingEpisodes !== null && lastStatus.MissingEpisodes !== undefined, 'Onglet « Épisodes manquants », bouton « Analyser ».']);
                 }
@@ -1199,21 +1338,23 @@
                     if (!byPrefix[key]) { byPrefix[key] = { prefix: String(source.Prefix || '').trim(), items: [] }; groups.push(byPrefix[key]); }
                     byPrefix[key].items.push({ source: source, index: index });
                 });
-                var rank = function(src) { return src.SourceType === 'People' ? 2 : (src.SourceType === 'Local' ? 1 : 0); };
+                var rank = function(src) { return src.SourceType === 'People' ? 3 : (src.SourceType === 'Local' ? 1 : (src.SourceType === 'Dump' ? 2 : 0)); };
                 var cardHtml;   // defined below, used per group
                 var groupsHtml = [];
                 groups.forEach(function(g) {
                     g.items.sort(function(a, b) { return rank(a.source) - rank(b.source) || a.index - b.index; });
                     var kinds = [];
-                    g.items.forEach(function(it) { var k = it.source.SourceType === 'People' ? 'Personnes' : (it.source.SourceType === 'Local' ? 'Locale' : 'API'); if (kinds.indexOf(k) < 0) { kinds.push(k); } });
+                    g.items.forEach(function(it) { var k = it.source.SourceType === 'People' ? 'Personnes' : (it.source.SourceType === 'Local' ? 'Locale' : (it.source.SourceType === 'Dump' ? 'Dump' : 'API')); if (kinds.indexOf(k) < 0) { kinds.push(k); } });
                     var enriches = g.items.some(function(it) { return it.source.SourceType !== 'People'; });
                     var head = '';
+                    // A dump holds standalone episodes: no series or season to refresh
+                    var dumpOnly = g.items.every(function(it) { return it.source.SourceType === 'Dump'; });
                     var allOff = g.items.every(function(it) { return it.source.Enabled === false; });
                     if (enriches && g.prefix) {
                         head = '<div class="cm-group-head" data-group="' + escapeHtml(g.prefix) + '">'
                             + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span><span class="cm-group-opts"><span class="cm-group-optlabel">Actualiser dans Jellyfin :</span>'
-                            + '<label><input type="checkbox" class="cm-check" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
-                            + '<label><input type="checkbox" class="cm-check" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>'
+                            + (dumpOnly ? '' : '<label><input type="checkbox" class="cm-check" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
+                            + '<label><input type="checkbox" class="cm-check" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>')
                             + '<label><input type="checkbox" class="cm-check" data-rf="episode" checked aria-label="Actualiser les épisodes" /> Épisodes</label>'
                             + '<span class="cm-group-optsep" aria-hidden="true"></span>'
                             + '<label title="Décochez pour ne remplacer que les métadonnées"><input type="checkbox" class="cm-check" data-rf="images" checked aria-label="Remplacer aussi les images" /> Remplacer les images</label></span>'
@@ -1228,7 +1369,9 @@
                     var on = source.Enabled !== false;
                     var isLocal = source.SourceType === 'Local';
                     var isPeople = source.SourceType === 'People';
-                    var dots = isPeople ? '<span class="cm-stats">Fournit des personnes à l\'annuaire du casting</span>' : isLocal ? '<span class="cm-stats" data-local-stats="' + escapeHtml(source.LocalDataId || '') + '">Contenu saisi dans le plugin</span>' : [
+                    var isDump = source.SourceType === 'Dump';
+                    var dd = Object.assign({}, DUMP_DEFAULTS, source.Dump || {});
+                    var dots = isDump ? '<span class="cm-stats" data-dump-stats="' + escapeHtml(source.Prefix || '') + '">' + (dd.MatchWithoutTag ? 'Reconnaît aussi les fichiers sans tag' : 'Fichiers avec tag uniquement') + ' · cache ' + dd.CacheMinutes + ' min</span>' : isPeople ? '<span class="cm-stats">Fournit des personnes à l\'annuaire du casting</span>' : isLocal ? '<span class="cm-stats" data-local-stats="' + escapeHtml(source.LocalDataId || '') + '">Contenu saisi dans le plugin</span>' : [
                         ['Vidéos', source.VideoEndpoint],
                         ['Saisons', source.SourceEndpoint],
                         ['Séries', source.SeriesEndpoint],
@@ -1237,12 +1380,13 @@
                     html += '<article class="cm-card' + (on ? '' : ' cm-off') + '">'
                         + '<div class="cm-card-head"><div><h3>' + escapeHtml(source.Name || 'Sans nom') + '</h3>'
                         + (isLocal ? '<span class="cm-url">Source locale</span>' : '<span class="cm-url" title="' + escapeHtml(source.BaseUrl || '') + '">' + escapeHtml(source.BaseUrl || 'URL non configurée') + '</span>') + '</div>'
-                        + (isLocal ? '<span class="cm-kind">Locale</span>' : (isPeople ? '<span class="cm-kind">Personnes</span>' : ''))
+                        + (isLocal ? '<span class="cm-kind">Locale</span>' : (isPeople ? '<span class="cm-kind">Personnes</span>' : (isDump ? '<span class="cm-kind">Dump</span>' : '')))
                         + '<span class="cm-tag">{' + escapeHtml(source.Prefix || '?') + '-…}</span></div>'
                         + '<div class="cm-dots" title="Points verts : endpoints configurés">' + dots + '</div>'
                         + '<div class="cm-card-foot">'
                         + '<button is="emby-button" type="button" class="raised" onclick="editSource(' + index + ')"><span>Modifier</span></button>'
                         + (isLocal ? '' : '<button type="button" class="cm-linkbtn" onclick="editSource(' + index + ', true)">Tester</button>')
+                        + (isDump ? '<a class="cm-linkbtn" href="#/configurationpage?name=CustomMetadataMissingEpisodes" data-open-coverage="' + escapeHtml(source.Prefix || '') + '">Couverture</a>' : '')
                         + '<label class="cm-inline-switch"><span>' + (on ? 'Activée' : 'Désactivée') + '</span>'
                         + '<input type="checkbox" class="cm-switch" data-toggle="' + index + '" aria-label="Source ' + escapeHtml(source.Name || '') + ' activée"' + (on ? ' checked' : '') + ' /></label>'
                         + '</div></article>';
@@ -1256,13 +1400,14 @@
                 html += '<button type="button" class="cm-add" onclick="openAddSourceModal()"><strong>Ajouter une source</strong><span>Une API, ou une source locale à remplir</span></button>';
                 container.innerHTML = html;
                 loadLocalStats();
+                loadDumpStats();
             };
 
             // Ouvrir modal ajout
             // Without argument: offers the source type. With 'api' or 'local': opens the editor for a new source of that type
             window.openAddSourceModal = function(type) {
                 var chooser = document.querySelector('#typeChooserWrap');
-                if (type !== 'api' && type !== 'local' && type !== 'people') {
+                if (type !== 'api' && type !== 'local' && type !== 'people' && type !== 'dump') {
                     chooser.hidden = !chooser.hidden;
                     if (!chooser.hidden) { chooser.scrollIntoView({ block: 'nearest' }); chooser.querySelector('.cm-choice').focus(); }
                     return;
@@ -1306,6 +1451,8 @@
                 document.querySelector('#srcVideoChapterEnd').value = '';
                 document.querySelector('#srcVideoChapterUnit').value = 'seconds';
                 document.querySelector('#srcVideoChaptersFromOverview').checked = false;
+                document.querySelector('#srcVideoStudio').value = '';
+                document.querySelector('#srcVideoOverviewHtml').checked = false;
                 document.querySelector('#srcSeriesOverviewList').value = '';
 
                 document.querySelector('#srcSourceTitle').value = '';
@@ -1329,8 +1476,11 @@
                 
                 applyMappingDefaults();
                 // After the form's reset(), which would put this hidden field back to its original value
-                document.querySelector('#editType').value = type === 'local' ? 'Local' : (type === 'people' ? 'People' : 'Api');
+                document.querySelector('#editType').value = type === 'local' ? 'Local' : (type === 'people' ? 'People' : (type === 'dump' ? 'Dump' : 'Api'));
                 if (type === 'people') { fillPersonFields({}); }
+                // A new dump starts with what a dump entry usually looks like (an empty mapping field is ignored)
+                fillDumpFields({});
+                if (type === 'dump') { applyDumpMappingDefaults(); }
                 showEditor(-1);
             }
 
@@ -1343,8 +1493,9 @@
                 document.querySelector('#modalTitle').textContent = source.Name || 'Source sans nom';
                 document.querySelector('#editIndex').value = index;
                 editOriginalPrefix = source.Prefix || '';
-                document.querySelector('#editType').value = source.SourceType === 'Local' ? 'Local' : (source.SourceType === 'People' ? 'People' : 'Api');
+                document.querySelector('#editType').value = source.SourceType === 'Local' ? 'Local' : (source.SourceType === 'People' ? 'People' : (source.SourceType === 'Dump' ? 'Dump' : 'Api'));
                 fillPersonFields(source);
+                fillDumpFields(source);
                 localDataId = source.LocalDataId || '';
                 localContent = null;
                 localSel = null;
@@ -1383,6 +1534,8 @@
                 document.querySelector('#srcVideoChapterUnit').value = vm.ChapterTimeUnit === 'milliseconds' ? 'milliseconds' : 'seconds';
                 document.querySelector('#srcVideoChaptersFromOverview').checked = !!vm.ChaptersFromOverview;
                 document.querySelector('#srcVideoImagesArray').value = vm.ImagesArray || '';
+                document.querySelector('#srcVideoStudio').value = vm.Studio || '';
+                document.querySelector('#srcVideoOverviewHtml').checked = !!vm.OverviewIsHtml;
                 
                 // Mappings Sources
                 var sm = source.SourceFieldMappings || {};
@@ -2024,7 +2177,9 @@
                         ChapterTitle: document.querySelector('#srcVideoChapterTitle').value || '',
                         ChapterEnd: document.querySelector('#srcVideoChapterEnd').value || '',
                         ChapterTimeUnit: document.querySelector('#srcVideoChapterUnit').value || 'seconds',
-                        ChaptersFromOverview: document.querySelector('#srcVideoChaptersFromOverview').checked
+                        ChaptersFromOverview: document.querySelector('#srcVideoChaptersFromOverview').checked,
+                        Studio: document.querySelector('#srcVideoStudio').value || '',
+                        OverviewIsHtml: document.querySelector('#srcVideoOverviewHtml').checked
                     },
                     SourceFieldMappings: {
                         Title: document.querySelector('#srcSourceTitle').value || '',
@@ -2068,6 +2223,7 @@
                     merged[key] = Object.assign({}, base[key] || {}, raw[key]);
                 });
                 if (isLocalForm()) { applyLocalSourceDefaults(merged); }
+                if (isDumpForm()) { applyDumpSourceDefaults(merged); }
                 if (isPeopleForm()) {
                     merged.SourceType = 'People';
                     merged.PersonEndpoint = qs('#srcPersonEndpoint').value.trim() || '/people/{id}';
@@ -2128,7 +2284,7 @@
                 '#srcVideoTitle': 'title', '#srcVideoOverview': 'overview', '#srcVideoDate': 'premiereDate', '#srcVideoRating': 'communityRating',
                 '#srcVideoTags': 'tags', '#srcVideoTagsItemField': 'label', '#srcVideoGenres': 'genres', '#srcVideoGenresItemField': 'name',
                 '#srcVideoPoster': 'poster', '#srcVideoBackdrop': 'backdrop', '#srcVideoThumb': 'thumb', '#srcVideoLogo': 'logo',
-                '#srcVideoIndex': 'indexNumber', '#srcVideoImagesArray': 'images',
+                '#srcVideoIndex': 'indexNumber', '#srcVideoImagesArray': 'images', '#srcVideoStudio': 'studio',
                 '#srcVideoChapters': 'chapters', '#srcVideoChapterTime': 'time', '#srcVideoChapterTitle': 'title',
                 '#srcSourceTitle': 'title', '#srcSourceOverview': 'overview', '#srcSourcePoster': 'poster', '#srcSourceBackdrop': 'backdrop', '#srcSourceImagesArray': 'images',
                 '#srcSeriesTitle': 'title', '#srcSeriesOverview': 'overview', '#srcSeriesStatus': 'status', '#srcSeriesPoster': 'poster', '#srcSeriesBackdrop': 'backdrop'
@@ -2189,7 +2345,7 @@
                 var el = qs('#dirtyState');
                 el.classList.toggle('on', dirty);
                 el.textContent = dirty ? 'Modifications non enregistrées'
-                    : (isNew ? (isLocalForm() ? 'Nouvelle source locale : renseignez le nom et le préfixe, puis ajoutez du contenu.' : isPeopleForm() ? 'Nouvelle source de personnes : renseignez le nom, le préfixe, l\'URL et l\'endpoint.' : 'Nouvelle source : renseignez au moins le nom, le préfixe et l\'URL.') : 'Aucune modification');
+                    : (isNew ? (isLocalForm() ? 'Nouvelle source locale : renseignez le nom et le préfixe, puis ajoutez du contenu.' : isPeopleForm() ? 'Nouvelle source de personnes : renseignez le nom, le préfixe, l\'URL et l\'endpoint.' : isDumpForm() ? 'Nouveau dump : renseignez le nom, le préfixe et l\'URL, puis testez le chargement.' : 'Nouvelle source : renseignez au moins le nom, le préfixe et l\'URL.') : 'Aucune modification');
             }
 
             function markDirty() {
@@ -2238,16 +2394,19 @@
                 qs('#editorView').setAttribute('data-source-type', type);
                 // A hidden required field would block the save without saying anything
                 qs('#srcBaseUrl').required = !isLocal;
+                qs('#lblBaseUrl').textContent = type === 'dump' ? 'URL du dump *' : 'URL de base *';
+                qs('#hintBaseUrl').textContent = type === 'dump' ? 'L\'adresse complète qui renvoie tout le catalogue, par exemple https://api.example.com/dump' : 'Par exemple https://api.example.com';
                 qs('#srcPersonEndpoint').required = type === 'people';
                 // Test: a people source only offers "Personne"
                 var typeSelect = qs('#testItemType');
                 Array.prototype.forEach.call(typeSelect.options, function(option) {
-                    var show = option.getAttribute('data-for') === (type === 'people' ? 'people' : 'api');
+                    var show = option.getAttribute('data-for') === (type === 'people' ? 'people' : 'api') && !(type === 'dump' && option.value !== 'video');
                     option.hidden = !show;
                     option.disabled = !show;
                 });
                 typeSelect.value = type === 'people' ? 'person' : 'video';
                 qs('#testItemId').placeholder = type === 'people' ? 'Identifiant : 123, pe-123 ou {pe-123}' : '123, mv1-123 ou {mv1-123}';
+                qs('#testItemId').closest('.inputContainer').querySelector('label').textContent = type === 'dump' ? 'Identifiant d\'une entrée' : 'Identifiant';
                 qs('#dangerText').textContent = isLocal
                     ? 'Les médias qui portent son tag ne seront plus enrichis, et tout le contenu saisi (séries, saisons, épisodes) est supprimé.'
                     : 'Les médias qui portent son tag ne seront plus enrichis. Les métadonnées déjà enregistrées restent.';
@@ -2260,7 +2419,7 @@
                 updateDirtyUi();
                 qs('#editorView').scrollIntoView({ block: 'start' });
                 if (focusTest) {
-                    qs('#testItemId').focus();
+                    (type === 'dump' ? qs('#dumpTestName') : qs('#testItemId')).focus();
                 } else {
                     qs('#srcName').focus();
                 }
@@ -2406,7 +2565,133 @@
 
             function isLocalForm() { return qs('#editType').value === 'Local'; }
             function isPeopleForm() { return qs('#editType').value === 'People'; }
-            function formType() { return isLocalForm() ? 'local' : (isPeopleForm() ? 'people' : 'api'); }
+            function isDumpForm() { return qs('#editType').value === 'Dump'; }
+            function formType() { return isLocalForm() ? 'local' : (isPeopleForm() ? 'people' : (isDumpForm() ? 'dump' : 'api')); }
+
+            // ---- Dump source: catalogue settings (form <-> source) and its test ----
+            var DUMP_NOISE = 'raw vostfr vosta vostf vosten vf vo va multi mult subbed dubbed uncensored censored 1080p 720p 480p 2160p 4k x264 x265 h264 h265 hevc aac flac web webrip webdl bluray bdrip hdtv';
+            var DUMP_DEFAULTS = { ItemsPath: 'data', IdPath: 'id', NamePath: 'name', SlugPath: 'slug', SearchTitlesPath: 'search_titles', GroupPath: 'brand',
+                LikesPath: 'likes', DislikesPath: 'dislikes', CacheMinutes: 60, MatchWithoutTag: true, MatchBySlug: true, MatchByName: true, MinScore: 70, NoiseWords: DUMP_NOISE };
+            // What a dump entry usually looks like: the video mapping a NEW dump source starts with
+            var DUMP_VIDEO_MAPPING = { '#srcVideoTitle': 'name', '#srcVideoOverview': 'description', '#srcVideoDate': 'released_at || created_at', '#srcVideoRating': 'communityRating',
+                '#srcVideoSeriesName': '', '#srcVideoTags': 'tags', '#srcVideoTagsItemField': '', '#srcVideoGenres': '', '#srcVideoGenresItemField': '', '#srcVideoStudio': 'brand',
+                '#srcVideoPoster': 'poster_url', '#srcVideoBackdrop': 'cover_url', '#srcVideoThumb': 'cover_url', '#srcVideoLogo': '', '#srcVideoIndex': '', '#srcVideoImagesArray': '',
+                '#srcVideoChapters': '', '#srcVideoChapterTime': '', '#srcVideoChapterTitle': '' };
+
+            function applyDumpMappingDefaults() {
+                Object.keys(DUMP_VIDEO_MAPPING).forEach(function(selector) { qs(selector).value = DUMP_VIDEO_MAPPING[selector]; });
+                qs('#srcVideoOverviewHtml').checked = true;
+            }
+
+            function fillDumpFields(source) {
+                var d = Object.assign({}, DUMP_DEFAULTS, (source && source.Dump) || {});
+                qs('#srcDumpItems').value = d.ItemsPath || '';
+                qs('#srcDumpId').value = d.IdPath || '';
+                qs('#srcDumpName').value = d.NamePath || '';
+                qs('#srcDumpSlug').value = d.SlugPath || '';
+                qs('#srcDumpSearch').value = d.SearchTitlesPath || '';
+                qs('#srcDumpGroup').value = d.GroupPath || '';
+                qs('#srcDumpLikes').value = d.LikesPath || '';
+                qs('#srcDumpDislikes').value = d.DislikesPath || '';
+                qs('#srcDumpCache').value = d.CacheMinutes || 60;
+                qs('#srcDumpNoTag').checked = d.MatchWithoutTag !== false;
+                qs('#srcDumpBySlug').checked = d.MatchBySlug !== false;
+                qs('#srcDumpByName').checked = d.MatchByName !== false;
+                qs('#srcDumpMinScore').value = d.MinScore || 70;
+                qs('#srcDumpNoise').value = d.NoiseWords === undefined || d.NoiseWords === null ? DUMP_NOISE : d.NoiseWords;
+                updateDumpScoreLabel();
+                qs('#dumpTestResult').innerHTML = '<p class="cm-test-idle">Le nombre d\'entrées trouvées s\'affiche ici. Ajoutez un nom de fichier pour voir les candidats et leur score.</p>';
+            }
+
+            function readDumpSettings() {
+                return {
+                    ItemsPath: qs('#srcDumpItems').value.trim(), IdPath: qs('#srcDumpId').value.trim(), NamePath: qs('#srcDumpName').value.trim(),
+                    SlugPath: qs('#srcDumpSlug').value.trim(), SearchTitlesPath: qs('#srcDumpSearch').value.trim(), GroupPath: qs('#srcDumpGroup').value.trim(),
+                    LikesPath: qs('#srcDumpLikes').value.trim(), DislikesPath: qs('#srcDumpDislikes').value.trim(),
+                    CacheMinutes: Math.max(1, readInt('#srcDumpCache', 60, 1)),
+                    MatchWithoutTag: qs('#srcDumpNoTag').checked, MatchBySlug: qs('#srcDumpBySlug').checked, MatchByName: qs('#srcDumpByName').checked,
+                    MinScore: parseInt(qs('#srcDumpMinScore').value, 10) || 70, NoiseWords: qs('#srcDumpNoise').value
+                };
+            }
+
+            function updateDumpScoreLabel() {
+                var v = qs('#srcDumpMinScore').value;
+                qs('#outDumpMinScore').textContent = v;
+                qs('#lblDumpMinScore').textContent = 'Score minimum : ' + v;
+            }
+
+            // The server forces the endpoints of a dump (one fixed address per entry); the form only keeps them tidy
+            function applyDumpSourceDefaults(source) {
+                source.SourceType = 'Dump';
+                source.Dump = Object.assign({}, source.Dump || {}, readDumpSettings());
+                source.VideoEndpoint = '/items/{id}';
+                source.SourceEndpoint = '';
+                source.SeriesEndpoint = '';
+                source.EpisodeListEndpoint = '';
+                return source;
+            }
+
+            function dumpStatusLine(r) {
+                var bits = [];
+                if (r.Count) { bits.push('<span><b>' + r.Count.toLocaleString('fr-FR') + '</b> ' + (r.Count > 1 ? 'entrées' : 'entrée') + '</span>'); }
+                if (r.GroupCount) { bits.push('<span><b>' + r.GroupCount + '</b> ' + (r.GroupCount > 1 ? 'groupes' : 'groupe') + '</span>'); }
+                bits.push('<span>' + (r.DurationMs || 0) + ' ms</span>');
+                return '<div class="cm-dt-stats">' + bits.join('') + '</div>';
+            }
+
+            window.testDump = function() {
+                var out = qs('#dumpTestResult');
+                var button = qs('#btnTestDump');
+                button.disabled = true;
+                out.innerHTML = '<p class="cm-test-idle">Téléchargement du dump en cours…</p>';
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('CustomMetadata/Dump/Test'),
+                    data: JSON.stringify({ Source: readSourceFromForm(), FileName: qs('#dumpTestName').value }),
+                    contentType: 'application/json',
+                    dataType: 'json'
+                }).then(function(r) {
+                    if (!r.Ok) {
+                        out.innerHTML = '<div class="cm-test-status ko"><strong>Échec</strong><div>' + escapeHtml(r.Error || 'Le dump n\'a pas pu être chargé.') + '</div></div>';
+                        return;
+                    }
+                    var html = '<div class="cm-test-status ok"><strong>Dump chargé</strong>' + dumpStatusLine(r) + '</div>';
+                    var withText = [];
+                    if (r.Count && r.WithSlug < r.Count) { withText.push('slug : ' + r.WithSlug + ' / ' + r.Count); }
+                    if (r.Count && r.WithSearchTitles < r.Count) { withText.push('autres titres : ' + r.WithSearchTitles + ' / ' + r.Count); }
+                    if (r.Count && r.WithGroup < r.Count) { withText.push('groupe : ' + r.WithGroup + ' / ' + r.Count); }
+                    if (withText.length) { html += '<p class="cm-hint">Entrées renseignées — ' + escapeHtml(withText.join(' · ')) + '. Un chiffre bas veut souvent dire un mauvais chemin dans « Catalogue ».</p>'; }
+                    if (r.Candidates) {
+                        html += '<h4>Candidats pour ce nom de fichier</h4>';
+                        if (!r.Candidates.length) {
+                            html += '<p class="cm-hint">Aucune entrée ne ressemble à ce nom. Un nom de fichier qui porte un identifiant introuvable dans le dump ne cherche pas par le nom.</p>';
+                        } else {
+                            html += '<ul class="cm-dt-list">' + r.Candidates.map(function(c) {
+                                var how = c.How === 'id' ? 'identifiant' : (c.How === 'slug' ? 'slug' : (c.How === 'title' ? 'nom exact' : 'ressemblance'));
+                                return '<li data-accepted="' + (c.Accepted ? 'true' : 'false') + '"><span class="cm-dt-name">' + escapeHtml(c.Name || '(sans nom)') + '</span>'
+                                    + '<span class="cm-dt-score"><b>' + c.Score + '</b><span class="cm-dt-bar"><i style="width:' + Math.min(100, c.Score) + '%"></i></span>'
+                                    + '<span class="cm-dt-verdict ' + (c.Accepted ? 'ok' : 'ko') + '">' + (c.Accepted ? 'rapproché' : 'trop bas') + '</span></span>'
+                                    + '<small>{' + escapeHtml(c.Tag) + '}' + (c.Group ? ' · ' + escapeHtml(c.Group) : '') + ' · ' + how + '</small></li>';
+                            }).join('') + '</ul>';
+                            var best = r.Candidates[0];
+                            if (!best.Accepted) { html += '<p class="cm-hint">Le meilleur score (' + best.Score + ') est sous le minimum (' + r.MinScore + ') : ce fichier ne serait pas rapproché tout seul. Baissez le minimum, ou ajoutez le tag <code>{' + escapeHtml(best.Tag) + '}</code> au nom du fichier.</p>'; }
+                        }
+                    } else if (r.Samples && r.Samples.length) {
+                        html += '<h4>Premières entrées</h4><ul class="cm-dt-list">' + r.Samples.map(function(e) {
+                            return '<li><span class="cm-dt-name">' + escapeHtml(e.Name || '(sans nom)') + '</span><span></span><small>id ' + escapeHtml(e.Id) + (e.Group ? ' · ' + escapeHtml(e.Group) : '') + '</small></li>';
+                        }).join('') + '</ul>';
+                    }
+                    if (r.Groups && r.Groups.length) {
+                        html += '<details><summary>Groupes les plus fournis</summary><ul class="cm-dt-list">' + r.Groups.map(function(g) { return '<li><span class="cm-dt-name">' + escapeHtml(g.Name) + '</span><b>' + g.Count + '</b></li>'; }).join('') + '</ul></details>';
+                    }
+                    out.innerHTML = html;
+                }, function(err) {
+                    out.innerHTML = '<div class="cm-test-status ko">Erreur lors de l\'appel au serveur Jellyfin' + (err && err.status ? ' (HTTP ' + err.status + ')' : '') + '</div>';
+                }).then(function() { button.disabled = false; });
+            };
+            qs('#btnTestDump').addEventListener('click', window.testDump);
+            qs('#dumpTestName').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); window.testDump(); } });
+            qs('#srcDumpMinScore').addEventListener('input', updateDumpScoreLabel);
 
             // People source: endpoint and mapping of ONE person (standard values if the source has none)
             function fillPersonFields(source) {
@@ -2458,6 +2743,18 @@
             function plural(n, one, many) { return n + ' ' + (n > 1 ? many : one); }
 
             // "2 séries · 3 saisons · 14 épisodes" on the local source cards
+            // What a dump source holds, once it has been downloaded (nothing is downloaded just to draw the card)
+            function loadDumpStats() {
+                var spans = document.querySelectorAll('#sourcesList [data-dump-stats]');
+                if (!spans.length) { return; }
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Dump/Sources')).then(function(list) {
+                    Array.prototype.forEach.call(spans, function(span) {
+                        var info = (list || []).filter(function(i) { return String(i.Prefix).toLowerCase() === String(span.getAttribute('data-dump-stats')).toLowerCase(); })[0];
+                        if (info && info.Loaded) { span.textContent = plural(info.Count || 0, 'entrée', 'entrées') + ' en mémoire · ' + span.textContent; }
+                    });
+                }, function() { /* a comfort: the card works without it */ });
+            }
+
             function loadLocalStats() {
                 Array.prototype.forEach.call(document.querySelectorAll('#sourcesList [data-local-stats]'), function(span) {
                     var id = span.getAttribute('data-local-stats');
@@ -3544,6 +3841,11 @@
             qs('#localDetail').addEventListener('click', onLocalClick);
 
             // ---- Type choice and banner after saving ----
+            // "Couverture" on a dump card: the missing-episodes page opens on that dump
+            qs('#sourcesList').addEventListener('click', function(e) {
+                var link = e.target.closest('[data-open-coverage]');
+                if (link) { try { sessionStorage.setItem('cm-missing-dump', link.getAttribute('data-open-coverage')); } catch (err) { /* private window */ } }
+            });
             qs('#btnCancelChooser').addEventListener('click', function() { qs('#typeChooserWrap').hidden = true; });
             qs('#typeChooser').addEventListener('click', function(e) {
                 var choice = e.target.closest('[data-new-type]');

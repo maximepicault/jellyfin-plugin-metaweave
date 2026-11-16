@@ -1,0 +1,744 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Jellyfin.Plugin.CustomMetadata.Api;
+using Jellyfin.Plugin.CustomMetadata.Configuration;
+using Microsoft.Extensions.Logging;
+
+namespace Jellyfin.Plugin.CustomMetadata.Services
+{
+    /// <summary>One entry of a dump: what is needed to match a file, plus its raw JSON (served to the mapper)</summary>
+    public sealed class DumpEntry
+    {
+        public string Id { get; init; }
+        public string Name { get; init; }
+        public string Slug { get; init; }
+        public string SearchTitles { get; init; }
+        public string Group { get; init; }
+
+        /// <summary>The entry exactly as the dump gave it</summary>
+        public string Raw { get; init; }
+
+        // Pre-normalised for the fuzzy scoring (computed once, at load time)
+        internal string NormName { get; init; }
+        internal string SpacelessName { get; init; }
+        internal string SpacelessSearch { get; init; }
+        internal HashSet<string> NameTokens { get; init; }
+    }
+
+    /// <summary>The dump of one source, downloaded once and indexed</summary>
+    public sealed class DumpCatalog
+    {
+        public string Signature { get; init; }
+        public DateTime LoadedAtUtc { get; init; }
+        public List<DumpEntry> Entries { get; init; }
+        internal Dictionary<string, DumpEntry> ById { get; init; }
+        internal Dictionary<string, DumpEntry> BySlug { get; init; }
+        internal Dictionary<string, DumpEntry> ByTitle { get; init; }
+    }
+
+    /// <summary>A file matched to an entry of a dump</summary>
+    public sealed class DumpMatch
+    {
+        public SourceConfiguration Source { get; init; }
+
+        /// <summary>Identifier WITHOUT prefix</summary>
+        public string Id { get; init; }
+
+        /// <summary>"prefix-id": the value kept in ProviderIds["custom"]</summary>
+        public string Tag => $"{Source.Prefix.Trim().ToLowerInvariant()}-{Id}";
+
+        public DumpEntry Entry { get; init; }
+        public double Score { get; init; }
+
+        /// <summary>stored | tag | id | slug | title | fuzzy</summary>
+        public string How { get; init; }
+    }
+
+    /// <summary>
+    /// "Dump" sources (SourceType = "Dump"): ONE call returns the whole catalogue, kept in memory for
+    /// <see cref="DumpSettings.CacheMinutes"/>. It does two things:
+    ///  - serves each entry in place of an API call (ResilientHttp → <see cref="ServeAsync"/>): the providers, the images,
+    ///    the cast… work unchanged, as for an API source;
+    ///  - finds the entry of a file that has no {prefix-id} tag, by its slug, its name or a fuzzy score
+    ///    (<see cref="ResolveAsync"/>, <see cref="FindCandidates"/>).
+    /// If a download fails, the previous copy is kept (same URL and paths) rather than breaking every refresh.
+    /// </summary>
+    public class DumpStore
+    {
+        private const string Tag = "📦 [DUMP]";
+
+        // Entry URL served to the mapper: the identifier is the last segment ("/items/123")
+        public const string ItemEndpoint = "/items/{id}";
+        private const string ItemSegment = "items";
+
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ILogger _logger;
+        private readonly ResilientHttp _http;
+
+        private readonly ConcurrentDictionary<string, DumpCatalog> _catalogs = new ConcurrentDictionary<string, DumpCatalog>(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
+
+        // Highest score of an entry whose title matches but whose episode number the file does not confirm: just under the default minimum (70)
+        private const double UnconfirmedCap = 69d;
+
+        private static readonly Regex EpisodeRegex = new Regex(@"[Ss](\d{1,2})[\s._-]?[Ee](\d{1,3})", RegexOptions.Compiled);
+
+        // [..], {..} and (..) blocks: ids, resolutions, (VOSTFR), (RAW), (Season 1)…
+        private static readonly Regex BracketBlocks = new Regex(@"\[[^\]]*\]|\{[^}]*\}|\([^)]*\)", RegexOptions.Compiled);
+
+        public DumpStore(IHttpClientFactory httpClientFactory, ILogger logger)
+        {
+            _httpClientFactory = httpClientFactory;
+            _logger = logger;
+            // Does the actual download: no dump store inside, otherwise it would serve itself
+            _http = new ResilientHttp(logger);
+        }
+
+        // ------------------------------------------------------------------------------------------------------
+        // Loading
+        // ------------------------------------------------------------------------------------------------------
+
+        /// <summary>What a cached copy must still equal: another URL or other paths = another dump</summary>
+        public static string SignatureOf(SourceConfiguration source)
+        {
+            var d = source.Dump ?? new DumpSettings();
+            return string.Join("|", source.BaseUrl?.Trim(), d.ItemsPath, d.IdPath, d.NamePath, d.SlugPath, d.SearchTitlesPath, d.GroupPath);
+        }
+
+        /// <summary>The catalogue currently in memory for this source (null when never loaded or loaded with other settings)</summary>
+        public DumpCatalog Peek(SourceConfiguration source)
+        {
+            return _catalogs.TryGetValue(Key(source), out var catalog) && catalog.Signature == SignatureOf(source) ? catalog : null;
+        }
+
+        private static string Key(SourceConfiguration source) => (source.Prefix ?? string.Empty).Trim().ToLowerInvariant();
+
+        /// <summary>Forgets the copy in memory: the next use downloads the dump again</summary>
+        public void Invalidate(SourceConfiguration source)
+        {
+            _catalogs.TryRemove(Key(source), out _);
+        }
+
+        /// <summary>
+        /// The dump of this source, downloaded when absent, expired or when force is set.
+        /// Never throws for HTTP/parse errors: they come back in <paramref name="error"/> (and the previous copy, if any, is returned).
+        /// </summary>
+        public async Task<(DumpCatalog Catalog, string Error)> GetCatalogAsync(SourceConfiguration source, bool force, CancellationToken cancellationToken)
+        {
+            if (source == null || !source.IsDump)
+            {
+                return (null, "Cette source n'est pas un dump");
+            }
+
+            var existing = Peek(source);
+            if (!force && existing != null && IsFresh(source, existing))
+            {
+                return (existing, null);
+            }
+
+            var gate = _locks.GetOrAdd(Key(source), _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                existing = Peek(source);
+                if (!force && existing != null && IsFresh(source, existing))
+                {
+                    return (existing, null);
+                }
+
+                var (catalog, error) = await DownloadAsync(source, cancellationToken).ConfigureAwait(false);
+                if (catalog != null)
+                {
+                    _catalogs[Key(source)] = catalog;
+                    return (catalog, null);
+                }
+
+                // Failure: the previous copy (same dump) keeps serving
+                if (existing != null)
+                {
+                    _logger.LogWarning("{Tag} ⚠️ Reload of '{Source}' failed ({Error}) - keeping the copy of {Loaded:u}", Tag, source.Name, error, existing.LoadedAtUtc);
+                    return (existing, error);
+                }
+
+                return (null, error);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        private static bool IsFresh(SourceConfiguration source, DumpCatalog catalog)
+        {
+            var minutes = Math.Max(1, source.Dump?.CacheMinutes ?? 60);
+            return (DateTime.UtcNow - catalog.LoadedAtUtc).TotalMinutes < minutes;
+        }
+
+        private async Task<(DumpCatalog Catalog, string Error)> DownloadAsync(SourceConfiguration source, CancellationToken cancellationToken)
+        {
+            var settings = source.Dump ?? new DumpSettings();
+            var url = (source.BaseUrl ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(url) || url.Contains("votre-api.com") || url.Contains("example.com"))
+            {
+                return (null, "URL du dump absente ou d'exemple (votre-api.com / example.com)");
+            }
+
+            _logger.LogInformation("{Tag} Downloading the dump of '{Source}' from {Url}", Tag, source.Name, url);
+
+            var client = _httpClientFactory.CreateClient();
+            SourceHeaders.Apply(client, source, !string.IsNullOrEmpty(source.ApiKey) ? source.ApiKey : Plugin.Instance?.Configuration.ApiKey ?? string.Empty,
+                _logger, LogLevel.Debug, Tag);
+            var fetch = await _http.GetStringAsync(client, url, source, Tag, cancellationToken).ConfigureAwait(false);
+            if (!fetch.IsSuccess)
+            {
+                _logger.LogError("{Tag} ❌ Download of '{Source}' failed: {Error} ({Attempts} attempt(s))", Tag, source.Name, fetch.Error, fetch.Attempts);
+                return (null, fetch.Error ?? "Échec du téléchargement");
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(fetch.Content);
+                if (!JsonPathExtractor.TryGetArray(doc.RootElement, settings.ItemsPath, out var elements))
+                {
+                    var where = string.IsNullOrWhiteSpace(settings.ItemsPath) ? "à la racine" : $"au chemin « {settings.ItemsPath} »";
+                    return (null, $"Aucune liste d'entrées {where} dans la réponse");
+                }
+
+                var entries = new List<DumpEntry>(elements.Count);
+                var skippedNoId = 0;
+                foreach (var element in elements)
+                {
+                    var id = (JsonPathExtractor.GetString(element, settings.IdPath) ?? string.Empty).Trim();
+                    if (id.Length == 0)
+                    {
+                        skippedNoId++;
+                        continue;
+                    }
+
+                    var name = HtmlText.Decode(Read(element, settings.NamePath));
+                    var slug = Read(element, settings.SlugPath);
+                    var normName = Normalize(name);
+                    entries.Add(new DumpEntry
+                    {
+                        Id = id,
+                        Name = name,
+                        Slug = slug,
+                        SearchTitles = Read(element, settings.SearchTitlesPath),
+                        Group = HtmlText.Decode(Read(element, settings.GroupPath)),
+                        Raw = element.GetRawText(),
+                        NormName = normName,
+                        SpacelessName = normName.Replace(" ", string.Empty, StringComparison.Ordinal),
+                        // The other titles are glued together without a separator: only usable as a substring, never as an equality
+                        SpacelessSearch = Normalize(Read(element, settings.SearchTitlesPath)).Replace(" ", string.Empty, StringComparison.Ordinal),
+                        NameTokens = normName.Length > 0
+                            ? normName.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal)
+                            : new HashSet<string>(StringComparer.Ordinal)
+                    });
+                }
+
+                var byId = new Dictionary<string, DumpEntry>(StringComparer.OrdinalIgnoreCase);
+                var bySlug = new Dictionary<string, DumpEntry>(StringComparer.OrdinalIgnoreCase);
+                var byTitle = new Dictionary<string, DumpEntry>(StringComparer.OrdinalIgnoreCase);
+                foreach (var e in entries)
+                {
+                    byId[e.Id] = e;
+                    if (!string.IsNullOrWhiteSpace(e.Slug))
+                    {
+                        bySlug[e.Slug.Trim()] = e;
+                        var normSlug = Normalize(e.Slug);
+                        if (normSlug.Length > 0)
+                        {
+                            byTitle.TryAdd(normSlug, e);
+                        }
+                    }
+
+                    if (e.NormName.Length > 0)
+                    {
+                        byTitle.TryAdd(e.NormName, e);
+                    }
+                }
+
+                _logger.LogInformation("{Tag} ✅ Dump of '{Source}' loaded: {Count} entries{Skipped}, valid {Minutes} min",
+                    Tag, source.Name, entries.Count, skippedNoId > 0 ? $" ({skippedNoId} ignored: no id)" : string.Empty, settings.CacheMinutes);
+
+                return (new DumpCatalog
+                {
+                    Signature = SignatureOf(source),
+                    LoadedAtUtc = DateTime.UtcNow,
+                    Entries = entries,
+                    ById = byId,
+                    BySlug = bySlug,
+                    ByTitle = byTitle
+                }, null);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "{Tag} ❌ The response of '{Source}' is not valid JSON", Tag, source.Name);
+                return (null, "La réponse n'est pas du JSON valide : " + ex.Message);
+            }
+        }
+
+        private static string Read(JsonElement element, string path)
+        {
+            return string.IsNullOrWhiteSpace(path) ? string.Empty : (JsonPathExtractor.GetString(element, path) ?? string.Empty);
+        }
+
+        // ------------------------------------------------------------------------------------------------------
+        // Serving (in place of an API call)
+        // ------------------------------------------------------------------------------------------------------
+
+        /// <summary>
+        /// ResilientHttp calls this for a dump source: "{base}/items/{id}" answers with the entry's JSON.
+        /// Anything else (a series, a season…) is "not found": a dump only holds standalone episodes.
+        /// </summary>
+        public async Task<HttpFetchResult> ServeAsync(SourceConfiguration source, string url, CancellationToken cancellationToken)
+        {
+            var result = new HttpFetchResult { Url = url, Attempts = 1, HttpVersion = "dump", StatusCode = 404 };
+
+            string[] parts;
+            try
+            {
+                parts = Uri.UnescapeDataString(new Uri(url).AbsolutePath).Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            }
+            catch (UriFormatException)
+            {
+                result.Error = "URL du dump invalide";
+                return result;
+            }
+
+            var id = parts.Length >= 2 && parts[^2] == ItemSegment ? parts[^1] : null;
+            if (id == null)
+            {
+                result.Error = "Un dump ne contient que des épisodes autonomes : pas de série ni de saison";
+                return result;
+            }
+
+            var (catalog, error) = await GetCatalogAsync(source, false, cancellationToken).ConfigureAwait(false);
+            if (catalog == null)
+            {
+                result.StatusCode = 502;
+                result.Error = "Dump indisponible : " + error;
+                return result;
+            }
+
+            if (!catalog.ById.TryGetValue(id, out var entry))
+            {
+                result.Error = $"Identifiant introuvable dans le dump : {id}";
+                _logger.LogWarning("{Tag} ⚠️ Id '{Id}' is not in the dump of '{Source}'", Tag, id, source.Name);
+                return result;
+            }
+
+            result.StatusCode = 200;
+            result.Content = WithRating(entry.Raw, source.Dump);
+            return result;
+        }
+
+        /// <summary>
+        /// Adds "communityRating" = likes / (likes + dislikes) × 10 (a default mapping reads it). An entry that
+        /// already has one keeps it.
+        /// </summary>
+        private static string WithRating(string raw, DumpSettings settings)
+        {
+            if (settings == null || (string.IsNullOrWhiteSpace(settings.LikesPath) && string.IsNullOrWhiteSpace(settings.DislikesPath)))
+            {
+                return raw;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(raw);
+                var likes = Number(doc.RootElement, settings.LikesPath);
+                var dislikes = Number(doc.RootElement, settings.DislikesPath);
+                if (likes + dislikes <= 0 || doc.RootElement.ValueKind != JsonValueKind.Object || doc.RootElement.TryGetProperty("communityRating", out _))
+                {
+                    return raw;
+                }
+
+                var node = JsonNode.Parse(raw) as JsonObject;
+                if (node == null)
+                {
+                    return raw;
+                }
+
+                node["communityRating"] = Math.Round(likes / (likes + dislikes) * 10d, 1);
+                return node.ToJsonString();
+            }
+            catch (JsonException)
+            {
+                return raw;
+            }
+        }
+
+        private static double Number(JsonElement root, string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !JsonPathExtractor.TryNavigate(root, path, out var value))
+            {
+                return 0;
+            }
+
+            return value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var d) ? d
+                : value.ValueKind == JsonValueKind.String && double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var s) ? s
+                : 0;
+        }
+
+        // ------------------------------------------------------------------------------------------------------
+        // Which entry is this file?
+        // ------------------------------------------------------------------------------------------------------
+
+        /// <summary>The enabled dump sources that look for a file by its name</summary>
+        private static List<SourceConfiguration> NameMatchingSources()
+        {
+            return (Plugin.Instance?.Configuration?.Sources ?? new List<SourceConfiguration>())
+                .Where(s => s.Enabled && s.IsDump && s.Dump != null && s.Dump.MatchWithoutTag && !string.IsNullOrWhiteSpace(s.Prefix))
+                .ToList();
+        }
+
+        private static SourceConfiguration DumpSourceByPrefix(string prefix)
+        {
+            return (Plugin.Instance?.Configuration?.Sources ?? new List<SourceConfiguration>())
+                .FirstOrDefault(s => s.Enabled && s.IsDump && string.Equals(s.Prefix, prefix, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Finds the dump entry of an item, in this order: the "custom" id already stored on it, a {prefix-id} tag of a dump
+        /// source in its file name, then (sources that allow it) a bare {id}, the slug, the name, a fuzzy score.
+        /// Null when no dump source is configured or nothing matches. Only for items with a file.
+        /// </summary>
+        public async Task<DumpMatch> ResolveAsync(
+            string path,
+            string lookupName,
+            IReadOnlyDictionary<string, string> providerIds,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return null;
+            }
+
+            var config = Plugin.Instance?.Configuration;
+            if (config?.Sources == null || !config.Sources.Any(s => s.Enabled && s.IsDump))
+            {
+                return null;
+            }
+
+            // 1) The id kept on the item by a previous match
+            if (CustomId.Get(providerIds) is string stored && SplitTag(stored) is var (storedPrefix, storedId)
+                && DumpSourceByPrefix(storedPrefix) is SourceConfiguration storedSource)
+            {
+                return new DumpMatch { Source = storedSource, Id = storedId, Score = 100, How = "stored" };
+            }
+
+            // 2) A tag of a dump source in the file name (the other sources' tags are not ours)
+            var ownName = TagParser.GetOwnName(path);
+            foreach (var tag in TagParser.ExtractAll(ownName))
+            {
+                if (SplitTag(tag) is var (prefix, id) && DumpSourceByPrefix(prefix) is SourceConfiguration tagSource)
+                {
+                    return new DumpMatch { Source = tagSource, Id = id, Score = 100, How = "tag" };
+                }
+            }
+
+            if (TagParser.Extract(ownName) != null)
+            {
+                // Tagged for another source: not a file to guess about
+                return null;
+            }
+
+            // 3) By name, source by source: the best score wins
+            DumpMatch best = null;
+            foreach (var source in NameMatchingSources())
+            {
+                var (catalog, error) = await GetCatalogAsync(source, false, cancellationToken).ConfigureAwait(false);
+                if (catalog == null)
+                {
+                    _logger.LogWarning("{Tag} ⚠️ '{Source}' unavailable, cannot match '{File}': {Error}", Tag, source.Name, ownName, error);
+                    continue;
+                }
+
+                var found = FindCandidates(catalog, source.Dump, path, lookupName, 1, source.Dump.MinScore, out var how).FirstOrDefault();
+                if (found.Entry != null && (best == null || found.Score > best.Score))
+                {
+                    best = new DumpMatch { Source = source, Id = found.Entry.Id, Entry = found.Entry, Score = found.Score, How = how };
+                }
+            }
+
+            if (best != null)
+            {
+                _logger.LogInformation("{Tag} 🎯 '{File}' → '{Name}' ({Tag2}, {How}, score {Score:F0})", Tag, ownName, best.Entry.Name, best.Tag, best.How, best.Score);
+            }
+            else
+            {
+                _logger.LogDebug("{Tag} No match for '{File}'", Tag, ownName);
+            }
+
+            return best;
+        }
+
+        /// <summary>Candidates for the "Identify" screen: up to <paramref name="limit"/> entries over all name-matching sources, best first</summary>
+        public async Task<List<DumpMatch>> SearchAsync(string path, string lookupName, int limit, CancellationToken cancellationToken)
+        {
+            var results = new List<DumpMatch>();
+            foreach (var source in (Plugin.Instance?.Configuration?.Sources ?? new List<SourceConfiguration>()).Where(s => s.Enabled && s.IsDump && s.Dump != null))
+            {
+                var (catalog, _) = await GetCatalogAsync(source, false, cancellationToken).ConfigureAwait(false);
+                if (catalog == null)
+                {
+                    continue;
+                }
+
+                // Lowered threshold: the person picks
+                foreach (var found in FindCandidates(catalog, source.Dump, path, lookupName, limit, Math.Min(40, source.Dump.MinScore), out var how))
+                {
+                    results.Add(new DumpMatch { Source = source, Id = found.Entry.Id, Entry = found.Entry, Score = found.Score, How = how });
+                }
+            }
+
+            return results.OrderByDescending(r => r.Score).Take(limit).ToList();
+        }
+
+        /// <summary>"mv1-123" → ("mv1", "123")</summary>
+        private static (string Prefix, string Id)? SplitTag(string tag)
+        {
+            var dash = (tag ?? string.Empty).IndexOf('-');
+            return dash > 0 && dash < tag.Length - 1 ? (tag.Substring(0, dash), tag.Substring(dash + 1)) : null;
+        }
+
+        // ------------------------------------------------------------------------------------------------------
+        // Matching a file name against the entries
+        // ------------------------------------------------------------------------------------------------------
+
+        /// <summary>
+        /// Candidates, best score first. A bare {id}, the slug or the exact name answer alone with 100; otherwise every entry is
+        /// scored (see <see cref="ComputeScore"/>). <paramref name="how"/> tells which step answered.
+        /// </summary>
+        public List<(DumpEntry Entry, double Score)> FindCandidates(
+            DumpCatalog catalog,
+            DumpSettings settings,
+            string path,
+            string lookupName,
+            int limit,
+            double minScore,
+            out string how)
+        {
+            how = null;
+            var results = new List<(DumpEntry Entry, double Score)>();
+            var fileName = string.IsNullOrWhiteSpace(path) ? lookupName : Path.GetFileNameWithoutExtension(path);
+            if (string.IsNullOrWhiteSpace(fileName) || catalog == null)
+            {
+                return results;
+            }
+
+            // A bare {12345} is the entry's id. A number that is not in the dump is AUTHORITATIVE (no guessing from the name);
+            // another word ({1080p}, {VOSTFR}) is just noise
+            var bare = Regex.Match(fileName, @"\{(\w+)\}", RegexOptions.None, TimeSpan.FromSeconds(1));
+            if (bare.Success)
+            {
+                var bareId = bare.Groups[1].Value;
+                if (catalog.ById.TryGetValue(bareId, out var byId))
+                {
+                    how = "id";
+                    results.Add((byId, 100d));
+                    return results;
+                }
+
+                if (bareId.All(char.IsDigit) && bareId.Length >= 3)
+                {
+                    _logger.LogWarning("{Tag} ⚠️ Id {{{Id}}} of '{File}' is not in the dump - no match (no guessing from the name)", Tag, bareId, fileName);
+                    return results;
+                }
+            }
+
+            var cleaned = BracketBlocks.Replace(fileName, " ");
+            var episodeNumber = 0;
+            var episodeMatch = EpisodeRegex.Match(cleaned);
+            if (episodeMatch.Success)
+            {
+                _ = int.TryParse(episodeMatch.Groups[2].Value, out episodeNumber);
+                cleaned = cleaned.Remove(episodeMatch.Index, episodeMatch.Length);
+            }
+
+            var noise = NoiseSet(settings.NoiseWords);
+            var tokens = Normalize(cleaned).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(t => !noise.Contains(t)).ToList();
+            if (tokens.Count == 0)
+            {
+                return results;
+            }
+
+            var normFile = string.Join(' ', tokens);
+            var spaceless = normFile.Replace(" ", string.Empty, StringComparison.Ordinal);
+
+            if (settings.MatchBySlug && catalog.BySlug.TryGetValue(cleaned.Trim(), out var slugExact))
+            {
+                how = "slug";
+                results.Add((slugExact, 100d));
+                return results;
+            }
+
+            if ((settings.MatchBySlug || settings.MatchByName) && catalog.ByTitle.TryGetValue(normFile, out var titleExact))
+            {
+                how = "title";
+                results.Add((titleExact, 100d));
+                return results;
+            }
+
+            // "Title S01E03" → entry named "Title 3" (the SxxExx was removed, put the number back)
+            if (episodeNumber > 0 && (settings.MatchBySlug || settings.MatchByName)
+                && catalog.ByTitle.TryGetValue(normFile + " " + episodeNumber.ToString(CultureInfo.InvariantCulture), out var titleWithNumber))
+            {
+                how = "title";
+                results.Add((titleWithNumber, 100d));
+                return results;
+            }
+
+            if (!settings.MatchByName)
+            {
+                return results;
+            }
+
+            var tokenSet = tokens.ToHashSet(StringComparer.Ordinal);
+            var suffix = episodeNumber > 0 ? episodeNumber.ToString(CultureInfo.InvariantCulture) : null;
+            foreach (var entry in catalog.Entries)
+            {
+                var score = ComputeScore(entry, tokenSet, spaceless, suffix);
+                if (score >= minScore)
+                {
+                    results.Add((entry, score));
+                }
+            }
+
+            results.Sort((a, b) => b.Score.CompareTo(a.Score));
+            if (results.Count > limit)
+            {
+                results.RemoveRange(limit, results.Count - limit);
+            }
+
+            how = results.Count > 0 && results[0].Score >= 100d ? "title" : "fuzzy";
+            return results;
+        }
+
+        /// <summary>
+        /// Score 0-100. Two ways to reach the threshold, the better one is kept:
+        ///  - tokens: overlap with the name (55 pts) + reverse overlap (20 pts);
+        ///  - other titles: the file name (spaceless) appears in the glued "search titles". Longer = fewer accidental hits:
+        ///      title + episode number confirmed → 75-95 (automatic match);
+        ///      title found but the file has an SxxExx that is NOT confirmed → 50-65 ("Identify" only: avoids the wrong episode of a series);
+        ///      title found, no SxxExx in the file (one-shot) → 65-85.
+        /// Bonuses: "title + number" equals the name (100), direct inclusion (+5), name ending with the episode number (+5).
+        /// </summary>
+        private static double ComputeScore(DumpEntry entry, HashSet<string> fileTokens, string spacelessFile, string episodeSuffix)
+        {
+            double score = 0;
+
+            if (entry.NameTokens.Count > 0)
+            {
+                var common = entry.NameTokens.Count(fileTokens.Contains);
+                score += 55d * common / entry.NameTokens.Count;
+                score += 20d * common / fileTokens.Count;
+            }
+
+            if (episodeSuffix != null && entry.SpacelessName.Length > 0
+                && string.Equals(entry.SpacelessName, spacelessFile + episodeSuffix, StringComparison.Ordinal))
+            {
+                return 100d;
+            }
+
+            var unconfirmed = false;
+            if (spacelessFile.Length >= 6 && entry.SpacelessSearch.Length >= spacelessFile.Length)
+            {
+                double alt = 0;
+                if (episodeSuffix != null)
+                {
+                    if (entry.SpacelessSearch.Contains(spacelessFile + episodeSuffix, StringComparison.Ordinal))
+                    {
+                        alt = 75d + Math.Min(20d, spacelessFile.Length);
+                    }
+                    else if (entry.SpacelessSearch.Contains(spacelessFile, StringComparison.Ordinal))
+                    {
+                        alt = 50d + Math.Min(15d, spacelessFile.Length);
+                        unconfirmed = alt > score;
+                    }
+                }
+                else if (entry.SpacelessSearch.Contains(spacelessFile, StringComparison.Ordinal))
+                {
+                    alt = 65d + Math.Min(20d, spacelessFile.Length);
+                }
+
+                score = Math.Max(score, alt);
+            }
+
+            if (spacelessFile.Length >= 4 && entry.SpacelessName.Length >= 4
+                && (entry.SpacelessName.Contains(spacelessFile, StringComparison.Ordinal) || spacelessFile.Contains(entry.SpacelessName, StringComparison.Ordinal)))
+            {
+                score += 5d;
+            }
+
+            if (episodeSuffix != null && entry.SpacelessName.EndsWith(episodeSuffix, StringComparison.Ordinal))
+            {
+                score += 5d;
+            }
+
+            // The title is there but the file's episode number is not confirmed: the bonuses above must not push it over the
+            // default threshold (70), or "Title S01E03" would be matched to "Title 1". Proposed in "Identify" only
+            return Math.Min(unconfirmed ? UnconfirmedCap : 100d, score);
+        }
+
+        private static HashSet<string> NoiseSet(string words)
+        {
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var word in (words ?? string.Empty).Split(new[] { ' ', ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var norm = Normalize(word);
+                if (norm.Length > 0)
+                {
+                    set.Add(norm);
+                }
+            }
+
+            return set;
+        }
+
+        /// <summary>Lower case, no accents, every non-alphanumeric run reduced to one space</summary>
+        public static string Normalize(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+            {
+                return string.Empty;
+            }
+
+            var formD = input.Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder(formD.Length);
+            var lastWasSpace = true;
+            foreach (var c in formD)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark)
+                {
+                    continue;
+                }
+
+                if (char.IsLetterOrDigit(c))
+                {
+                    sb.Append(char.ToLowerInvariant(c));
+                    lastWasSpace = false;
+                }
+                else if (!lastWasSpace)
+                {
+                    sb.Append(' ');
+                    lastWasSpace = true;
+                }
+            }
+
+            return sb.ToString().Trim();
+        }
+    }
+}

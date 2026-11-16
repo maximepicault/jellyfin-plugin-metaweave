@@ -39,8 +39,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             LocalSourceStore localStore,
             MediaBrowser.Controller.IServerApplicationHost appHost,
             IServiceProvider services,
-            MediaBrowser.Controller.Library.ILibraryManager libraryManager)
+            MediaBrowser.Controller.Library.ILibraryManager libraryManager,
+            DumpStore dump)
         {
+            _dump = dump;
             _libraryManager = libraryManager;
             _appHost = appHost;
             _services = services;
@@ -51,6 +53,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             _sourceResolver = sourceResolver;
         }
 
+        private readonly DumpStore _dump;
         private readonly MediaBrowser.Controller.IServerApplicationHost _appHost;
         private readonly IServiceProvider _services;
         private readonly MediaBrowser.Controller.Library.ILibraryManager _libraryManager;
@@ -82,6 +85,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
                 // Get the item identifier (with prefix)
                 var idWithPrefix = GetItemIdentifier(item);
+
+                // No tag on an episode / movie file: a "Dump" source may know it by its name
+                if (string.IsNullOrEmpty(idWithPrefix) && (item is Episode || item is Movie) && !string.IsNullOrEmpty(item.Path))
+                {
+                    var dumpMatch = await _dump.ResolveAsync(item.Path, item.Name, item.ProviderIds, cancellationToken);
+                    if (dumpMatch != null)
+                    {
+                        idWithPrefix = dumpMatch.Tag;
+                        _logger.LogInformation("🖼️ [IMAGE PROVIDER] 📦 Matched in the dump '{Source}' ({How}): {Tag}", dumpMatch.Source.Name, dumpMatch.How, idWithPrefix);
+                    }
+                }
+
                 if (string.IsNullOrEmpty(idWithPrefix))
                 {
                     _logger.LogDebug("🖼️ [IMAGE PROVIDER] No identifier found for item {ItemName} - SKIPPING (this is normal for non-custom files)", item.Name);

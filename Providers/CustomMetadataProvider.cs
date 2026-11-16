@@ -21,15 +21,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<CustomMetadataProvider> _logger;
         private readonly CustomApiClient _apiClient;
+        private readonly DumpStore _dump;
 
         public CustomMetadataProvider(
             IHttpClientFactory httpClientFactory, 
             ILogger<CustomMetadataProvider> logger,
-            CustomApiClient apiClient)
+            CustomApiClient apiClient,
+            DumpStore dump)
         {
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _apiClient = apiClient;
+            _dump = dump;
         }
 
         public string Name => "Custom Metadata Provider";
@@ -51,15 +54,29 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     return result;
                 }
 
-                // Identify the item - you can use the name, the IMDb ID, or a custom ID
-                var itemId = GetItemIdentifier(info);
-                if (string.IsNullOrEmpty(itemId))
+                // "Dump" source first (library of standalone files): a {prefix-id} tag, the id kept on the item, or a match by name.
+                // The movie path below stays the legacy single-source one for everything else.
+                var dumpMatch = await _dump.ResolveAsync(info.Path, info.Name, info.ProviderIds, cancellationToken);
+
+                CustomMetadataResponse metadata;
+                if (dumpMatch != null)
                 {
-                    return result;
+                    _logger.LogInformation("📦 [DUMP] Movie '{Name}' → {Tag} ({How}, score {Score:F0})", info.Name, dumpMatch.Tag, dumpMatch.How, dumpMatch.Score);
+                    metadata = await _apiClient.GetMetadataAsync(dumpMatch.Id, "video", dumpMatch.Source, cancellationToken, bypassCache: !info.IsAutomated);
+                }
+                else
+                {
+                    // Identify the item - you can use the name, the IMDb ID, or a custom ID
+                    var itemId = GetItemIdentifier(info);
+                    if (string.IsNullOrEmpty(itemId))
+                    {
+                        return result;
+                    }
+
+                    // Call your API
+                    metadata = await _apiClient.GetMetadataAsync(itemId, "video", cancellationToken);
                 }
 
-                // Call your API
-                var metadata = await _apiClient.GetMetadataAsync(itemId, "video", cancellationToken);
                 if (metadata == null)
                 {
                     return result;
@@ -89,6 +106,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     }
                 }
 
+                if (metadata.Studios != null && metadata.Studios.Any())
+                {
+                    movie.Studios = metadata.Studios.ToArray();
+                }
+
+                // The entry of a dump is remembered on the item: the next refreshes and the coverage screen use it
+                if (dumpMatch != null)
+                {
+                    movie.ProviderIds[CustomId.Key] = dumpMatch.Tag;
+                }
+
                 result.Item = movie;
                 result.HasMetadata = true;
 
@@ -116,9 +144,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
             try
             {
-                // You can implement a search in your API
-                // Pour l'instant on retourne vide
-                _logger.LogDebug("Search requested for: {SearchName}", searchInfo.Name);
+                // Only the dump sources can be searched (the best candidates for the "Identify" screen)
+                results.AddRange(await DumpSearch.ToSearchResultsAsync(_dump, searchInfo.Path, searchInfo.Name, Name, cancellationToken));
             }
             catch (Exception ex)
             {
