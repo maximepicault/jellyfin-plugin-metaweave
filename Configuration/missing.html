@@ -462,8 +462,13 @@
         #CustomMetadataMissingPage #dumpView[data-ratio="16:9"] .dc-series-card .me-poster { aspect-ratio: 16 / 9; }
         #CustomMetadataMissingPage #dumpView[data-ratio="16:9"] .me-thumb { aspect-ratio: 16 / 9; }
         #CustomMetadataMissingPage #dumpView[data-ratio="16:9"] .me-list .me-thumb { width: 200px; flex: none; }
-        #CustomMetadataMissingPage #dumpView[data-ratio="2:3"] .me-thumb { aspect-ratio: 2 / 3; max-height: 460px; }
-        #CustomMetadataMissingPage #dumpView[data-ratio="2:3"] .me-list .me-thumb { width: 110px; flex: none; max-height: none; }
+        /* Portrait pictures: narrow cards like posters, so the picture keeps its exact 2:3 shape (a wide card would force it square and crop it) */
+        #CustomMetadataMissingPage #dumpView[data-ratio="2:3"] .me-episodes:not(.me-list) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 16px; }
+        #CustomMetadataMissingPage #dumpView[data-ratio="2:3"] .me-thumb { aspect-ratio: 2 / 3; }
+        #CustomMetadataMissingPage #dumpView[data-ratio="2:3"] .me-episodes:not(.me-list) .me-filename { flex-direction: column; align-items: stretch; }
+        #CustomMetadataMissingPage #dumpView[data-ratio="2:3"] .me-episodes:not(.me-list) .me-filename code { width: 100%; }
+        #CustomMetadataMissingPage #dumpView[data-ratio="2:3"] .me-episodes:not(.me-list) .me-copy { width: 100%; justify-content: center; }
+        #CustomMetadataMissingPage #dumpView[data-ratio="2:3"] .me-list .me-thumb { width: 90px; flex: none; }
         #CustomMetadataMissingPage .dc-series-card .me-card-body { flex: 1; }
         #CustomMetadataMissingPage .dc-series-sub { font-size: 12px; color: var(--me-muted); overflow-wrap: anywhere; }
         #CustomMetadataMissingPage .dc-series-link { font-size: 13px; color: #8be0b9; overflow-wrap: anywhere; }

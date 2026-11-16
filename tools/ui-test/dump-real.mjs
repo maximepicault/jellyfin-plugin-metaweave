@@ -325,6 +325,24 @@ try {
     await page.click(`${M} #modeSwitch [data-mode="dump"]`);
     await page.waitForSelector(`${M} .dc-series-card`, { timeout: 8000 });
 
+    // portrait pictures (2:3): narrow cards, the picture keeps its exact shape instead of being cut into a square
+    await api('POST', `/Plugins/${PLUGIN}/Configuration`, { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, PreviewRatio: '2:3' } } : x) });
+    await page.evaluate(() => sessionStorage.setItem('cm-missing-dump', 'dp'));
+    await open('CustomMetadataMissingEpisodes', M, '.cmn-nav');
+    await page.waitForSelector(`${M} .dc-series-card`, { state: 'visible', timeout: 30000 });
+    await page.locator(`${M} .dc-series-card`, { hasText: 'Épisode démo' }).click();
+    await page.waitForSelector(`${M} #dcResults .dc-entry`, { timeout: 8000 });
+    const portrait = await page.evaluate(sel => { const r = document.querySelector(sel).getBoundingClientRect(); const c = document.querySelector(sel).closest('.dc-entry').getBoundingClientRect(); return { ratio: r.width / r.height, card: c.width }; }, `${M} .dc-entry .me-thumb`);
+    check('2:3 format: entry thumbnails are really 2:3 (not squeezed into a square)', Math.abs(portrait.ratio - 2 / 3) < 0.03, JSON.stringify(portrait));
+    check('2:3 format: entry cards are narrow, several per row', portrait.card < 320 && (await page.locator(`${M} #dcResults .dc-entry`).evaluateAll(els => new Set(els.map(e => Math.round(e.getBoundingClientRect().top))).size < els.length)), JSON.stringify(portrait));
+    await page.waitForTimeout(1500);
+    await shot('D12-coverage-portrait-1440');
+    await page.click(`${M} #dcView [data-view="list"]`);
+    const portraitList = await page.evaluate(sel => { const r = document.querySelector(sel).getBoundingClientRect(); return r.width / r.height; }, `${M} .me-list .me-thumb`);
+    check('2:3 format: the list keeps 2:3 thumbnails', Math.abs(portraitList - 2 / 3) < 0.03, String(portraitList));
+    await page.click(`${M} #dcView [data-view="cards"]`);
+    await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
+
     // widths
     await page.setViewportSize({ width: 1920, height: 1100 }); await page.waitForTimeout(500); await shot('D10-coverage-1920');
     await page.setViewportSize({ width: 412, height: 900 }); await page.waitForTimeout(500); await shot('D11-coverage-mobile');
