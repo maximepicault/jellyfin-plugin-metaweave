@@ -1713,7 +1713,7 @@
                     if (r.Group && r.Group !== '(sans groupe)') { meta.push(esc(r.Group)); }
                     if (r.Date) { meta.push(esc(formatDate(r.Date))); }
                     html += '<div class="me-episode dc-entry" data-file="' + esc(name) + '">'
-                        + '<div class="me-thumb">' + (r.Image ? '<img src="' + esc(r.Image) + '" alt="" loading="lazy" referrerpolicy="no-referrer" />' : '<div class="me-placeholder">🎞</div>')
+                        + '<div class="me-thumb">' + (r.HasImage ? '<img src="' + esc(ApiClient.getUrl('CustomMetadata/Dump/Image', { prefix: state.prefix, id: r.Id, api_key: ApiClient.accessToken() })) + '" alt="" loading="lazy" />' : '<div class="me-placeholder">🎞</div>')
                         + '<span class="me-badge ' + (r.Owned ? 'me-badge-ok' : 'me-badge-missing') + '">' + (r.Owned ? '✓ Possédé' : 'Manquant') + '</span></div>'
                         + '<div class="me-episode-info">'
                         + '<div class="me-episode-top"><div class="me-episode-title">' + (r.Name ? esc(r.Name) : '<span class="me-muted">(sans nom)</span>') + '</div><span class="dc-id">#' + esc(r.Id) + '</span></div>'

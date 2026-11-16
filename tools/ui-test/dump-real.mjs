@@ -157,6 +157,12 @@ try {
   check('coverage: filter by group', (pick(byGroup, 'Items') || []).length > 0 && (pick(byGroup, 'Items') || []).every(i => i.Group === 'Boréal Films'), JSON.stringify(pick(byGroup, 'Matching')));
   const csv = await api('GET', '/CustomMetadata/Dump/Export?prefix=dp&status=owned');
   check('export: a CSV with the owned entries', csv.status === 200 && /tag;id;nom/.test(csv.text) && /dp-1001/.test(csv.text) && /possédé/.test(csv.text) && csv.text.trim().split('\n').length === 7, csv.text.slice(0, 200));
+  const withImage = (pick(cov, 'Items') || []).filter(i => i.HasImage || i.hasImage);
+  check('coverage: entries tell whether they have a preview picture (the address stays on the server)', withImage.length === 10 && !JSON.stringify(cov).includes('172.17.0.1'), JSON.stringify(pick(cov, 'Items')?.[0]));
+  const img = await fetch(`${J}/CustomMetadata/Dump/Image?prefix=dp&id=1008`, { headers: H });
+  check('preview: the server downloads the picture itself and serves it', img.status === 200 && /^image\//.test(img.headers.get('content-type') || '') && (await img.arrayBuffer()).byteLength > 500, String(img.status));
+  const noImg = await fetch(`${J}/CustomMetadata/Dump/Image?prefix=dp&id=nope`, { headers: H });
+  check('preview: an unknown entry is a 404', noImg.status === 404, String(noImg.status));
   const unknown = await api('GET', '/CustomMetadata/Dump/Coverage?prefix=nope');
   check('coverage: an unknown source is a 404', unknown.status === 404, String(unknown.status));
 

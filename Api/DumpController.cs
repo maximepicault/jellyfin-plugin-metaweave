@@ -29,11 +29,43 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     {
         private readonly DumpStore _dump;
         private readonly ILibraryManager _libraryManager;
+        private readonly CustomApiClient _api;
 
-        public DumpController(DumpStore dump, ILibraryManager libraryManager)
+        public DumpController(DumpStore dump, ILibraryManager libraryManager, CustomApiClient api)
         {
             _dump = dump;
             _libraryManager = libraryManager;
+            _api = api;
+        }
+
+        /// <summary>
+        /// The preview picture of an entry (coverage screen), downloaded by the server with the source's headers and settings:
+        /// the browser cannot always fetch it itself (hotlink protection, Referer checks). Never given to Jellyfin.
+        /// </summary>
+        [HttpGet("Image")]
+        public async Task<ActionResult> Image([FromQuery] string prefix, [FromQuery] string id, CancellationToken cancellationToken)
+        {
+            var source = FindSource(prefix);
+            var catalog = source == null ? null : _dump.Peek(source);
+            if (source == null || catalog == null)
+            {
+                return NotFound();
+            }
+
+            var url = RowsOf(catalog, source).FirstOrDefault(r => string.Equals(r.Id, id, StringComparison.OrdinalIgnoreCase))?.ImageUrl;
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return NotFound();
+            }
+
+            var (data, mime, _) = await _api.DownloadImageAsync(url, source, false, cancellationToken);
+            if (data == null)
+            {
+                return NotFound();
+            }
+
+            Response.Headers["Cache-Control"] = "private, max-age=86400";
+            return File(data, string.IsNullOrWhiteSpace(mime) ? "image/jpeg" : mime);
         }
 
         private static readonly string[] VideoExtensions = { ".mkv", ".mp4", ".avi", ".mov", ".m4v", ".wmv", ".webm", ".ts", ".flv", ".mpg", ".mpeg" };
@@ -311,7 +343,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         {
             var mapping = source.VideoFieldMappings ?? new FieldMapping();
             // The mapping can change without the dump changing: the cache is only valid for the same mapping
-            var mappingKey = string.Join("|", mapping.PremiereDate, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, source.Prefix);
+            var previewPath = source.Dump?.PreviewImagePath;
+            var mappingKey = string.Join("|", mapping.PremiereDate, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, previewPath, source.Prefix);
             if (RowCache.TryGetValue(catalog, out var cached) && cached.Item1 == mappingKey)
             {
                 return cached.Item2.Select(r => r.Copy()).ToList();
@@ -331,7 +364,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     date = string.IsNullOrWhiteSpace(mapping.PremiereDate) ? null : JsonPathExtractor.GetDateTime(root, mapping.PremiereDate);
                     tags = string.IsNullOrWhiteSpace(mapping.Tags) || mapping.Tags.Contains("[]") ? tags
                         : JsonPathExtractor.GetStringArray(root, mapping.Tags).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => HtmlText.Decode(t.Trim())).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                    foreach (var path in new[] { mapping.ThumbUrl, mapping.PosterUrl, mapping.BackdropUrl })
+                    foreach (var path in new[] { previewPath, mapping.ThumbUrl, mapping.PosterUrl, mapping.BackdropUrl })
                     {
                         if (string.IsNullOrWhiteSpace(path))
                         {
@@ -361,7 +394,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     Date = date,
                     Year = date?.Year,
                     Tags = tags,
-                    Image = image,
+                    ImageUrl = image,
                     Search = DumpStore.Normalize($"{entry.Name} {entry.Slug} {group} {string.Join(' ', tags)} {entry.Id}")
                 });
             }
@@ -505,7 +538,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public DateTime? Date { get; set; }
         public int? Year { get; set; }
         public List<string> Tags { get; set; } = new List<string>();
-        public string Image { get; set; }
+
+        /// <summary>The picture's address in the dump (kept on the server: the screen asks the "Image" route for it)</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string ImageUrl { get; set; }
+
+        public bool HasImage => !string.IsNullOrWhiteSpace(ImageUrl);
         public bool Owned { get; set; }
 
         [System.Text.Json.Serialization.JsonIgnore]

@@ -379,6 +379,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             SourceConfiguration source,
             CancellationToken cancellationToken)
         {
+            // A dump source that must not give images to Jellyfin: its image fields only feed the coverage screen's previews
+            if (source != null && source.IsDump && source.Dump != null && !source.Dump.UseImages)
+            {
+                return new List<ImageInfo>();
+            }
+
             var api = await GetApiImagesAsync(itemId, itemType, source, cancellationToken);
 
             // The images of a local override come first (the first of each type is the one Jellyfin selects)

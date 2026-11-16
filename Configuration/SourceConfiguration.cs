@@ -237,6 +237,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         public string LikesPath { get; set; } = "likes";
         public string DislikesPath { get; set; } = "dislikes";
 
+        /// <summary>
+        /// false = the images of the dump are NEVER given to Jellyfin (no poster, backdrop or thumbnail), but the mapping still
+        /// reads them: the coverage screen shows them as previews
+        /// </summary>
+        public bool UseImages { get; set; } = true;
+
+        /// <summary>
+        /// Path of the picture shown on the coverage screen. Empty = the first of the video mapping's thumbnail, poster
+        /// and backdrop. The server downloads it with the source's headers (a browser is often refused by hotlink protection)
+        /// </summary>
+        public string PreviewImagePath { get; set; } = string.Empty;
+
         /// <summary>How long the downloaded dump is reused, in minutes</summary>
         public int CacheMinutes { get; set; } = 60;
 
