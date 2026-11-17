@@ -98,6 +98,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         // the same title, the right one does not stand out like this, so the wrong-episode risk the cap guards against stays out.
         private const double DominanceMargin = 5d;
 
+        // Most points an entry earns for a main name close to the file's title, when it was found through its other titles
+        private const double NameClosenessBonus = 10d;
+
         private static readonly Regex EpisodeRegex = new Regex(@"[Ss](\d{1,2})[\s._-]?[Ee](\d{1,3})", RegexOptions.Compiled);
 
         // [..], {..} and (..) blocks: ids, resolutions, (VOSTFR), (RAW), (Season 1)…
@@ -677,12 +680,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private static (double Score, double Raw, bool Unconfirmed) ComputeScore(DumpEntry entry, HashSet<string> fileTokens, string spacelessFile, string episodeSuffix)
         {
             double score = 0;
+            var commonWithName = 0;
 
             if (entry.NameTokens.Count > 0)
             {
-                var common = entry.NameTokens.Count(fileTokens.Contains);
-                score += 55d * common / entry.NameTokens.Count;
-                score += 20d * common / fileTokens.Count;
+                commonWithName = entry.NameTokens.Count(fileTokens.Contains);
+                score += 55d * commonWithName / entry.NameTokens.Count;
+                score += 20d * commonWithName / fileTokens.Count;
             }
 
             if (episodeSuffix != null && entry.SpacelessName.Length > 0
@@ -722,7 +726,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     alt = 65d + Math.Min(20d, spacelessFile.Length);
                 }
 
-                score = Math.Max(score, alt);
+                // When the other titles carry the match (not the name), several entries of a series can reach the same score: the one whose
+                // main NAME is closest to the file's title gets up to NameClosenessBonus more (Dice overlap of the words), so the best of
+                // two otherwise equal entries is the nearest one
+                if (alt > score)
+                {
+                    score = alt + NameClosenessBonus * 2d * commonWithName / (fileTokens.Count + Math.Max(1, entry.NameTokens.Count));
+                }
             }
 
             if (spacelessFile.Length >= 4 && entry.SpacelessName.Length >= 4
@@ -743,8 +753,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         /// <summary>
-        /// "other titles" often read "{name} {episode number} {title 2} {title 3}", glued together: true when the entry's own name is
-        /// found there directly followed by exactly this episode number (so "name3other" for episode 3, never "name13other")
+        /// "other titles" often read "{name} {episode number} {title 2} {title 3}", glued together, with an optional "ep" next to the
+        /// number ("name ep 3 title 2"): true when the entry's own name is found there directly followed by (or preceded by, with "ep")
+        /// exactly this episode number, so "name3other" or "nameep3other" for episode 3, never "name13other"
         /// </summary>
         private static bool NumberFollowsName(DumpEntry entry, string episodeSuffix)
         {
@@ -753,23 +764,29 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 return false;
             }
 
+            var text = entry.SpacelessSearch;
             var from = 0;
-            while (from < entry.SpacelessSearch.Length)
+            while (from < text.Length)
             {
-                var at = entry.SpacelessSearch.IndexOf(entry.SpacelessName, from, StringComparison.Ordinal);
+                var at = text.IndexOf(entry.SpacelessName, from, StringComparison.Ordinal);
                 if (at < 0)
                 {
                     return false;
                 }
 
+                // After the name: [ep | episode] digits
                 var pos = at + entry.SpacelessName.Length;
-                var end = pos;
-                while (end < entry.SpacelessSearch.Length && char.IsDigit(entry.SpacelessSearch[end]))
+                if (string.CompareOrdinal(text, pos, "episode", 0, 7) == 0) { pos += 7; }
+                else if (string.CompareOrdinal(text, pos, "ep", 0, 2) == 0) { pos += 2; }
+                if (DigitsAt(text, pos) == wanted)
                 {
-                    end++;
+                    return true;
                 }
 
-                if (end > pos && end - pos <= 4 && int.TryParse(entry.SpacelessSearch.AsSpan(pos, end - pos), out var found) && found == wanted)
+                // Before the name: "ep" digits
+                var start = at;
+                while (start > 0 && char.IsDigit(text[start - 1])) { start--; }
+                if (start < at && start >= 2 && (string.CompareOrdinal(text, start - 2, "ep", 0, 2) == 0) && DigitsAt(text, start) == wanted)
                 {
                     return true;
                 }
@@ -778,6 +795,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             return false;
+        }
+
+        /// <summary>The whole number (up to 4 digits) that starts at this position, or -1</summary>
+        private static int DigitsAt(string text, int pos)
+        {
+            var end = pos;
+            while (end < text.Length && char.IsDigit(text[end]))
+            {
+                end++;
+            }
+
+            return end > pos && end - pos <= 4 && int.TryParse(text.AsSpan(pos, end - pos), out var value) ? value : -1;
         }
 
         private static HashSet<string> NoiseSet(string words)

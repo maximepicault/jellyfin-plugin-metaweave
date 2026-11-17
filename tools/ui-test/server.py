@@ -58,12 +58,18 @@ class H(BaseHTTPRequestHandler):
             big = [{"id": 100000 + i, "name": "%s %s %s %d" % (words[i % 16].title(), words[(i // 16) % 16], words[(i // 256) % 16], i % 97),
                     "slug": "e%d" % i, "search_titles": "%s%s%s" % (words[i % 16], words[(i // 16) % 16], words[(i // 256) % 16]), "brand": "B%d" % (i % 20), "tags": ["t"]} for i in range(n)]
             return self.send(200, {"data": big})
+        if p == "/dump-close":
+            # Two entries of a series that both hold the file's title in their other titles; the main name of the first is much closer to it
+            return self.send(200, {"data": [
+                {"id": 4001, "name": "Chemins hiver sud profond", "slug": "k1", "search_titles": "cheminshivernordiqueautretitre", "brand": "S"},
+                {"id": 4002, "name": "Chemins hiver nordique grand final", "slug": "k2", "search_titles": "cheminshivernordiqueautretitretrois", "brand": "S"}]})
         if p == "/dump-numafter":
             # The user's format: "other titles" = "{name} {episode number} {title 2} {title 3}", glued. The file's title is title 2 of every
             # episode (so it is found everywhere), and only the right episode has ITS number right after its own name
             data = []
             for n, name in enumerate(["Le depart", "La traversee", "Le col gele", "Le retour"], 1):
-                data.append({"id": 3000 + n, "name": name, "slug": "n%d" % n, "search_titles": re.sub(r"[^a-z0-9]", "", name.lower()) + str(n) + "cheminshivernordique" + "autretitre", "brand": "S"})
+                ep = "ep" if urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("fmt", [""])[0] == "ep" else ""
+                data.append({"id": 3000 + n, "name": name, "slug": "n%d" % n, "search_titles": re.sub(r"[^a-z0-9]", "", name.lower()) + ep + str(n) + "cheminshivernordique" + "autretitre", "brand": "S"})
             return self.send(200, {"data": data})
         if p == "/dump-series":
             # One series whose episodes all hold the series title in their "other titles". flat=1: nothing tells the right episode apart

@@ -80,6 +80,14 @@ try {
   check('test: the number glued after the entry\'s own name confirms it (episode 3 → "Le col gele", high score)', cs3.length >= 1 && pick(cs3[0], 'Id') === '3003' && pick(cs3[0], 'Accepted') === true && pick(cs3[0], 'Score') >= 75 && (cs3.length === 1 || pick(cs3[1], 'Accepted') === false), JSON.stringify(cs3));
   const series3b = await test('Chemins hiver nordique S01E13.mkv', { ...dumpSource, BaseUrl: `${API}/dump-numafter` });
   check('test: "13" is not read as "1" or "3" (no entry confirmed for episode 13)', !(pick(series3b, 'Candidates') || []).some(c => pick(c, 'Accepted') === true), JSON.stringify(pick(series3b, 'Candidates')));
+  // the number written "ep 3" next to the name
+  const series4 = await test('Chemins hiver nordique S01E03.mkv', { ...dumpSource, BaseUrl: `${API}/dump-numafter?fmt=ep` });
+  const cs4 = pick(series4, 'Candidates') || [];
+  check('test: "ep 3" glued next to the entry\'s name confirms it as well', cs4.length >= 1 && pick(cs4[0], 'Id') === '3003' && pick(cs4[0], 'Accepted') === true && pick(cs4[0], 'Score') >= 75, JSON.stringify(cs4));
+  // two entries equal through their other titles: the one whose main name is much closer to the file wins
+  const close = await test('Chemins hiver nordique S01E01.mkv', { ...dumpSource, BaseUrl: `${API}/dump-close` });
+  const csc = pick(close, 'Candidates') || [];
+  check('test: between two entries, the one with the name closest to the file ranks first and is accepted', csc.length === 2 && pick(csc[0], 'Id') === '4002' && pick(csc[0], 'Accepted') === true && pick(csc[1], 'Accepted') === false, JSON.stringify(csc));
   // the same series where nothing tells the episodes apart: nothing is accepted (the wrong-episode risk the cap guards against)
   const series2 = await test('Chemins hiver nordique S01E02.mkv', { ...dumpSource, BaseUrl: `${API}/dump-series?flat=1` });
   const cs2 = pick(series2, 'Candidates') || [];
