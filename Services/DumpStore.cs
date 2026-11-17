@@ -101,6 +101,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         // Most points an entry earns for a main name close to the file's title, when it was found through its other titles
         private const double NameClosenessBonus = 10d;
 
+        // Points taken off for each word of the entry's name that is not in the file's title (up to the maximum)
+        private const double ExtraWordPenalty = 3d;
+        private const double MaxExtraWordPenalty = 12d;
+
         private static readonly Regex EpisodeRegex = new Regex(@"[Ss](\d{1,2})[\s._-]?[Ee](\d{1,3})", RegexOptions.Compiled);
 
         // [..], {..} and (..) blocks: ids, resolutions, (VOSTFR), (RAW), (Season 1)…
@@ -726,12 +730,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     alt = 65d + Math.Min(20d, spacelessFile.Length);
                 }
 
-                // When the other titles carry the match (not the name), several entries of a series can reach the same score: the one whose
-                // main NAME is closest to the file's title gets up to NameClosenessBonus more (Dice overlap of the words), so the best of
-                // two otherwise equal entries is the nearest one
+                // When the other titles carry the match (not the name), several entries of a series can reach the same score. The one whose
+                // main NAME is closest to the file's title is preferred: up to NameClosenessBonus for the share of the file's words the
+                // name holds, minus ExtraWordPenalty for each word the name has that the file does not (a number is the episode, not a
+                // word). Of two names that hold the whole title, the one with fewer extra words ranks higher
                 if (alt > score)
                 {
-                    score = alt + NameClosenessBonus * 2d * commonWithName / (fileTokens.Count + Math.Max(1, entry.NameTokens.Count));
+                    var extraWords = entry.NameTokens.Count(t => !fileTokens.Contains(t) && !t.All(char.IsDigit));
+                    var closeness = NameClosenessBonus * commonWithName / Math.Max(1, fileTokens.Count) - Math.Min(MaxExtraWordPenalty, ExtraWordPenalty * extraWords);
+                    score = alt + closeness;
                 }
             }
 

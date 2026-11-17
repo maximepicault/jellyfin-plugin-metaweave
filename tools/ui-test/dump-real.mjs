@@ -88,6 +88,10 @@ try {
   const close = await test('Chemins hiver nordique S01E01.mkv', { ...dumpSource, BaseUrl: `${API}/dump-close` });
   const csc = pick(close, 'Candidates') || [];
   check('test: between two entries, the one with the name closest to the file ranks first and is accepted', csc.length === 2 && pick(csc[0], 'Id') === '4002' && pick(csc[0], 'Accepted') === true && pick(csc[1], 'Accepted') === false, JSON.stringify(csc));
+  // both names hold the whole title: the one with fewer extra words ranks first (and, 6 points ahead, is accepted)
+  const extra = await test('Chemins hiver nordique S01E01.mkv', { ...dumpSource, BaseUrl: `${API}/dump-extra` });
+  const cse = pick(extra, 'Candidates') || [];
+  check('test: with the whole title in both names, the one with fewer extra words ranks first and is accepted', cse.length === 2 && pick(cse[0], 'Id') === '5002' && pick(cse[0], 'Accepted') === true && pick(cse[1], 'Accepted') === false, JSON.stringify(cse));
   // the same series where nothing tells the episodes apart: nothing is accepted (the wrong-episode risk the cap guards against)
   const series2 = await test('Chemins hiver nordique S01E02.mkv', { ...dumpSource, BaseUrl: `${API}/dump-series?flat=1` });
   const cs2 = pick(series2, 'Candidates') || [];

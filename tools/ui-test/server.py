@@ -58,6 +58,11 @@ class H(BaseHTTPRequestHandler):
             big = [{"id": 100000 + i, "name": "%s %s %s %d" % (words[i % 16].title(), words[(i // 16) % 16], words[(i // 256) % 16], i % 97),
                     "slug": "e%d" % i, "search_titles": "%s%s%s" % (words[i % 16], words[(i // 16) % 16], words[(i // 256) % 16]), "brand": "B%d" % (i % 20), "tags": ["t"]} for i in range(n)]
             return self.send(200, {"data": big})
+        if p == "/dump-extra":
+            # Both names hold the whole title; the second has more extra words
+            return self.send(200, {"data": [
+                {"id": 5001, "name": "Chemins hiver nordique grande finale saison speciale", "slug": "x1", "search_titles": "cheminshivernordiqueautretitre", "brand": "S"},
+                {"id": 5002, "name": "Chemins hiver nordique finale", "slug": "x2", "search_titles": "cheminshivernordiqueautretitretrois", "brand": "S"}]})
         if p == "/dump-close":
             # Two entries of a series that both hold the file's title in their other titles; the main name of the first is much closer to it
             return self.send(200, {"data": [
