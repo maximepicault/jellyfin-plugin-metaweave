@@ -58,7 +58,7 @@ The coverage screen opens on series cards, like the Séries tab; a click lists t
 
 ## Refreshing what the dump recognises
 
-On the Sources tab, a dump group\'s "Actualiser les éléments" does not need tags: pick the libraries (all by default) and the types (episodes, movies). It first looks at the files of those libraries and keeps the ones the dump recognises (step 1/2), then refreshes only those (step 2/2). A file that matches nothing, or is tagged for another source, is left alone. The log (`🔁 [SOURCE REFRESH] 📦`) tells how many files were looked at, recognised and refreshed.
+On the Sources tab, a dump group\'s "Actualiser les éléments" does not need tags: pick the libraries (all by default) and the types (episodes, movies). It first looks at the files of those libraries and keeps the ones the dump recognises (step 1/2), then refreshes only those (step 2/2). A file that matches nothing, or is tagged for another source, is left alone. The recognised files are not refreshed through Jellyfin: the dump's data is written straight onto them (a few milliseconds each, no other provider called, no network), fields the dump does not give are left as they are, and a locked item is not touched. The log (`🔁 [SOURCE REFRESH] 📦`) tells how many files were looked at, recognised and refreshed.
 
 ## Limits
 

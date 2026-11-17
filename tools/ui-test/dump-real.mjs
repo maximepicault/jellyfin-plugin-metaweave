@@ -408,13 +408,23 @@ try {
     for (let i = 0; i < 90; i++) { await wait(1000); st = (await api('GET', '/CustomMetadata/Refresh/Status')).json; if (st && !pick(st, 'Running')) { break; } }
     return st;
   };
+  // a title changed by hand in Jellyfin comes back from the dump: the refresh really writes the item
+  const victim = (await movies()).find(m => Object.values(m.ProviderIds || {}).includes('dp-1002'));
+  const full = (await api('GET', `/Items/${victim.Id}?userId=${auth.User.Id}`)).json;
+  await api('POST', `/Items/${victim.Id}`, { ...full, Name: 'Titre changé à la main', Overview: 'Résumé changé à la main' });
+  const changed = (await movies()).find(m => m.Id === victim.Id);
+  check('setup: the title was changed by hand', changed?.Name === 'Titre changé à la main', String(changed?.Name));
   const stAll = await runRefresh({ Prefix: 'dp', Types: ['episode', 'movie'], ReplaceImages: false, LibraryIds: [libId('Dump')] });
   check('dump refresh, one library: looks at its 7 files, recognises 6 (the tagged one, by name, by id…), refreshes them', pick(stAll, 'Scanned') === 7 && pick(stAll, 'Matched') === 6 && pick(stAll, 'Total') === 6 && pick(stAll, 'Done') === 6, JSON.stringify(stAll));
+  const restored = (await movies()).find(m => m.Id === victim.Id);
+  check('dump refresh: the title and the overview come back from the dump', restored?.Name === 'Les Sentiers du Nord' && /Synopsis de Les Sentiers/.test(restored?.Overview || ''), JSON.stringify([restored?.Name, restored?.Overview]));
   const stSeries = await runRefresh({ Prefix: 'dp', Types: ['episode'], ReplaceImages: false, LibraryIds: [libId('DumpSeries')] });
   check('dump refresh, the series library: its 2 untagged episodes are found by name', pick(stSeries, 'Scanned') === 2 && pick(stSeries, 'Matched') === 2 && pick(stSeries, 'Done') === 2, JSON.stringify(stSeries));
   const stNone = await runRefresh({ Prefix: 'dp', Types: ['movie'], ReplaceImages: false, LibraryIds: [libId('DumpSeries')] });
   check('dump refresh: a type with no file in the chosen library says nothing to do', pick(stNone, 'Total') === 0 && !pick(stNone, 'Running'), JSON.stringify(stNone));
   log = ''; try { log = execSync('docker logs cm-uitest 2>&1', { maxBuffer: 256 * 1024 * 1024 }).toString(); } catch (e) { log = String(e.stdout || ''); }
+  check('the log of a dump entry says it is read from memory (no request to the dump\'s site)', /\[DUMP\] Entry \d+ of 'Démo dump' read from the catalogue in memory/.test(log), 'old wording still there');
+  check('the log gives the time of each item, written directly from the dump (no Jellyfin refresh)', /SOURCE REFRESH\] ⏱️ '[^']+': \d+ ms, written directly from the dump \(metadata \d+ ms, images not replaced\)/.test(log), 'no timing line');
   check('the log tells the refresh: files looked at, files recognised, done', /SOURCE REFRESH\] 📦 Dump 'Démo dump' \(prefix 'dp'\): looking at 7 file/.test(log) && /6 of 7 file\(s\) recognised/.test(log) && /Done for dump prefix 'dp': 6\/6/.test(log));
   check('the server log says it: "[DUMP] 🎯 … → …" lines', /\[DUMP\] 🎯 'Épisode démo 10 S01E01/.test(log));
 } finally {

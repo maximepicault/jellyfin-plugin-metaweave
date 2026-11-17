@@ -204,6 +204,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 try
                 {
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    long jellyfinMs, imagesMs = 0;
                     var imagesBefore = replaceImages ? ImageSignature(item) : null;
                     await item.RefreshMetadata(
                         new MetadataRefreshOptions(new DirectoryService(_fileSystem))
@@ -220,15 +222,152 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         var imagesAfter = ImageSignature(item);
                         _logger.LogInformation("🔁 [SOURCE REFRESH] 🖼️ '{Name}': Jellyfin refresh {State} the images (before: {Before} | after: {After})",
                             item.Name, imagesBefore == imagesAfter ? "left UNCHANGED" : "replaced", imagesBefore, imagesAfter);
+                        jellyfinMs = watch.ElapsedMilliseconds;
                         await ApplyImagesAsync(item);
+                        imagesMs = watch.ElapsedMilliseconds - jellyfinMs;
+                    }
+                    else
+                    {
+                        jellyfinMs = watch.ElapsedMilliseconds;
                     }
 
+                    // Where the time goes: Jellyfin's own refresh (every provider of the library, probing the video file, images…)
+                    // against the plugin's image step. The plugin's own part (matching + reading the dump in memory) is a few milliseconds.
+                    _logger.LogInformation("🔁 [SOURCE REFRESH] ⏱️ '{Name}': {Total} ms (Jellyfin refresh {Jellyfin} ms{Images})",
+                        item.Name, watch.ElapsedMilliseconds, jellyfinMs, replaceImages ? $", plugin images {imagesMs} ms" : ", images not replaced");
                     lock (StatusLock) { _status.Done++; }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "🔁 [SOURCE REFRESH] ⚠️ Could not refresh '{Name}': {Message}", item.Name, ex.Message);
                     lock (StatusLock) { _status.Failed++; }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Writes what the dump says straight onto the items, WITHOUT Jellyfin's own refresh. Everything a dump gives is already in
+        /// memory, so nothing has to be fetched: a full Jellyfin refresh would call every other provider of the library again
+        /// (TMDb… over the network), probe the video file and rebuild the images, seconds per item for no gain.
+        /// The plugin's own provider is asked for the metadata (same code as a refresh: mapping, rules on genres and tags, cast
+        /// overlay, stored id), then the fields it returns are set on the item and saved. A field the dump does not give is left as
+        /// it is (what another provider wrote stays); tags, genres and studios are added to the existing ones.
+        /// </summary>
+        private async Task ApplyDumpAsync(List<BaseItem> items, bool replaceImages)
+        {
+            foreach (var item in items)
+            {
+                try
+                {
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    var libraryOptions = _libraryManager.GetLibraryOptions(item);
+                    BaseItem found = null;
+                    IReadOnlyList<PersonInfo> people = null;
+                    var enabled = true;
+
+                    if (item is Episode episode)
+                    {
+                        var provider = _providerManager.GetMetadataProviders<Episode>(item, libraryOptions).OfType<Providers.CustomEpisodeProvider>().FirstOrDefault();
+                        enabled = provider != null;
+                        if (provider != null)
+                        {
+                            var info = episode.GetLookupInfo();
+                            info.IsAutomated = false;
+                            var result = await provider.GetMetadata(info, CancellationToken.None);
+                            found = result.HasMetadata ? result.Item : null;
+                            people = result.People;
+                        }
+                    }
+                    else if (item is MediaBrowser.Controller.Entities.Movies.Movie movie)
+                    {
+                        var provider = _providerManager.GetMetadataProviders<MediaBrowser.Controller.Entities.Movies.Movie>(item, libraryOptions).OfType<Providers.CustomMetadataProvider>().FirstOrDefault();
+                        enabled = provider != null;
+                        if (provider != null)
+                        {
+                            var info = movie.GetLookupInfo();
+                            info.IsAutomated = false;
+                            var result = await provider.GetMetadata(info, CancellationToken.None);
+                            found = result.HasMetadata ? result.Item : null;
+                            people = result.People;
+                        }
+                    }
+
+                    if (!enabled)
+                    {
+                        _logger.LogWarning("🔁 [SOURCE REFRESH] ⚠️ '{Name}': \"Custom Metadata Provider\" is not ticked for this type in its library - nothing applied", item.Name);
+                        lock (StatusLock) { _status.Failed++; }
+                        continue;
+                    }
+
+                    if (found == null)
+                    {
+                        _logger.LogWarning("🔁 [SOURCE REFRESH] ⚠️ '{Name}': the dump returned nothing for it - left as it is", item.Name);
+                        lock (StatusLock) { _status.Failed++; }
+                        continue;
+                    }
+
+                    if (!item.IsLocked)
+                    {
+                        CopyMetadata(found, item);
+                        if (people != null && people.Count > 0)
+                        {
+                            // The people other providers gave stay; ours are added (same name and kind = the same person)
+                            var existing = _libraryManager.GetPeople(item) ?? new List<PersonInfo>();
+                            var merged = existing.Concat(people.Where(p => !existing.Any(e => string.Equals(e.Name, p.Name, StringComparison.OrdinalIgnoreCase) && e.Type == p.Type))).ToList();
+                            if (merged.Count != existing.Count)
+                            {
+                                await _libraryManager.UpdatePeopleAsync(item, merged, CancellationToken.None);
+                            }
+                        }
+
+                        await item.UpdateToRepositoryAsync(ItemUpdateType.MetadataImport, CancellationToken.None);
+                    }
+
+                    var metadataMs = watch.ElapsedMilliseconds;
+                    if (replaceImages)
+                    {
+                        await ApplyImagesAsync(item);
+                    }
+
+                    _logger.LogInformation("🔁 [SOURCE REFRESH] ⏱️ '{Name}': {Total} ms, written directly from the dump (metadata {Metadata} ms{Images}){Locked}",
+                        item.Name, watch.ElapsedMilliseconds, metadataMs, replaceImages ? $", plugin images {watch.ElapsedMilliseconds - metadataMs} ms" : ", images not replaced",
+                        item.IsLocked ? " - the item is locked in Jellyfin: metadata left untouched" : string.Empty);
+                    lock (StatusLock) { _status.Done++; }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "🔁 [SOURCE REFRESH] ⚠️ Could not apply the dump to '{Name}': {Message}", item.Name, ex.Message);
+                    lock (StatusLock) { _status.Failed++; }
+                }
+            }
+        }
+
+        /// <summary>The fields the plugin's provider filled in, copied onto the library item; what it left empty is not touched</summary>
+        private static void CopyMetadata(BaseItem from, BaseItem to)
+        {
+            if (!string.IsNullOrWhiteSpace(from.Name)) { to.Name = from.Name; }
+            if (!string.IsNullOrWhiteSpace(from.Overview)) { to.Overview = from.Overview; }
+            if (from.PremiereDate.HasValue)
+            {
+                to.PremiereDate = from.PremiereDate;
+                to.ProductionYear = from.PremiereDate.Value.Year;
+            }
+
+            if (from.CommunityRating.HasValue) { to.CommunityRating = from.CommunityRating; }
+            if (from.IndexNumber.HasValue && to is Episode) { to.IndexNumber = from.IndexNumber; }
+
+            static string[] Union(string[] current, string[] added) => (current ?? Array.Empty<string>()).Concat(added ?? Array.Empty<string>())
+                .Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+            if (from.Tags != null && from.Tags.Length > 0) { to.Tags = Union(from.Tags, to.Tags); }
+            if (from.Genres != null && from.Genres.Length > 0) { to.Genres = Union(from.Genres, to.Genres); }
+            if (from.Studios != null && from.Studios.Length > 0) { to.Studios = Union(from.Studios, to.Studios); }
+
+            foreach (var id in from.ProviderIds ?? new Dictionary<string, string>())
+            {
+                if (!string.IsNullOrWhiteSpace(id.Value))
+                {
+                    to.ProviderIds[id.Key] = id.Value;
                 }
             }
         }
@@ -247,6 +386,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             if (wanted.Contains("movie")) { kinds.Add(BaseItemKind.Movie); }
 
             var libraryIds = (request.LibraryIds ?? new List<string>()).Select(i => Guid.TryParse(i, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToArray();
+            var queryWatch = System.Diagnostics.Stopwatch.StartNew();
             var candidates = new List<BaseItem>();
             if (kinds.Count > 0)
             {
@@ -285,8 +425,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             var replaceImages = request.ReplaceImages;
-            _logger.LogInformation("🔁 [SOURCE REFRESH] 📦 Dump '{Source}' (prefix '{Prefix}'): looking at {Count} file(s) in {Libraries}, then refreshing the ones the dump recognises ({Images})",
-                source.Name, prefix, candidates.Count, libraryIds.Length == 0 ? "every library" : libraryIds.Length + " librarie(s)", replaceImages ? "metadata and images" : "metadata only");
+            _logger.LogInformation("🔁 [SOURCE REFRESH] 📦 Dump '{Source}' (prefix '{Prefix}'): looking at {Count} file(s) in {Libraries} (listed in {ListMs} ms), then refreshing the ones the dump recognises ({Images})",
+                source.Name, prefix, candidates.Count, libraryIds.Length == 0 ? "every library" : libraryIds.Length + " librarie(s)", queryWatch.ElapsedMilliseconds, replaceImages ? "metadata and images" : "metadata only");
+            var runWatch = System.Diagnostics.Stopwatch.StartNew();
 
             _ = Task.Run(async () =>
             {
@@ -325,9 +466,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         _status.Movies = matched.Count(i => i is MediaBrowser.Controller.Entities.Movies.Movie);
                     }
 
-                    _logger.LogInformation("🔁 [SOURCE REFRESH] 📦 {Matched} of {Total} file(s) recognised by the dump ({Left} left alone: no match, or tagged for another source)",
-                        matched.Count, candidates.Count, candidates.Count - matched.Count);
-                    await RefreshItemsAsync(matched, replaceImages);
+                    _logger.LogInformation("🔁 [SOURCE REFRESH] 📦 {Matched} of {Total} file(s) recognised by the dump in {ScanMs} ms ({Left} left alone: no match, or tagged for another source)",
+                        matched.Count, candidates.Count, runWatch.ElapsedMilliseconds, candidates.Count - matched.Count);
+                    await ApplyDumpAsync(matched, replaceImages);
                 }
                 catch (Exception ex)
                 {
@@ -341,7 +482,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         _status.FinishedAt = DateTime.UtcNow;
                     }
 
-                    _logger.LogInformation("🔁 [SOURCE REFRESH] ✅ Done for dump prefix '{Prefix}': {Done}/{Total} refreshed, {Failed} failed", Status().Prefix, Status().Done, Status().Total, Status().Failed);
+                    _logger.LogInformation("🔁 [SOURCE REFRESH] ✅ Done for dump prefix '{Prefix}': {Done}/{Total} refreshed, {Failed} failed, in {TotalMs} ms", Status().Prefix, Status().Done, Status().Total, Status().Failed, runWatch.ElapsedMilliseconds);
                     RunLock.Release();
                 }
             });
