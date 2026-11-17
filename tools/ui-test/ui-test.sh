@@ -140,4 +140,8 @@ for s in r["Seasons"]: print("  %-22s / %-18s %2s dans l API, %2s manquants %s" 
 
 log "Captures → $WORK/shots"
 node "$HERE/shoot.mjs" "$J" "$WORK/shots"
+# Safety net: a headless Chrome of an earlier, interrupted run (and its profile folder) must not pile up
+pkill -f -- "--remote-debugging-port=.*--user-data-dir=$WORK" 2>/dev/null || true
+sleep 1
+find "$WORK" -maxdepth 3 -type d -name '.profile-*' -prune -exec rm -rf {} + 2>/dev/null || true
 echo; echo "✅ Test Jellyfin: $J (admin / admin) — stop with: $0 --stop"

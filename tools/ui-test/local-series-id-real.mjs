@@ -5,6 +5,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { trackChrome, chromeTmp } from './chrome-session.mjs';
 
 const [J, outDir, user = 'admin', password = 'admin'] = process.argv.slice(2);
 if (!J || !outDir) { console.error('usage: node local-series-id-real.mjs <base_url> <out_dir> [user] [password]'); process.exit(2); }
@@ -14,7 +15,8 @@ const DATA = 'aaaa0000bbbb1111';
 const port = 9336;
 const profile = fs.mkdtempSync(path.join(outDir, '.profile-'));
 const chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars',
-  `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+  `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore', detached: true, env: { ...process.env, TMPDIR: chromeTmp() } });
+trackChrome(chrome, profile);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log((ok ? 'PASS' : 'FAIL') + ' ' + name + (ok ? '' : '  ' + extra)); if (!ok) failed++; };

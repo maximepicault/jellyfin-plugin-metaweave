@@ -5,12 +5,14 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { trackChrome, chromeTmp } from './chrome-session.mjs';
 const [J, outDir, imgDir, user = 'admin', password = 'admin'] = process.argv.slice(2);
 if (!J || !outDir || !imgDir) { console.error('usage: node local-gallery-shots.mjs <base_url> <out_dir> <images_dir>'); process.exit(2); }
 fs.mkdirSync(outDir, { recursive: true });
 const PLUGIN = '12345678-1234-1234-1234-123456789abc', DATA = 'galshots0000001', port = 9337;
 const profile = fs.mkdtempSync(path.join(outDir, '.profile-'));
-const chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+const chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore', detached: true, env: { ...process.env, TMPDIR: chromeTmp() } });
+trackChrome(chrome, profile);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let targets = [];
 for (let i = 0; i < 50 && !targets.length; i++) { try { targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); } catch {} await wait(200); }

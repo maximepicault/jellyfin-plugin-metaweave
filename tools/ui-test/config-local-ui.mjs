@@ -7,6 +7,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { trackChrome, chromeTmp } from './chrome-session.mjs';
 
 const outDir = process.argv[2];
 if (!outDir) { console.error('usage: node config-local-ui.mjs <out_dir>'); process.exit(2); }
@@ -74,7 +75,8 @@ fs.writeFileSync(harness, html);
 
 const port = 9334;
 const profile = fs.mkdtempSync(path.join(outDir, '.profile-'));
-const chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+const chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore', detached: true, env: { ...process.env, TMPDIR: chromeTmp() } });
+trackChrome(chrome, profile);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let targets = [];
 for (let i = 0; i < 50 && !targets.length; i++) { try { targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); } catch {} await wait(200); }
