@@ -73,8 +73,12 @@ class H(BaseHTTPRequestHandler):
             # episode (so it is found everywhere), and only the right episode has ITS number right after its own name
             data = []
             for n, name in enumerate(["Le depart", "La traversee", "Le col gele", "Le retour"], 1):
-                ep = "ep" if urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("fmt", [""])[0] == "ep" else ""
-                data.append({"id": 3000 + n, "name": name, "slug": "n%d" % n, "search_titles": re.sub(r"[^a-z0-9]", "", name.lower()) + ep + str(n) + "cheminshivernordique" + "autretitre", "brand": "S"})
+                fmt = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("fmt", [""])[0]
+                base = re.sub(r"[^a-z0-9]", "", name.lower())
+                num = {"ep": "ep", "episode": "episode"}.get(fmt, "")
+                # fmt=epbefore / episodebefore: the word and the number come BEFORE the name
+                text = (("ep" if fmt == "epbefore" else "episode") + str(n) + base) if fmt in ("epbefore", "episodebefore") else base + num + str(n)
+                data.append({"id": 3000 + n, "name": name, "slug": "n%d" % n, "search_titles": text + "cheminshivernordique" + "autretitre", "brand": "S"})
             return self.send(200, {"data": data})
         if p == "/dump-series":
             # One series whose episodes all hold the series title in their "other titles". flat=1: nothing tells the right episode apart

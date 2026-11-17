@@ -107,6 +107,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         private static readonly Regex EpisodeRegex = new Regex(@"[Ss](\d{1,2})[\s._-]?[Ee](\d{1,3})", RegexOptions.Compiled);
 
+        // "Ep 3", "Ep. 3", "Episode 3", "Épisode 3" written in a file name, when there is no SxxExx: also an episode number
+        private static readonly Regex WordEpisodeRegex = new Regex(@"(?<![\p{L}\d])(?:ep|[eé]pisode)\.?[\s._-]*(\d{1,3})(?!\d)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+
         // [..], {..} and (..) blocks: ids, resolutions, (VOSTFR), (RAW), (Season 1)…
         private static readonly Regex BracketBlocks = new Regex(@"\[[^\]]*\]|\{[^}]*\}|\([^)]*\)", RegexOptions.Compiled);
 
@@ -590,17 +594,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
             }
 
-            var cleaned = BracketBlocks.Replace(fileName, " ");
-            var episodeNumber = 0;
-            var episodeMatch = EpisodeRegex.Match(cleaned);
-            if (episodeMatch.Success)
-            {
-                _ = int.TryParse(episodeMatch.Groups[2].Value, out episodeNumber);
-                cleaned = cleaned.Remove(episodeMatch.Index, episodeMatch.Length);
-            }
-
-            var noise = NoiseSet(settings.NoiseWords);
-            var tokens = Normalize(cleaned).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(t => !noise.Contains(t)).ToList();
+            CleanFileName(fileName, settings, out var cleaned, out var episodeNumber, out var tokens);
             if (tokens.Count == 0)
             {
                 return results;
@@ -691,17 +685,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 return (100, "id");
             }
 
-            var cleaned = BracketBlocks.Replace(fileName, " ");
-            var episodeNumber = 0;
-            var episodeMatch = EpisodeRegex.Match(cleaned);
-            if (episodeMatch.Success)
-            {
-                _ = int.TryParse(episodeMatch.Groups[2].Value, out episodeNumber);
-                cleaned = cleaned.Remove(episodeMatch.Index, episodeMatch.Length);
-            }
-
-            var noise = NoiseSet(settings.NoiseWords);
-            var tokens = Normalize(cleaned).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(t => !noise.Contains(t)).ToList();
+            CleanFileName(fileName, settings, out var cleaned, out var episodeNumber, out var tokens);
             if (tokens.Count == 0)
             {
                 return null;
@@ -843,10 +827,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     return true;
                 }
 
-                // Before the name: "ep" digits
+                // Before the name: "ep" / "episode" digits
                 var start = at;
                 while (start > 0 && char.IsDigit(text[start - 1])) { start--; }
-                if (start < at && start >= 2 && (string.CompareOrdinal(text, start - 2, "ep", 0, 2) == 0) && DigitsAt(text, start) == wanted)
+                if (start < at && DigitsAt(text, start) == wanted
+                    && ((start >= 7 && string.CompareOrdinal(text, start - 7, "episode", 0, 7) == 0) || (start >= 2 && string.CompareOrdinal(text, start - 2, "ep", 0, 2) == 0)))
                 {
                     return true;
                 }
@@ -882,6 +867,41 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             return set;
+        }
+
+        /// <summary>
+        /// The file name as it is compared: blocks [..], {..}, (..) removed, the episode number taken out (an SxxExx, otherwise
+        /// "Ep 3" / "Episode 3"), the ignored words dropped, the rest normalised into tokens. An "Episode 3" that is the WHOLE
+        /// name is kept: it is the title of an entry named so.
+        /// </summary>
+        private static void CleanFileName(string fileName, DumpSettings settings, out string cleaned, out int episodeNumber, out List<string> tokens)
+        {
+            cleaned = BracketBlocks.Replace(fileName, " ");
+            episodeNumber = 0;
+            var noise = NoiseSet(settings.NoiseWords);
+            List<string> Tokens(string text) => Normalize(text).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(t => !noise.Contains(t)).ToList();
+
+            var sxe = EpisodeRegex.Match(cleaned);
+            if (sxe.Success)
+            {
+                _ = int.TryParse(sxe.Groups[2].Value, out episodeNumber);
+                cleaned = cleaned.Remove(sxe.Index, sxe.Length);
+            }
+            else
+            {
+                var word = WordEpisodeRegex.Match(cleaned);
+                if (word.Success)
+                {
+                    var without = cleaned.Remove(word.Index, word.Length);
+                    if (Tokens(without).Count > 0)
+                    {
+                        _ = int.TryParse(word.Groups[1].Value, out episodeNumber);
+                        cleaned = without;
+                    }
+                }
+            }
+
+            tokens = Tokens(cleaned);
         }
 
         /// <summary>Lower case, no accents, every non-alphanumeric run reduced to one space</summary>

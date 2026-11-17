@@ -84,6 +84,24 @@ try {
   const series4 = await test('Chemins hiver nordique S01E03.mkv', { ...dumpSource, BaseUrl: `${API}/dump-numafter?fmt=ep` });
   const cs4 = pick(series4, 'Candidates') || [];
   check('test: "ep 3" glued next to the entry\'s name confirms it as well', cs4.length >= 1 && pick(cs4[0], 'Id') === '3003' && pick(cs4[0], 'Accepted') === true && pick(cs4[0], 'Score') >= 75, JSON.stringify(cs4));
+  // "Episode N" (not only "ep N"), after or before the name, in the other titles
+  for (const fmt of ['episode', 'epbefore', 'episodebefore']) {
+    const r = await test('Chemins hiver nordique S01E03.mkv', { ...dumpSource, BaseUrl: `${API}/dump-numafter?fmt=${fmt}` });
+    const cs = pick(r, 'Candidates') || [];
+    check(`test: the number written "${fmt}" next to the entry's name confirms it`, cs.length >= 1 && pick(cs[0], 'Id') === '3003' && pick(cs[0], 'Accepted') === true && pick(cs[0], 'Score') >= 75, JSON.stringify(cs));
+  }
+  // "Episode 3" / "Ep 3" written in the FILE name is an episode number too (like S01E03)
+  for (const name of ['Chemins hiver nordique Episode 3.mkv', 'Chemins hiver nordique Ep 3.mkv', 'Chemins hiver nordique Épisode 03.mkv', 'Chemins hiver nordique Ep. 3 [1080p].mkv']) {
+    const r = await test(name, { ...dumpSource, BaseUrl: `${API}/dump-numafter` });
+    const cs = pick(r, 'Candidates') || [];
+    check(`test: "${name.slice(21, -4)}" in the file name is read as episode 3`, cs.length >= 1 && pick(cs[0], 'Id') === '3003' && pick(cs[0], 'Accepted') === true, JSON.stringify(cs));
+  }
+  // a file that IS "Episode 12" keeps its name whole (an entry named so is found by its name)
+  const wholeName = await test('Episode 12.mkv');
+  check('test: a file named just "Episode 12" is not emptied by the episode word', (pick(wholeName, 'Candidates') || []).every(c => !/Les Sentiers/.test(c.Name)), JSON.stringify(pick(wholeName, 'Candidates')));
+  // "Step 3" is not "Ep 3"
+  const step = await test('Les Sentiers du Nord Step 3.mkv');
+  check('test: a word that merely contains "ep" (Step 3) is not an episode number', !(pick(step, 'Candidates') || []).some(c => pick(c, 'Id') === '1002' && c.Score === 100), JSON.stringify(pick(step, 'Candidates')));
   // two entries equal through their other titles: the one whose main name is much closer to the file wins
   const close = await test('Chemins hiver nordique S01E01.mkv', { ...dumpSource, BaseUrl: `${API}/dump-close` });
   const csc = pick(close, 'Candidates') || [];
