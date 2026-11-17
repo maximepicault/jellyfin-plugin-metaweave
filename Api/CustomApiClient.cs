@@ -329,11 +329,22 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 _logger.LogInformation("🗺️ [MAPPING] Using source's {MappingName}", mappingName);
                 
                 var client = _httpClientFactory.CreateClient();
-                AddHeadersToClient(client, source);
+                // A dump entry is read from the catalogue kept in memory: no request, nothing to send, so no headers and no "GET"
+                if (!source.IsDump)
+                {
+                    AddHeadersToClient(client, source);
+                }
 
                 var url = ResilientHttp.BuildUrl(source.BaseUrl, endpoint, itemId);
                 
-                _logger.LogInformation("📡 [API CALL] GET {Url}", url);
+                if (source.IsDump)
+                {
+                    _logger.LogInformation("📦 [DUMP] Entry {ItemId} of '{Source}' read from the catalogue in memory (no request is sent to the dump's site)", itemId, source.Name);
+                }
+                else
+                {
+                    _logger.LogInformation("📡 [API CALL] GET {Url}", url);
+                }
                 
                 var fetch = await _http.GetStringAsync(client, url, source, "📡 [API CALL]", cancellationToken);
                 
@@ -359,7 +370,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 using var jsonDoc = JsonDocument.Parse(content);
                 var metadata = _fieldMapper.MapToMetadata(jsonDoc, mapping, source?.IsLocal == true || source?.IsDump == true);
 
-                _logger.LogInformation("✅ [API SUCCESS] Metadata fetched for {ItemType} {ItemId}", itemType, itemId);
+                if (!source.IsDump)
+                {
+                    _logger.LogInformation("✅ [API SUCCESS] Metadata fetched for {ItemType} {ItemId}", itemType, itemId);
+                }
                 return metadata;
             }
             catch (Exception ex)
@@ -469,10 +483,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
                 // Call the metadata endpoint (which also contains the images)
                 var client = _httpClientFactory.CreateClient();
-                AddHeadersToClient(client, source);
+                if (!source.IsDump)
+                {
+                    AddHeadersToClient(client, source);
+                }
 
                 var url = ResilientHttp.BuildUrl(source.BaseUrl, endpoint, itemId);
-                _logger.LogDebug("🖼️ [IMAGE FETCH] Calling URL: {Url}", url);
+                _logger.LogDebug("🖼️ [IMAGE FETCH] {Mode}: {Url}", source.IsDump ? "Entry read from the dump in memory" : "Calling URL", url);
                 
                 var fetch = await _http.GetStringAsync(client, url, source, "🖼️ [IMAGE FETCH]", cancellationToken);
 

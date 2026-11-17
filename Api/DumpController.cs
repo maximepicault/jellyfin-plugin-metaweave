@@ -118,7 +118,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 var name = request.FileName.Trim();
                 // A name typed with a video extension is matched like a real file (extension dropped); without one, as is
                 var path = VideoExtensions.Any(e => name.EndsWith(e, StringComparison.OrdinalIgnoreCase)) ? name : null;
+                var matchWatch = Stopwatch.StartNew();
                 var candidates = _dump.FindCandidates(catalog, source.Dump, path, name, 5, Math.Min(40, source.Dump.MinScore), out var how);
+                result.MatchMs = matchWatch.Elapsed.TotalMilliseconds;
                 result.MinScore = source.Dump.MinScore;
                 result.Candidates = candidates.Select((c, index) => new DumpTestCandidate
                 {
@@ -667,6 +669,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public bool Ok { get; set; }
         public string Error { get; set; }
         public long DurationMs { get; set; }
+
+        /// <summary>Time spent matching the file name against the catalogue (without the download)</summary>
+        public double MatchMs { get; set; }
         public int Count { get; set; }
         public int WithSlug { get; set; }
         public int WithSearchTitles { get; set; }

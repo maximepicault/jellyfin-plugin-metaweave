@@ -41,13 +41,23 @@ def dump_json():
                     "released_at": f"{2018 + i % 7}-{1 + i % 12:02d}-{1 + i % 27:02d}T00:00:05.000Z", "released_at_unix": 1500000000 + i * 86400 * 30})
     return out
 class H(BaseHTTPRequestHandler):
+    HITS = {}
     def log_message(self, *a): pass
     def send(self, code, body, ctype="application/json"):
         data = body if isinstance(body, bytes) else json.dumps(body).encode()
         self.send_response(code); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
     def do_GET(self):
         p = self.path.split("?")[0]
+        H.HITS[p] = H.HITS.get(p, 0) + 1
+        if p == "/__hits": return self.send(200, H.HITS)
         if p == "/dump": return self.send(200, {"data": dump_json()})
+        if p == "/dump-big":
+            # A big catalogue (default 30000 entries) to time the matching
+            n = int(urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("n", ["30000"])[0])
+            words = ["aurore", "foret", "nord", "phare", "riviere", "montagne", "desert", "ocean", "ville", "nuit", "jour", "voyage", "secret", "chemin", "ile", "vallee"]
+            big = [{"id": 100000 + i, "name": "%s %s %s %d" % (words[i % 16].title(), words[(i // 16) % 16], words[(i // 256) % 16], i % 97),
+                    "slug": "e%d" % i, "search_titles": "%s%s%s" % (words[i % 16], words[(i // 16) % 16], words[(i // 256) % 16]), "brand": "B%d" % (i % 20), "tags": ["t"]} for i in range(n)]
+            return self.send(200, {"data": big})
         if p == "/dump-bare": return self.send(200, dump_json())
         if p.startswith("/img/"):
             f = os.path.join(IMG_DIR, os.path.basename(p))
