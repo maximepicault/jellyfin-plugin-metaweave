@@ -54,7 +54,7 @@ Compares the catalogue with the library: an entry is **owned** when an episode o
 
 ## Finding the files that were not recognised for sure
 
-On the coverage screen every owned file says how it was recognised: by its tag, an identifier or its exact name (certain), or by a score. The "Reconnaissance des fichiers" filter keeps the series, then the files, recognised under 100 / 90 / 80 / 70 %; the file name of the library is shown so it can be renamed (adding the `{prefix-id}` tag makes it certain). The score of a file matched through the other titles is its score before the cap on an unconfirmed episode number. Series can also be sorted by release date and by recognition.
+On the coverage screen every owned file says how it was recognised: by its tag, an identifier or its exact name (certain), or by a score. The "Reconnaissance des fichiers" filter is an interval (double slider and two typed fields, 0 to 100 %, both ends included; "Pas certains" = 0 to 99) that keeps the series, then the files, recognised within it; the file name of the library is shown so it can be renamed (adding the `{prefix-id}` tag makes it certain). The score of a file matched through the other titles is its score before the cap on an unconfirmed episode number. Series and entries can be sorted by release date, by recognition, by name… and a "Puis par" key chains a second sort that breaks the ties of the first.
 
 ## Series inferred from the names
 

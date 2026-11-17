@@ -214,13 +214,13 @@ try {
   const byId = Object.fromEntries((pick(ownedAll, 'Items') || []).map(i => [i.Id, i]));
   check('score: a file with the tag is certain (100), an exact name too', byId['1001']?.MatchScore === 100 && byId['1001']?.MatchHow === 'tag' && byId['1002']?.MatchScore === 100 && byId['1002']?.MatchHow === 'title', JSON.stringify([byId['1001'], byId['1002']]));
   check('score: a file found through another title has its real score and says so', byId['1006']?.MatchHow === 'fuzzy' && byId['1006']?.MatchScore >= 60 && byId['1006']?.MatchScore < 100 && byId['1006']?.FileName === 'The Last Lighthouse.mkv', JSON.stringify(byId['1006']));
-  const weak = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&maxScore=100')).json;
-  check('score: the filter "under 100" keeps only the files that were not recognised for sure (the owned ones, whatever "Afficher" says)', pick(weak, 'Matching') === 1 && pick(weak, 'Items')[0].Id === '1006', JSON.stringify(pick(weak, 'Items')?.map(i => [i.Id, i.MatchScore])));
+  const weak = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&maxScore=99')).json;
+  check('score: the filter "0 to 99" keeps only the files that were not recognised for sure (the owned ones, whatever "Afficher" says)', pick(weak, 'Matching') === 1 && pick(weak, 'Items')[0].Id === '1006', JSON.stringify(pick(weak, 'Items')?.map(i => [i.Id, i.MatchScore])));
   const noneUnder50 = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&maxScore=50')).json;
   check('score: nothing under 50', pick(noneUnder50, 'Matching') === 0);
   const sortedScore = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=owned&sort=score')).json;
   check('score: sorting by score puts the poorest recognised first', pick(sortedScore, 'Items')[0].Id === '1006', JSON.stringify(pick(sortedScore, 'Items')?.map(i => [i.Id, i.MatchScore])));
-  const wCards = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&maxScore=100')).json;
+  const wCards = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&maxScore=99')).json;
   check('score: series filtered by score keep the one that holds a poor match, with its worst score', (pick(wCards, 'Items') || []).length === 1 && pick(wCards, 'Items')[0].Alone === true && pick(wCards, 'Items')[0].WorstScore === byId['1006']?.MatchScore, JSON.stringify(pick(wCards, 'Items')));
   const sCards = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=score')).json;
   check('score: series sorted by score: the poorest first', pick(sCards, 'Items')[0].WorstScore === byId['1006']?.MatchScore, JSON.stringify(pick(sCards, 'Items')?.map(i => [i.Name, i.WorstScore])));
@@ -229,6 +229,30 @@ try {
   const older = pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=dateold')).json, 'Items').filter(c => !c.Alone && c.FirstDate);
   check('dates: series carry their first and last release dates', newer.length >= 2 && newer.every(c => c.FirstDate && c.LastDate && c.FirstDate <= c.LastDate), JSON.stringify(newer));
   check('dates: "most recent first" orders series by their latest entry, "oldest first" by their earliest', newer.every((c, i) => i === 0 || newer[i - 1].LastDate >= c.LastDate) && older.every((c, i) => i === 0 || older[i - 1].FirstDate <= c.FirstDate), JSON.stringify([newer.map(c => c.LastDate), older.map(c => c.FirstDate)]));
+  // free interval, both ends included
+  const between = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&minScore=70&maxScore=80')).json;
+  check('score interval: 70 to 80 keeps the file recognised at ' + byId['1006']?.MatchScore, pick(between, 'Matching') === 1 && pick(between, 'Items')[0].Id === '1006', JSON.stringify(pick(between, 'Items')?.map(i => [i.Id, i.MatchScore])));
+  const above = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&minScore=' + (byId['1006'].MatchScore + 1))).json;
+  check('score interval: from above that score keeps the 6 certain ones (and not the poor one)', pick(above, 'Matching') === 6 && !(pick(above, 'Items') || []).some(i => i.Id === '1006'), JSON.stringify(pick(above, 'Items')?.map(i => [i.Id, i.MatchScore])));
+  const exact = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&minScore=100&maxScore=100')).json;
+  check('score interval: 100 to 100 is exactly the certain ones', pick(exact, 'Matching') === 6, String(pick(exact, 'Matching')));
+  const sCardsInterval = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&minScore=70&maxScore=80')).json;
+  check('score interval: series are kept when one of their files is in it', pick(sCardsInterval, 'Items').length === 1 && pick(sCardsInterval, 'Items')[0].Alone === true, JSON.stringify(pick(sCardsInterval, 'Items')?.map(c => c.Name)));
+  // complete / incomplete / all series
+  const nComplete = async v => (pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&completeness=' + v)).json, 'Items') || []).map(c => c.Name + ':' + c.Missing);
+  const cAll = await nComplete('all'), cInc = await nComplete('incomplete'), cCom = await nComplete('complete');
+  check('series: completeness all / incomplete / complete = 3 / 1 / 2 series', cAll.length === 3 && cInc.length === 1 && cCom.length === 2 && cCom.every(x => x.endsWith(':0')) && cInc.every(x => !x.endsWith(':0')), JSON.stringify([cAll, cInc, cCom]));
+  // several sort keys chained: the second breaks the ties of the first
+  const chained = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&sort=group,name&pageSize=60')).json;
+  const rowsG = pick(chained, 'Items') || [];
+  const sortedOk = rowsG.every((r, i) => i === 0 || rowsG[i - 1].Group < r.Group || (rowsG[i - 1].Group === r.Group && rowsG[i - 1].Name.localeCompare(r.Name, 'fr', { sensitivity: 'base' }) <= 0));
+  check('sort: "group,name" orders by group then by name inside each group', rowsG.length >= 38 && sortedOk, JSON.stringify(rowsG.slice(0, 4).map(r => [r.Group, r.Name])));
+  const chained2 = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=owned&sort=score,name')).json;
+  check('sort: "score,name" puts the poorly recognised first, the certain ones by name after', pick(chained2, 'Items')[0].Id === '1006' && pick(chained2, 'Items').slice(1).every((r, i, a) => i === 0 || a[i - 1].Name.localeCompare(r.Name, 'fr', { sensitivity: 'base' }) <= 0), JSON.stringify(pick(chained2, 'Items')?.map(r => [r.Name, r.MatchScore])));
+  const best = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=scoredesc')).json;
+  check('sort: series "best recognised first" starts with a certain one and ends with the poor one', pick(best, 'Items')[0].WorstScore === 100 && pick(best, 'Items').filter(c => c.WorstScore != null).slice(-1)[0].WorstScore === byId['1006']?.MatchScore, JSON.stringify(pick(best, 'Items')?.map(c => [c.Name, c.WorstScore])));
+  const twoKeys = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=scoredesc,datenew')).json;
+  check('sort: two keys on series are accepted', (pick(twoKeys, 'Items') || []).length === 3);
   const csvScore = await api('GET', '/CustomMetadata/Dump/Export?prefix=dp&status=owned');
   check('export: the CSV has the library file name and the score', /statut;fichier;score/.test(csvScore.text) && /The Last Lighthouse\.mkv;\d+/.test(csvScore.text), csvScore.text.slice(0, 160));
   const unknown = await api('GET', '/CustomMetadata/Dump/Coverage?prefix=nope');
@@ -328,14 +352,14 @@ try {
     const loaded = await page.waitForFunction(sel => { const imgs = [...document.querySelectorAll(sel)]; return imgs.length > 0 && imgs.every(i => i.complete && i.naturalWidth > 0); }, `${M} .dc-series-card img`, { timeout: 15000 }).then(() => true, () => false);
     check('coverage screen: the series pictures load (served by the plugin)', loaded);
     await shot('D5-coverage-1440');
-    await page.locator(`${M} .dc-tools-series .checkboxContainer`).click();
+    await page.selectOption(`${M} #dcComplete`, 'all');
     await page.waitForFunction(sel => document.querySelectorAll(sel).length === 3, `${M} .dc-series-card`, { timeout: 8000 });
-    check('coverage screen: unticking "only incomplete" shows the complete series too', (await page.locator(`${M} .dc-series-card`).count()) === 3);
+    check('coverage screen: "Séries : Toutes" shows the complete series too', (await page.locator(`${M} .dc-series-card`).count()) === 3);
     const loadedAll = await page.waitForFunction(sel => { const imgs = [...document.querySelectorAll(sel)]; return imgs.length === 3 && imgs.every(i => i.complete && i.naturalWidth > 0); }, `${M} .dc-series-card img`, { timeout: 15000 }).then(() => true, () => false);
     check('coverage screen: all the cards with a picture show it', loadedAll);
     check('coverage screen: the card of a series found in the library says so', /Dans votre médiathèque/.test(await page.locator(`${M} .dc-series-card`, { hasText: 'Série liée au dump' }).innerText()));
     await shot('D6-coverage-all-series-1440');
-    await page.locator(`${M} .dc-tools-series .checkboxContainer`).click();
+    await page.selectOption(`${M} #dcComplete`, 'incomplete');
     await page.waitForFunction(sel => document.querySelectorAll(sel).length === 1, `${M} .dc-series-card`, { timeout: 8000 });
     // a search over the series
     await page.fill(`${M} #dcQ`, 'zzzz-aucun');
@@ -379,9 +403,9 @@ try {
     await page.waitForSelector(`${M} .dc-series-card`, { timeout: 8000 });
     check('coverage screen: the breadcrumb goes back to the series cards', (await page.locator(`${M} .dc-entry`).count()) === 0);
     // the recognition filter: the series that hold a poorly recognised file, then that file with its name to fix
-    await page.selectOption(`${M} #dcScore`, '100');
+    await page.locator(`${M} [data-score-preset="uncertain"]`).click();
     await page.waitForFunction(sel => /Pire reconnaissance/.test(document.querySelector(sel)?.innerText || ''), `${M} #dcResults`, { timeout: 8000 });
-    check('coverage screen: the score filter keeps the series that hold a file recognised under 100', /Pire reconnaissance : \d+ %/.test(await page.locator(`${M} .dc-series-card`).innerText()));
+    check('coverage screen: the "Pas certains" preset (0 to 99) keeps the series that hold a file not recognised for sure, and lifts "incomplete only"', /Pire reconnaissance : \d+ %/.test(await page.locator(`${M} .dc-series-card`).innerText()));
     await shot('D13-coverage-score-filter-1440');
     await page.locator(`${M} .dc-series-card`).click();
     await page.waitForSelector(`${M} #dcResults .dc-entry`, { timeout: 8000 });
@@ -390,11 +414,24 @@ try {
     await shot('D14-coverage-weak-entry-1440');
     await page.click(`${M} #dcCrumbs [data-nav="series"]`);
     await page.waitForSelector(`${M} .dc-series-card`, { timeout: 8000 });
-    await page.selectOption(`${M} #dcScore`, '');
-    await page.waitForFunction(sel => document.querySelectorAll(sel).length === 1 || document.querySelectorAll(sel).length === 2, `${M} .dc-series-card`, { timeout: 8000 });
+    // the interval, typed then with the sliders; the chip clears it
+    await page.locator(`${M} #dcScoreMaxNum`).fill('80');
+    await page.locator(`${M} #dcScoreMinNum`).fill('70');
+    await page.locator(`${M} #dcScoreMinNum`).dispatchEvent('change');
+    await page.waitForFunction(sel => /de 70 à 80 %/.test(document.querySelector(sel).textContent), `${M} #dcRangeOut`, { timeout: 8000 });
+    await page.waitForFunction(sel => document.querySelectorAll(sel).length === 1, `${M} .dc-series-card`, { timeout: 8000 });
+    check('coverage screen: an interval typed in the two fields (70 to 80 %) keeps the series with a file in it, the sliders follow', (await page.inputValue(`${M} #dcScoreMin`)) === '70' && (await page.inputValue(`${M} #dcScoreMax`)) === '80' && /Reconnu entre 70 et 80 %/.test(await page.locator(`${M} #dcChips`).innerText()));
+    await page.locator(`${M} #dcScoreMin`).fill('90');
+    await page.waitForFunction(sel => /de 80 à 80 %|exactement 80 %/.test(document.querySelector(sel).textContent), `${M} #dcRangeOut`, { timeout: 8000 });
+    check('coverage screen: the minimum slider cannot go above the maximum (it pushes it back)', (await page.inputValue(`${M} #dcScoreMin`)) === '80' && (await page.inputValue(`${M} #dcScoreMax`)) === '80');
+    await page.waitForFunction(sel => document.querySelector(sel).querySelectorAll('.dc-series-card').length === 0, `${M} #dcResults`, { timeout: 8000 });
+    await shot('D13b-coverage-interval-1440');
+    await page.locator(`${M} .dc-chip`).click();
+    await page.waitForFunction(sel => document.querySelectorAll(sel).length >= 1, `${M} .dc-series-card`, { timeout: 8000 });
+    check('coverage screen: clearing the score chip resets the interval to 0-100', (await page.inputValue(`${M} #dcScoreMinNum`)) === '0' && (await page.inputValue(`${M} #dcScoreMaxNum`)) === '100');
     // the sort options: release date and score
     const sortOptions = await page.$$eval(`${M} #dcSeriesSort option`, os => os.map(o => o.value).join());
-    check('coverage screen: the series can be sorted by release date and by recognition', sortOptions === 'missing,name,progress,datenew,dateold,score', sortOptions);
+    check('coverage screen: the series can be sorted by release date and by recognition', sortOptions === 'missing,name,progress,datenew,dateold,score,scoredesc', sortOptions);
     await page.selectOption(`${M} #dcSeriesSort`, 'datenew');
     await page.waitForTimeout(600);
     check('coverage screen: a series card shows its years', /20\d\d/.test(await page.locator(`${M} .dc-series-card`).first().innerText()), await page.locator(`${M} .dc-series-card`).first().innerText());

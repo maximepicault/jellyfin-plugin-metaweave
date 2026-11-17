@@ -259,7 +259,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             page.Missing = page.Total - page.Owned;
             page.Groups = rows.GroupBy(r => r.Group, StringComparer.OrdinalIgnoreCase)
                 .Select(g => new DumpGroupCoverage { Group = g.Key, Total = g.Count(), Owned = g.Count(r => r.Owned), Missing = g.Count(r => !r.Owned) })
-                .OrderBy(g => g.Group, StringComparer.OrdinalIgnoreCase).ToList();
+                .OrderBy(g => DumpStore.Normalize(g.Group), StringComparer.Ordinal).ToList();
             page.HasSeries = rows.Any(r => r.SeriesKey != null);
             page.PreviewRatio = PreviewRatioOf(source);
 
@@ -275,6 +275,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             {
                 var members = g.ToList();
                 if (words.Length > 0 && !members.Any(r => words.All(w => r.Search.Contains(w, StringComparison.Ordinal))))
+                {
+                    continue;
+                }
+
+                // Score interval: keep the series that hold at least one owned file recognised within it
+                if (ScoreFilterActive(query.MinScore, query.MaxScore)
+                    && !members.Any(r => r.MatchScore.HasValue && r.MatchScore.Value >= (query.MinScore ?? 0) && r.MatchScore.Value <= (query.MaxScore ?? 100)))
                 {
                     continue;
                 }
@@ -302,29 +309,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 });
             }
 
-            // Looking for poorly recognised files means looking at what is OWNED: a complete series is not a reason to hide it
-            if (query.OnlyIncomplete && !query.MaxScore.HasValue)
+            // Complete / incomplete / all (the older boolean OnlyIncomplete still works)
+            var completeness = (query.Completeness ?? (query.OnlyIncomplete ? "incomplete" : "all")).Trim().ToLowerInvariant();
+            if (completeness == "incomplete")
             {
                 cards = cards.Where(c => c.Missing > 0).ToList();
             }
-
-            // Only the series that hold an owned file recognised under this score
-            if (query.MaxScore.HasValue)
+            else if (completeness == "complete")
             {
-                cards = cards.Where(c => c.WorstScore.HasValue && c.WorstScore.Value < query.MaxScore.Value).ToList();
+                cards = cards.Where(c => c.Missing == 0).ToList();
             }
 
-            IEnumerable<DumpSeriesCard> ordered = (query.Sort ?? "missing").ToLowerInvariant() switch
-            {
-                "name" => cards.OrderBy(c => c.Alone).ThenBy(c => c.LibrarySeries ?? c.Name, StringComparer.OrdinalIgnoreCase),
-                "progress" => cards.OrderBy(c => c.Alone).ThenBy(c => c.Total == 0 ? 1d : (double)c.Owned / c.Total).ThenByDescending(c => c.Missing),
-                // The poorest recognised first (the "Épisodes seuls" card too: it is where a lone file can be poorly recognised); series with no owned file last
-                "score" => cards.OrderBy(c => c.WorstScore ?? int.MaxValue).ThenBy(c => c.Alone).ThenByDescending(c => c.Missing),
-                // Release date of the series = its latest / earliest entry
-                "datenew" => cards.OrderBy(c => c.Alone).ThenByDescending(c => c.LastDate ?? DateTime.MinValue).ThenBy(c => c.LibrarySeries ?? c.Name, StringComparer.OrdinalIgnoreCase),
-                "dateold" => cards.OrderBy(c => c.Alone).ThenBy(c => c.FirstDate ?? DateTime.MaxValue).ThenBy(c => c.LibrarySeries ?? c.Name, StringComparer.OrdinalIgnoreCase),
-                _ => cards.OrderBy(c => c.Alone).ThenByDescending(c => c.Missing).ThenBy(c => c.LibrarySeries ?? c.Name, StringComparer.OrdinalIgnoreCase)
-            };
+            var ordered = SortSeries(cards, query.Sort);
             var list = ordered.ToList();
             var size = Math.Clamp(query.PageSize <= 0 ? 24 : query.PageSize, 6, 120);
             page.Matching = list.Count;
@@ -389,10 +385,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         {
             IEnumerable<DumpRow> result = rows;
             var status = (q.Status ?? "missing").ToLowerInvariant();
-            if (q.MaxScore.HasValue)
+            if (ScoreFilterActive(q.MinScore, q.MaxScore))
             {
                 // Recognition scores only exist for the files the library owns: this filter is about those, whatever "Afficher" says
-                result = result.Where(r => r.Owned && r.MatchScore.HasValue && r.MatchScore.Value < q.MaxScore.Value);
+                var low = q.MinScore ?? 0;
+                var high = q.MaxScore ?? 100;
+                result = result.Where(r => r.Owned && r.MatchScore.HasValue && r.MatchScore.Value >= low && r.MatchScore.Value <= high);
             }
             else if (status == "missing")
             {
@@ -431,19 +429,72 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 result = result.Where(r => words.All(w => r.Search.Contains(w, StringComparison.Ordinal)));
             }
 
-            var desc = q.Desc;
-            return (q.Sort ?? "group").ToLowerInvariant() switch
+            return SortRows(result, q.Sort, q.Desc);
+        }
+
+        /// <summary>The interval is a filter only when it narrows the whole 0-100 range</summary>
+        private static bool ScoreFilterActive(int? min, int? max) => (min ?? 0) > 0 || (max ?? 100) < 100;
+
+        /// <summary>
+        /// Several sort keys can be chained ("score,datenew,name"): each one breaks the ties of the one before. The direction toggle
+        /// only reverses the first key. Release dates and scores that are missing always come last.
+        /// </summary>
+        private static IEnumerable<DumpRow> SortRows(IEnumerable<DumpRow> rows, string sort, bool desc)
+        {
+            var keys = (string.IsNullOrWhiteSpace(sort) ? "group" : sort).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(k => k.ToLowerInvariant()).Distinct().Take(3).ToList();
+            IOrderedEnumerable<DumpRow> ordered = null;
+            for (var i = 0; i < keys.Count; i++)
             {
-                "name" => Order(result, r => r.Name ?? string.Empty, desc),
-                "date" => desc ? result.OrderByDescending(r => r.Date ?? DateTime.MinValue).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
-                               : result.OrderBy(r => r.Date ?? DateTime.MaxValue).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase),
-                "id" => desc ? result.OrderByDescending(r => r.Id, new NaturalStringComparer()) : result.OrderBy(r => r.Id, new NaturalStringComparer()),
-                // The poorest recognised first (ascending), the best first when reversed; entries with no score last
-                "score" => desc ? result.OrderByDescending(r => r.MatchScore ?? -1).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
-                                : result.OrderBy(r => r.MatchScore ?? int.MaxValue).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase),
-                _ => desc ? result.OrderByDescending(r => r.Group, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.Date ?? DateTime.MaxValue)
-                          : result.OrderBy(r => r.Group, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.Date ?? DateTime.MaxValue)
-            };
+                var d = i == 0 && desc;
+                switch (keys[i])
+                {
+                    // Names sort as people read them: no case, no accents ("Épisode" next to "Episode", not after "Zorro")
+                    case "name": ordered = Chain(rows, ordered, r => r.SortName, StringComparer.Ordinal, d); break;
+                    case "id": ordered = Chain(rows, ordered, r => r.Id, new NaturalStringComparer(), d); break;
+                    case "date": ordered = Chain(rows, ordered, r => r.Date ?? (d ? DateTime.MinValue : DateTime.MaxValue), Comparer<DateTime>.Default, d); break;
+                    case "score": ordered = Chain(rows, ordered, r => r.MatchScore ?? (d ? -1 : int.MaxValue), Comparer<int>.Default, d); break;
+                    default: ordered = Chain(rows, ordered, r => r.SortGroup, StringComparer.Ordinal, d); break;
+                }
+            }
+
+            return ordered.ThenBy(r => r.SortName, StringComparer.Ordinal);
+        }
+
+        private static IOrderedEnumerable<DumpRow> Chain<TKey>(IEnumerable<DumpRow> rows, IOrderedEnumerable<DumpRow> ordered, Func<DumpRow, TKey> key, IComparer<TKey> comparer, bool desc)
+        {
+            if (ordered == null)
+            {
+                return desc ? rows.OrderByDescending(key, comparer) : rows.OrderBy(key, comparer);
+            }
+
+            return desc ? ordered.ThenByDescending(key, comparer) : ordered.ThenBy(key, comparer);
+        }
+
+        /// <summary>The series, sorted by one to three chained keys (see SortRows). The "Épisodes seuls" card stays last unless sorting by score.</summary>
+        private static IOrderedEnumerable<DumpSeriesCard> SortSeries(List<DumpSeriesCard> cards, string sort)
+        {
+            var keys = (string.IsNullOrWhiteSpace(sort) ? "missing" : sort).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(k => k.ToLowerInvariant()).Distinct().Take(3).ToList();
+            var aloneFree = keys.Any(k => k == "score" || k == "scoredesc");
+            var ordered = aloneFree ? cards.OrderBy(_ => 0) : cards.OrderBy(c => c.Alone);
+            foreach (var key in keys)
+            {
+                ordered = key switch
+                {
+                    "name" => ordered.ThenBy(c => DumpStore.Normalize(c.LibrarySeries ?? c.Name), StringComparer.Ordinal),
+                    "progress" => ordered.ThenBy(c => c.Total == 0 ? 1d : (double)c.Owned / c.Total),
+                    // The poorest recognised first / the best first; series with no owned file last
+                    "score" => ordered.ThenBy(c => c.WorstScore ?? int.MaxValue),
+                    "scoredesc" => ordered.ThenByDescending(c => c.WorstScore ?? -1),
+                    // Release date of a series = its latest / earliest entry
+                    "datenew" => ordered.ThenByDescending(c => c.LastDate ?? DateTime.MinValue),
+                    "dateold" => ordered.ThenBy(c => c.FirstDate ?? DateTime.MaxValue),
+                    _ => ordered.ThenByDescending(c => c.Missing)
+                };
+            }
+
+            return ordered.ThenBy(c => DumpStore.Normalize(c.LibrarySeries ?? c.Name), StringComparer.Ordinal);
         }
 
         private static IEnumerable<DumpRow> Order(IEnumerable<DumpRow> rows, Func<DumpRow, string> key, bool desc)
@@ -523,6 +574,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     Tags = tags,
                     ImageUrl = image,
                     Search = DumpStore.Normalize($"{entry.Name} {entry.Slug} {group} {string.Join(' ', tags)} {entry.Id}"),
+                    SortName = DumpStore.Normalize(entry.Name ?? string.Empty),
+                    SortGroup = DumpStore.Normalize(group),
                     Number = SplitNumber(entry.Name, out var seriesBase),
                     Series = seriesBase
                 });
@@ -774,10 +827,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// <summary>Key of an inferred series</summary>
         public string Series { get; set; }
 
-        /// <summary>Only the owned files recognised under this score (0-100): the ones whose name may be worth fixing</summary>
+        /// <summary>Only the owned files recognised within this score interval (0-100, both ends included): the ones whose name may be worth fixing</summary>
+        public int? MinScore { get; set; }
         public int? MaxScore { get; set; }
 
-        /// <summary>group (default) | name | date | id</summary>
+        /// <summary>One to three keys separated by commas, each breaking the ties of the one before: group (default) | name | date | id | score</summary>
         public string Sort { get; set; }
         public bool Desc { get; set; }
         public int Page { get; set; }
@@ -824,6 +878,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// <summary>tag | id | slug | title | fuzzy | unconfirmed (the title matches but the episode number is not confirmed)</summary>
         public string MatchHow { get; set; }
 
+        /// <summary>Name and group without case or accents, what the sort compares</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string SortName { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string SortGroup { get; set; }
+
         [System.Text.Json.Serialization.JsonIgnore]
         public string Search { get; set; }
 
@@ -847,11 +908,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// <summary>Only the series that miss something (default on the screen)</summary>
         public bool OnlyIncomplete { get; set; }
 
-        /// <summary>missing (default) | name | progress | score | datenew | dateold</summary>
+        /// <summary>One to three keys separated by commas, each breaking the ties of the one before: missing (default) | name | progress | score | scoredesc | datenew | dateold</summary>
         public string Sort { get; set; }
 
-        /// <summary>Only the series that hold an owned file recognised under this score</summary>
+        /// <summary>Only the series that hold an owned file recognised within this score interval (both ends included)</summary>
+        public int? MinScore { get; set; }
         public int? MaxScore { get; set; }
+
+        /// <summary>all | incomplete | complete (default: all, or incomplete when OnlyIncomplete is set)</summary>
+        public string Completeness { get; set; }
         public int Page { get; set; }
         public int PageSize { get; set; }
         public bool Refresh { get; set; }
