@@ -58,6 +58,18 @@ class H(BaseHTTPRequestHandler):
             big = [{"id": 100000 + i, "name": "%s %s %s %d" % (words[i % 16].title(), words[(i // 16) % 16], words[(i // 256) % 16], i % 97),
                     "slug": "e%d" % i, "search_titles": "%s%s%s" % (words[i % 16], words[(i // 16) % 16], words[(i // 256) % 16]), "brand": "B%d" % (i % 20), "tags": ["t"]} for i in range(n)]
             return self.send(200, {"data": big})
+        if p == "/dump-numafter":
+            # The user's format: "other titles" = "{name} {episode number} {title 2} {title 3}", glued. The file's title is title 2 of every
+            # episode (so it is found everywhere), and only the right episode has ITS number right after its own name
+            data = []
+            for n, name in enumerate(["Le depart", "La traversee", "Le col gele", "Le retour"], 1):
+                data.append({"id": 3000 + n, "name": name, "slug": "n%d" % n, "search_titles": re.sub(r"[^a-z0-9]", "", name.lower()) + str(n) + "cheminshivernordique" + "autretitre", "brand": "S"})
+            return self.send(200, {"data": data})
+        if p == "/dump-series":
+            # One series whose episodes all hold the series title in their "other titles". flat=1: nothing tells the right episode apart
+            flat = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("flat", ["0"])[0] == "1"
+            names = ["La traversee", "Le col gele", "Le grand froid"] if flat else ["Chemins hiver nordique grand final", "La traversee", "Le col gele"]
+            return self.send(200, {"data": [{"id": 2001 + i, "name": n, "slug": "c%d" % i, "search_titles": "cheminshivernordique" + re.sub(r"[^a-z]", "", n.lower().replace("chemins hiver nordique", "")), "brand": "S"} for i, n in enumerate(names)]})
         if p == "/dump-bare": return self.send(200, dump_json())
         if p.startswith("/img/"):
             f = os.path.join(IMG_DIR, os.path.basename(p))

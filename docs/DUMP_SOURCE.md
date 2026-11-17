@@ -21,7 +21,7 @@ In this order, the first step that answers wins:
 3. *Only when "Reconnaître aussi les fichiers sans tag" is on* — the name is compared with the catalogue:
    - a bare `{12345}` in the file name is the entry's id;
    - the **slug**, then the **exact name** (accents, case and punctuation ignored, `[…]`, `{…}`, `(…)`, `S01E02` and the ignored words removed);
-   - a **fuzzy score** (0–100): word overlap with the name, or the file name found in the glued "other titles". Matched automatically from the **minimum score** (70 by default). An `S01E03` whose number the entry does not confirm is capped under the threshold: the entry is only proposed in Jellyfin's **Identify** screen.
+   - a **fuzzy score** (0–100): word overlap with the name, or the file name found in the glued "other titles". Matched automatically from the **minimum score** (70 by default). An `S01E03` is **confirmed** when the entry's other titles hold the title directly followed by that number, or hold the number glued right after the entry's own name (`name3title2…`). When the title is found but the number is not confirmed, the score is capped at 69: the entry is still accepted if it **stands out from the next best by at least 5 points** (or is the only candidate), otherwise it is only proposed in Jellyfin's **Identify** screen.
 
 The editor's test panel shows the candidates and the score of any file name, so the threshold can be tuned without a scan.
 

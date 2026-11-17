@@ -2763,7 +2763,7 @@
                             html += '<p class="cm-hint">Aucune entrée ne ressemble à ce nom. Un nom de fichier qui porte un identifiant introuvable dans le dump ne cherche pas par le nom.</p>';
                         } else {
                             html += '<ul class="cm-dt-list">' + r.Candidates.map(function(c) {
-                                var how = c.How === 'id' ? 'identifiant' : (c.How === 'slug' ? 'slug' : (c.How === 'title' ? 'nom exact' : 'ressemblance'));
+                                var how = c.How === 'id' ? 'identifiant' : (c.How === 'slug' ? 'slug' : (c.How === 'title' ? 'nom exact' : (c.How === 'dominant' ? 'se détache des autres' : 'ressemblance')));
                                 return '<li data-accepted="' + (c.Accepted ? 'true' : 'false') + '"><span class="cm-dt-name">' + escapeHtml(c.Name || '(sans nom)') + '</span>'
                                     + '<span class="cm-dt-score"><b>' + c.Score + '</b><span class="cm-dt-bar"><i style="width:' + Math.min(100, c.Score) + '%"></i></span>'
                                     + '<span class="cm-dt-verdict ' + (c.Accepted ? 'ok' : 'ko') + '">' + (c.Accepted ? 'rapproché' : 'trop bas') + '</span></span>'

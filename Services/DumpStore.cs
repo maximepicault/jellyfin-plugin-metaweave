@@ -89,8 +89,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly ConcurrentDictionary<string, DumpCatalog> _catalogs = new ConcurrentDictionary<string, DumpCatalog>(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
 
-        // Highest score of an entry whose title matches but whose episode number the file does not confirm: just under the default minimum (70)
+        // Highest score of an entry whose title matches but whose episode number the file does not confirm: just under the default minimum (70).
+        // Such an entry is only accepted when it clearly stands out from the others (see DominanceMargin)
         private const double UnconfirmedCap = 69d;
+
+        // An unconfirmed entry is accepted anyway when its score (before the cap) is at least the minimum AND beats the next best entry
+        // by this many points, or when it is the only candidate: nothing else to mistake it for. In a series where every episode holds
+        // the same title, the right one does not stand out like this, so the wrong-episode risk the cap guards against stays out.
+        private const double DominanceMargin = 5d;
 
         private static readonly Regex EpisodeRegex = new Regex(@"[Ss](\d{1,2})[\s._-]?[Ee](\d{1,3})", RegexOptions.Compiled);
 
@@ -626,22 +632,36 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             var tokenSet = tokens.ToHashSet(StringComparer.Ordinal);
             var suffix = episodeNumber > 0 ? episodeNumber.ToString(CultureInfo.InvariantCulture) : null;
+
+            // Every entry that could matter, with its score before the cap (Raw): the cap alone would put the right episode and the
+            // rest of its series at the same level and hide that one of them stands out
+            var floor = Math.Min(minScore, 40d);
+            var scored = new List<(DumpEntry Entry, double Score, double Raw, bool Unconfirmed)>();
             foreach (var entry in catalog.Entries)
             {
-                var score = ComputeScore(entry, tokenSet, spaceless, suffix);
-                if (score >= minScore)
+                var (score, raw, unconfirmed) = ComputeScore(entry, tokenSet, spaceless, suffix);
+                if (raw >= floor)
                 {
-                    results.Add((entry, score));
+                    scored.Add((entry, score, raw, unconfirmed));
                 }
             }
 
-            results.Sort((a, b) => b.Score.CompareTo(a.Score));
-            if (results.Count > limit)
+            scored.Sort((a, b) => b.Raw.CompareTo(a.Raw));
+            DumpEntry dominantEntry = null;
+            if (scored.Count > 0 && scored[0].Unconfirmed && scored[0].Raw >= minScore
+                && (scored.Count == 1 || scored[0].Raw - scored[1].Raw >= DominanceMargin))
             {
-                results.RemoveRange(limit, results.Count - limit);
+                // The only candidate, or one that stands out: accepted at its real score
+                dominantEntry = scored[0].Entry;
+                scored[0] = (scored[0].Entry, scored[0].Raw, scored[0].Raw, false);
             }
 
-            how = results.Count > 0 && results[0].Score >= 100d ? "title" : "fuzzy";
+            foreach (var item in scored.Where(c => c.Score >= minScore).OrderByDescending(c => c.Score).ThenByDescending(c => c.Raw).Take(limit))
+            {
+                results.Add((item.Entry, item.Score));
+            }
+
+            how = results.Count > 0 && results[0].Score >= 100d ? "title" : (dominantEntry != null && results.Count > 0 && results[0].Entry == dominantEntry ? "dominant" : "fuzzy");
             return results;
         }
 
@@ -654,7 +674,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         ///      title found, no SxxExx in the file (one-shot) → 65-85.
         /// Bonuses: "title + number" equals the name (100), direct inclusion (+5), name ending with the episode number (+5).
         /// </summary>
-        private static double ComputeScore(DumpEntry entry, HashSet<string> fileTokens, string spacelessFile, string episodeSuffix)
+        private static (double Score, double Raw, bool Unconfirmed) ComputeScore(DumpEntry entry, HashSet<string> fileTokens, string spacelessFile, string episodeSuffix)
         {
             double score = 0;
 
@@ -668,7 +688,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             if (episodeSuffix != null && entry.SpacelessName.Length > 0
                 && string.Equals(entry.SpacelessName, spacelessFile + episodeSuffix, StringComparison.Ordinal))
             {
-                return 100d;
+                return (100d, 100d, false);
             }
 
             var unconfirmed = false;
@@ -683,8 +703,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     }
                     else if (entry.SpacelessSearch.Contains(spacelessFile, StringComparison.Ordinal))
                     {
-                        alt = 50d + Math.Min(15d, spacelessFile.Length);
-                        unconfirmed = alt > score;
+                        // The title is in the other titles but not followed by the episode number. The number may still be there, glued
+                        // after the entry's OWN name ("name1 3 name2 name3"): then it is this entry's number, and the title found is just
+                        // one of its other titles
+                        if (NumberFollowsName(entry, episodeSuffix))
+                        {
+                            alt = 75d + Math.Min(20d, spacelessFile.Length);
+                        }
+                        else
+                        {
+                            alt = 50d + Math.Min(15d, spacelessFile.Length);
+                            unconfirmed = alt > score;
+                        }
                     }
                 }
                 else if (entry.SpacelessSearch.Contains(spacelessFile, StringComparison.Ordinal))
@@ -708,7 +738,46 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             // The title is there but the file's episode number is not confirmed: the bonuses above must not push it over the
             // default threshold (70), or "Title S01E03" would be matched to "Title 1". Proposed in "Identify" only
-            return Math.Min(unconfirmed ? UnconfirmedCap : 100d, score);
+            var raw = Math.Min(100d, score);
+            return (Math.Min(unconfirmed ? UnconfirmedCap : 100d, score), raw, unconfirmed);
+        }
+
+        /// <summary>
+        /// "other titles" often read "{name} {episode number} {title 2} {title 3}", glued together: true when the entry's own name is
+        /// found there directly followed by exactly this episode number (so "name3other" for episode 3, never "name13other")
+        /// </summary>
+        private static bool NumberFollowsName(DumpEntry entry, string episodeSuffix)
+        {
+            if (entry.SpacelessName.Length < 3 || string.IsNullOrEmpty(episodeSuffix) || !int.TryParse(episodeSuffix, out var wanted))
+            {
+                return false;
+            }
+
+            var from = 0;
+            while (from < entry.SpacelessSearch.Length)
+            {
+                var at = entry.SpacelessSearch.IndexOf(entry.SpacelessName, from, StringComparison.Ordinal);
+                if (at < 0)
+                {
+                    return false;
+                }
+
+                var pos = at + entry.SpacelessName.Length;
+                var end = pos;
+                while (end < entry.SpacelessSearch.Length && char.IsDigit(entry.SpacelessSearch[end]))
+                {
+                    end++;
+                }
+
+                if (end > pos && end - pos <= 4 && int.TryParse(entry.SpacelessSearch.AsSpan(pos, end - pos), out var found) && found == wanted)
+                {
+                    return true;
+                }
+
+                from = at + 1;
+            }
+
+            return false;
         }
 
         private static HashSet<string> NoiseSet(string words)

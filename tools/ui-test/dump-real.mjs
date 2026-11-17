@@ -70,6 +70,20 @@ try {
   const t3 = await test('Chroniques de la foret S01E03.mkv');
   const c3 = pick(t3, 'Candidates') || [];
   check('test: an unconfirmed episode number is proposed but not accepted', c3.length > 0 && pick(c3[0], 'Accepted') === false, JSON.stringify(c3));
+  // a series: the right episode is at 69 (capped) and the rest of the series at 65 - the right one is accepted because it stands out
+  const series1 = await test('Chemins hiver nordique S01E01.mkv', { ...dumpSource, BaseUrl: `${API}/dump-series` });
+  const cs1 = pick(series1, 'Candidates') || [];
+  check('test: in a series, the episode that stands out from the others (70 against 65) is accepted', cs1.length === 3 && pick(cs1[0], 'Id') === '2001' && pick(cs1[0], 'Accepted') === true && pick(cs1[0], 'How') === 'dominant' && pick(cs1[1], 'Accepted') === false, JSON.stringify(cs1));
+  // the format "name1 3 name2 name3": the number is glued after the entry's own name, the title found is one of its other titles
+  const series3 = await test('Chemins hiver nordique S01E03.mkv', { ...dumpSource, BaseUrl: `${API}/dump-numafter` });
+  const cs3 = pick(series3, 'Candidates') || [];
+  check('test: the number glued after the entry\'s own name confirms it (episode 3 → "Le col gele", high score)', cs3.length >= 1 && pick(cs3[0], 'Id') === '3003' && pick(cs3[0], 'Accepted') === true && pick(cs3[0], 'Score') >= 75 && (cs3.length === 1 || pick(cs3[1], 'Accepted') === false), JSON.stringify(cs3));
+  const series3b = await test('Chemins hiver nordique S01E13.mkv', { ...dumpSource, BaseUrl: `${API}/dump-numafter` });
+  check('test: "13" is not read as "1" or "3" (no entry confirmed for episode 13)', !(pick(series3b, 'Candidates') || []).some(c => pick(c, 'Accepted') === true), JSON.stringify(pick(series3b, 'Candidates')));
+  // the same series where nothing tells the episodes apart: nothing is accepted (the wrong-episode risk the cap guards against)
+  const series2 = await test('Chemins hiver nordique S01E02.mkv', { ...dumpSource, BaseUrl: `${API}/dump-series?flat=1` });
+  const cs2 = pick(series2, 'Candidates') || [];
+  check('test: when no episode stands out, none is accepted (proposed only)', cs2.length === 3 && cs2.every(c => pick(c, 'Accepted') === false), JSON.stringify(cs2));
   const t4 = await test('Documentaire inconnu sans rapport.mkv');
   check('test: a file that looks like nothing finds nothing', (pick(t4, 'Candidates') || []).length === 0, JSON.stringify(pick(t4, 'Candidates')));
   const t5 = await test('x', { ...dumpSource, Dump: { ...dumpSource.Dump, ItemsPath: 'nope' } });
