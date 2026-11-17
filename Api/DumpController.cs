@@ -534,7 +534,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             var mapping = source.VideoFieldMappings ?? new FieldMapping();
             // The mapping can change without the dump changing: the cache is only valid for the same mapping
             var previewPath = source.Dump?.PreviewImagePath;
-            var mappingKey = string.Join("|", mapping.PremiereDate, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, previewPath, source.Dump?.SeriesMinEntries, source.Prefix);
+            // The catalogue has its own date path, so the date can stay unmapped (kept out of Jellyfin) and still be used here
+            var datePath = string.IsNullOrWhiteSpace(source.Dump?.ReleaseDatePath) ? mapping.PremiereDate : source.Dump.ReleaseDatePath;
+            var mappingKey = string.Join("|", datePath, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, previewPath, source.Dump?.SeriesMinEntries, source.Prefix);
             if (RowCache.TryGetValue(catalog, out var cached) && cached.Item1 == mappingKey)
             {
                 return cached.Item2.Select(r => r.Copy()).ToList();
@@ -551,7 +553,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 {
                     using var doc = JsonDocument.Parse(entry.Raw);
                     var root = doc.RootElement;
-                    date = string.IsNullOrWhiteSpace(mapping.PremiereDate) ? null : JsonPathExtractor.GetDateTime(root, mapping.PremiereDate);
+                    date = ReadDate(root, datePath);
                     tags = string.IsNullOrWhiteSpace(mapping.Tags) || mapping.Tags.Contains("[]") ? tags
                         : JsonPathExtractor.GetStringArray(root, mapping.Tags).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => HtmlText.Decode(t.Trim())).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                     foreach (var path in new[] { previewPath, mapping.ThumbUrl, mapping.PosterUrl, mapping.BackdropUrl })
@@ -612,6 +614,47 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             /// <summary>The library file's path, and whether its name carries the entry's {prefix-id} tag (then it is certain)</summary>
             public string Path;
             public bool ByTag;
+        }
+
+        /// <summary>
+        /// A date read from a path (alternatives with "||"): a text is parsed as UTC when it carries no zone, a number is Unix seconds
+        /// (or milliseconds when it is that big). Null when nothing readable.
+        /// </summary>
+        private static DateTime? ReadDate(JsonElement root, string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return null;
+            }
+
+            foreach (var alternative in JsonPathExtractor.Alternatives(path))
+            {
+                if (!JsonPathExtractor.TryNavigate(root, alternative, out var value))
+                {
+                    continue;
+                }
+
+                if (value.ValueKind == JsonValueKind.String
+                    && DateTime.TryParse(value.GetString(), System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed))
+                {
+                    return parsed;
+                }
+
+                if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number) && number > 0)
+                {
+                    try
+                    {
+                        return number > 100_000_000_000 ? DateTimeOffset.FromUnixTimeMilliseconds(number).UtcDateTime : DateTimeOffset.FromUnixTimeSeconds(number).UtcDateTime;
+                    }
+                    catch (ArgumentOutOfRangeException)
+                    {
+                        // not a date: try the next alternative
+                    }
+                }
+            }
+
+            return null;
         }
 
         /// <summary>

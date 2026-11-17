@@ -739,6 +739,11 @@
                             <div class="cm-hint">La forme des images de l&#x27;écran Catalogues : cartes des séries, vignettes et liste. À régler sur ce que contient votre dump pour qu&#x27;aucune image ne soit rognée.</div>
                         </div>
                         <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcDumpDate">Date de sortie (écran Catalogues)</label>
+                            <input is="emby-input" type="text" id="srcDumpDate" placeholder="released_at || released_at_unix" />
+                            <div class="cm-hint">Chemin de la date utilisée pour filtrer et trier dans l&#x27;écran Catalogues (un nombre est lu comme des secondes Unix). Elle est <strong>indépendante</strong> du mapping « Vidéo / épisode » : laissez la « Date de sortie » de ce mapping vide pour ne pas l&#x27;envoyer à Jellyfin (par exemple parce qu&#x27;une autre source la fournit) tout en gardant les filtres de date ici.</div>
+                        </div>
+                        <div class="inputContainer cm-span">
                             <label class="inputLabel" for="srcDumpPreview">Image d&#x27;aperçu (écran Catalogues)</label>
                             <input is="emby-input" type="text" id="srcDumpPreview" placeholder="cover_url || poster_url" />
                             <div class="cm-hint">Chemin de l&#x27;image montrée sur chaque entrée de l&#x27;écran Catalogues. Vide = la première trouvée parmi miniature, affiche et fond. Le serveur la télécharge avec les en-têtes de la source (un navigateur est souvent refusé par la protection anti-hotlink) ; rien n&#x27;est donné à Jellyfin.</div>
@@ -2662,7 +2667,7 @@
             // ---- Dump source: catalogue settings (form <-> source) and its test ----
             var DUMP_NOISE = 'raw vostfr vosta vostf vosten vf vo va multi mult subbed dubbed uncensored censored 1080p 720p 480p 2160p 4k x264 x265 h264 h265 hevc aac flac web webrip webdl bluray bdrip hdtv';
             var DUMP_DEFAULTS = { ItemsPath: 'data', IdPath: 'id', NamePath: 'name', SlugPath: 'slug', SearchTitlesPath: 'search_titles', GroupPath: 'brand',
-                LikesPath: 'likes', DislikesPath: 'dislikes', SeriesMinEntries: 2, PreviewRatio: '16:9', UseImages: true, PreviewImagePath: 'cover_url || poster_url', CacheMinutes: 60, MatchWithoutTag: true, MatchBySlug: true, MatchByName: true, MinScore: 70, NoiseWords: DUMP_NOISE };
+                LikesPath: 'likes', DislikesPath: 'dislikes', SeriesMinEntries: 2, ReleaseDatePath: 'released_at || created_at', PreviewRatio: '16:9', UseImages: true, PreviewImagePath: 'cover_url || poster_url', CacheMinutes: 60, MatchWithoutTag: true, MatchBySlug: true, MatchByName: true, MinScore: 70, NoiseWords: DUMP_NOISE };
             // What a dump entry usually looks like: the video mapping a NEW dump source starts with
             var DUMP_VIDEO_MAPPING = { '#srcVideoTitle': 'name', '#srcVideoOverview': 'description', '#srcVideoDate': 'released_at || created_at', '#srcVideoRating': 'communityRating',
                 '#srcVideoSeriesName': '', '#srcVideoTags': 'tags', '#srcVideoTagsItemField': '', '#srcVideoGenres': '', '#srcVideoGenresItemField': '', '#srcVideoStudio': 'brand',
@@ -2689,6 +2694,7 @@
                 qs('#srcDumpRatio').value = d.PreviewRatio === '2:3' ? '2:3' : '16:9';
                 qs('#srcDumpSeriesMin').value = d.SeriesMinEntries === 0 || d.SeriesMinEntries ? d.SeriesMinEntries : 2;
                 qs('#srcDumpPreview').value = d.PreviewImagePath || '';
+                qs('#srcDumpDate').value = d.ReleaseDatePath === undefined ? DUMP_DEFAULTS.ReleaseDatePath : (d.ReleaseDatePath || '');
                 qs('#srcDumpNoTag').checked = d.MatchWithoutTag !== false;
                 qs('#srcDumpBySlug').checked = d.MatchBySlug !== false;
                 qs('#srcDumpByName').checked = d.MatchByName !== false;
@@ -2704,7 +2710,7 @@
                     SlugPath: qs('#srcDumpSlug').value.trim(), SearchTitlesPath: qs('#srcDumpSearch').value.trim(), GroupPath: qs('#srcDumpGroup').value.trim(),
                     LikesPath: qs('#srcDumpLikes').value.trim(), DislikesPath: qs('#srcDumpDislikes').value.trim(),
                     CacheMinutes: Math.max(1, readInt('#srcDumpCache', 60, 1)),
-                    SeriesMinEntries: Math.max(0, readInt('#srcDumpSeriesMin', 2, 0)), PreviewRatio: qs('#srcDumpRatio').value === '2:3' ? '2:3' : '16:9', UseImages: qs('#srcDumpUseImages').checked, PreviewImagePath: qs('#srcDumpPreview').value.trim(),
+                    SeriesMinEntries: Math.max(0, readInt('#srcDumpSeriesMin', 2, 0)), ReleaseDatePath: qs('#srcDumpDate').value.trim(), PreviewRatio: qs('#srcDumpRatio').value === '2:3' ? '2:3' : '16:9', UseImages: qs('#srcDumpUseImages').checked, PreviewImagePath: qs('#srcDumpPreview').value.trim(),
                     MatchWithoutTag: qs('#srcDumpNoTag').checked, MatchBySlug: qs('#srcDumpBySlug').checked, MatchByName: qs('#srcDumpByName').checked,
                     MinScore: parseInt(qs('#srcDumpMinScore').value, 10) || 70, NoiseWords: qs('#srcDumpNoise').value
                 };

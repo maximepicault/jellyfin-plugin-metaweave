@@ -256,6 +256,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         /// </summary>
         public int SeriesMinEntries { get; set; } = 2;
 
+        /// <summary>
+        /// Path of the release date shown, filtered and sorted on the coverage screen ("released_at || released_at_unix"; a number
+        /// is read as Unix seconds). Independent from the video mapping's date: leave that one empty to keep the date out of Jellyfin
+        /// (another source gives it) and still use it here. Empty = the mapping's date.
+        /// </summary>
+        public string ReleaseDatePath { get; set; } = "released_at || created_at";
+
         /// <summary>Shape of the preview pictures on the coverage screen: "16:9" (landscape, the default) or "2:3" (poster)</summary>
         public string PreviewRatio { get; set; } = "16:9";
 

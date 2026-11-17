@@ -282,6 +282,17 @@ try {
   const syNames = (pick(sy, 'Items') || []).map(c => c.Name);
   check('year interval on series: kept when one of their entries is in it (2023 = "Le Dernier Phare", the big series; not "Les Sentiers du Nord", 2019)', syNames.some(n => /Dernier Phare/.test(n)) && syNames.some(n => /Épisode démo/.test(n)) && !syNames.some(n => /Sentiers/.test(n)), JSON.stringify(syNames));
   check('year interval on series: the page gives the years of the dump for the filter', (pick(sy, 'Years') || []).length === 7 && pick(sy, 'Years')[0] === 2024, JSON.stringify(pick(sy, 'Years')));
+  // the date for the catalogue is its own path: the video mapping's date can stay EMPTY (kept out of Jellyfin) and the filters still work
+  const unmapped = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, ReleaseDatePath: 'released_at' }, VideoFieldMappings: { ...x.VideoFieldMappings, PremiereDate: '' } } : x) };
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, unmapped);
+  check('release date: with the mapping\'s date EMPTY, the catalogue still filters by year through its own path (2018 = 6 entries)', (await nEntries('year=2018')) === 6);
+  const withUnix = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, ReleaseDatePath: 'released_at_unix' }, VideoFieldMappings: { ...x.VideoFieldMappings, PremiereDate: '' } } : x) };
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, withUnix);
+  check('release date: a number path is read as Unix seconds (2017 and later)', (await nEntries('minYear=2017&maxYear=2017')) > 0 && (await nEntries('year=2018')) !== 6, String(await nEntries('minYear=2017&maxYear=2017')));
+  const fallback = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, ReleaseDatePath: 'nope || released_at_unix || released_at' }, VideoFieldMappings: { ...x.VideoFieldMappings, PremiereDate: '' } } : x) };
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, fallback);
+  check('release date: alternatives with "||" fall back to the next path that holds a date', (await nEntries('minYear=2017&maxYear=2017')) > 0);
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
   const years = pick(cov, 'Years') || [];
   check('year filter: the list of years is the dump\'s (2018 to 2024)', years.length === 7 && years[0] === 2024 && years[6] === 2018, JSON.stringify(years));
   const csvScore = await api('GET', '/CustomMetadata/Dump/Export?prefix=dp&status=owned');
