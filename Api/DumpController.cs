@@ -190,7 +190,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
 
             var rows = RowsOf(catalog, source);
-            LinkOwned(rows, OwnedIds(source));
+            LinkOwned(rows, OwnedIds(source), catalog, source);
 
             var coverage = new DumpCoverage
             {
@@ -250,7 +250,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
 
             var rows = RowsOf(catalog, source);
-            LinkOwned(rows, OwnedIds(source));
+            LinkOwned(rows, OwnedIds(source), catalog, source);
             var page = new DumpSeriesPage
             {
                 Prefix = source.Prefix, SourceName = source.Name, LoadedAtUtc = catalog.LoadedAtUtc, Error = error,
@@ -294,19 +294,35 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     Total = members.Count,
                     Owned = members.Count(r => r.Owned),
                     Missing = members.Count(r => !r.Owned),
-                    ImageId = withImage?.Id
+                    ImageId = withImage?.Id,
+                    // The poorest recognition among its owned files: where a file name is worth fixing by hand
+                    WorstScore = members.Where(r => r.MatchScore.HasValue).Select(r => (int?)r.MatchScore).DefaultIfEmpty(null).Min(),
+                    FirstDate = members.Where(r => r.Date.HasValue).Select(r => r.Date).DefaultIfEmpty(null).Min(),
+                    LastDate = members.Where(r => r.Date.HasValue).Select(r => r.Date).DefaultIfEmpty(null).Max()
                 });
             }
 
-            if (query.OnlyIncomplete)
+            // Looking for poorly recognised files means looking at what is OWNED: a complete series is not a reason to hide it
+            if (query.OnlyIncomplete && !query.MaxScore.HasValue)
             {
                 cards = cards.Where(c => c.Missing > 0).ToList();
+            }
+
+            // Only the series that hold an owned file recognised under this score
+            if (query.MaxScore.HasValue)
+            {
+                cards = cards.Where(c => c.WorstScore.HasValue && c.WorstScore.Value < query.MaxScore.Value).ToList();
             }
 
             IEnumerable<DumpSeriesCard> ordered = (query.Sort ?? "missing").ToLowerInvariant() switch
             {
                 "name" => cards.OrderBy(c => c.Alone).ThenBy(c => c.LibrarySeries ?? c.Name, StringComparer.OrdinalIgnoreCase),
                 "progress" => cards.OrderBy(c => c.Alone).ThenBy(c => c.Total == 0 ? 1d : (double)c.Owned / c.Total).ThenByDescending(c => c.Missing),
+                // The poorest recognised first (the "Épisodes seuls" card too: it is where a lone file can be poorly recognised); series with no owned file last
+                "score" => cards.OrderBy(c => c.WorstScore ?? int.MaxValue).ThenBy(c => c.Alone).ThenByDescending(c => c.Missing),
+                // Release date of the series = its latest / earliest entry
+                "datenew" => cards.OrderBy(c => c.Alone).ThenByDescending(c => c.LastDate ?? DateTime.MinValue).ThenBy(c => c.LibrarySeries ?? c.Name, StringComparer.OrdinalIgnoreCase),
+                "dateold" => cards.OrderBy(c => c.Alone).ThenBy(c => c.FirstDate ?? DateTime.MaxValue).ThenBy(c => c.LibrarySeries ?? c.Name, StringComparer.OrdinalIgnoreCase),
                 _ => cards.OrderBy(c => c.Alone).ThenByDescending(c => c.Missing).ThenBy(c => c.LibrarySeries ?? c.Name, StringComparer.OrdinalIgnoreCase)
             };
             var list = ordered.ToList();
@@ -336,14 +352,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
 
             var rows = RowsOf(catalog, source);
-            LinkOwned(rows, OwnedIds(source));
+            LinkOwned(rows, OwnedIds(source), catalog, source);
 
-            var sb = new StringBuilder("﻿tag;id;nom;groupe;date;tags;statut\r\n");
+            var sb = new StringBuilder("﻿tag;id;nom;groupe;date;tags;statut;fichier;score\r\n");
             foreach (var row in Filter(rows, query))
             {
                 sb.Append(Csv(row.Tag)).Append(';').Append(Csv(row.Id)).Append(';').Append(Csv(row.Name)).Append(';').Append(Csv(row.Group)).Append(';')
                     .Append(row.Date?.ToString("yyyy-MM-dd") ?? string.Empty).Append(';').Append(Csv(string.Join(", ", row.Tags))).Append(';')
-                    .Append(row.Owned ? "possédé" : "manquant").Append("\r\n");
+                    .Append(row.Owned ? "possédé" : "manquant").Append(';').Append(Csv(row.FileName)).Append(';').Append(row.MatchScore?.ToString() ?? string.Empty).Append("\r\n");
             }
 
             return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv; charset=utf-8", $"{source.Prefix}-dump.csv");
@@ -373,7 +389,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         {
             IEnumerable<DumpRow> result = rows;
             var status = (q.Status ?? "missing").ToLowerInvariant();
-            if (status == "missing")
+            if (q.MaxScore.HasValue)
+            {
+                // Recognition scores only exist for the files the library owns: this filter is about those, whatever "Afficher" says
+                result = result.Where(r => r.Owned && r.MatchScore.HasValue && r.MatchScore.Value < q.MaxScore.Value);
+            }
+            else if (status == "missing")
             {
                 result = result.Where(r => !r.Owned);
             }
@@ -417,6 +438,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 "date" => desc ? result.OrderByDescending(r => r.Date ?? DateTime.MinValue).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
                                : result.OrderBy(r => r.Date ?? DateTime.MaxValue).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase),
                 "id" => desc ? result.OrderByDescending(r => r.Id, new NaturalStringComparer()) : result.OrderBy(r => r.Id, new NaturalStringComparer()),
+                // The poorest recognised first (ascending), the best first when reversed; entries with no score last
+                "score" => desc ? result.OrderByDescending(r => r.MatchScore ?? -1).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                                : result.OrderBy(r => r.MatchScore ?? int.MaxValue).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase),
                 _ => desc ? result.OrderByDescending(r => r.Group, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.Date ?? DateTime.MaxValue)
                           : result.OrderBy(r => r.Group, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.Date ?? DateTime.MaxValue)
             };
@@ -519,6 +543,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         {
             public string Series;
             public int? Season;
+
+            /// <summary>The library file's path, and whether its name carries the entry's {prefix-id} tag (then it is certain)</summary>
+            public string Path;
+            public bool ByTag;
         }
 
         /// <summary>
@@ -531,12 +559,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             var prefix = (source.Prefix ?? string.Empty).Trim();
             var owned = new Dictionary<string, OwnedInfo>(StringComparer.OrdinalIgnoreCase);
 
-            void Add(string tag, BaseItem item)
+            void Add(string tag, BaseItem item, bool byTag)
             {
                 var dash = (tag ?? string.Empty).IndexOf('-');
                 if (dash > 0 && string.Equals(tag.Substring(0, dash), prefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    var info = new OwnedInfo();
+                    var info = new OwnedInfo { Path = item.Path, ByTag = byTag || (owned.TryGetValue(tag.Substring(dash + 1), out var before) && before.ByTag) };
                     if (item is Episode episode && !string.IsNullOrWhiteSpace(episode.SeriesName))
                     {
                         info.Series = episode.SeriesName;
@@ -557,12 +585,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             foreach (var item in items)
             {
-                Add(CustomId.Get(item.ProviderIds), item);
+                Add(CustomId.Get(item.ProviderIds), item, false);
                 if (!string.IsNullOrEmpty(item.Path))
                 {
                     foreach (var tag in TagParser.ExtractAll(TagParser.GetOwnName(item.Path)))
                     {
-                        Add(tag, item);
+                        Add(tag, item, true);
                     }
                 }
             }
@@ -570,15 +598,32 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return owned;
         }
 
-        private static void LinkOwned(List<DumpRow> rows, Dictionary<string, OwnedInfo> owned)
+        /// <summary>
+        /// Marks the owned entries and tells HOW each owned file was recognised: certain when its name carries the tag, otherwise the
+        /// score of its name against the entry (so the poor matches can be found and their file names fixed by hand)
+        /// </summary>
+        private void LinkOwned(List<DumpRow> rows, Dictionary<string, OwnedInfo> owned, DumpCatalog catalog, SourceConfiguration source)
         {
             foreach (var row in rows)
             {
-                if (owned.TryGetValue(row.Id, out var info))
+                if (!owned.TryGetValue(row.Id, out var info))
                 {
-                    row.Owned = true;
-                    row.LibrarySeries = info.Series;
-                    row.LibrarySeason = info.Season;
+                    continue;
+                }
+
+                row.Owned = true;
+                row.LibrarySeries = info.Series;
+                row.LibrarySeason = info.Season;
+                row.FileName = string.IsNullOrEmpty(info.Path) ? null : System.IO.Path.GetFileName(info.Path);
+                if (info.ByTag)
+                {
+                    row.MatchScore = 100;
+                    row.MatchHow = "tag";
+                }
+                else if (catalog.ById.TryGetValue(row.Id, out var entry) && _dump.ScoreOf(catalog, source.Dump, info.Path, entry) is var (score, how))
+                {
+                    row.MatchScore = score;
+                    row.MatchHow = how;
                 }
             }
         }
@@ -729,6 +774,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// <summary>Key of an inferred series</summary>
         public string Series { get; set; }
 
+        /// <summary>Only the owned files recognised under this score (0-100): the ones whose name may be worth fixing</summary>
+        public int? MaxScore { get; set; }
+
         /// <summary>group (default) | name | date | id</summary>
         public string Sort { get; set; }
         public bool Desc { get; set; }
@@ -769,6 +817,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string LibrarySeries { get; set; }
         public int? LibrarySeason { get; set; }
 
+        /// <summary>Owned entries: the library file's name, and how well it was recognised (100 = certain: the tag, an id, the exact name)</summary>
+        public string FileName { get; set; }
+        public int? MatchScore { get; set; }
+
+        /// <summary>tag | id | slug | title | fuzzy | unconfirmed (the title matches but the episode number is not confirmed)</summary>
+        public string MatchHow { get; set; }
+
         [System.Text.Json.Serialization.JsonIgnore]
         public string Search { get; set; }
 
@@ -792,8 +847,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// <summary>Only the series that miss something (default on the screen)</summary>
         public bool OnlyIncomplete { get; set; }
 
-        /// <summary>missing (default) | name | progress</summary>
+        /// <summary>missing (default) | name | progress | score | datenew | dateold</summary>
         public string Sort { get; set; }
+
+        /// <summary>Only the series that hold an owned file recognised under this score</summary>
+        public int? MaxScore { get; set; }
         public int Page { get; set; }
         public int PageSize { get; set; }
         public bool Refresh { get; set; }
@@ -817,6 +875,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
         /// <summary>An entry whose preview picture stands for the series</summary>
         public string ImageId { get; set; }
+
+        /// <summary>The poorest recognition score among its owned files (null when it owns none)</summary>
+        public int? WorstScore { get; set; }
+
+        /// <summary>Release dates of its earliest and latest entries</summary>
+        public DateTime? FirstDate { get; set; }
+        public DateTime? LastDate { get; set; }
     }
 
     public class DumpSeriesPage

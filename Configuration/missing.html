@@ -455,6 +455,8 @@
         #CustomMetadataMissingPage .dc-tools-series.me-hidden, #CustomMetadataMissingPage .dc-tools-entries.me-hidden { display: none !important; }
         #CustomMetadataMissingPage .dc-tools-series .checkboxContainer { flex: 0 0 auto; width: auto; }
         #CustomMetadataMissingPage .dc-link { color: #8be0b9; }
+        #CustomMetadataMissingPage .dc-score-low { color: var(--me-warn-text); font-weight: 600; }
+        #CustomMetadataMissingPage .dc-file { margin: 0; font-size: 13px; color: var(--me-muted); overflow-wrap: anywhere; }
         #CustomMetadataMissingPage .dc-seriesline { margin: 4px 0 12px; color: var(--me-muted); }
         #CustomMetadataMissingPage .dc-seriesline strong { color: #fff; }
         /* Series cards and entry thumbnails follow the shape of the dump's pictures (the source's "Format de l'aperçu") */
@@ -587,15 +589,16 @@
                 <div class="dc-filters" id="dcFilters">
                     <div class="inputContainer me-search"><input is="emby-input" type="search" id="dcQ" label="Rechercher" /></div>
                     <div class="selectContainer"><select is="emby-select" id="dcGroup" label="Groupe"><option value="">Tous les groupes</option></select></div>
+                    <div class="selectContainer"><select is="emby-select" id="dcScore" label="Reconnaissance des fichiers"><option value="">Tous les scores</option><option value="100">Moins de 100 %</option><option value="90">Moins de 90 %</option><option value="80">Moins de 80 %</option><option value="70">Moins de 70 %</option></select></div>
                     <div class="dc-tools-series">
-                        <div class="selectContainer"><select is="emby-select" id="dcSeriesSort" label="Trier par"><option value="missing">Plus de manquants</option><option value="name">Nom</option><option value="progress">Moins complètes</option></select></div>
+                        <div class="selectContainer"><select is="emby-select" id="dcSeriesSort" label="Trier par"><option value="missing">Plus de manquants</option><option value="name">Nom</option><option value="progress">Moins complètes</option><option value="datenew">Date de sortie : récentes d'abord</option><option value="dateold">Date de sortie : anciennes d'abord</option><option value="score">Moins bien reconnues d'abord</option></select></div>
                         <label class="checkboxContainer" style="margin: 0 0 8px;"><input is="emby-checkbox" type="checkbox" id="dcIncomplete" checked /><span>Seulement les séries incomplètes</span></label>
                     </div>
                     <div class="dc-tools-entries">
                         <div class="selectContainer"><select is="emby-select" id="dcStatusSel" label="Afficher"><option value="missing">Les manquants</option><option value="owned">Les possédés</option><option value="all">Tout</option></select></div>
                         <div class="selectContainer"><select is="emby-select" id="dcTag" label="Tag"><option value="">Tous les tags</option></select></div>
                         <div class="selectContainer"><select is="emby-select" id="dcYear" label="Année"><option value="">Toutes les années</option></select></div>
-                        <div class="selectContainer"><select is="emby-select" id="dcSort" label="Trier par"><option value="date">Date de sortie</option><option value="name">Nom</option><option value="id">Identifiant</option><option value="group">Groupe</option></select></div>
+                        <div class="selectContainer"><select is="emby-select" id="dcSort" label="Trier par"><option value="date">Date de sortie</option><option value="name">Nom</option><option value="id">Identifiant</option><option value="group">Groupe</option><option value="score">Score de reconnaissance</option></select></div>
                         <button type="button" class="dc-order" id="dcOrder" aria-label="Ordre croissant" title="Inverser l'ordre">↑</button>
                         <div class="me-viewtoggle" id="dcView" role="group" aria-label="Affichage des entrées" style="margin: 0;">
                             <button type="button" data-view="cards" aria-pressed="true">Cartes</button>
@@ -1572,7 +1575,7 @@
             var page = document.querySelector('#CustomMetadataMissingPage');
             var $ = function (selector) { return page.querySelector(selector); };
             var sources = [];
-            var state = { prefix: '', series: '', seriesName: '', group: '', q: '', incomplete: true, seriesSort: 'missing', status: 'missing', tag: '', year: '', sort: 'date', desc: false, page: 1, view: 'cards' };
+            var state = { prefix: '', series: '', seriesName: '', group: '', score: '', q: '', incomplete: true, seriesSort: 'missing', status: 'missing', tag: '', year: '', sort: 'date', desc: false, page: 1, view: 'cards' };
             var mode = 'series';
             var flat = false;          // no entry belongs to a series: the entries are listed directly
             var timer = null, seq = 0, lastData = null, lastLevel = 'series';
@@ -1615,6 +1618,20 @@
                 return isNaN(d) ? '' : d.toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' });
             }
 
+            function yearSpan(first, last) {
+                var a = new Date(first).getFullYear(), b = new Date(last || first).getFullYear();
+                return isNaN(a) ? '' : (a === b || isNaN(b) ? String(a) : a + ' – ' + b);
+            }
+
+            // How an owned file was recognised, in words (100 = certain)
+            function howText(r) {
+                if (r.MatchHow === 'tag') { return 'Reconnu par son tag'; }
+                if (r.MatchHow === 'id') { return 'Reconnu par son identifiant'; }
+                if (r.MatchHow === 'slug' || r.MatchHow === 'title') { return 'Reconnu par son nom exact'; }
+                if (r.MatchHow === 'unconfirmed') { return 'Reconnu par ressemblance, numéro non confirmé : ' + r.MatchScore + ' %'; }
+                return 'Reconnu par ressemblance : ' + r.MatchScore + ' %';
+            }
+
             function imageSrc(id) { return ApiClient.getUrl('CustomMetadata/Dump/Image', { prefix: state.prefix, id: id, api_key: ApiClient.accessToken() }); }
 
             // ---- mode: series (the usual screen) or catalogues ----
@@ -1646,11 +1663,11 @@
                 return q;
             }
             function seriesQuery(extra) {
-                return clean(Object.assign({ prefix: state.prefix, q: state.q, group: state.group, onlyIncomplete: state.incomplete, sort: state.seriesSort, page: state.page }, extra || {}));
+                return clean(Object.assign({ prefix: state.prefix, q: state.q, group: state.group, onlyIncomplete: state.incomplete, sort: state.seriesSort, maxScore: state.score, page: state.page }, extra || {}));
             }
             function entryQuery(extra) {
                 var key = flat ? '_alone' : state.series;
-                return clean(Object.assign({ prefix: state.prefix, series: key, status: state.status, group: state.group, tag: state.tag, year: state.year, q: state.q, sort: state.sort, desc: state.desc, page: state.page }, extra || {}));
+                return clean(Object.assign({ prefix: state.prefix, series: key, status: state.status, group: state.group, tag: state.tag, year: state.year, maxScore: state.score, q: state.q, sort: state.sort, desc: state.desc, page: state.page }, extra || {}));
             }
 
             function refresh(force) {
@@ -1702,11 +1719,13 @@
                 page.querySelector('.dc-tools-series').classList.toggle('me-hidden', entries);
                 page.querySelector('.dc-tools-entries').classList.toggle('me-hidden', !entries);
                 $('#dcSeriesSort').value = state.seriesSort;
+                $('#dcScore').value = state.score;
                 $('#dcIncomplete').checked = state.incomplete;
                 renderCrumbs(d, entries);
 
                 var chips = [];
                 if (state.group) { chips.push(['group', 'Groupe : ' + state.group]); }
+                if (state.score) { chips.push(['score', 'Reconnu à moins de ' + state.score + ' %']); }
                 if (entries && state.tag) { chips.push(['tag', 'Tag : ' + state.tag]); }
                 if (entries && state.year) { chips.push(['year', 'Année : ' + state.year]); }
                 if (state.q) { chips.push(['q', 'Recherche : ' + state.q]); }
@@ -1734,7 +1753,7 @@
 
             // Level 1: the series, like the series cards of the first view
             function renderSeriesCards(d, hasFilters) {
-                $('#dcCount').textContent = plural(d.Matching, 'série', 'séries') + (state.incomplete ? ' incomplète' + (d.Matching > 1 ? 's' : '') : '') + (hasFilters ? ' avec ces filtres' : '') + (d.Pages > 1 ? ' · page ' + d.Page + ' sur ' + d.Pages : '');
+                $('#dcCount').textContent = plural(d.Matching, 'série', 'séries') + (state.incomplete && !state.score ? ' incomplète' + (d.Matching > 1 ? 's' : '') : '') + (hasFilters ? ' avec ces filtres' : '') + (d.Pages > 1 ? ' · page ' + d.Page + ' sur ' + d.Pages : '');
                 if (!d.Items.length) {
                     $('#dcResults').innerHTML = '<div class="dc-empty"><strong>' + (hasFilters ? 'Aucune série avec ces filtres.' : (state.incomplete ? 'Aucune série incomplète.' : 'Aucune série.')) + '</strong>'
                         + (hasFilters ? 'Retirez un filtre (les pastilles ci-dessus) pour élargir la liste.' : (state.incomplete ? 'Décochez « Seulement les séries incomplètes » pour voir aussi les complètes.' : 'Aucune entrée du catalogue.')) + '</div>';
@@ -1750,6 +1769,8 @@
                         + (c.LibrarySeries ? '<div class="me-card-sub dc-link">✓ Dans votre médiathèque' + (c.LibrarySeasons && c.LibrarySeasons.length ? ' · saison ' + esc(c.LibrarySeasons.join(', ')) : '') + '</div>' : '')
                         + (c.LibrarySeries && c.LibrarySeries.toLowerCase() !== String(c.Name).toLowerCase() && !c.Alone ? '<div class="me-card-sub">Dump : ' + esc(c.Name) + '</div>' : '')
                         + (c.Group ? '<div class="me-card-sub">' + esc(c.Group) + '</div>' : '')
+                        + (c.FirstDate ? '<div class="me-card-sub">' + esc(yearSpan(c.FirstDate, c.LastDate)) + '</div>' : '')
+                        + (c.WorstScore !== null && c.WorstScore !== undefined && c.WorstScore < 100 ? '<div class="me-card-sub dc-score-low" title="Le fichier le moins bien reconnu de cette série : son nom est peut-être à corriger (ajoutez le tag {' + esc(state.prefix) + '-id} pour qu\'il soit certain)">⚠ Pire reconnaissance : ' + c.WorstScore + ' %</div>' : '')
                         + '<div class="me-card-sub me-strong">' + c.Owned + ' / ' + c.Total + ' possédées</div>'
                         + '<div class="me-progress" title="' + pct(c.Owned, c.Total) + ' % possédées"><div style="width:' + pct(c.Owned, c.Total) + '%"></div></div></div></button>';
                 });
@@ -1765,11 +1786,11 @@
                 $('#dcOrder').textContent = state.desc ? '↓' : '↑';
                 $('#dcOrder').setAttribute('aria-label', state.desc ? 'Ordre décroissant' : 'Ordre croissant');
                 Array.prototype.forEach.call(page.querySelectorAll('#dcView [data-view]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-view') === state.view ? 'true' : 'false'); });
-                var what = state.status === 'missing' ? (d.Matching > 1 ? 'entrées manquantes' : 'entrée manquante') : (state.status === 'owned' ? (d.Matching > 1 ? 'entrées possédées' : 'entrée possédée') : (d.Matching > 1 ? 'entrées' : 'entrée'));
+                var what = state.score ? (d.Matching > 1 ? 'fichiers reconnus à moins de ' + state.score + ' %' : 'fichier reconnu à moins de ' + state.score + ' %') : state.status === 'missing' ? (d.Matching > 1 ? 'entrées manquantes' : 'entrée manquante') : (state.status === 'owned' ? (d.Matching > 1 ? 'entrées possédées' : 'entrée possédée') : (d.Matching > 1 ? 'entrées' : 'entrée'));
                 $('#dcCount').textContent = d.Matching.toLocaleString('fr-FR') + ' ' + what + (hasFilters ? ' avec ces filtres' : '') + (d.Pages > 1 ? ' · page ' + d.Page + ' sur ' + d.Pages : '');
                 var box = $('#dcResults');
                 if (!d.Items.length) {
-                    var filtered = state.group || state.tag || state.year || state.q;
+                    var filtered = state.group || state.tag || state.year || state.q || state.score;
                     box.innerHTML = '<div class="dc-empty"><strong>' + (filtered ? 'Aucune entrée avec ces filtres.' : (state.status === 'missing' ? 'Rien ne manque ici.' : 'Aucune entrée.')) + '</strong>'
                         + (filtered ? 'Retirez un filtre (les pastilles ci-dessus) pour élargir la liste.' : (state.status === 'missing' ? 'Toutes les entrées sont dans votre médiathèque. « Afficher : Tout » les liste quand même.' : 'Le catalogue est vide ou les chemins de la source ne trouvent rien : testez-la dans son éditeur.')) + '</div>';
                     return;
@@ -1781,6 +1802,7 @@
                     if (r.Group && r.Group !== '(sans groupe)') { meta.push(esc(r.Group)); }
                     if (r.Date) { meta.push(esc(formatDate(r.Date))); }
                     if (r.Series && r.Number !== null && r.Number !== undefined) { meta.push('<span title="Le chiffre final du titre : une saison ou un épisode, le titre ne le dit pas">n° ' + esc(r.Number) + ' d\'après le titre</span>'); }
+                    if (r.Owned && r.MatchScore !== null && r.MatchScore !== undefined) { meta.push('<span class="' + (r.MatchScore < 100 && r.MatchHow !== 'tag' ? 'dc-score-low' : '') + '">' + esc(howText(r)) + '</span>'); }
                     if (r.Owned && r.LibrarySeries) { meta.push('✓ ' + esc(r.LibrarySeries) + (r.LibrarySeason !== null && r.LibrarySeason !== undefined ? ' · saison ' + esc(r.LibrarySeason) : '')); }
                     html += '<div class="me-episode dc-entry" data-file="' + esc(name) + '">'
                         + '<div class="me-thumb">' + (r.HasImage ? '<img src="' + esc(imageSrc(r.Id)) + '" alt="" loading="lazy" />' : '<div class="me-placeholder">🎞</div>')
@@ -1788,6 +1810,7 @@
                         + '<div class="me-episode-info">'
                         + '<div class="me-episode-top"><div class="me-episode-title">' + (r.Name ? esc(r.Name) : '<span class="me-muted">(sans nom)</span>') + '</div><span class="dc-id">#' + esc(r.Id) + '</span></div>'
                         + (meta.length ? '<div class="me-episode-meta">' + meta.join(' · ') + '</div>' : '')
+                        + (r.Owned && r.FileName ? '<p class="dc-file" title="Le fichier de votre médiathèque : renommez-le avec le nom ci-dessous pour qu\'il soit reconnu à coup sûr">📁 ' + esc(r.FileName) + '</p>' : '')
                         + ((r.Tags || []).length ? '<div class="dc-tags">' + r.Tags.slice(0, 6).map(function (t) { return '<button type="button" class="dc-tag" data-tag="' + esc(t) + '" title="Filtrer sur ce tag">' + esc(t) + '</button>'; }).join('') + (r.Tags.length > 6 ? '<span class="me-muted" style="font-size:12px;">+' + (r.Tags.length - 6) + '</span>' : '') + '</div>' : '')
                         + '<div class="me-filename" title="Nom à donner au fichier (garder l\'extension : .mkv, .mp4…)"><code><span class="dc-fn-title">' + esc(name.replace(/\s*\{[^{}]*\}$/, '')) + '</span><span class="dc-fn-tag">{' + esc(r.Tag) + '}</span></code>'
                         + '<button type="button" class="me-copy" data-copy="' + esc(name) + '" aria-label="Copier le nom : ' + esc(name) + '">' + ICON_COPY + '<span>Copier</span></button></div>'
@@ -1808,9 +1831,10 @@
             function backToSeries() { lastData = null; flat = false; change({ series: '', seriesName: '', tag: '', year: '' }); }
 
             $('#modeSwitch').addEventListener('click', function (e) { var b = e.target.closest('[data-mode]'); if (b) { setMode(b.getAttribute('data-mode')); } });
-            $('#dcSource').addEventListener('change', function (e) { lastData = null; flat = false; change({ prefix: e.target.value, series: '', seriesName: '', group: '', tag: '', year: '', q: '' }); $('#dcQ').value = ''; });
+            $('#dcSource').addEventListener('change', function (e) { lastData = null; flat = false; change({ prefix: e.target.value, series: '', seriesName: '', group: '', score: '', tag: '', year: '', q: '' }); $('#dcQ').value = ''; });
             $('#dcGroup').addEventListener('change', function (e) { change({ group: e.target.value }); });
             $('#dcSeriesSort').addEventListener('change', function (e) { change({ seriesSort: e.target.value }); });
+            $('#dcScore').addEventListener('change', function (e) { change({ score: e.target.value }); });
             $('#dcIncomplete').addEventListener('change', function (e) { change({ incomplete: e.target.checked }); });
             $('#dcStatusSel').addEventListener('change', function (e) { change({ status: e.target.value }); });
             $('#dcTag').addEventListener('change', function (e) { change({ tag: e.target.value }); });

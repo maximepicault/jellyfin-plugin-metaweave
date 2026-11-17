@@ -209,6 +209,28 @@ try {
   check('series: the entries of a series, number hint kept, series info given', pick(bySeries, 'Matching') === 2 && (pick(bySeries, 'Items') || []).some(i => i.Number === 2) && pick(pick(bySeries, 'SeriesInfo'), 'LibrarySeries') === 'Série liée au dump', JSON.stringify(pick(bySeries, 'Items')?.map(i => [i.Name, i.Number])));
   const aloneRows = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&series=_alone')).json;
   check('series: "_alone" lists the entries that belong to no series', pick(aloneRows, 'Matching') === 5, String(pick(aloneRows, 'Matching')));
+  // how well each owned file was recognised: to find the poor matches and fix their names by hand
+  const ownedAll = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=owned&pageSize=50')).json;
+  const byId = Object.fromEntries((pick(ownedAll, 'Items') || []).map(i => [i.Id, i]));
+  check('score: a file with the tag is certain (100), an exact name too', byId['1001']?.MatchScore === 100 && byId['1001']?.MatchHow === 'tag' && byId['1002']?.MatchScore === 100 && byId['1002']?.MatchHow === 'title', JSON.stringify([byId['1001'], byId['1002']]));
+  check('score: a file found through another title has its real score and says so', byId['1006']?.MatchHow === 'fuzzy' && byId['1006']?.MatchScore >= 60 && byId['1006']?.MatchScore < 100 && byId['1006']?.FileName === 'The Last Lighthouse.mkv', JSON.stringify(byId['1006']));
+  const weak = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&maxScore=100')).json;
+  check('score: the filter "under 100" keeps only the files that were not recognised for sure (the owned ones, whatever "Afficher" says)', pick(weak, 'Matching') === 1 && pick(weak, 'Items')[0].Id === '1006', JSON.stringify(pick(weak, 'Items')?.map(i => [i.Id, i.MatchScore])));
+  const noneUnder50 = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&maxScore=50')).json;
+  check('score: nothing under 50', pick(noneUnder50, 'Matching') === 0);
+  const sortedScore = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=owned&sort=score')).json;
+  check('score: sorting by score puts the poorest recognised first', pick(sortedScore, 'Items')[0].Id === '1006', JSON.stringify(pick(sortedScore, 'Items')?.map(i => [i.Id, i.MatchScore])));
+  const wCards = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&maxScore=100')).json;
+  check('score: series filtered by score keep the one that holds a poor match, with its worst score', (pick(wCards, 'Items') || []).length === 1 && pick(wCards, 'Items')[0].Alone === true && pick(wCards, 'Items')[0].WorstScore === byId['1006']?.MatchScore, JSON.stringify(pick(wCards, 'Items')));
+  const sCards = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=score')).json;
+  check('score: series sorted by score: the poorest first', pick(sCards, 'Items')[0].WorstScore === byId['1006']?.MatchScore, JSON.stringify(pick(sCards, 'Items')?.map(i => [i.Name, i.WorstScore])));
+  // release date: series sorted by their latest / earliest entry
+  const newer = pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=datenew')).json, 'Items').filter(c => !c.Alone && c.LastDate);
+  const older = pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=dateold')).json, 'Items').filter(c => !c.Alone && c.FirstDate);
+  check('dates: series carry their first and last release dates', newer.length >= 2 && newer.every(c => c.FirstDate && c.LastDate && c.FirstDate <= c.LastDate), JSON.stringify(newer));
+  check('dates: "most recent first" orders series by their latest entry, "oldest first" by their earliest', newer.every((c, i) => i === 0 || newer[i - 1].LastDate >= c.LastDate) && older.every((c, i) => i === 0 || older[i - 1].FirstDate <= c.FirstDate), JSON.stringify([newer.map(c => c.LastDate), older.map(c => c.FirstDate)]));
+  const csvScore = await api('GET', '/CustomMetadata/Dump/Export?prefix=dp&status=owned');
+  check('export: the CSV has the library file name and the score', /statut;fichier;score/.test(csvScore.text) && /The Last Lighthouse\.mkv;\d+/.test(csvScore.text), csvScore.text.slice(0, 160));
   const unknown = await api('GET', '/CustomMetadata/Dump/Coverage?prefix=nope');
   check('coverage: an unknown source is a 404', unknown.status === 404, String(unknown.status));
 
@@ -356,6 +378,27 @@ try {
     await page.click(`${M} #dcCrumbs [data-nav="series"]`);
     await page.waitForSelector(`${M} .dc-series-card`, { timeout: 8000 });
     check('coverage screen: the breadcrumb goes back to the series cards', (await page.locator(`${M} .dc-entry`).count()) === 0);
+    // the recognition filter: the series that hold a poorly recognised file, then that file with its name to fix
+    await page.selectOption(`${M} #dcScore`, '100');
+    await page.waitForFunction(sel => /Pire reconnaissance/.test(document.querySelector(sel)?.innerText || ''), `${M} #dcResults`, { timeout: 8000 });
+    check('coverage screen: the score filter keeps the series that hold a file recognised under 100', /Pire reconnaissance : \d+ %/.test(await page.locator(`${M} .dc-series-card`).innerText()));
+    await shot('D13-coverage-score-filter-1440');
+    await page.locator(`${M} .dc-series-card`).click();
+    await page.waitForSelector(`${M} #dcResults .dc-entry`, { timeout: 8000 });
+    const weakCard = await page.locator(`${M} #dcResults .dc-entry`).innerText();
+    check('coverage screen: that entry shows how it was recognised and the library file name to fix', /Reconnu par ressemblance : \d+ %/.test(weakCard) && /The Last Lighthouse\.mkv/.test(weakCard), weakCard.slice(0, 200));
+    await shot('D14-coverage-weak-entry-1440');
+    await page.click(`${M} #dcCrumbs [data-nav="series"]`);
+    await page.waitForSelector(`${M} .dc-series-card`, { timeout: 8000 });
+    await page.selectOption(`${M} #dcScore`, '');
+    await page.waitForFunction(sel => document.querySelectorAll(sel).length === 1 || document.querySelectorAll(sel).length === 2, `${M} .dc-series-card`, { timeout: 8000 });
+    // the sort options: release date and score
+    const sortOptions = await page.$$eval(`${M} #dcSeriesSort option`, os => os.map(o => o.value).join());
+    check('coverage screen: the series can be sorted by release date and by recognition', sortOptions === 'missing,name,progress,datenew,dateold,score', sortOptions);
+    await page.selectOption(`${M} #dcSeriesSort`, 'datenew');
+    await page.waitForTimeout(600);
+    check('coverage screen: a series card shows its years', /20\d\d/.test(await page.locator(`${M} .dc-series-card`).first().innerText()), await page.locator(`${M} .dc-series-card`).first().innerText());
+    await page.selectOption(`${M} #dcSeriesSort`, 'missing');
     // the group filter works at level 1
     await page.selectOption(`${M} #dcGroup`, 'Delta Prod');
     await page.waitForFunction(sel => /Groupe : Delta Prod/.test(document.querySelector(sel).textContent), `${M} #dcChips`, { timeout: 8000 });

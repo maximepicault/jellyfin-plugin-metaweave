@@ -673,6 +673,59 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         /// <summary>
+        /// How well a file name matches ONE given entry (the coverage screen shows it for every owned file, to spot the poor matches
+        /// and fix their names by hand): 100 for a bare id, the slug or the exact name, otherwise the score before the cap
+        /// (an unconfirmed episode number is flagged). Null when the name cannot be read.
+        /// </summary>
+        public (int Score, string How)? ScoreOf(DumpCatalog catalog, DumpSettings settings, string path, DumpEntry entry)
+        {
+            var fileName = string.IsNullOrWhiteSpace(path) ? null : Path.GetFileNameWithoutExtension(path);
+            if (string.IsNullOrWhiteSpace(fileName) || catalog == null || entry == null || settings == null)
+            {
+                return null;
+            }
+
+            var bare = Regex.Match(fileName, @"\{(\w+)\}", RegexOptions.None, TimeSpan.FromSeconds(1));
+            if (bare.Success && string.Equals(bare.Groups[1].Value, entry.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                return (100, "id");
+            }
+
+            var cleaned = BracketBlocks.Replace(fileName, " ");
+            var episodeNumber = 0;
+            var episodeMatch = EpisodeRegex.Match(cleaned);
+            if (episodeMatch.Success)
+            {
+                _ = int.TryParse(episodeMatch.Groups[2].Value, out episodeNumber);
+                cleaned = cleaned.Remove(episodeMatch.Index, episodeMatch.Length);
+            }
+
+            var noise = NoiseSet(settings.NoiseWords);
+            var tokens = Normalize(cleaned).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(t => !noise.Contains(t)).ToList();
+            if (tokens.Count == 0)
+            {
+                return null;
+            }
+
+            var normFile = string.Join(' ', tokens);
+            if (settings.MatchBySlug && catalog.BySlug.TryGetValue(cleaned.Trim(), out var slugExact) && slugExact == entry)
+            {
+                return (100, "slug");
+            }
+
+            if ((settings.MatchBySlug || settings.MatchByName)
+                && ((catalog.ByTitle.TryGetValue(normFile, out var titleExact) && titleExact == entry)
+                    || (episodeNumber > 0 && catalog.ByTitle.TryGetValue(normFile + " " + episodeNumber.ToString(CultureInfo.InvariantCulture), out var titleWithNumber) && titleWithNumber == entry)))
+            {
+                return (100, "title");
+            }
+
+            var suffix = episodeNumber > 0 ? episodeNumber.ToString(CultureInfo.InvariantCulture) : null;
+            var (_, raw, unconfirmed) = ComputeScore(entry, tokens.ToHashSet(StringComparer.Ordinal), normFile.Replace(" ", string.Empty, StringComparison.Ordinal), suffix);
+            return ((int)Math.Round(raw), unconfirmed ? "unconfirmed" : "fuzzy");
+        }
+
+        /// <summary>
         /// Score 0-100. Two ways to reach the threshold, the better one is kept:
         ///  - tokens: overlap with the name (55 pts) + reverse overlap (20 pts);
         ///  - other titles: the file name (spaceless) appears in the glued "search titles". Longer = fewer accidental hits:

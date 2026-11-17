@@ -52,6 +52,10 @@ The Catalogue section tells where the entries are (`data`, empty = the response 
 
 Compares the catalogue with the library: an entry is **owned** when an episode or movie carries its `{prefix-id}` tag or was related to it. A file that was never matched counts as missing (go and see why: Identify, the test panel, the log tagged `📦 [DUMP]`). Groups (the "Groupe" path) show their own coverage; filters, sort, "Copier le nom" and a CSV export of the current filters are available.
 
+## Finding the files that were not recognised for sure
+
+On the coverage screen every owned file says how it was recognised: by its tag, an identifier or its exact name (certain), or by a score. The "Reconnaissance des fichiers" filter keeps the series, then the files, recognised under 100 / 90 / 80 / 70 %; the file name of the library is shown so it can be renamed (adding the `{prefix-id}` tag makes it certain). The score of a file matched through the other titles is its score before the cap on an unconfirmed episode number. Series can also be sorted by release date and by recognition.
+
 ## Series inferred from the names
 
 The coverage screen opens on series cards, like the Séries tab; a click lists the entries of that series. Entries whose names only differ by a trailing number ("Title", "Title 2") form a series (minimum entries in the Catalogue section, 0 = off, then the entries are listed directly); the others are under "Épisodes seuls". The "Format de l'aperçu" setting (16:9 or 2:3) shapes the pictures. The number is a hint only: it may be a season or an episode, so it is never turned into `SxxExx`, and it stays in the copied name. When an entry of the series is already in the library as an episode of a series, the group shows that series and its seasons.
