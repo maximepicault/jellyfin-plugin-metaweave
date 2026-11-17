@@ -261,6 +261,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 .Select(g => new DumpGroupCoverage { Group = g.Key, Total = g.Count(), Owned = g.Count(r => r.Owned), Missing = g.Count(r => !r.Owned) })
                 .OrderBy(g => DumpStore.Normalize(g.Group), StringComparer.Ordinal).ToList();
             page.HasSeries = rows.Any(r => r.SeriesKey != null);
+            page.Years = rows.Where(r => r.Year.HasValue).Select(r => r.Year.Value).Distinct().OrderByDescending(y => y).ToList();
             page.PreviewRatio = PreviewRatioOf(source);
 
             IEnumerable<DumpRow> scope = rows;
@@ -282,6 +283,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 // Score interval: keep the series that hold at least one owned file recognised within it
                 if (ScoreFilterActive(query.MinScore, query.MaxScore)
                     && !members.Any(r => r.MatchScore.HasValue && r.MatchScore.Value >= (query.MinScore ?? 0) && r.MatchScore.Value <= (query.MaxScore ?? 100)))
+                {
+                    continue;
+                }
+
+                // Release years: keep the series that hold at least one entry released within them
+                if (YearFilterActive(null, query.MinYear, query.MaxYear)
+                    && !members.Any(r => r.Year.HasValue && r.Year.Value >= (query.MinYear ?? int.MinValue) && r.Year.Value <= (query.MaxYear ?? int.MaxValue)))
                 {
                     continue;
                 }
@@ -418,9 +426,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 result = result.Where(r => r.Tags.Any(t => string.Equals(t, q.Tag.Trim(), StringComparison.OrdinalIgnoreCase)));
             }
 
-            if (q.Year.HasValue)
+            if (YearFilterActive(q.Year, q.MinYear, q.MaxYear))
             {
-                result = result.Where(r => r.Year == q.Year);
+                var from = q.MinYear ?? q.Year ?? int.MinValue;
+                var to = q.MaxYear ?? q.Year ?? int.MaxValue;
+                result = result.Where(r => r.Year.HasValue && r.Year.Value >= from && r.Year.Value <= to);
             }
 
             var words = DumpStore.Normalize(q.Q ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -431,6 +441,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             return SortRows(result, q.Sort, q.Desc);
         }
+
+        /// <summary>A release-date filter: one year (Year) or an interval of years (MinYear / MaxYear, either end optional)</summary>
+        private static bool YearFilterActive(int? year, int? min, int? max) => year.HasValue || min.HasValue || max.HasValue;
 
         /// <summary>The interval is a filter only when it narrows the whole 0-100 range</summary>
         private static bool ScoreFilterActive(int? min, int? max) => (min ?? 0) > 0 || (max ?? 100) < 100;
@@ -830,6 +843,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string Group { get; set; }
         public string Tag { get; set; }
         public int? Year { get; set; }
+
+        /// <summary>Release years, both ends included, either may be omitted (Year = one year)</summary>
+        public int? MinYear { get; set; }
+        public int? MaxYear { get; set; }
         public string Q { get; set; }
 
         /// <summary>Key of an inferred series</summary>
@@ -926,6 +943,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public int? MinScore { get; set; }
         public int? MaxScore { get; set; }
 
+        /// <summary>Only the series that hold an entry released within these years (both ends included, either may be omitted)</summary>
+        public int? MinYear { get; set; }
+        public int? MaxYear { get; set; }
+
         /// <summary>all | incomplete | complete (default: all, or incomplete when OnlyIncomplete is set)</summary>
         public string Completeness { get; set; }
         public int Page { get; set; }
@@ -969,6 +990,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public int Total { get; set; }
         public int Owned { get; set; }
         public int Missing { get; set; }
+
+        /// <summary>The release years found in the dump, most recent first (for the date filter)</summary>
+        public List<int> Years { get; set; } = new List<int>();
 
         /// <summary>false: no entry belongs to a series (grouping off or names too different): the screen lists the entries directly</summary>
         public bool HasSeries { get; set; }

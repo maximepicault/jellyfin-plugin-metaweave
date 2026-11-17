@@ -605,6 +605,8 @@
                 <div class="dc-filters" id="dcFilters">
                     <div class="inputContainer me-search"><input is="emby-input" type="search" id="dcQ" label="Rechercher" /></div>
                     <div class="selectContainer"><select is="emby-select" id="dcGroup" label="Groupe"><option value="">Tous les groupes</option></select></div>
+                    <div class="selectContainer"><select is="emby-select" id="dcYearFrom" label="Sorti à partir de"><option value="">—</option></select></div>
+                    <div class="selectContainer"><select is="emby-select" id="dcYearTo" label="Sorti jusqu'à"><option value="">—</option></select></div>
                     <div class="dc-range" id="dcRange" role="group" aria-labelledby="dcRangeLbl">
                         <span class="dc-range-label" id="dcRangeLbl">Reconnaissance des fichiers : <b id="dcRangeOut">tous les scores</b></span>
                         <div class="dc-range-track" id="dcRangeTrack">
@@ -628,7 +630,6 @@
                     <div class="dc-tools-entries">
                         <div class="selectContainer"><select is="emby-select" id="dcStatusSel" label="Afficher"><option value="missing">Les manquants</option><option value="owned">Les possédés</option><option value="all">Tout</option></select></div>
                         <div class="selectContainer"><select is="emby-select" id="dcTag" label="Tag"><option value="">Tous les tags</option></select></div>
-                        <div class="selectContainer"><select is="emby-select" id="dcYear" label="Année"><option value="">Toutes les années</option></select></div>
                         <div class="selectContainer"><select is="emby-select" id="dcSort" label="Trier par"><option value="date">Date de sortie</option><option value="name">Nom</option><option value="id">Identifiant</option><option value="group">Groupe</option><option value="score">Score de reconnaissance</option></select></div>
                         <div class="selectContainer"><select is="emby-select" id="dcSort2" label="Puis par"><option value="">—</option><option value="date">Date de sortie</option><option value="name">Nom</option><option value="id">Identifiant</option><option value="group">Groupe</option><option value="score">Score de reconnaissance</option></select></div>
                         <button type="button" class="dc-order" id="dcOrder" aria-label="Ordre croissant" title="Inverser l'ordre">↑</button>
@@ -1607,7 +1608,7 @@
             var page = document.querySelector('#CustomMetadataMissingPage');
             var $ = function (selector) { return page.querySelector(selector); };
             var sources = [];
-            var state = { prefix: '', series: '', seriesName: '', group: '', scoreMin: 0, scoreMax: 100, q: '', complete: 'incomplete', seriesSort: 'missing', seriesSort2: '', status: 'missing', tag: '', year: '', sort: 'date', sort2: '', desc: false, page: 1, view: 'cards' };
+            var state = { prefix: '', series: '', seriesName: '', group: '', scoreMin: 0, scoreMax: 100, q: '', complete: 'incomplete', seriesSort: 'missing', seriesSort2: '', status: 'missing', tag: '', yearFrom: '', yearTo: '', sort: 'date', sort2: '', desc: false, page: 1, view: 'cards' };
             var mode = 'series';
             var flat = false;          // no entry belongs to a series: the entries are listed directly
             var timer = null, seq = 0, lastData = null, lastLevel = 'series';
@@ -1719,11 +1720,11 @@
                 return q;
             }
             function seriesQuery(extra) {
-                return clean(Object.assign({ prefix: state.prefix, q: state.q, group: state.group, completeness: state.complete, sort: sortParam(state.seriesSort, state.seriesSort2), minScore: state.scoreMin > 0 ? state.scoreMin : '', maxScore: state.scoreMax < 100 ? state.scoreMax : '', page: state.page }, extra || {}));
+                return clean(Object.assign({ prefix: state.prefix, q: state.q, group: state.group, completeness: state.complete, sort: sortParam(state.seriesSort, state.seriesSort2), minScore: state.scoreMin > 0 ? state.scoreMin : '', maxScore: state.scoreMax < 100 ? state.scoreMax : '', minYear: state.yearFrom, maxYear: state.yearTo, page: state.page }, extra || {}));
             }
             function entryQuery(extra) {
                 var key = flat ? '_alone' : state.series;
-                return clean(Object.assign({ prefix: state.prefix, series: key, status: state.status, group: state.group, tag: state.tag, year: state.year, minScore: state.scoreMin > 0 ? state.scoreMin : '', maxScore: state.scoreMax < 100 ? state.scoreMax : '', q: state.q, sort: sortParam(state.sort, state.sort2), desc: state.desc, page: state.page }, extra || {}));
+                return clean(Object.assign({ prefix: state.prefix, series: key, status: state.status, group: state.group, tag: state.tag, minYear: state.yearFrom, maxYear: state.yearTo, minScore: state.scoreMin > 0 ? state.scoreMin : '', maxScore: state.scoreMax < 100 ? state.scoreMax : '', q: state.q, sort: sortParam(state.sort, state.sort2), desc: state.desc, page: state.page }, extra || {}));
             }
 
             function refresh(force) {
@@ -1775,6 +1776,10 @@
                 page.querySelector('.dc-tools-series').classList.toggle('me-hidden', entries);
                 page.querySelector('.dc-tools-entries').classList.toggle('me-hidden', !entries);
                 $('#dcSeriesSort').value = state.seriesSort;
+                // Release years: the same filter at both levels (the years come from the dump itself)
+                var yearOptions = (d.Years || []).map(function (y) { return { v: String(y), t: String(y) }; });
+                fillSelect('#dcYearFrom', '—', yearOptions, state.yearFrom);
+                fillSelect('#dcYearTo', '—', yearOptions, state.yearTo);
                 $('#dcSeriesSort2').value = state.seriesSort2;
                 $('#dcSort2').value = state.sort2;
                 $('#dcComplete').value = state.complete;
@@ -1785,7 +1790,7 @@
                 if (state.group) { chips.push(['group', 'Groupe : ' + state.group]); }
                 if (scoreActive()) { chips.push(['score', 'Reconnu entre ' + state.scoreMin + ' et ' + state.scoreMax + ' %']); }
                 if (entries && state.tag) { chips.push(['tag', 'Tag : ' + state.tag]); }
-                if (entries && state.year) { chips.push(['year', 'Année : ' + state.year]); }
+                if (state.yearFrom || state.yearTo) { chips.push(['year', state.yearFrom && state.yearTo ? (state.yearFrom === state.yearTo ? 'Sorti en ' + state.yearFrom : 'Sorti de ' + state.yearFrom + ' à ' + state.yearTo) : (state.yearFrom ? 'Sorti à partir de ' + state.yearFrom : 'Sorti jusqu\'en ' + state.yearTo)]); }
                 if (state.q) { chips.push(['q', 'Recherche : ' + state.q]); }
                 $('#dcChips').innerHTML = chips.map(function (c) { return '<button type="button" class="dc-chip" data-clear="' + c[0] + '" aria-label="Retirer le filtre ' + esc(c[1]) + '">' + esc(c[1]) + '<i aria-hidden="true">×</i></button>'; }).join('');
 
@@ -1838,7 +1843,6 @@
             // Level 2: the entries of one series
             function renderEntries(d, hasFilters) {
                 fillSelect('#dcTag', 'Tous les tags', (d.Tags || []).map(function (t) { return { v: t.Name, t: t.Name + ' (' + t.Count + ')' }; }), state.tag);
-                fillSelect('#dcYear', 'Toutes les années', (d.Years || []).map(function (y) { return { v: String(y), t: String(y) }; }), state.year);
                 $('#dcStatusSel').value = state.status;
                 $('#dcSort').value = state.sort;
                 $('#dcOrder').textContent = state.desc ? '↓' : '↑';
@@ -1848,7 +1852,7 @@
                 $('#dcCount').textContent = d.Matching.toLocaleString('fr-FR') + ' ' + what + (hasFilters ? ' avec ces filtres' : '') + (d.Pages > 1 ? ' · page ' + d.Page + ' sur ' + d.Pages : '');
                 var box = $('#dcResults');
                 if (!d.Items.length) {
-                    var filtered = state.group || state.tag || state.year || state.q || scoreActive();
+                    var filtered = state.group || state.tag || state.yearFrom || state.yearTo || state.q || scoreActive();
                     box.innerHTML = '<div class="dc-empty"><strong>' + (filtered ? 'Aucune entrée avec ces filtres.' : (state.status === 'missing' ? 'Rien ne manque ici.' : 'Aucune entrée.')) + '</strong>'
                         + (filtered ? 'Retirez un filtre (les pastilles ci-dessus) pour élargir la liste.' : (state.status === 'missing' ? 'Toutes les entrées sont dans votre médiathèque. « Afficher : Tout » les liste quand même.' : 'Le catalogue est vide ou les chemins de la source ne trouvent rien : testez-la dans son éditeur.')) + '</div>';
                     return;
@@ -1885,11 +1889,11 @@
 
             // ---- interactions ----
             function change(patch) { Object.keys(patch).forEach(function (k) { state[k] = patch[k]; }); if (!('page' in patch)) { state.page = 1; } refresh(false); }
-            function openSeries(key, name) { lastData = null; window.scrollTo({ top: 0 }); change({ series: key, seriesName: name, status: 'missing', tag: '', year: '' }); }
-            function backToSeries() { lastData = null; flat = false; change({ series: '', seriesName: '', tag: '', year: '' }); }
+            function openSeries(key, name) { lastData = null; window.scrollTo({ top: 0 }); change({ series: key, seriesName: name, status: 'missing', tag: '' }); }
+            function backToSeries() { lastData = null; flat = false; change({ series: '', seriesName: '', tag: '' }); }
 
             $('#modeSwitch').addEventListener('click', function (e) { var b = e.target.closest('[data-mode]'); if (b) { setMode(b.getAttribute('data-mode')); } });
-            $('#dcSource').addEventListener('change', function (e) { lastData = null; flat = false; change({ prefix: e.target.value, series: '', seriesName: '', group: '', scoreMin: 0, scoreMax: 100, tag: '', year: '', q: '' }); $('#dcQ').value = ''; });
+            $('#dcSource').addEventListener('change', function (e) { lastData = null; flat = false; change({ prefix: e.target.value, series: '', seriesName: '', group: '', scoreMin: 0, scoreMax: 100, tag: '', yearFrom: '', yearTo: '', q: '' }); $('#dcQ').value = ''; });
             $('#dcGroup').addEventListener('change', function (e) { change({ group: e.target.value }); });
             $('#dcSeriesSort').addEventListener('change', function (e) { change({ seriesSort: e.target.value }); });
             $('#dcSeriesSort2').addEventListener('change', function (e) { change({ seriesSort2: e.target.value }); });
@@ -1918,7 +1922,9 @@
             });
             $('#dcStatusSel').addEventListener('change', function (e) { change({ status: e.target.value }); });
             $('#dcTag').addEventListener('change', function (e) { change({ tag: e.target.value }); });
-            $('#dcYear').addEventListener('change', function (e) { change({ year: e.target.value }); });
+            // The two ends of the release years never cross: the end that was moved pulls the other one back to it
+            $('#dcYearFrom').addEventListener('change', function (e) { var v = e.target.value; change({ yearFrom: v, yearTo: v && state.yearTo && state.yearTo < v ? v : state.yearTo }); });
+            $('#dcYearTo').addEventListener('change', function (e) { var v = e.target.value; change({ yearTo: v, yearFrom: v && state.yearFrom && state.yearFrom > v ? v : state.yearFrom }); });
             $('#dcSort').addEventListener('change', function (e) { change({ sort: e.target.value }); });
             $('#dcOrder').addEventListener('click', function () { change({ desc: !state.desc }); });
             $('#dcQ').addEventListener('input', function (e) { var value = e.target.value; clearTimeout(timer); timer = setTimeout(function () { change({ q: value.trim() }); }, 250); });
@@ -1936,7 +1942,7 @@
                 if (card) { openSeries(card.getAttribute('data-series'), card.getAttribute('data-name')); return; }
                 if (e.target.closest('[data-nav="series"]')) { backToSeries(); return; }
                 var clear = e.target.closest('[data-clear]');
-                if (clear) { var key = clear.getAttribute('data-clear'); var patch = {}; if (key === 'score') { patch.scoreMin = 0; patch.scoreMax = 100; } else { patch[key] = ''; } if (key === 'q') { $('#dcQ').value = ''; } change(patch); return; }
+                if (clear) { var key = clear.getAttribute('data-clear'); var patch = {}; if (key === 'score') { patch.scoreMin = 0; patch.scoreMax = 100; } else if (key === 'year') { patch.yearFrom = ''; patch.yearTo = ''; } else { patch[key] = ''; } if (key === 'q') { $('#dcQ').value = ''; } change(patch); return; }
                 var tag = e.target.closest('[data-tag]');
                 if (tag) { change({ tag: tag.getAttribute('data-tag') }); return; }
                 var pg = e.target.closest('[data-page]');

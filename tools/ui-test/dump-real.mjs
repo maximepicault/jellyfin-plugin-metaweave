@@ -272,6 +272,18 @@ try {
   check('sort: series "best recognised first" starts with a certain one and ends with the poor one', pick(best, 'Items')[0].WorstScore === 100 && pick(best, 'Items').filter(c => c.WorstScore != null).slice(-1)[0].WorstScore === byId['1006']?.MatchScore, JSON.stringify(pick(best, 'Items')?.map(c => [c.Name, c.WorstScore])));
   const twoKeys = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=scoredesc,datenew')).json;
   check('sort: two keys on series are accepted', (pick(twoKeys, 'Items') || []).length === 7);
+  // release-date filter on entries (the "Année" list): 2018 = the entries i = 0, 7, 14, 21, 28, 35 of the demo dump
+  const y2018 = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&year=2018&pageSize=60')).json;
+  check('year filter: 2018 keeps exactly the 6 entries released that year', pick(y2018, 'Matching') === 6 && (pick(y2018, 'Items') || []).every(i => /^2018-/.test(i.Date)), JSON.stringify([pick(y2018, 'Matching'), pick(y2018, 'Items')?.map(i => i.Date)]));
+  // the interval of release years, on the entries and on the series (the demo dump: year = 2018 + i % 7)
+  const nEntries = async q => pick((await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&pageSize=60&' + q)).json, 'Matching');
+  check('year interval on entries: 2018 to 2019 = 12, from 2024 = 5, up to 2018 = 6, 2020 to 2020 = 6', (await nEntries('minYear=2018&maxYear=2019')) === 12 && (await nEntries('minYear=2024')) === 5 && (await nEntries('maxYear=2018')) === 6 && (await nEntries('minYear=2020&maxYear=2020')) === 6);
+  const sy = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&minYear=2023&maxYear=2023&pageSize=50')).json;
+  const syNames = (pick(sy, 'Items') || []).map(c => c.Name);
+  check('year interval on series: kept when one of their entries is in it (2023 = "Le Dernier Phare", the big series; not "Les Sentiers du Nord", 2019)', syNames.some(n => /Dernier Phare/.test(n)) && syNames.some(n => /Épisode démo/.test(n)) && !syNames.some(n => /Sentiers/.test(n)), JSON.stringify(syNames));
+  check('year interval on series: the page gives the years of the dump for the filter', (pick(sy, 'Years') || []).length === 7 && pick(sy, 'Years')[0] === 2024, JSON.stringify(pick(sy, 'Years')));
+  const years = pick(cov, 'Years') || [];
+  check('year filter: the list of years is the dump\'s (2018 to 2024)', years.length === 7 && years[0] === 2024 && years[6] === 2018, JSON.stringify(years));
   const csvScore = await api('GET', '/CustomMetadata/Dump/Export?prefix=dp&status=owned');
   check('export: the CSV has the library file name and the score', /statut;fichier;score/.test(csvScore.text) && /The Last Lighthouse\.mkv;\d+/.test(csvScore.text), csvScore.text.slice(0, 160));
   const unknown = await api('GET', '/CustomMetadata/Dump/Coverage?prefix=nope');
@@ -448,6 +460,20 @@ try {
     await page.locator(`${M} .dc-chip`).click();
     await page.waitForFunction(sel => document.querySelectorAll(sel).length >= 1, `${M} .dc-series-card`, { timeout: 8000 });
     check('coverage screen: clearing the score chip resets the interval to 0-100', (await page.inputValue(`${M} #dcScoreMinNum`)) === '0' && (await page.inputValue(`${M} #dcScoreMaxNum`)) === '100');
+    // the release-date filter exists at BOTH levels (it used to exist only inside a series)
+    check('coverage screen: the release-date filter is there at the series level', await page.locator(`${M} #dcYearFrom`).isVisible() && await page.locator(`${M} #dcYearTo`).isVisible());
+    await page.selectOption(`${M} #dcYearFrom`, '2023');
+    await page.selectOption(`${M} #dcYearTo`, '2023');
+    await page.waitForFunction(sel => /Sorti en 2023/.test(document.querySelector(sel).textContent), `${M} #dcChips`, { timeout: 8000 });
+    await page.waitForFunction(sel => !/Sentiers/.test(document.querySelector(sel).innerText) && /Dernier Phare/.test(document.querySelector(sel).innerText), `${M} #dcResults`, { timeout: 8000 });
+    check('coverage screen: 2023 keeps the series released that year and drops the others', /Dernier Phare/.test(await page.locator(`${M} #dcResults`).innerText()) && !/Sentiers/.test(await page.locator(`${M} #dcResults`).innerText()));
+    await shot('D13c-coverage-year-filter-1440');
+    await page.selectOption(`${M} #dcYearFrom`, '2024');
+    await page.waitForFunction(sel => document.querySelector(sel).value === '2024', `${M} #dcYearTo`, { timeout: 8000 });
+    check('coverage screen: a start year after the end year pulls the end back to it', (await page.inputValue(`${M} #dcYearFrom`)) === '2024' && (await page.inputValue(`${M} #dcYearTo`)) === '2024');
+    await page.locator(`${M} .dc-chip`).click();
+    await page.waitForFunction(sel => document.querySelector(sel).value === '' && true, `${M} #dcYearFrom`, { timeout: 8000 });
+    check('coverage screen: clearing the date chip resets both years', (await page.inputValue(`${M} #dcYearFrom`)) === '' && (await page.inputValue(`${M} #dcYearTo`)) === '');
     // the sort options: release date and score
     const sortOptions = await page.$$eval(`${M} #dcSeriesSort option`, os => os.map(o => o.value).join());
     check('coverage screen: the series can be sorted by release date and by recognition', sortOptions === 'missing,name,progress,datenew,dateold,score,scoredesc', sortOptions);
