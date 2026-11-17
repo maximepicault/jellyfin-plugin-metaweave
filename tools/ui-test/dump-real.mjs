@@ -200,15 +200,16 @@ try {
   check('series: the group is linked to the library series that holds one of its entries', foret?.LibrarySeries === 'Série liée au dump' && (foret?.LibrarySeasons || []).join() === '1', JSON.stringify(foret));
   const demo = cards.find(x => x.Name === 'Épisode démo');
   check('series: "Épisode démo N" entries form one group of 33, with a picture', !!demo && demo.Total === 33 && demo.Missing === 33 && !!demo.ImageId, JSON.stringify(demo));
-  const alone = cards.find(x => x.Alone);
-  check('series: the entries of no series are one "Épisodes seuls" card (5 of them)', !!alone && alone.Total === 5 && alone.Name === 'Épisodes seuls', JSON.stringify(alone));
-  check('series: a one-off title is not a series', !cards.some(x => !x.Alone && /Voyage|Sentiers|Rivages|Dernier/.test(x.Name)), JSON.stringify(cards.map(x => x.Name)));
+  const lone = cards.filter(x => x.Total === 1);
+  check('series: each entry that belongs to no group is its own series of ONE episode (5 cards), none called "Épisodes seuls"', lone.length === 5 && !cards.some(x => x.Name === 'Épisodes seuls') && cards.length === 7, JSON.stringify(cards.map(c => [c.Name, c.Total])));
+  const phare = cards.find(x => /Dernier Phare/.test(x.Name));
+  check('series: a one-off title is a series of one episode with its own picture, score and date', !!phare && phare.Total === 1 && phare.Owned === 1 && !!phare.ImageId && phare.WorstScore != null && !!phare.FirstDate, JSON.stringify(phare));
   const incomplete = pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&onlyIncomplete=true')).json, 'Items') || [];
-  check('series: "only incomplete" hides the complete ones', incomplete.length === 1 && incomplete[0].Name === 'Épisode démo', JSON.stringify(incomplete.map(x => x.Name)));
+  check('series: "only incomplete" hides the complete ones (the series of one owned episode too)', incomplete.length === 1 && incomplete[0].Name === 'Épisode démo', JSON.stringify(incomplete.map(x => x.Name)));
   const bySeries = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&series=' + encodeURIComponent(foret?.Key || 'x'))).json;
   check('series: the entries of a series, number hint kept, series info given', pick(bySeries, 'Matching') === 2 && (pick(bySeries, 'Items') || []).some(i => i.Number === 2) && pick(pick(bySeries, 'SeriesInfo'), 'LibrarySeries') === 'Série liée au dump', JSON.stringify(pick(bySeries, 'Items')?.map(i => [i.Name, i.Number])));
-  const aloneRows = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&series=_alone')).json;
-  check('series: "_alone" lists the entries that belong to no series', pick(aloneRows, 'Matching') === 5, String(pick(aloneRows, 'Matching')));
+  const loneRows = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&series=' + encodeURIComponent(phare?.Key || 'x'))).json;
+  check('series: opening a series of one episode lists that one entry', pick(loneRows, 'Matching') === 1 && pick(loneRows, 'Items')[0].Id === '1006' && pick(loneRows, 'Items')[0].Grouped === false, JSON.stringify(pick(loneRows, 'Items')?.map(i => [i.Id, i.Grouped])));
   // how well each owned file was recognised: to find the poor matches and fix their names by hand
   const ownedAll = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=owned&pageSize=50')).json;
   const byId = Object.fromEntries((pick(ownedAll, 'Items') || []).map(i => [i.Id, i]));
@@ -221,7 +222,7 @@ try {
   const sortedScore = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=owned&sort=score')).json;
   check('score: sorting by score puts the poorest recognised first', pick(sortedScore, 'Items')[0].Id === '1006', JSON.stringify(pick(sortedScore, 'Items')?.map(i => [i.Id, i.MatchScore])));
   const wCards = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&maxScore=99')).json;
-  check('score: series filtered by score keep the one that holds a poor match, with its worst score', (pick(wCards, 'Items') || []).length === 1 && pick(wCards, 'Items')[0].Alone === true && pick(wCards, 'Items')[0].WorstScore === byId['1006']?.MatchScore, JSON.stringify(pick(wCards, 'Items')));
+  check('score: series filtered by score keep the one that holds a poor match, with its worst score', (pick(wCards, 'Items') || []).length === 1 && /Dernier Phare/.test(pick(wCards, 'Items')[0].Name) && pick(wCards, 'Items')[0].WorstScore === byId['1006']?.MatchScore, JSON.stringify(pick(wCards, 'Items')));
   const sCards = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=score')).json;
   check('score: series sorted by score: the poorest first', pick(sCards, 'Items')[0].WorstScore === byId['1006']?.MatchScore, JSON.stringify(pick(sCards, 'Items')?.map(i => [i.Name, i.WorstScore])));
   // release date: series sorted by their latest / earliest entry
@@ -237,11 +238,11 @@ try {
   const exact = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&minScore=100&maxScore=100')).json;
   check('score interval: 100 to 100 is exactly the certain ones', pick(exact, 'Matching') === 6, String(pick(exact, 'Matching')));
   const sCardsInterval = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&minScore=70&maxScore=80')).json;
-  check('score interval: series are kept when one of their files is in it', pick(sCardsInterval, 'Items').length === 1 && pick(sCardsInterval, 'Items')[0].Alone === true, JSON.stringify(pick(sCardsInterval, 'Items')?.map(c => c.Name)));
+  check('score interval: series are kept when one of their files is in it', pick(sCardsInterval, 'Items').length === 1 && /Dernier Phare/.test(pick(sCardsInterval, 'Items')[0].Name), JSON.stringify(pick(sCardsInterval, 'Items')?.map(c => c.Name)));
   // complete / incomplete / all series
   const nComplete = async v => (pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&completeness=' + v)).json, 'Items') || []).map(c => c.Name + ':' + c.Missing);
   const cAll = await nComplete('all'), cInc = await nComplete('incomplete'), cCom = await nComplete('complete');
-  check('series: completeness all / incomplete / complete = 3 / 1 / 2 series', cAll.length === 3 && cInc.length === 1 && cCom.length === 2 && cCom.every(x => x.endsWith(':0')) && cInc.every(x => !x.endsWith(':0')), JSON.stringify([cAll, cInc, cCom]));
+  check('series: completeness all / incomplete / complete = 7 / 1 / 6 series', cAll.length === 7 && cInc.length === 1 && cCom.length === 6 && cCom.every(x => x.endsWith(':0')) && cInc.every(x => !x.endsWith(':0')), JSON.stringify([cAll, cInc, cCom]));
   // several sort keys chained: the second breaks the ties of the first
   const chained = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&sort=group,name&pageSize=60')).json;
   const rowsG = pick(chained, 'Items') || [];
@@ -252,7 +253,7 @@ try {
   const best = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=scoredesc')).json;
   check('sort: series "best recognised first" starts with a certain one and ends with the poor one', pick(best, 'Items')[0].WorstScore === 100 && pick(best, 'Items').filter(c => c.WorstScore != null).slice(-1)[0].WorstScore === byId['1006']?.MatchScore, JSON.stringify(pick(best, 'Items')?.map(c => [c.Name, c.WorstScore])));
   const twoKeys = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&sort=scoredesc,datenew')).json;
-  check('sort: two keys on series are accepted', (pick(twoKeys, 'Items') || []).length === 3);
+  check('sort: two keys on series are accepted', (pick(twoKeys, 'Items') || []).length === 7);
   const csvScore = await api('GET', '/CustomMetadata/Dump/Export?prefix=dp&status=owned');
   check('export: the CSV has the library file name and the score', /statut;fichier;score/.test(csvScore.text) && /The Last Lighthouse\.mkv;\d+/.test(csvScore.text), csvScore.text.slice(0, 160));
   const unknown = await api('GET', '/CustomMetadata/Dump/Coverage?prefix=nope');
@@ -353,9 +354,9 @@ try {
     check('coverage screen: the series pictures load (served by the plugin)', loaded);
     await shot('D5-coverage-1440');
     await page.selectOption(`${M} #dcComplete`, 'all');
-    await page.waitForFunction(sel => document.querySelectorAll(sel).length === 3, `${M} .dc-series-card`, { timeout: 8000 });
-    check('coverage screen: "Séries : Toutes" shows the complete series too', (await page.locator(`${M} .dc-series-card`).count()) === 3);
-    const loadedAll = await page.waitForFunction(sel => { const imgs = [...document.querySelectorAll(sel)]; return imgs.length === 3 && imgs.every(i => i.complete && i.naturalWidth > 0); }, `${M} .dc-series-card img`, { timeout: 15000 }).then(() => true, () => false);
+    await page.waitForFunction(sel => document.querySelectorAll(sel).length === 7, `${M} .dc-series-card`, { timeout: 8000 });
+    check('coverage screen: "Séries : Toutes" shows the complete series too, and each lone entry as a series of one (7 cards)', (await page.locator(`${M} .dc-series-card`).count()) === 7);
+    const loadedAll = await page.waitForFunction(sel => { const imgs = [...document.querySelectorAll(sel)]; return imgs.length === 7 && imgs.every(i => i.complete && i.naturalWidth > 0); }, `${M} .dc-series-card img`, { timeout: 15000 }).then(() => true, () => false);
     check('coverage screen: all the cards with a picture show it', loadedAll);
     check('coverage screen: the card of a series found in the library says so', /Dans votre médiathèque/.test(await page.locator(`${M} .dc-series-card`, { hasText: 'Série liée au dump' }).innerText()));
     await shot('D6-coverage-all-series-1440');

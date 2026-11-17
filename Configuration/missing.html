@@ -1859,7 +1859,7 @@
                     var meta = [];
                     if (r.Group && r.Group !== '(sans groupe)') { meta.push(esc(r.Group)); }
                     if (r.Date) { meta.push(esc(formatDate(r.Date))); }
-                    if (r.Series && r.Number !== null && r.Number !== undefined) { meta.push('<span title="Le chiffre final du titre : une saison ou un épisode, le titre ne le dit pas">n° ' + esc(r.Number) + ' d\'après le titre</span>'); }
+                    if (r.Grouped && r.Number !== null && r.Number !== undefined) { meta.push('<span title="Le chiffre final du titre : une saison ou un épisode, le titre ne le dit pas">n° ' + esc(r.Number) + ' d\'après le titre</span>'); }
                     if (r.Owned && r.MatchScore !== null && r.MatchScore !== undefined) { meta.push('<span class="' + (r.MatchScore < 100 && r.MatchHow !== 'tag' ? 'dc-score-low' : '') + '">' + esc(howText(r)) + '</span>'); }
                     if (r.Owned && r.LibrarySeries) { meta.push('✓ ' + esc(r.LibrarySeries) + (r.LibrarySeason !== null && r.LibrarySeason !== undefined ? ' · saison ' + esc(r.LibrarySeason) : '')); }
                     html += '<div class="me-episode dc-entry" data-file="' + esc(name) + '">'

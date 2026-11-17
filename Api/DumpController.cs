@@ -286,15 +286,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     continue;
                 }
 
-                var alone = g.Key == AloneKey;
+                var alone = false;
                 var linked = members.Where(r => r.Owned && !string.IsNullOrWhiteSpace(r.LibrarySeries)).ToList();
                 var withImage = members.Where(r => r.HasImage).OrderBy(r => r.Owned).FirstOrDefault();
                 cards.Add(new DumpSeriesCard
                 {
                     Key = g.Key,
                     Alone = alone,
-                    Name = alone ? "Épisodes seuls" : members[0].Series,
-                    LibrarySeries = alone ? null : linked.GroupBy(r => r.LibrarySeries).OrderByDescending(x => x.Count()).Select(x => x.Key).FirstOrDefault(),
+                    Name = members[0].Series,
+                    LibrarySeries = linked.GroupBy(r => r.LibrarySeries).OrderByDescending(x => x.Count()).Select(x => x.Key).FirstOrDefault(),
                     LibrarySeasons = linked.Where(r => r.LibrarySeason.HasValue).Select(r => r.LibrarySeason.Value).Distinct().OrderBy(x => x).ToList(),
                     // Only when every entry has the same group: otherwise the card would claim a brand it does not belong to
                     Group = members.Select(r => r.Group).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1 && !string.IsNullOrWhiteSpace(members[0].Group) && members[0].Group != "(sans groupe)" ? members[0].Group : null,
@@ -471,13 +471,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return desc ? ordered.ThenByDescending(key, comparer) : ordered.ThenBy(key, comparer);
         }
 
-        /// <summary>The series, sorted by one to three chained keys (see SortRows). The "Épisodes seuls" card stays last unless sorting by score.</summary>
+        /// <summary>The series, sorted by one to three chained keys (see SortRows)</summary>
         private static IOrderedEnumerable<DumpSeriesCard> SortSeries(List<DumpSeriesCard> cards, string sort)
         {
             var keys = (string.IsNullOrWhiteSpace(sort) ? "missing" : sort).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(k => k.ToLowerInvariant()).Distinct().Take(3).ToList();
-            var aloneFree = keys.Any(k => k == "score" || k == "scoredesc");
-            var ordered = aloneFree ? cards.OrderBy(_ => 0) : cards.OrderBy(c => c.Alone);
+            var ordered = cards.OrderBy(_ => 0);
             foreach (var key in keys)
             {
                 ordered = key switch
@@ -706,9 +705,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// </summary>
         private static void GroupSeries(List<DumpRow> rows, int min)
         {
+            // An entry that belongs to no group of several is a series of ONE episode: its own card, named after it
+            static void Alone(DumpRow r)
+            {
+                r.SeriesKey = "e:" + r.Id;
+                r.Series = r.Name;
+                r.Grouped = false;
+            }
+
             if (min <= 0)
             {
-                foreach (var r in rows) { r.Series = null; }
+                foreach (var r in rows) { Alone(r); }
                 return;
             }
 
@@ -717,7 +724,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 var members = group.ToList();
                 if (group.Key.Length < 3 || members.Count < min)
                 {
-                    foreach (var r in members) { r.Series = null; }
+                    foreach (var r in members) { Alone(r); }
                     continue;
                 }
 
@@ -726,6 +733,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 {
                     r.SeriesKey = group.Key;
                     r.Series = name;
+                    r.Grouped = true;
                 }
             }
         }
@@ -860,9 +868,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public bool HasImage => !string.IsNullOrWhiteSpace(ImageUrl);
         public bool Owned { get; set; }
 
-        /// <summary>Inferred series (entries whose names only differ by a trailing number); null when alone</summary>
+        /// <summary>Inferred series (entries whose names only differ by a trailing number). An entry alone is a series of one episode.</summary>
         public string SeriesKey { get; set; }
         public string Series { get; set; }
+
+        /// <summary>True when the series holds several entries (the trailing number of the title is then a hint)</summary>
+        public bool Grouped { get; set; }
 
         /// <summary>The trailing number of the name: a season OR an episode, the title cannot tell. A hint only</summary>
         public int? Number { get; set; }
@@ -926,7 +937,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     {
         public string Key { get; set; }
 
-        /// <summary>The pseudo-series of the entries that belong to no series</summary>
+        /// <summary>Always false now (an entry alone is a series of one episode): kept so older pages do not break</summary>
         public bool Alone { get; set; }
         public string Name { get; set; }
         public string LibrarySeries { get; set; }
