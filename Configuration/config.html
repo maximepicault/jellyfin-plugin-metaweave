@@ -1175,7 +1175,8 @@
                         <span class="cm-dirty" id="dirtyState">Aucune modification</span>
                         <div class="cm-savebar-actions">
                             <button is="emby-button" type="button" class="raised" id="btnCancelEdit"><span>Annuler</span></button>
-                            <button is="emby-button" type="submit" class="raised button-submit"><span>Enregistrer</span></button>
+                            <button is="emby-button" type="submit" class="raised" id="btnSaveStay"><span>Enregistrer</span></button>
+                            <button is="emby-button" type="submit" class="raised button-submit" id="btnSaveQuit"><span>Enregistrer et quitter</span></button>
                         </div>
                     </div>
                 </form>
@@ -2298,6 +2299,12 @@
                 return merged;
             }
 
+            // Two save buttons: "Enregistrer" stays in the editor, "Enregistrer et quitter" goes back to the list.
+            // The choice is kept in a variable (not read from the submitter) because the prefix confirmation replays requestSubmit().
+            var saveStay = false, localNoticePending = null, lastSavedAt = '';
+            document.querySelector('#btnSaveStay').addEventListener('click', function() { saveStay = true; });
+            document.querySelector('#btnSaveQuit').addEventListener('click', function() { saveStay = false; });
+
             // Sauvegarder source
             document.querySelector('#sourceForm').addEventListener('submit', function(e) {
                 e.preventDefault();
@@ -2323,6 +2330,19 @@
                 
 
                 renderSourcesList(currentConfig.Sources);
+                if (saveStay) {
+                    // Stay in the editor: the source now exists (a new one gets its index) and nothing is pending
+                    var now = new Date();
+                    lastSavedAt = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+                    document.querySelector('#editIndex').value = index >= 0 ? index : currentConfig.Sources.length - 1;
+                    editOriginalPrefix = source.Prefix || '';
+                    dirty = false;
+                    updateHeaderLive();
+                    updateDirtyUi();
+                    if (source.SourceType === 'Local') { localNoticePending = source.Prefix; }
+                    persistSources();
+                    return;
+                }
                 closeEditor(true);
                 persistSources();
                 if (source.SourceType === 'Local') { showPostSaveNotice(source.Prefix); }
@@ -2407,8 +2427,9 @@
                 var isNew = parseInt(qs('#editIndex').value, 10) < 0;
                 var el = qs('#dirtyState');
                 el.classList.toggle('on', dirty);
+                qs('#btnCancelEdit span').textContent = dirty ? 'Annuler' : 'Fermer';
                 el.textContent = dirty ? 'Modifications non enregistrées'
-                    : (isNew ? (isLocalForm() ? 'Nouvelle source locale : renseignez le nom et le préfixe, puis ajoutez du contenu.' : isPeopleForm() ? 'Nouvelle source de personnes : renseignez le nom, le préfixe, l\'URL et l\'endpoint.' : isDumpForm() ? 'Nouveau dump : renseignez le nom, le préfixe et l\'URL, puis testez le chargement.' : 'Nouvelle source : renseignez au moins le nom, le préfixe et l\'URL.') : 'Aucune modification');
+                    : (lastSavedAt && !isNew ? 'Enregistré à ' + lastSavedAt : (isNew ? (isLocalForm() ? 'Nouvelle source locale : renseignez le nom et le préfixe, puis ajoutez du contenu.' : isPeopleForm() ? 'Nouvelle source de personnes : renseignez le nom, le préfixe, l\'URL et l\'endpoint.' : isDumpForm() ? 'Nouveau dump : renseignez le nom, le préfixe et l\'URL, puis testez le chargement.' : 'Nouvelle source : renseignez au moins le nom, le préfixe et l\'URL.') : 'Aucune modification'));
             }
 
             function markDirty() {
@@ -2493,9 +2514,11 @@
                     return false;
                 }
                 dirty = false;
+                lastSavedAt = '';
                 localContent = null;
                 qs('#editorView').hidden = true;
                 qs('#listView').hidden = false;
+                if (localNoticePending !== null) { showPostSaveNotice(localNoticePending); localNoticePending = null; }
                 qs('#testResult').innerHTML = '<p class="cm-test-idle">Modifiez un mapping, puis testez : le résultat s\'affiche ici, sans quitter la page.</p>';
                 return true;
             }

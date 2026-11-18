@@ -338,7 +338,11 @@ try {
 
   // 4. Saving: content first, then the source
   check('unsaved changes flagged', (await ev(`document.querySelector('#dirtyState').textContent`)).includes('non enregistrées'));
-  await click('#sourceForm button[type=submit]'); await wait(600);
+  await click('#btnSaveStay'); await wait(600);
+  check('save and stay: the editor is still open, nothing pending', !(await ev(`document.querySelector('#editorView').hidden`)) && (await ev(`document.querySelector('#dirtyState').textContent`)).startsWith('Enregistré à') && (await ev(`document.querySelector('#btnCancelEdit').textContent`)).trim() === 'Fermer');
+  check('save and stay: the source is in the config once', (await ev(`__mock.config.Sources.filter(function(s){return s.SourceType==='Local';}).length`)) === 1 && (await ev(`document.querySelector('#editIndex').value`)) !== '-1');
+  await click('#btnSaveQuit'); await wait(600);
+  check('save and quit: back to the list, still one source', (await ev(`document.querySelector('#editorView').hidden`)) && (await ev(`__mock.config.Sources.filter(function(s){return s.SourceType==='Local';}).length`)) === 1);
   const mock = await ev(`JSON.stringify({calls: __mock.calls, alerts: __mock.alerts, sources: __mock.config.Sources, local: __mock.local})`);
   const m = JSON.parse(mock);
   const src = m.sources.find(s => s.SourceType === 'Local') || {};
@@ -378,7 +382,7 @@ try {
   await click(`#localTree [data-node="${quatriemeId}"]`); await wait(150);
   await click(`#localDetail [data-del="${quatriemeId}"]`); await wait(250);
   check('deleting an episode', (await ev(`document.querySelectorAll('#localTree .cm-t-item').length`)) === 5);
-  await click('#sourceForm button[type=submit]'); await wait(600);
+  await click('#btnSaveQuit'); await wait(600);
   const after = JSON.parse(await ev(`JSON.stringify(__mock.local)`));
   const key = Object.keys(after)[0];
   check('deletion saved', after[key].Series[0].Seasons[0].Episodes.length === 3);
@@ -410,7 +414,7 @@ try {
   check('people source: the image address field is empty by default', (await ev(`document.querySelector('#srcPersonPhotoBase').value`)) === '');
   await type('#srcPersonPhotoBase', 'https://images.test/p/w185');
   await shot('L8-people-source-1440');
-  await click('#sourceForm button[type=submit]'); await wait(600);
+  await click('#btnSaveQuit'); await wait(600);
   const ps = JSON.parse(await ev(`JSON.stringify(__mock.config.Sources)`)).find(x => x.SourceType === 'People') || {};
   check('people source saved', ps.Prefix === 'pe' && ps.PersonEndpoint === '/people/{id}' && ps.PersonMappings.Photo === 'photo' && ps.BaseUrl === 'http://people.test' && !ps.EpisodeListEndpoint, JSON.stringify(ps));
   check('people source saved: image address kept', ps.PersonMappings.PhotoBaseUrl === 'https://images.test/p/w185', JSON.stringify(ps.PersonMappings));
@@ -484,10 +488,10 @@ try {
   check('prefix restored: warning removed', !(await vis('#prefixWarn')));
   await type('#srcPrefix', 'zz');
   await ev(`window.__cmdAnswer='cancel'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} true`);
-  await click('#sourceForm button[type=submit]'); await wait(400);
+  await click('#btnSaveQuit'); await wait(400);
   check('prefix: confirmation refused = stay in the editor, nothing saved', (await vis('#editorView')) && JSON.parse(await ev(`JSON.stringify(__mock.config.Sources.map(function(x){return x.Prefix;}))`))[0] === 'dm');
   await ev(`window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} true`);
-  await click('#sourceForm button[type=submit]'); await wait(500);
+  await click('#btnSaveQuit'); await wait(500);
   check('prefix: confirmation = saved', JSON.parse(await ev(`JSON.stringify(__mock.config.Sources.map(function(x){return x.Prefix;}))`))[0] === 'zz');
   // Custom headers: quotes in a value are kept (typed, saved, shown again)
   await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
@@ -495,7 +499,7 @@ try {
   await click('button[onclick="addHeader()"]'); await wait(150);
   const quoted = '"Chromium";v="120", "Not?A_Brand";v="8"';
   await ev(`(function(){var r=document.querySelectorAll('.cm-header-row input'); var k=r[r.length-2], v=r[r.length-1]; k.value='sec-ch-ua'; k.dispatchEvent(new Event('input',{bubbles:true})); v.value=${JSON.stringify(quoted)}; v.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
-  await click('#sourceForm button[type=submit]'); await wait(500);
+  await click('#btnSaveQuit'); await wait(500);
   const savedHeaders = JSON.parse(await ev(`JSON.stringify(__mock.config.Sources[0].CustomHeaders || [])`));
   check('headers: quotes kept in the saved value', savedHeaders.some(h => h.Key === 'sec-ch-ua' && h.Value === quoted), JSON.stringify(savedHeaders));
   await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
@@ -509,7 +513,7 @@ try {
   await shot('L10-headers-switch-1440');
   check('headers: the Réseau counter only counts the headers that are on', (await ev(`document.querySelector('[data-count-for="network"]').textContent`)) === 'Par défaut');
   check('headers: switching off dims the row', (await ev(`document.querySelector('.cm-header-row:last-child').classList.contains('cm-header-off')`)) === true);
-  await click('#sourceForm button[type=submit]'); await wait(500);
+  await click('#btnSaveQuit'); await wait(500);
   const offHeaders = JSON.parse(await ev(`JSON.stringify(__mock.config.Sources[0].CustomHeaders || [])`));
   check('headers: the switch is saved (Enabled false)', offHeaders.some(h => h.Key === 'sec-ch-ua' && h.Enabled === false), JSON.stringify(offHeaders));
   await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);

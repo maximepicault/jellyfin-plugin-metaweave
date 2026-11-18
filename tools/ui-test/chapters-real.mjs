@@ -111,7 +111,7 @@ try {
   await page.$eval(`${C} #srcVideoChapters`, e => e.scrollIntoView({ block: 'center' })); await page.waitForTimeout(400);
   await shot('C1-mapping-1440');
   await page.selectOption(`${C} #srcVideoChapterUnit`, 'milliseconds');
-  await page.click(`${C} .cm-savebar button[type=submit]`);
+  await page.click(`${C} #btnSaveQuit`);
   await page.waitForSelector(`${C} #listView:not([hidden])`);
   await page.waitForTimeout(1500);
   const saved = (await api('GET', `/Plugins/${PLUGIN}/Configuration`)).json.Sources.find(s => s.Prefix === 'dm').VideoFieldMappings;
@@ -124,7 +124,7 @@ try {
   await page.fill(`${C} #lf-Chapters`, '0:00 Nouveau départ\n90 Rebondissement');
   await page.$eval(`${C} #lf-Chapters`, e => e.scrollIntoView({ block: 'center' })); await page.waitForTimeout(400);
   await shot('C2-local-episode-1440');
-  await page.click(`${C} .cm-savebar button[type=submit]`);
+  await page.click(`${C} #btnSaveQuit`);
   await page.waitForSelector(`${C} #listView:not([hidden])`);
   await page.waitForTimeout(1500);
   const stored = (await api('GET', `/CustomMetadata/Local/${DATA}`)).json;

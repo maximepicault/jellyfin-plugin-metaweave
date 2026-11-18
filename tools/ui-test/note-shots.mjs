@@ -40,6 +40,11 @@ try {
   await page.keyboard.press('Escape'); await page.click(`${C} #lf-Genres`); await page.waitForTimeout(400);
   await page.locator(`${C} #lf-Note`).scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
   await shot('N3-genres-note');
+  await page.fill(`${C} #lf-Title`, 'Ma série modifiée'); await page.waitForTimeout(200);
+  await shot('N5-before-save');
+  await page.click(`${C} #btnSaveStay`); await page.waitForTimeout(1500);
+  console.log('after stay: editor hidden =', await page.$eval(`${C} #editorView`, e => e.hidden), '|', await page.$eval(`${C} #dirtyState`, e => e.textContent));
+  await shot('N6-after-save-stay');
   await page.setViewportSize({ width: 412, height: 900 }); await page.waitForTimeout(500);
   await page.locator(`${C} #lf-Tags`).scrollIntoViewIfNeeded(); await shot('N4-mobile');
 } finally {

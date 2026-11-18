@@ -116,7 +116,7 @@ try {
   // Empty required field while in another section: we must be taken back to « Général »
   await evalJs(`(function(){var n=document.querySelector('${C} #srcName'); n.value=''; n.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
   await click(`${C} [data-go=series]`); await wait(300);
-  await click(`${C} .cm-savebar button[type=submit]`); await wait(700);
+  await click(`${C} #btnSaveQuit`); await wait(700);
   console.log('✅ validation: section shown =', await evalJs(`document.querySelector('${C} .cm-nav-item[aria-current]').getAttribute('data-go')`),
     '(expected: general) | state:', await evalJs(`document.querySelector('${C} #dirtyState').textContent`));
   await shot('12-editor-validation-1440');

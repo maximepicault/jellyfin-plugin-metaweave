@@ -102,7 +102,7 @@ try {
   // 1. edit a source through the UI
   await click(`${C} .cm-card button.raised`); await wait(600);
   await set('srcName', 'Démo API modifiée'); await set('srcVideoImagesArray', 'media.images');
-  await click(`${C} .cm-savebar button[type=submit]`); await wait(2500);
+  await click(`${C} #btnSaveQuit`); await wait(2500);
   let c = await getCfg();
   ok('name saved', c.Sources[0].Name === 'Démo API modifiée', c.Sources[0].Name);
   ok('ImagesArray saved', c.Sources[0].VideoFieldMappings.ImagesArray === 'media.images', c.Sources[0].VideoFieldMappings.ImagesArray);
@@ -121,10 +121,10 @@ try {
   await click(`${C} .cm-add`); await wait(300);
   await click(`${C} [data-new-type="api"]`); await wait(500);   // the source type is chosen first
   ok('mappings pre-filled', await evalJs(`document.querySelector('${C} #srcVideoTitle').value`) === 'title');
-  await click(`${C} .cm-savebar button[type=submit]`); await wait(600);
+  await click(`${C} #btnSaveQuit`); await wait(600);
   ok('name missing: stay on the editor', await evalJs(`!document.querySelector('${C} #editorView').hidden`));
   await set('srcName', 'Nouvelle'); await set('srcPrefix', 'nv'); await set('srcBaseUrl', 'http://172.17.0.1:8765');
-  await click(`${C} .cm-savebar button[type=submit]`); await wait(2500);
+  await click(`${C} #btnSaveQuit`); await wait(2500);
   c = await getCfg();
   ok('source added', c.Sources.length === 2 && c.Sources[1].Prefix === 'nv', String(c.Sources.length));
   ok('default mapping saved', c.Sources[1].VideoFieldMappings.Title === 'title' && c.Sources[1].VideoFieldMappings.ImagesArray === 'images');
