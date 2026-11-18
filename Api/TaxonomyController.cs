@@ -40,6 +40,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
 
             _store.Save(_service.NormalizeTargets(file));
+            TaxonomyService.InvalidateNames();
             return Ok(new TaxonomyCatalog { Terms = _service.Catalog() });
         }
 

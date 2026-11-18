@@ -366,6 +366,9 @@
         #CustomMetadataConfigPage .cm-guide li small { grid-column: 2; font-size: 13px; line-height: 1.45; color: var(--cm-muted); }
         #CustomMetadataConfigPage .cm-termbox { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 44px; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); }
         #CustomMetadataConfigPage .cm-termbox:focus-within { border-color: var(--cm-accent); }
+        #CustomMetadataConfigPage .cm-termcopy { margin-left: 8px; padding: 2px 10px; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 12px; background: none; color: rgba(255, 255, 255, 0.85); font: inherit; font-size: 12px; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-termcopy:hover { border-color: var(--cm-accent); color: #fff; }
+        #CustomMetadataConfigPage .cm-pill { user-select: text; }
         #CustomMetadataConfigPage .cm-pills { display: contents; }
         #CustomMetadataConfigPage .cm-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 4px 0 10px; border-radius: 14px; font-size: 13px; color: #fff; background: rgba(0, 164, 220, 0.28); border: 1px solid rgba(0, 164, 220, 0.6); }
         #CustomMetadataConfigPage .cm-terms[data-terms="Genres"] .cm-pill { background: rgba(170, 100, 230, 0.28); border-color: rgba(170, 100, 230, 0.65); }
@@ -2995,7 +2998,7 @@
                 if (!node) { return; }
                 var list = node[field] || (node[field] = []);
                 var added = false;
-                splitList(text).forEach(function(t) {
+                splitList(String(text).replace(/[;\n\r\t]+/g, ',')).forEach(function(t) {
                     if (!list.some(function(x) { return String(x).toLowerCase() === t.toLowerCase(); })) { list.push(t); added = true; }
                 });
                 if (added) { markDirty(); }
@@ -3068,11 +3071,37 @@
                     if (node && node[field] && node[field].length) { node[field].pop(); markDirty(); renderTermChips(); showSuggest(input); }
                 }
             });
+            // Paste: "a, b, c" (or one per line) becomes pills at once
+            termsHost.addEventListener('paste', function(e) {
+                var input = e.target;
+                if (!input.hasAttribute || !input.hasAttribute('data-term-input')) { return; }
+                var text = (e.clipboardData || window.clipboardData).getData('text');
+                if (!text || !text.trim()) { return; }
+                e.preventDefault();
+                addTerms(input.getAttribute('data-term-input'), input.value + text);
+                input.value = '';
+                hideSuggest(input);
+            });
+            // Copy with nothing selected in the field: the whole list, "a, b, c", ready to paste elsewhere
+            termsHost.addEventListener('copy', function(e) {
+                var input = e.target;
+                if (!input.hasAttribute || !input.hasAttribute('data-term-input') || input.selectionStart !== input.selectionEnd) { return; }
+                var node = termNode(), list = node && node[input.getAttribute('data-term-input')];
+                if (!list || !list.length) { return; }
+                e.preventDefault();
+                e.clipboardData.setData('text/plain', list.join(', '));
+            });
             termsHost.addEventListener('mousedown', function(e) { if (e.target.closest && e.target.closest('.cm-suggest')) { e.preventDefault(); } });
             termsHost.addEventListener('click', function(e) {
-                var t = e.target.closest ? e.target.closest('[data-sugg],[data-term-remove]') : null;
+                var t = e.target.closest ? e.target.closest('[data-sugg],[data-term-remove],[data-term-copy]') : null;
                 if (!t) { return; }
                 var node = termNode();
+                if (t.hasAttribute('data-term-copy')) {
+                    e.preventDefault();
+                    var all = (node && node[t.getAttribute('data-term-copy')]) || [];
+                    if (all.length) { copyLocal(all.join(', '), t); }
+                    return;
+                }
                 if (t.hasAttribute('data-sugg')) {
                     var input = qs('#lf-' + t.getAttribute('data-sugg'));
                     addTerms(t.getAttribute('data-sugg'), t.getAttribute('data-term'));
@@ -3294,7 +3323,8 @@
             }
 
             function termField(label, field, hint) {
-                return '<div class="inputContainer cm-span cm-terms" data-terms="' + field + '"><label class="inputLabel" for="lf-' + field + '">' + (field === 'Tags' ? '🏷️ ' : '🎭 ') + label + '</label>'
+                return '<div class="inputContainer cm-span cm-terms" data-terms="' + field + '"><label class="inputLabel" for="lf-' + field + '">' + (field === 'Tags' ? '🏷️ ' : '🎭 ') + label
+                    + ' <button type="button" class="cm-termcopy" data-term-copy="' + field + '" title="Copier la liste, séparée par des virgules"><span>Copier</span></button></label>'
                     + '<div class="cm-termbox"><span class="cm-pills"></span><input type="text" id="lf-' + field + '" class="cm-terminput" data-term-input="' + field + '" autocomplete="off" placeholder="Ajouter…" role="combobox" aria-expanded="false" aria-controls="lf-' + field + '-list" /></div>'
                     + '<div class="cm-suggest" id="lf-' + field + '-list" role="listbox" hidden></div>'
                     + '<div class="cm-hint">' + hint + '</div></div>';

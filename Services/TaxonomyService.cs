@@ -341,6 +341,35 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             return file;
         }
 
+        // Building the catalog walks every managed item of the library: seconds on a big library. The suggestions come from a copy
+        // kept for two minutes (and dropped when the rules change), so typing in the editor never waits for the library.
+        private static readonly object NamesLock = new object();
+        private static List<TaxonomyTerm> _namesCache;
+        private static DateTime _namesAt;
+
+        /// <summary>Forgets the suggestions copy (rules saved, "Appliquer" started)</summary>
+        public static void InvalidateNames()
+        {
+            lock (NamesLock) { _namesCache = null; }
+        }
+
+        private List<TaxonomyTerm> SuggestibleTerms()
+        {
+            lock (NamesLock)
+            {
+                if (_namesCache == null || DateTime.UtcNow - _namesAt > TimeSpan.FromMinutes(2))
+                {
+                    _namesCache = Catalog()
+                        .Where(t => !t.Ignored && (t.ReplaceWith == null || TaxonomyStore.Key(t.ReplaceWith) == t.Key))
+                        .OrderByDescending(t => t.Items).ThenBy(t => t.Key, StringComparer.Ordinal)
+                        .ToList();
+                    _namesAt = DateTime.UtcNow;
+                }
+
+                return _namesCache;
+            }
+        }
+
         /// <summary>The names to suggest in a field (not ignored, not renamed away), the most used first.
         /// With a kind, only that kind is returned; with a search text, only the terms containing it (ignoring case and accents),
         /// searched among ALL terms; limit caps each list (default 300, at most 300).</summary>
@@ -348,14 +377,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         {
             limit = Math.Max(1, Math.Min(limit, 300));
             var key = string.IsNullOrWhiteSpace(search) ? null : TaxonomyStore.Key(search);
-            return Catalog()
-                .Where(t => !t.Ignored && (t.ReplaceWith == null || TaxonomyStore.Key(t.ReplaceWith) == t.Key))
+            return SuggestibleTerms()
                 .Where(t => string.IsNullOrEmpty(kind) || string.Equals(t.Kind, kind, StringComparison.OrdinalIgnoreCase))
                 .Where(t => key == null || t.Key.Contains(key, StringComparison.Ordinal))
                 .GroupBy(t => t.Kind)
                 .ToDictionary(g => g.Key, g => g
                     .OrderByDescending(t => key != null && t.Key.StartsWith(key, StringComparison.Ordinal))
-                    .ThenByDescending(t => t.Items).ThenBy(t => t.Key, StringComparer.Ordinal)
                     .Select(t => t.Name).Take(limit).ToList());
         }
 
@@ -404,6 +431,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// </summary>
         public TaxonomyApplyStatus Start()
         {
+            InvalidateNames();
             if (!RunLock.Wait(0))
             {
                 return new TaxonomyApplyStatus { Running = true, Message = "Une application des règles est déjà en cours." };
