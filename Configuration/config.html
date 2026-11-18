@@ -364,6 +364,22 @@
         #CustomMetadataConfigPage .cm-guide li[data-done="true"] b { background: #24734a; color: #fff; }
         #CustomMetadataConfigPage .cm-guide li[data-next="true"] strong { color: #fff; }
         #CustomMetadataConfigPage .cm-guide li small { grid-column: 2; font-size: 13px; line-height: 1.45; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-termbox { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 44px; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); }
+        #CustomMetadataConfigPage .cm-termbox:focus-within { border-color: var(--cm-accent); }
+        #CustomMetadataConfigPage .cm-pills { display: contents; }
+        #CustomMetadataConfigPage .cm-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 4px 0 10px; border-radius: 14px; font-size: 13px; color: #fff; background: rgba(0, 164, 220, 0.28); border: 1px solid rgba(0, 164, 220, 0.6); }
+        #CustomMetadataConfigPage .cm-terms[data-terms="Genres"] .cm-pill { background: rgba(170, 100, 230, 0.28); border-color: rgba(170, 100, 230, 0.65); }
+        #CustomMetadataConfigPage .cm-pill button { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 14px; line-height: 1; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-pill button:hover { background: rgba(255, 255, 255, 0.3); }
+        #CustomMetadataConfigPage .cm-terminput { flex: 1 1 140px; min-width: 120px; height: 28px; padding: 0 4px; border: 0; outline: 0; background: none; color: inherit; font: inherit; }
+        #CustomMetadataConfigPage .cm-suggest { position: absolute; z-index: 30; left: 0; right: 0; max-height: 240px; overflow: auto; margin-top: 2px; border-radius: 6px; background: #2a2a2e; border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+        #CustomMetadataConfigPage .cm-terms { position: relative; }
+        #CustomMetadataConfigPage .cm-suggest[hidden] { display: none; }
+        #CustomMetadataConfigPage .cm-suggest button { display: block; width: 100%; padding: 8px 12px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-suggest button:hover, #CustomMetadataConfigPage .cm-suggest button[aria-selected="true"] { background: rgba(0, 164, 220, 0.25); }
+        #CustomMetadataConfigPage .cm-suggest .cm-new { opacity: 0.75; font-style: italic; }
+        #CustomMetadataConfigPage .cm-note { border-radius: 8px; padding: 10px 12px; background: rgba(255, 196, 0, 0.08); border: 1px solid rgba(255, 196, 0, 0.35); }
+        #CustomMetadataConfigPage .cm-note textarea { background: transparent; }
         #CustomMetadataConfigPage .cm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         #CustomMetadataConfigPage .cm-chip { min-height: 32px; padding: 0 12px; border: 1px dashed rgba(255, 255, 255, 0.35); border-radius: 16px; background: none; color: rgba(255, 255, 255, 0.85); font: inherit; font-size: 13px; cursor: pointer; }
         #CustomMetadataConfigPage .cm-chip:hover { border-color: var(--cm-accent); color: #fff; background: rgba(0, 164, 220, 0.14); }
@@ -2912,20 +2928,29 @@
             // Terms of the "Genres et tags" screen, offered under the Tags and Genres fields (one click adds one)
             var termNames = { genre: [], tag: [] };
             function loadTermNames() {
-                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Taxonomy/Names')).then(function(names) {
-                    termNames = { genre: (names && names.genre) || [], tag: (names && names.tag) || [] };
-                    renderTermChips();
-                }, function() { /* suggestions are a comfort: the fields work without them */ });
+                // Only the 24 most used of each kind: the rest is searched on the server while typing
+                ['tag', 'genre'].forEach(function(kind) {
+                    ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Taxonomy/Names', { kind: kind, limit: 24 })).then(function(names) {
+                        termNames[kind] = (names && names[kind]) || [];
+                        renderTermChips();
+                    }, function() { /* suggestions are a comfort: the fields work without them */ });
+                });
             }
 
             function renderTermChips() {
                 var hit = localSel ? findNode(localSel) : null;
                 if (!hit) { return; }
                 [['Tags', 'tag'], ['Genres', 'genre']].forEach(function(pair) {
-                    var field = qs('#lf-' + pair[0]), box = field && field.closest('.inputContainer');
+                    var field = qs('#lf-' + pair[0]), box = field && field.closest('.cm-terms');
                     if (!box) { return; }
                     var old = box.querySelector('.cm-chips');
                     if (old) { old.remove(); }
+                    var pills = box.querySelector('.cm-pills');
+                    if (pills) {
+                        pills.innerHTML = (hit.node[pair[0]] || []).map(function(t, i) {
+                            return '<span class="cm-pill">' + escapeHtml(t) + '<button type="button" data-term-remove="' + pair[0] + '" data-i="' + i + '" aria-label="Retirer ' + escapeHtml(t) + '">×</button></span>';
+                        }).join('');
+                    }
                     var have = (hit.node[pair[0]] || []).map(function(t) { return String(t).toLowerCase(); });
                     var left = (termNames[pair[1]] || []).filter(function(name) { return have.indexOf(name.toLowerCase()) < 0; }).slice(0, 14);
                     if (!left.length) { return; }
@@ -2938,6 +2963,103 @@
                     box.appendChild(chips);
                 });
             }
+
+
+            // Tags / genres editor: pills, autocomplete on the known terms, Enter or comma adds, Backspace removes the last one
+            function termNode() { var h = localSel ? findNode(localSel) : null; return h ? h.node : null; }
+            function addTerms(field, text) {
+                var node = termNode();
+                if (!node) { return; }
+                var list = node[field] || (node[field] = []);
+                var added = false;
+                splitList(text).forEach(function(t) {
+                    if (!list.some(function(x) { return String(x).toLowerCase() === t.toLowerCase(); })) { list.push(t); added = true; }
+                });
+                if (added) { markDirty(); }
+                renderTermChips();
+            }
+            function hideSuggest(input) {
+                var box = input.closest('.cm-terms'), list = box.querySelector('.cm-suggest');
+                list.hidden = true; list.innerHTML = ''; input.setAttribute('aria-expanded', 'false');
+            }
+            var suggestTimer = null, suggestSeq = 0;
+            function renderSuggest(input, names) {
+                var field = input.getAttribute('data-term-input'), node = termNode();
+                var list = input.closest('.cm-terms').querySelector('.cm-suggest');
+                var q = input.value.trim().toLowerCase();
+                var have = ((node && node[field]) || []).map(function(t) { return String(t).toLowerCase(); });
+                names = names.filter(function(n) { return have.indexOf(n.toLowerCase()) < 0; }).slice(0, 12);
+                var html = names.map(function(n) { return '<button type="button" role="option" data-sugg="' + field + '" data-term="' + escapeHtml(n) + '">' + escapeHtml(n) + '</button>'; }).join('');
+                if (q && names.every(function(n) { return n.toLowerCase() !== q; }) && have.indexOf(q) < 0) {
+                    html += '<button type="button" role="option" class="cm-new" data-sugg="' + field + '" data-term="' + escapeHtml(input.value.trim()) + '">Ajouter « ' + escapeHtml(input.value.trim()) + ' »</button>';
+                }
+                list.innerHTML = html; list.hidden = !html; input.setAttribute('aria-expanded', html ? 'true' : 'false');
+            }
+            // Empty field: the most used terms already loaded. Typed text: the server searches all terms (12 at most, after a short pause)
+            function showSuggest(input) {
+                var field = input.getAttribute('data-term-input'), kind = field === 'Tags' ? 'tag' : 'genre';
+                var q = input.value.trim();
+                clearTimeout(suggestTimer);
+                var seq = ++suggestSeq;
+                if (!q) { renderSuggest(input, termNames[kind] || []); return; }
+                suggestTimer = setTimeout(function() {
+                    var node = termNode(), held = ((node && node[field]) || []).length;
+                    ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Taxonomy/Names', { kind: kind, q: q, limit: 12 + held })).then(function(names) {
+                        if (seq === suggestSeq && input.isConnected && input.value.trim() === q) { renderSuggest(input, (names && names[kind]) || []); }
+                    }, function() { if (seq === suggestSeq) { renderSuggest(input, []); } });
+                }, 150);
+            }
+            function moveSuggest(input, dir) {
+                var items = [].slice.call(input.closest('.cm-terms').querySelectorAll('.cm-suggest button'));
+                if (!items.length) { return false; }
+                var cur = items.findIndex(function(b) { return b.getAttribute('aria-selected') === 'true'; });
+                items.forEach(function(b) { b.removeAttribute('aria-selected'); });
+                var next = Math.max(0, Math.min(items.length - 1, cur + dir));
+                if (cur < 0 && dir < 0) { next = items.length - 1; }
+                items[next].setAttribute('aria-selected', 'true'); items[next].scrollIntoView({ block: 'nearest' });
+                return true;
+            }
+            var termsHost = qs('#localDetail');
+            termsHost.addEventListener('input', function(e) { if (e.target.hasAttribute && e.target.hasAttribute('data-term-input')) { showSuggest(e.target); } });
+            termsHost.addEventListener('focusin', function(e) { if (e.target.hasAttribute && e.target.hasAttribute('data-term-input')) { showSuggest(e.target); } });
+            termsHost.addEventListener('focusout', function(e) {
+                var input = e.target;
+                if (!input.hasAttribute || !input.hasAttribute('data-term-input')) { return; }
+                setTimeout(function() { if (input.isConnected && document.activeElement !== input) { if (input.value.trim()) { addTerms(input.getAttribute('data-term-input'), input.value); input.value = ''; } hideSuggest(input); } }, 150);
+            });
+            termsHost.addEventListener('keydown', function(e) {
+                var input = e.target;
+                if (!input.hasAttribute || !input.hasAttribute('data-term-input')) { return; }
+                var field = input.getAttribute('data-term-input');
+                if (e.key === 'ArrowDown') { e.preventDefault(); if (input.getAttribute('aria-expanded') !== 'true') { showSuggest(input); } moveSuggest(input, 1); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); moveSuggest(input, -1); }
+                else if (e.key === 'Escape') { hideSuggest(input); }
+                else if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    var sel = input.closest('.cm-terms').querySelector('.cm-suggest button[aria-selected="true"]');
+                    var text = sel ? sel.getAttribute('data-term') : input.value;
+                    if (text.trim()) { addTerms(field, text); input.value = ''; showSuggest(input); }
+                }
+                else if (e.key === 'Backspace' && !input.value) {
+                    var node = termNode();
+                    if (node && node[field] && node[field].length) { node[field].pop(); markDirty(); renderTermChips(); showSuggest(input); }
+                }
+            });
+            termsHost.addEventListener('mousedown', function(e) { if (e.target.closest && e.target.closest('.cm-suggest')) { e.preventDefault(); } });
+            termsHost.addEventListener('click', function(e) {
+                var t = e.target.closest ? e.target.closest('[data-sugg],[data-term-remove]') : null;
+                if (!t) { return; }
+                var node = termNode();
+                if (t.hasAttribute('data-sugg')) {
+                    var input = qs('#lf-' + t.getAttribute('data-sugg'));
+                    addTerms(t.getAttribute('data-sugg'), t.getAttribute('data-term'));
+                    input.value = ''; input.focus(); showSuggest(input);
+                } else if (node) {
+                    var f = t.getAttribute('data-term-remove');
+                    node[f].splice(parseInt(t.getAttribute('data-i'), 10), 1);
+                    markDirty(); renderTermChips();
+                }
+            });
 
             function loadLocalContent() {
                 loadTermNames();
@@ -3148,6 +3270,13 @@
                     + '</div></div></div>';
             }
 
+            function termField(label, field, hint) {
+                return '<div class="inputContainer cm-span cm-terms" data-terms="' + field + '"><label class="inputLabel" for="lf-' + field + '">' + (field === 'Tags' ? '🏷️ ' : '🎭 ') + label + '</label>'
+                    + '<div class="cm-termbox"><span class="cm-pills"></span><input type="text" id="lf-' + field + '" class="cm-terminput" data-term-input="' + field + '" autocomplete="off" placeholder="Ajouter…" role="combobox" aria-expanded="false" aria-controls="lf-' + field + '-list" /></div>'
+                    + '<div class="cm-suggest" id="lf-' + field + '-list" role="listbox" hidden></div>'
+                    + '<div class="cm-hint">' + hint + '</div></div>';
+            }
+
             function areaField(label, field, value) {
                 return '<div class="inputContainer cm-span"><label class="inputLabel" for="lf-' + field + '">' + label + '</label>'
                     + '<textarea id="lf-' + field + '" data-f="' + field + '" rows="4">' + escapeHtml(value || '') + '</textarea></div>';
@@ -3261,8 +3390,11 @@
                         + '<textarea id="lf-Chapters" data-f="Chapters" rows="5" placeholder="0:00-12:34 Introduction&#10;12:34 Le débat&#10;1:02:03 Conclusion">' + escapeHtml(n.Chapters || '') + '</textarea>'
                         + '<div class="cm-hint">Un repère par ligne : le temps, puis le titre. Le temps s\'écrit « 12:34 », « 1:02:03 », en secondes (« 359 La crevasse ») ou « 6m12s ». Pour donner aussi la fin : « 0:00-12:34 Introduction » ; si elle précède le repère suivant, un repère « Hors chapitre » la marque dans Jellyfin. Avec un fichier : chapitres dans Jellyfin (un temps au-delà de la fin de la vidéo est ignoré). Épisode manquant : repères ajoutés à la description.</div></div>';
                 }
-                html += inputField('Tags', 'Tags', (n.Tags || []).join(', '), { span: true, hint: 'Séparés par des virgules. Les règles de la page « Genres et tags » s\'appliquent : un terme ignoré n\'est pas donné à Jellyfin, un terme renommé l\'est sous son nouveau nom.' })
-                    + inputField('Genres', 'Genres', (n.Genres || []).join(', '), { span: true, hint: 'Séparés par des virgules. Mêmes règles que les tags.' })
+                html += termField('Tags', 'Tags', 'Tapez pour chercher parmi les tags existants, Entrée ou virgule pour ajouter. Les règles de la page « Genres et tags » s\'appliquent : un terme ignoré n\'est pas donné à Jellyfin, un terme renommé l\'est sous son nouveau nom.')
+                    + termField('Genres', 'Genres', 'Même fonctionnement et mêmes règles que les tags.')
+                    + '<div class="inputContainer cm-span cm-note"><label class="inputLabel" for="lf-Note">📝 Note privée</label>'
+                    + '<textarea id="lf-Note" data-f="Note" rows="4" placeholder="Ex. : à renommer, source de l\'image, doublon possible…">' + escapeHtml(n.Note || '') + '</textarea>'
+                    + '<div class="cm-hint">Pour vous seulement : enregistrée avec le contenu de la source, jamais envoyée à Jellyfin.</div></div>'
                     + '</div><div class="cm-grid" data-lpanel="images">';
                 if (kind === 'episode') {
                     html += imageField('Miniature', 'Thumb', n.Thumb, 'Affichée dans la liste des épisodes de la saison. Envoyez un fichier ou indiquez une adresse web.')
@@ -3914,7 +4046,6 @@
                     var chipField = target.getAttribute('data-chip'), chipTerm = target.getAttribute('data-term');
                     if (chipHit) {
                         chipHit.node[chipField] = (chipHit.node[chipField] || []).concat([chipTerm]);
-                        qs('#lf-' + chipField).value = chipHit.node[chipField].join(', ');
                         markDirty();
                         renderTermChips();
                     }

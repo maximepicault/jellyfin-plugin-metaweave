@@ -43,10 +43,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return Ok(new TaxonomyCatalog { Terms = _service.Catalog() });
         }
 
-        /// <summary>Names to suggest in the fields of the local editor, by kind ("genre", "tag"), the most used first</summary>
+        /// <summary>Names to suggest in the fields of the local editor, by kind ("genre", "tag"), the most used first.
+        /// Optional: <c>kind</c> (genre|tag), <c>q</c> (search text, matched among all terms), <c>limit</c> (per list, 300 at most).</summary>
         [HttpGet("Names")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public ActionResult<Dictionary<string, List<string>>> Names() => Ok(_service.Names());
+        public ActionResult<Dictionary<string, List<string>>> Names([FromQuery] string kind = null, [FromQuery] string q = null, [FromQuery] int limit = 300) => Ok(_service.Names(kind, q, limit));
 
         /// <summary>How many items "Appliquer" would change</summary>
         [HttpGet("Impact")]

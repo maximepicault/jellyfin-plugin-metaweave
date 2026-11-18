@@ -131,7 +131,7 @@ try {
   await click('#localTree [data-add="season"]'); await wait(200);
   await type('#lf-Title', 'Saison 1');
   await click('#localTree [data-add="episode"]'); await wait(200);
-  await type('#lf-Title', 'Le pilote'); await type('#lf-Duration', '24:30'); await type('#lf-Thumb', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'); await type('#lf-Tags', 'a, b, A');
+  await type('#lf-Title', 'Le pilote'); await type('#lf-Duration', '24:30'); await type('#lf-Thumb', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'); await ev(`(function(){var n=document.querySelector('#lf-Tags'); n.value='a, b, A'; n.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); return true;})()`);
   // image: web address (preview), then uploaded file (replaces the address), then "Retirer"
   await ev(`document.querySelector('#lf-Thumb').dispatchEvent(new Event('change',{bubbles:true})); true`); await wait(200);
   check('image: preview of the web address', (await ev(`(document.querySelector('.cm-imgprev img')||{}).src`)) === 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
@@ -142,7 +142,7 @@ try {
   await ltab('info');
   check('suggestions: the terms of the "Genres et tags" screen are offered under Genres and Tags', (await ev(`Array.from(document.querySelectorAll('[data-chip="Genres"]')).map(function(b){return b.getAttribute('data-term');}).join()`)) === 'Documentaire,Voyage,Aventure' && (await ev(`Array.from(document.querySelectorAll('[data-chip="Tags"]')).map(function(b){return b.getAttribute('data-term');}).join()`)) === 'Technologie', await ev(`'genres=' + document.querySelectorAll('[data-chip="Genres"]').length + ' tags=' + document.querySelectorAll('[data-chip="Tags"]').length + ' lfGenres=' + !!document.querySelector('#lf-Genres') + ' sel=' + document.querySelector('#localDetail h4')?.textContent`));
   await click('[data-chip="Genres"][data-term="Voyage"]'); await wait(150);
-  check('suggestions: a click adds the term to the field and the chip goes away', (await ev(`document.querySelector('#lf-Genres').value`)).includes('Voyage') && (await ev(`document.querySelectorAll('[data-chip="Genres"][data-term="Voyage"]').length`)) === 0 && (await ev(`document.querySelector('#dirtyState').textContent`)).includes('non enregistrées'));
+  check('suggestions: a click adds the term to the field and the chip goes away', (await ev(`document.querySelector('[data-terms="Genres"] .cm-pills').textContent`)).includes('Voyage') && (await ev(`document.querySelectorAll('[data-chip="Genres"][data-term="Voyage"]').length`)) === 0 && (await ev(`document.querySelector('#dirtyState').textContent`)).includes('non enregistrées'));
   await ev(`(function(){var dt=new DataTransfer(); dt.items.add(new File([new Uint8Array([255,216,255,224,0,16,74,70,73,70,0,1])],'a.jpg',{type:'image/jpeg'})); var i=document.querySelector('[data-file="Thumb"]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(400);
   check('image: file sent to the server', (await ev(`__mock.calls.filter(function(c){return c.indexOf('UPLOAD')===0;}).length`)) === 1);
   const uploadCall = await ev(`__mock.calls.filter(function(c){return c.indexOf('UPLOAD')===0;})[0]`);
@@ -351,7 +351,7 @@ try {
   const ep = content && content.Series[0].Seasons[0].Episodes.find(e => e.Title === 'Le pilote');
   check('series id: the new id is what was saved', content && content.Series[0].Id === 'ser1', JSON.stringify(content && content.Series[0].Id));
   check('content saved: 1 series, 1 season, 4 episodes', content && content.Series.length === 1 && content.Series[0].Seasons[0].Episodes.length === 4);
-  check('content saved: episode fields', ep && ep.Duration === '24:30' && /^local:\/\/img\/[0-9a-f]{16}\/ep-[a-z0-9]+\.jpg$/.test(ep.Thumb) && ep.IndexNumber === 1 && ep.Tags.join() === 'a,b,A', JSON.stringify(ep));
+  check('content saved: episode fields', ep && ep.Duration === '24:30' && /^local:\/\/img\/[0-9a-f]{16}\/ep-[a-z0-9]+\.jpg$/.test(ep.Thumb) && ep.IndexNumber === 1 && ep.Tags.join() === 'a,b', JSON.stringify(ep));
   check('the API already present is untouched', m.sources[0].Name === 'API démo' && !m.sources[0].SourceType);
   check('aucune alerte d\'erreur', m.alerts.length === 0, m.alerts.join(' / '));
 

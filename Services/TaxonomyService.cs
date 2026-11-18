@@ -341,13 +341,22 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             return file;
         }
 
-        /// <summary>The names to suggest in a field (not ignored, not renamed away), the most used first</summary>
-        public Dictionary<string, List<string>> Names()
+        /// <summary>The names to suggest in a field (not ignored, not renamed away), the most used first.
+        /// With a kind, only that kind is returned; with a search text, only the terms containing it (ignoring case and accents),
+        /// searched among ALL terms; limit caps each list (default 300, at most 300).</summary>
+        public Dictionary<string, List<string>> Names(string kind = null, string search = null, int limit = 300)
         {
+            limit = Math.Max(1, Math.Min(limit, 300));
+            var key = string.IsNullOrWhiteSpace(search) ? null : TaxonomyStore.Key(search);
             return Catalog()
                 .Where(t => !t.Ignored && (t.ReplaceWith == null || TaxonomyStore.Key(t.ReplaceWith) == t.Key))
+                .Where(t => string.IsNullOrEmpty(kind) || string.Equals(t.Kind, kind, StringComparison.OrdinalIgnoreCase))
+                .Where(t => key == null || t.Key.Contains(key, StringComparison.Ordinal))
                 .GroupBy(t => t.Kind)
-                .ToDictionary(g => g.Key, g => g.OrderByDescending(t => t.Items).ThenBy(t => t.Key, StringComparer.Ordinal).Select(t => t.Name).Take(300).ToList());
+                .ToDictionary(g => g.Key, g => g
+                    .OrderByDescending(t => key != null && t.Key.StartsWith(key, StringComparison.Ordinal))
+                    .ThenByDescending(t => t.Items).ThenBy(t => t.Key, StringComparer.Ordinal)
+                    .Select(t => t.Name).Take(limit).ToList());
         }
 
         private bool Change(BaseItem item, out string[] genres, out string[] tags, out int removed, out int renamed)

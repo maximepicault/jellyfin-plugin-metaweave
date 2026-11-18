@@ -31,6 +31,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public float? CommunityRating { get; set; }
         public List<string> Tags { get; set; } = new List<string>();
         public List<string> Genres { get; set; } = new List<string>();
+
+        /// <summary>Private editing note: kept in the plugin's file only, never served to Jellyfin</summary>
+        public string Note { get; set; }
         public string Poster { get; set; }
         public string Backdrop { get; set; }
         public string Banner { get; set; }
@@ -588,6 +591,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 : null;
             node.Tags = CleanList(node.Tags);
             node.Genres = CleanList(node.Genres);
+            node.Note = string.IsNullOrWhiteSpace(node.Note) ? null : node.Note.Trim();
             node.Poster = Clean(node.Poster);
             node.Backdrop = Clean(node.Backdrop);
             node.Banner = Clean(node.Banner);
