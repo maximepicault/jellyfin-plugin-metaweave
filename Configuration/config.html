@@ -2963,6 +2963,9 @@
                 });
             }
 
+            // Alphabetical, accent- and case-insensitive (French collation), to find a term at a glance
+            function alpha(a, b) { return String(a).localeCompare(String(b), 'fr', { sensitivity: 'base' }); }
+
             function renderTermChips() {
                 var hit = localSel ? findNode(localSel) : null;
                 if (!hit) { return; }
@@ -2972,13 +2975,14 @@
                     var old = box.querySelector('.cm-chips');
                     if (old) { old.remove(); }
                     var pills = box.querySelector('.cm-pills');
+                    if (hit.node[pair[0]]) { hit.node[pair[0]].sort(alpha); }
                     if (pills) {
                         pills.innerHTML = (hit.node[pair[0]] || []).map(function(t, i) {
                             return '<span class="cm-pill">' + escapeHtml(t) + '<button type="button" data-term-remove="' + pair[0] + '" data-i="' + i + '" aria-label="Retirer ' + escapeHtml(t) + '">×</button></span>';
                         }).join('');
                     }
                     var have = (hit.node[pair[0]] || []).map(function(t) { return String(t).toLowerCase(); });
-                    var left = (termNames[pair[1]] || []).filter(function(name) { return have.indexOf(name.toLowerCase()) < 0; }).slice(0, 14);
+                    var left = (termNames[pair[1]] || []).filter(function(name) { return have.indexOf(name.toLowerCase()) < 0; }).slice(0, 14).sort(alpha);
                     if (!left.length) { return; }
                     var chips = document.createElement('div');
                     chips.className = 'cm-chips';
@@ -3014,7 +3018,7 @@
                 var list = input.closest('.cm-terms').querySelector('.cm-suggest');
                 var q = input.value.trim().toLowerCase();
                 var have = ((node && node[field]) || []).map(function(t) { return String(t).toLowerCase(); });
-                names = names.filter(function(n) { return have.indexOf(n.toLowerCase()) < 0; }).slice(0, 12);
+                names = names.filter(function(n) { return have.indexOf(n.toLowerCase()) < 0; }).slice(0, 12).sort(alpha);
                 var html = names.map(function(n) { return '<button type="button" role="option" data-sugg="' + field + '" data-term="' + escapeHtml(n) + '">' + escapeHtml(n) + '</button>'; }).join('');
                 if (q && names.every(function(n) { return n.toLowerCase() !== q; }) && have.indexOf(q) < 0) {
                     html += '<button type="button" role="option" class="cm-new" data-sugg="' + field + '" data-term="' + escapeHtml(input.value.trim()) + '">Ajouter « ' + escapeHtml(input.value.trim()) + ' »</button>';
