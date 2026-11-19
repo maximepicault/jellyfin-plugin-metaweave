@@ -153,6 +153,7 @@
                         <option value="name">Nom</option>
                     </select>
                     <label class="tx-count" style="display:inline-flex;align-items:center;gap:6px;min-height:40px;cursor:pointer"><input type="checkbox" id="txHideIgnored" /> Masquer les ignorés</label>
+                    <label class="tx-count" style="display:inline-flex;align-items:center;gap:6px;min-height:40px;cursor:pointer"><input type="checkbox" id="txHideUnused" /> Masquer les jamais utilisés</label>
                     <button type="button" class="tx-btn" id="txMirror" hidden></button>
                     <span class="tx-count tx-total" id="txCount" role="status"></span>
                     <div class="tx-filters" id="txFilters" role="group" aria-label="Afficher"></div>
@@ -352,6 +353,7 @@
                 if (t.Kind !== kind) { return false; }
                 if (t.Saved && !searching && !m) { return false; }
                 if (hideIgnored && t.SavedIgnored && t.Ignored && m !== 'ignored') { return false; }
+                if (qs('#txHideUnused').checked && t.Items === 0 && !t.Created && !isChanged(t) && m !== 'unused') { return false; }
                 if (m === 'changed') { return isChanged(t); }
                 if (m === 'ignored') { return !!t.Ignored; }
                 if (m === 'replaced') { return stateOf(t) === 'replace'; }
@@ -559,7 +561,16 @@
                 mode = '';
                 render();
             });
-            ['#txSearch', '#txSort', '#txHideIgnored'].forEach(function (sel) { qs(sel).addEventListener('input', render); qs(sel).addEventListener('change', render); });
+            // The two "hide" choices are remembered; ignored terms are hidden the first time (the list is easier to read)
+            var HIDE_KEY = 'cm-taxonomy-hide';
+            (function () {
+                var saved = null;
+                try { saved = JSON.parse(localStorage.getItem(HIDE_KEY) || 'null'); } catch (e) { saved = null; }
+                qs('#txHideIgnored').checked = saved ? !!saved.ignored : true;
+                qs('#txHideUnused').checked = saved ? !!saved.unused : false;
+            })();
+            function rememberHide() { try { localStorage.setItem(HIDE_KEY, JSON.stringify({ ignored: qs('#txHideIgnored').checked, unused: qs('#txHideUnused').checked })); } catch (e) { /* the choice just is not kept */ } }
+            ['#txSearch', '#txSort', '#txHideIgnored', '#txHideUnused'].forEach(function (sel) { qs(sel).addEventListener('input', render); qs(sel).addEventListener('change', function () { rememberHide(); render(); }); });
 
             qs('#txAddForm').addEventListener('submit', function (e) {
                 e.preventDefault();
@@ -622,7 +633,7 @@
                 }
                 var chip = e.target.closest('[data-filter]');
                 if (chip) { mode = chip.getAttribute('data-filter'); render(); return; }
-                if (e.target.closest('#txReset')) { mode = ''; qs('#txSearch').value = ''; qs('#txHideIgnored').checked = false; render(); return; }
+                if (e.target.closest('#txReset')) { mode = ''; qs('#txSearch').value = ''; qs('#txHideIgnored').checked = false; qs('#txHideUnused').checked = false; rememberHide(); render(); return; }
                 var act = e.target.closest('[data-act]');
                 if (act) {
                     // One click per rule: ignore, rename (the name is typed next), or back to "kept"

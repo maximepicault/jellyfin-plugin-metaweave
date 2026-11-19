@@ -194,7 +194,7 @@ try {
     await page.click(`${T} .tx-pill[data-kind="genre"]`);
     return offered && back;
   })());
-  check('screen: "Masquer les ignorés" hides the ignored terms that are saved', await (async () => { await page.click(`${T} .tx-pill[data-kind="tag"]`); const before = await page.$(row('perso')); await page.check(`${T} #txHideIgnored`); const hidden = !(await page.$(row('perso'))); await page.uncheck(`${T} #txHideIgnored`); await page.click(`${T} .tx-pill[data-kind="genre"]`); await page.click(`${T} .tx-pill[data-kind="tag"]`); const back = !!(await page.$(row('perso'))); await page.click(`${T} .tx-pill[data-kind="genre"]`); return !!before && hidden && back; })());
+  check('screen: "Masquer les ignorés" hides the ignored terms that are saved', await (async () => { await page.click(`${T} .tx-pill[data-kind="tag"]`); await page.uncheck(`${T} #txHideIgnored`); await page.uncheck(`${T} #txHideIgnored`); const before = await page.$(row('perso')); await page.check(`${T} #txHideIgnored`); const hidden = !(await page.$(row('perso'))); await page.uncheck(`${T} #txHideIgnored`); await page.click(`${T} .tx-pill[data-kind="genre"]`); await page.click(`${T} .tx-pill[data-kind="tag"]`); const back = !!(await page.$(row('perso'))); await page.click(`${T} .tx-pill[data-kind="genre"]`); return !!before && hidden && back; })());
   await shot('X3-saved-1440');
   await page.click(`${T} #txApply`);
   await page.waitForFunction(sel => /réécrit|Rien à réécrire/.test(document.querySelector(sel).textContent), `${T} #txNoticeText`, { timeout: 30000 });
