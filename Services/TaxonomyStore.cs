@@ -258,9 +258,19 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         // ---------------------------------------------------------------- applying the rules
 
-        public static string[] Genres(IEnumerable<string> terms) => (Current?.Resolve(GenreKind, terms, true, out _) ?? Plain(terms)).ToArray();
+        public static string[] Genres(IEnumerable<string> terms) => Alphabetical(Current?.Resolve(GenreKind, terms, true, out _) ?? Plain(terms));
 
-        public static string[] Tags(IEnumerable<string> terms) => (Current?.Resolve(TagKind, terms, true, out _) ?? Plain(terms)).ToArray();
+        public static string[] Tags(IEnumerable<string> terms) => Alphabetical(Current?.Resolve(TagKind, terms, true, out _) ?? Plain(terms));
+
+        private static readonly System.Globalization.CompareInfo French = new System.Globalization.CultureInfo("fr-FR").CompareInfo;
+
+        /// <summary>A to Z, ignoring case and accents, so the terms read in order wherever Jellyfin lists them (import points only).</summary>
+        private static string[] Alphabetical(IEnumerable<string> terms)
+        {
+            var list = terms.ToList();
+            list.Sort((a, b) => French.Compare(a, b, System.Globalization.CompareOptions.IgnoreCase | System.Globalization.CompareOptions.IgnoreNonSpace));
+            return list.ToArray();
+        }
 
         private static List<string> Plain(IEnumerable<string> terms)
         {
