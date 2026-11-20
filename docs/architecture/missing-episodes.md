@@ -21,7 +21,7 @@
 - **Every virtual episode must have an `IndexNumber` that no physical episode in the same `ParentIndexNumber` group of the series uses.**
   - On every series refresh (library scan), Jellyfin's `SeriesMetadataService.RemoveObsoleteEpisodes` deletes virtual episodes that have no number or whose number collides.
   - Without this, every scan wiped them and every analysis recreated all of them.
-  - `AssignIndexNumbers` / `ComputeIndexNumbers` pick, in order: the API number if free, the number cached from a previous run if still free, then the next free number after the highest one.
+  - `FillMissingIndexNumbers` first numbers the API episodes that have no number (position in the list sorted by release date). `AssignIndexNumbers` / `ComputeIndexNumbers` then pick, in order: the API number if free, the number cached from a previous run if still free, then the next free number after the highest one.
 - Existing virtual episodes are matched **only by their deterministic id** (`GetVirtualEpisodeId(season, key)` for wanted and cached keys) in `FindExistingVirtualEpisodes`, never by `ProviderIds`.
   - It looks among the season's virtual children, a single library query of virtual episodes grouped by `SeasonId`, and `GetItemById`.
   - A virtual episode in a managed season that matches no known key and carries no other provider's id is an orphan and gets deleted (for example, an episode whose file arrived after it dropped out of the cache).

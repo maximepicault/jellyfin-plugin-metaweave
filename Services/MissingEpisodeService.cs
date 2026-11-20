@@ -297,6 +297,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             seasonReport.ApiCount = apiEpisodes.Count;
+            FillMissingIndexNumbers(apiEpisodes);
             DetectOverviewLists(apiEpisodes, source);
 
             var absent = apiEpisodes
@@ -661,6 +662,36 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 season.SeriesName, season.Name, virtualChildren.Count, virtualFromLibrary.Count, foundById, result.Count, orphans.Count);
 
             return (result, orphans);
+        }
+
+        /// <summary>
+        /// Gives a number to the API episodes that have none: their 1-based position in the whole list sorted by
+        /// release date (ties and undated episodes keep the API order, undated ones last). A position already used
+        /// by an episode that carries its own API number is left alone (the episode then gets the next free number).
+        /// </summary>
+        internal static void FillMissingIndexNumbers(List<EpisodeListItem> episodes)
+        {
+            if (episodes.All(e => e.IndexNumber is int n && n > 0))
+            {
+                return;
+            }
+
+            var explicitNumbers = new HashSet<int>(episodes.Where(e => e.IndexNumber is int n && n > 0).Select(e => e.IndexNumber.Value));
+            var sorted = episodes
+                .Select((e, i) => (e, i))
+                .OrderBy(x => x.e.PremiereDate ?? DateTime.MaxValue)
+                .ThenBy(x => x.i)
+                .Select(x => x.e)
+                .ToList();
+
+            for (var position = 1; position <= sorted.Count; position++)
+            {
+                var item = sorted[position - 1];
+                if (!(item.IndexNumber is int n && n > 0) && !explicitNumbers.Contains(position))
+                {
+                    item.IndexNumber = position;
+                }
+            }
         }
 
         /// <summary>

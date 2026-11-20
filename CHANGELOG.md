@@ -6,6 +6,7 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **Missing episodes without a number in the API**: an episode the API gives no number to now takes its position in the episode list sorted by release date, instead of the next free number after the last local episode.
 - **Crop a person's photo before saving it**: choosing a file for a person now opens a frame where the picture can be dragged and zoomed (slider or mouse wheel) to centre the face; the result is saved as a 512 px square. An **Ajuster** button re-opens the editor on an already uploaded photo.
 - **Send a whole folder of images to a local element's gallery**: a new **Envoyer un dossier…** button (and dropping a folder on the gallery) uploads every image of the folder and its sub-folders at once. A sub-folder named `Primary`, `Backdrop`, `Logo`, `Banner` or `Thumb` (or `Affiche`, `Fond`, `Bannière`, `Miniature`) sets the type of its images; the others take the type chosen next to the button. Files that are not images are skipped.
 - **Genres and tags screen, easier to read**: ignored terms are now hidden by default, a new **Masquer les jamais utilisés** switch hides the terms no item uses, and both choices are remembered in the browser. A term you just created or changed stays visible, and the filter chips still show the hidden ones when you pick them.
