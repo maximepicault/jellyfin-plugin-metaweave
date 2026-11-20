@@ -148,7 +148,12 @@ class H(BaseHTTPRequestHandler):
                 if m[1] in s["seasons"]:
                     n = s["seasons"][m[1]]
                     if n.get("broken"): return self.send(500, {"error": "boom"})
-                    return self.send(200, [video_json(f"{m[1]}v{i}") for i in range(1, len(n["videos"]) + 1)])
+                    items = [video_json(f"{m[1]}v{i}") for i in range(1, len(n["videos"]) + 1)]
+                    if n.get("nonumbers"):
+                        # No episode numbers, and the list is NOT in release order: the plugin must number by date position
+                        for j in items: del j["indexNumber"]
+                        items.reverse()
+                    return self.send(200, items)
             return self.send(404, {})
         m = re.fullmatch(r"/sources/(\w+)", p)
         if m:

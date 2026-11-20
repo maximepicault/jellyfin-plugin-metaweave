@@ -6,7 +6,7 @@ SERIES = {
       "a2": {"title": "Hors-série", "present": 1, "videos": [("Les coulisses","2024-05-01","9:00"),("Making-of","2024-06-01","PT14M30S")]},
       "a3": {"title": "Saison 2023", "present": 2, "videos": [("Pilote","2023-03-01","20:00"),("Finale","2023-04-01","22:00")]}}},
   "cuisine": {"title": "Cuisine du monde", "color": (211,84,0), "seasons": {
-      "b1": {"title": "Saison 1", "present": 1, "videos": [("L'Italie","2025-01-05","28:40"),("Le Japon","2025-01-12","30:00"),("Le Pérou","2025-01-19","29:10"),("Le Maroc","2025-01-26","abc")]}}},
+      "b1": {"title": "Saison 1", "present": 1, "nonumbers": True, "videos": [("L'Italie","2025-01-05","28:40"),("Le Japon","2025-01-12","30:00"),("Le Pérou","2025-01-19","29:10"),("Le Maroc","2025-01-26","abc")]}}},
   "techtalks": {"title": "Tech Talks", "color": (142,68,173), "seasons": {
       "d1": {"title": "Conférences 2025", "present": 2, "videos": [("Talk #%d" % i, "2025-%02d-15" % (1 + i % 12), "%d:%02d" % (38 + i, i * 5 % 60)) for i in range(1, 11)]}}},
   "nature": {"title": "Documentaires Nature", "color": (39,174,96), "seasons": {
