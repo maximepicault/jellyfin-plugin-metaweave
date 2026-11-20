@@ -25,7 +25,8 @@ dotnet build --configuration Release      # output: bin/Release/net9.0/Jellyfin.
 - **Visual/end-to-end test bench: `tools/ui-test/ui-test.sh`.**
   - It builds the plugin and starts a Jellyfin **10.11.6** container (`cm-uitest`, http://localhost:8097, admin/admin) with a mock API (`server.py`, port 8765), tagged demo media (`gen.py`) and source prefix `dm`.
   - It then runs "Tout retraiter" and saves screenshots of the missing-episodes screen and of the config page (full page + source modal) in `~/.cache/cm-ui-test/shots`.
-  - Options: `--no-build` redeploys the DLL already built (HTML pages are embedded in it, so use it only when no page changed), `--stop` stops everything.
+  - Options: `--no-build` redeploys the DLL already built (HTML pages are embedded in it, so use it only when no page changed), `--fast` builds, swaps the DLL and restarts the container only (no analysis, no screenshots: the inner loop), `--stop` stops everything.
+  - Test scripts share the container and take a lock: run one at a time. `config-people-real.mjs … --quick` runs only the photo-cropper checks (~10 s). Pitfalls: skill `.claude/skills/jellyfin-ui` section 3b.
   - If `docker ps` says permission denied (your user is no longer in the `docker` group), the container tests can't run: use `tools/ui-test/config-local-ui.mjs` (no Docker) and ask the user to fix the group.
   - `tools/ui-test/config-e2e.mjs <url> <out_dir>` is an end-to-end test of the config page against that container: edit, toggle, add, delete, global settings, and it checks what the server actually stored (including fields the form doesn't show). It restores the original config.
   - Work data lives outside the repo on purpose: the SDK-style csproj would compile the `*.cs` of a build copy placed inside it.

@@ -36,6 +36,13 @@ The user is French and reviews UI from screenshots, giving precise feedback (e.g
 - Drill-down beats walls of data. Show an overview first (cards with a macro recap), and reveal detail only after a click, with a breadcrumb back.
 - Every list needs empty, error and "no search match" states with a sentence that says what to do.
 
+## 3b. Pitfalls that cost time (check before debugging for long)
+- In `people.html`, `qs(sel)` searches INSIDE the page div, so `qs('#CustomMetadataPeoplePage')` returns null: use the `page` variable. (Same trap likely in the other pages: look at how their `qs` is defined.)
+- Test scripts read their positional arguments with the options filtered out (`--quick`): an option read as the user name makes the login fail silently, and the symptom is a timeout on `location.hash` still containing `login`.
+- Never `pkill -f <pattern>` with a pattern that also appears in your own command line (it kills the shell running it, exit 143/144). Use `pgrep -x node` or the pid.
+- One test script at a time (they share the container, the plugin config and the Chrome debugging port); `chrome-session.mjs` enforces it with a lock. Killing a run halfway can leave the plugin config changed (for example `EnableCasting` off): the people test resets it at start.
+- Tight loop: `ui-test.sh --fast` (build, swap the DLL, restart, nothing else), then the targeted script with `--quick` when it has one. Run the full scripts once, at the end, alone, in the background.
+
 ## 4. Build → screenshot → self-critique (mandatory before showing anything)
 1. `tools/ui-test/ui-test.sh`: build, deploy into a Jellyfin 10.11.6 container (http://localhost:8097, admin/admin), run a full missing-episodes analysis, and take screenshots in `~/.cache/cm-ui-test/shots` at 1440, 1920 and 412 px (mobile). Use `--no-build` to redeploy only. `--stop` stops everything.
    - Never touch the container on port 8096: it belongs to another project.
