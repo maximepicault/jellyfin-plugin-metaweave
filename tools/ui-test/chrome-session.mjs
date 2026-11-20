@@ -10,7 +10,25 @@ import fs from 'node:fs';
 // Short temporary folder given to Chrome as TMPDIR: it puts its own scoped folders (and a Unix socket, whose path is limited to
 // about 108 characters, so the profile's long path would not do) there. Removed with the profile when the script ends.
 const temps = [];
+
+// One test script at a time: they all drive the same Jellyfin container, the same plugin configuration and the same debugging port.
+// Two at once (or a run killed halfway) made the results meaningless. A second run now refuses to start, with the pid to wait for.
+const LOCK = '/tmp/cm-ui-test.lock';
+let locked = false;
+function acquireLock() {
+  if (locked) { return; }
+  try {
+    const other = parseInt(fs.readFileSync(LOCK, 'utf8'), 10);
+    if (other && other !== process.pid) {
+      try { process.kill(other, 0); console.error(`Another test script is running (pid ${other}): wait for it, they share the same container. Refusing to start.`); process.exit(3); } catch (error) { if (error.code !== 'ESRCH') { throw error; } }
+    }
+  } catch (error) { if (error.code !== 'ENOENT' && error.name !== 'Error') { throw error; } }
+  fs.writeFileSync(LOCK, String(process.pid));
+  locked = true;
+  process.on('exit', () => { try { fs.unlinkSync(LOCK); } catch { /* already gone */ } });
+}
 export function chromeTmp() {
+  acquireLock();
   const dir = fs.mkdtempSync('/tmp/ct-');
   temps.push(dir);
   return dir;

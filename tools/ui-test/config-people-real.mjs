@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { trackChrome, chromeTmp } from './chrome-session.mjs';
 
-const [J, outDir, user = 'admin', password = 'admin'] = process.argv.slice(2);
+const [J, outDir, user = 'admin', password = 'admin'] = process.argv.slice(2).filter(a => !a.startsWith('--'));
 if (!J || !outDir) { console.error('usage: node shoot.mjs <base_url> <out_dir> [user] [password]'); process.exit(2); }
 fs.mkdirSync(outDir, { recursive: true });
 const port = 9336;
@@ -32,6 +32,7 @@ const SEED = `(async function(){
   var tok = ApiClient.accessToken(), pid = '12345678-1234-1234-1234-123456789abc';
   var cfg = await ApiClient.getPluginConfiguration(pid);
   window.__seedBackup = { sources: JSON.parse(JSON.stringify(cfg.Sources || [])) };
+  cfg.EnableCasting = true;   // an interrupted run may have left it off
   cfg.Sources = (cfg.Sources || []).filter(function(s){ return s.SourceType !== 'People'; });
   cfg.Sources.push({ Name: 'Personnes démo', Prefix: 'pe', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people/{id}', PersonMappings: { Name: 'name', Photo: 'photo', Bio: 'bio' }, Enabled: true, SendOriginReferer: false });
   // Two people sources whose answer is a LIST (a search url taking the identifier as a parameter): root list, and list inside an object
@@ -66,6 +67,32 @@ const check = (name, ok, detail = '') => { if (ok) { pass++; console.log('PASS',
 const click = sel => evalJs(`(function(){var e=document.querySelector(${JSON.stringify(sel)}); if(!e) return false; e.click(); return true;})()`);
 const type = (sel, v) => evalJs(`(function(){var e=document.querySelector(${JSON.stringify(sel)}); e.value=${JSON.stringify(v)}; e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
 const api = async (path, init = {}) => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl(${JSON.stringify(path)}),{headers:{'X-Emby-Token':ApiClient.accessToken()}}); return JSON.stringify(await r.json());})()`);
+const cropperChecks = async () => {
+  await evalJs(`(async function(){
+    var c=document.createElement('canvas'); c.width=300; c.height=300; var g=c.getContext('2d'); g.fillStyle='#8a5cd0'; g.fillRect(0,0,300,300); g.fillStyle='#fff'; g.font='120px sans-serif'; g.fillText('É',100,190);
+    var blob=await new Promise(function(r){c.toBlob(r,'image/png');});
+    var dt=new DataTransfer(); dt.items.add(new File([blob],'emile.png',{type:'image/png'}));
+    var i=document.querySelector('${P} [data-file]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
+  // The cropper opens first: zoom with the slider, drag with real mouse events, then validate
+  await until(`!!document.querySelector('${P} .pp-crop-view img') && document.querySelector('${P} .pp-crop-view img').naturalWidth > 0`, 8000);
+  check('cropper opens after choosing a file', (await evalJs(`!!document.querySelector('${P} .pp-crop')`)) === true);
+  const tf0 = await evalJs(`document.querySelector('${P} .pp-crop-view img').style.transform`);
+  await evalJs(`(function(){var r=document.querySelector('${P} .pp-crop input[type=range]'); r.value='2'; r.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
+  const tf1 = await evalJs(`document.querySelector('${P} .pp-crop-view img').style.transform`);
+  check('cropper: slider zooms (scale grows)', tf1 !== tf0 && /scale\(([\d.]+)\)/.test(tf1) && parseFloat(/scale\(([\d.]+)\)/.exec(tf1)[1]) > parseFloat(/scale\(([\d.]+)\)/.exec(tf0)[1]), tf0 + ' -> ' + tf1);
+  const box = JSON.parse(await evalJs(`JSON.stringify(document.querySelector('${P} .pp-crop-view').getBoundingClientRect())`));
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cx, y: cy, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: cx - 40, y: cy - 30, button: 'left' });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cx - 40, y: cy - 30, button: 'left', clickCount: 1 });
+  const tf2 = await evalJs(`document.querySelector('${P} .pp-crop-view img').style.transform`);
+  check('cropper: dragging moves the picture', tf2 !== tf1, tf1 + ' -> ' + tf2);
+  await shot('P3b-cropper-1440');
+  await click(`${P} [data-crop-ok]`);
+  await wait(1500);
+  check('cropper closes after validation', (await evalJs(`!document.querySelector('${P} .pp-crop')`)) === true);
+};
+const QUICK = process.argv.includes('--quick');   // only the photo cropper (about 20 s) instead of the whole screen
 try {
   await send('Page.enable'); await send('Runtime.enable');
   await size(1440, 1000);
@@ -74,9 +101,19 @@ try {
     await evalJs(`(function(){var n=document.querySelector('#txtManualName'); n.value=${JSON.stringify(user)}; n.dispatchEvent(new Event('input',{bubbles:true}));
       var p=document.querySelector('#txtManualPassword'); p.value=${JSON.stringify(password)}; p.dispatchEvent(new Event('input',{bubbles:true}));
       document.querySelector('.manualLoginForm button[type=submit]').click(); return true;})()`);
-    await until(`!location.hash.includes('login')`); await wait(1500);
+    if (!(await until(`!location.hash.includes('login')`))) { await shot('login-stuck'); console.log(await evalJs(`location.href + ' | ' + document.body.innerText.slice(0, 200)`)); }
+    await wait(1500);
   }
   await evalJs(SEED); await wait(500);
+  if (QUICK) {
+    await send('Page.navigate', { url: `${J}/web/#/configurationpage?name=CustomMetadataPeople` });
+    await until(`!!document.querySelector('${P} .pp-item')`, 30000); await wait(1200);
+    await evalJs(`(function(){var b=Array.from(document.querySelectorAll('${P} .pp-item')).find(function(x){return x.textContent.indexOf('Invité')>=0;}); b.click(); return true;})()`); await wait(300);
+    await cropperChecks();
+    console.log(`\n${pass} PASS, ${fail} FAIL (quick)`);
+    await evalJs(RESTORE);
+    throw Object.assign(new Error('quick-done'), { quick: true });
+  }
 
   // A people source whose answer is a LIST (search url with the identifier as a parameter): paths with a position, "[0]"
   const fetchPerson = prefix => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl('CustomMetadata/People/Fetch'),{method:'POST',headers:{'Content-Type':'application/json','X-Emby-Token':ApiClient.accessToken()},body:JSON.stringify({Prefix:${JSON.stringify(prefix)},ExternalId:'p1'})}); return JSON.stringify(await r.json());})()`).then(JSON.parse);
@@ -147,12 +184,7 @@ try {
 
   // Photo uploaded for Émile
   await evalJs(`(function(){var b=Array.from(document.querySelectorAll('${P} .pp-item')).find(function(x){return x.textContent.indexOf('Émile')>=0;}); b.click(); return true;})()`); await wait(300);
-  await evalJs(`(async function(){
-    var c=document.createElement('canvas'); c.width=300; c.height=300; var g=c.getContext('2d'); g.fillStyle='#8a5cd0'; g.fillRect(0,0,300,300); g.fillStyle='#fff'; g.font='120px sans-serif'; g.fillText('É',100,190);
-    var blob=await new Promise(function(r){c.toBlob(r,'image/png');});
-    var dt=new DataTransfer(); dt.items.add(new File([blob],'emile.png',{type:'image/png'}));
-    var i=document.querySelector('${P} [data-file]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
-  await wait(1500);
+  await cropperChecks();
   check('uploaded photo: plugin file', (await evalJs(`document.querySelector('${P} [data-f="Photo"]').disabled`)) === true && (await evalJs(`document.querySelector('${P} #ppDetail .pp-avatar img').complete && document.querySelector('${P} #ppDetail .pp-avatar img').naturalWidth > 0`)) === true);
   await shot('P4-detail-1440');
 
@@ -189,4 +221,4 @@ try {
   await setCasting(true);
   console.log(`\n${pass} PASS, ${fail} FAIL`);
   await evalJs(RESTORE);
-} finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch {} process.exit(fail ? 1 : 0); }
+} catch (e) { if (!e.quick) { throw e; } } finally { ws.close(); chrome.kill(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch {} process.exit(fail ? 1 : 0); }
