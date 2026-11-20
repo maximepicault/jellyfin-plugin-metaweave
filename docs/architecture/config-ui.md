@@ -1,0 +1,15 @@
+# The configuration page (config.html)
+
+> Detail moved out of `CLAUDE.md` to keep the always-loaded file small. Read it when editing `Configuration/config.html`, the source list/editor, save models, library check. `CLAUDE.md` still holds the rules that apply everywhere.
+
+**Entry points.** `Plugin.cs` (a `BasePlugin<PluginConfiguration>` exposed as the static `Plugin.Instance`) serves `Configuration/config.html` as an **embedded resource**: after editing a page, rebuild (`ui-test.sh` without `--no-build`), otherwise the old page is redeployed.
+- **`config.html` has two views.**
+  - *List view*: three tabs. "Sources" shows cards (prefix, configured endpoints, an Activée switch, Modifier / Tester). "Réglages" holds the feature switches and the cache. "Configuration héritée" holds the legacy single-source fields.
+  - *Editor view*: it replaces the old modal. A breadcrumb, a side navigation (Général, Endpoints, four mapping sections, Réseau, Miniatures) with "filled / total" counters, one section shown at a time, the source test docked on the right (below 1020 px of available width it moves under the form), and a sticky save bar.
+  - It is all one HTML file with the same element ids as before; `readSourceFromForm`, `editSource`, `testSource`… keep their names.
+- **Two save models.** Saving, toggling or deleting a source persists the whole config immediately (`persistSources()`). The global settings need "Enregistrer les réglages". The page says so.
+- **`readSourceFromForm()` merges the form over the existing source.** Fields the form doesn't show (`Cast*`, `ProductionYear`, `BannerUrl`, any future field) keep their value. Before, every save rebuilt the mappings from the form alone, so those fields silently went back to their C# defaults. `ImagesArray` (video and source) is now read and written too; it was displayed but never saved.
+- **An empty mapping field is ignored by the plugin**, not defaulted. A new source therefore starts with the standard paths pre-filled (`applyMappingDefaults`), and the grey placeholder is only a hint.
+- **Required fields in a hidden section.** The browser can't focus them and would block the save silently. The `invalid` handler switches to the section first.
+- A tag line like `{dm-…}` and the "11 / 17" counters are derived from the form, not stored.
+- **Library check** (`checkLibraryProviders`, at `pageshow`): reads `Library/VirtualFolders` and shows `#libraryWarn` (amber, above the cards) for each TV or mixed library whose `TypeOptions` entry of Series / Season / Episode lacks `Custom Metadata Provider` in `MetadataFetchers` or `Custom Image Provider` in `ImageFetchers` (a type without entry uses every provider: not reported). Jellyfin then never calls the provider for that library (`IsImageFetcherEnabled`), silently; only `SourceRefreshService.ApplyImagesAsync` still brings images. Skipped when no API/local source is enabled or when `EnableMetadata` / `EnableImages` is off. Read-only, never fixes the library itself.

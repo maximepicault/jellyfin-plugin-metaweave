@@ -1,0 +1,39 @@
+# Missing episodes and preview videos
+
+> Detail moved out of `CLAUDE.md` to keep the always-loaded file small. Read it when touching `MissingEpisodeService`, its cache, `missing.html`, virtual episodes, preview trailers. `CLAUDE.md` still holds the rules that apply everywhere.
+
+**Episode preview video (missing episodes only).** `EpisodeListMapping.PreviewUrl` (default `preview.url`) becomes a **local trailer**: a `Trailer` item with `Path` = URL, `ExtraType.Trailer`, `OwnerId` = the virtual episode, listed in `episode.ExtraIds`, `IsLocked`, and probed with `EnableRemoteContentProbe`. The server proxies or transcodes it on every client. This is done in `MissingEpisodeService.SyncPreviewAsync`.
+- Don't use `RemoteTrailers` for this. jellyfin-web 10.11 only plays non-server URL items through a player whose `canPlayUrl` accepts them, and only the YouTube player does (`youtube.com`). Any other URL fails.
+- Don't add preview trailers to real (file-backed) episodes either:
+  - `BaseItem.RefreshExtras` rebuilds `ExtraIds` from disk on every refresh and deletes extras it doesn't find.
+  - A `-trailer` file in a shared season folder attaches to every episode in it (`ExtraResolver.TryGetExtraTypeForOwner` same-folder rule).
+- Virtual episodes are safe because `RefreshedOwnedItems` requires `IsFileProtocol`.
+- `Providers/PreviewMediaSourceProvider` (`IMediaSourceProvider`, auto-discovered) also returns the preview trailer's media sources as the **virtual episode's own** sources.
+  - jellyfin-web's season episode list (`listview` with `imagePlayButton`) shows a play button on every episode thumbnail, virtual ones included.
+  - `MediaSourceManager.GetPlaybackMediaSources` drops the virtual episode's `Placeholder` source and keeps dynamic ones, so that button plays the preview.
+  - This provider is called for every playback, so keep its early-exit check cheap.
+- `CleanupLegacyRemoteTrailersAsync` strips the "Aperçu…" `RemoteTrailers` that an earlier version put on real episodes.
+
+**Missing episodes.** Each source can set an `EpisodeListEndpoint` with an `EpisodeListMapping`. The endpoint is called per season/source, and `{id}` is the season folder's tag ID.
+- `Services/MissingEpisodeService` walks every season whose tag resolves to a source with that endpoint. It compares the API list with the season's physical episodes using the key `{prefix}-{id}` (file tag, or `ProviderIds["custom"]`).
+- It then creates virtual `Episode`s (`IsVirtualItem`, `ProviderIds["custom"]`, added with `season.AddChild`) and refreshes them through our providers.
+- The list's `ThumbUrl` is downloaded by `CustomApiClient.DownloadImageAsync`, which applies the source's headers, HTTP/2 and timeout. It is then stored with the `IProviderManager.SaveImage(item, stream, mime, …)` overload as the episode's **Primary** image. `SaveImage(url)` would use Jellyfin's own client without the source settings, because the refresh alone did not fetch images for virtual episodes. It is also back-filled on existing virtual episodes that have no Primary image. It deletes **only** virtual episodes that carry a `custom` id and are no longer missing.
+- **Every virtual episode must have an `IndexNumber` that no physical episode in the same `ParentIndexNumber` group of the series uses.**
+  - On every series refresh (library scan), Jellyfin's `SeriesMetadataService.RemoveObsoleteEpisodes` deletes virtual episodes that have no number or whose number collides.
+  - Without this, every scan wiped them and every analysis recreated all of them.
+  - `AssignIndexNumbers` / `ComputeIndexNumbers` pick, in order: the API number if free, the number cached from a previous run if still free, then the next free number after the highest one.
+- Existing virtual episodes are matched **only by their deterministic id** (`GetVirtualEpisodeId(season, key)` for wanted and cached keys) in `FindExistingVirtualEpisodes`, never by `ProviderIds`.
+  - It looks among the season's virtual children, a single library query of virtual episodes grouped by `SeasonId`, and `GetItemById`.
+  - A virtual episode in a managed season that matches no known key and carries no other provider's id is an orphan and gets deleted (for example, an episode whose file arrived after it dropped out of the cache).
+  - Diagnostic log line: `🔎 [MISSING] Lookup …`.
+- `Services/MissingEpisodeCache` keeps one JSON file per season at `DataFolderPath/missing-episodes-cache/{seasonId}.json`. Each entry stores the episode's raw API JSON, a SHA-256 of (raw JSON + `EpisodeListMapping` + `BaseUrl`), the thumbnail/preview URLs used, and whether the thumbnail download failed.
+  - An existing virtual episode whose hash is unchanged is skipped entirely. Changed ones get their fields, thumbnail and preview updated.
+  - "Tout retraiter" (`POST …/Analyze?full=true` → `RequestFullReprocess()`) ignores the cache once.
+  - The API list itself is never cached: new episodes must show up immediately.
+- `EpisodeListMapping.Duration` (default `duration`) → `RunTimeTicks` of virtual episodes, parsed by `Services/DurationParser` (`mm:ss`, `hh:mm:ss`, seconds, ISO 8601). Don't use `TimeSpan.Parse`: it reads `12:34` as hh:mm. Unparseable values log a `📃 [EPISODE LIST]` Warning.
+- When `GetEpisodeListAsync` returns null (HTTP error, array path not found), the season is left untouched. Don't turn errors into empty lists: an empty list would delete every virtual episode in the season.
+- The service runs from `ScheduledTasks/MissingEpisodesTask` (daily, or "Analyser maintenant"). The report is saved to `DataFolderPath/missing-episodes.json`.
+- `Configuration/missing.html` is a 3-level drill-down: series cards (Jellyfin Primary image, macro recap) → that series' season/source cards → episode cards of one source (2 per row, 3 at ≥ 1800 px, 1 on mobile, thumbnail on top). A series with a single source skips level 2 (its name in the breadcrumb is then plain text). The summary is tiles on level 1 and one line of text on levels 2–3; the source header (`#context`) sits above the search field and holds "Copier les N noms" (shown episodes, one per line). Clicks and image errors are delegated on both `#context` and `#results`. Each episode shows the virtual episode's thumbnail through `MissingEpisodeEntry.EpisodeId`, plus its duration and overview. Navigation state is held in JS, not in the URL. Each episode also has a "📋 Copier le nom" button that copies `Titre {prefix-id}` (no extension, forbidden filename characters stripped; the prefix is taken from the season's `SourceItemId`). It uses `navigator.clipboard` in a secure context and falls back to `execCommand('copy')` on plain `http://IP`.
+- **Plugin pages: put `<style>` inside the `data-role="page"` div.** jellyfin-web 10.11 keeps only that div, so a `<head>` style is silently dropped (verified in a 10.11.6 container: in `config.html` this left the source modal permanently displayed at the bottom of the page until it was fixed). Scope every rule under the page id: the style stays in the document while Jellyfin keeps the page instance.
+- The report is served by `Api/MissingEpisodesController` (`GET/POST CustomMetadata/MissingEpisodes`, admin-only; needs `FrameworkReference Microsoft.AspNetCore.App`) and shown on `Configuration/missing.html`, which is reachable from a button at the top of `config.html`. Its shortcut (and the config page's and the Personnes page's) is in the left menu, section "Extensions" (`EnableInMainMenu` + `DisplayName` in `Plugin.GetPages()`): see "Left-menu shortcuts" in `docs/architecture/ui-pages.md` for the order rule.
+- This works in multi-source mode only. The legacy global config has no list endpoint.
