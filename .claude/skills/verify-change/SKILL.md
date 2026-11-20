@@ -36,6 +36,15 @@ Goal: map what changed to the cheapest checks that really exercise it, run them,
 
 Scripts taking `<url>` use `http://localhost:8097`. Optional `[user] [password]` default to admin/admin.
 
+## Keep test output small (saves tokens)
+Scripts print one `PASS <name>` line per check (up to ~150 lines). Hide them with the preload module, and keep the exit code:
+```bash
+node --import ./tools/ui-test/quiet.mjs tools/ui-test/<script>.mjs <args> 2>&1 | tail -40; echo "rc=${PIPESTATUS[0]}"
+```
+- Only `FAIL` lines, the final `N PASS, M FAIL` summary and a `(quiet: N lines hidden)` line remain (screenshot paths are hidden too; the files are still written). `QUIET=0` turns it off.
+- `ui-test.sh` is not a node script: pipe it through `tail -40` instead.
+- Never read a screenshot unless a check failed or the user asked for a visual review.
+
 ## Procedure
 1. `git status` / `git diff --stat` to see what changed; choose checks from the table (when unsure, ask or take the broader set).
 2. Build. Fix errors before anything else.
