@@ -3,6 +3,8 @@
 #
 #   ./ui-test.sh            build + deploy + "Tout retraiter" analysis + screenshots
 #   ./ui-test.sh --no-build redeploys the DLL already built
+#   ./ui-test.sh --fast     build + swap the DLL + restart the container, then stop: no media, no analysis, no screenshots
+#                           (the inner loop for an HTML/C# change; the container and its library must already exist)
 #   ./ui-test.sh --stop     stops the container and the fake API
 #
 # Test Jellyfin: http://localhost:8097 (admin / admin). The container on port 8096 belongs to ANOTHER project: do not touch it.
@@ -45,6 +47,20 @@ if [ "${1:-}" != "--no-build" ]; then
 fi
 DLL="$WORK/build/bin/Release/net9.0/Jellyfin.Plugin.CustomMetadata.dll"
 [ -f "$DLL" ] || { echo "DLL introuvable : $DLL"; exit 1; }
+
+# --fast: the quickest way to try a change. The test data, the fake API and the library are already there from a previous full run.
+if [ "${1:-}" = "--fast" ]; then
+  docker inspect "$NAME" >/dev/null 2>&1 || { echo "No container yet: run ./ui-test.sh once without --fast"; exit 1; }
+  curl -sf -m 2 "http://127.0.0.1:$API_PORT/series/aventuriers" >/dev/null || { echo "Fake API is down: run ./ui-test.sh once without --fast"; exit 1; }
+  cp "$DLL" "$WORK/config/plugins/CustomMetadata/"
+  log "Restarting $NAME with the new DLL"
+  docker restart "$NAME" >/dev/null
+  wait_for "curl -sf -m 2 $J/System/Info/Public" 180
+  # The web client answers before the server accepts logins: wait for a real login
+  wait_for "curl -sf -X POST $J/Users/AuthenticateByName -H 'Content-Type: application/json' -H 'Authorization: MediaBrowser Client=\"ui-test\", Device=\"cli\", DeviceId=\"cm-ui-test\", Version=\"1.0\"' -d '{\"Username\":\"admin\",\"Pw\":\"admin\"}'" 90
+  curl -s -m 60 -o /dev/null "$J/web/index.html" || true
+  echo; echo "✅ Redeployed (fast): $J (admin / admin)"; exit 0
+fi
 
 log "Tagged media + fake API images"
 python3 "$HERE/gen.py" "$WORK"

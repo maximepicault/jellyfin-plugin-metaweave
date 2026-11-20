@@ -21,7 +21,11 @@ const ws = new WebSocket(targets.find(t => t.type === 'page').webSocketDebuggerU
 await new Promise(r => (ws.onopen = r));
 let id = 0; const pending = {};
 ws.onmessage = m => { const d = JSON.parse(m.data); if (d.id && pending[d.id]) { pending[d.id](d); delete pending[d.id]; } };
-const send = (method, params = {}) => new Promise(r => { const i = ++id; pending[i] = r; ws.send(JSON.stringify({ id: i, method, params })); });
+// A call that never answers (page navigating under a pending evaluation, ...) used to hang the whole run for ever: give up after 30 s and say which one
+const send = (method, params = {}) => new Promise(r => {
+  const i = ++id; pending[i] = r; ws.send(JSON.stringify({ id: i, method, params }));
+  setTimeout(() => { if (pending[i]) { delete pending[i]; console.log('⚠️ no answer in 30 s:', method, JSON.stringify(params).slice(0, 120)); r({}); } }, 30000);
+});
 const evalJs = async expr => (await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true })).result?.result?.value;
 const size = (w, h, mobile = false) => send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
 const shot = async name => { const r = await send('Page.captureScreenshot', { format: 'png' }); const f = path.join(outDir, `${name}.png`); fs.writeFileSync(f, Buffer.from(r.result.data, 'base64')); console.log('📸', f); };
