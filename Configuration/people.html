@@ -166,6 +166,19 @@
         #CustomMetadataPeoplePage .pp-dirty.on::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--pp-warn); }
         #CustomMetadataPeoplePage .pp-actions { margin-left: auto; display: flex; gap: 10px; }
         @media (max-width: 900px) { #CustomMetadataPeoplePage .pp-actions { width: 100%; } #CustomMetadataPeoplePage .pp-actions .emby-button { flex: 1 1 0; min-height: 44px; } }
+        /* Photo cropper (zoom and move before upload) */
+        #CustomMetadataPeoplePage .pp-crop-back { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, 0.7); }
+        #CustomMetadataPeoplePage .pp-crop { width: min(380px, 100%); box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 8px; background: #202020; color: #fff; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); }
+        #CustomMetadataPeoplePage .pp-crop h3 { margin: 0; font-size: 18px; font-weight: 600; }
+        #CustomMetadataPeoplePage .pp-crop-view { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 4px; background: #000; cursor: grab; touch-action: none; user-select: none; }
+        #CustomMetadataPeoplePage .pp-crop-view.pp-drag { cursor: grabbing; }
+        #CustomMetadataPeoplePage .pp-crop-view img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none; -webkit-user-drag: none; }
+        #CustomMetadataPeoplePage .pp-crop-guide { position: absolute; inset: 0; pointer-events: none; border-radius: 50%; box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.55); border: 2px solid rgba(255, 255, 255, 0.85); box-sizing: border-box; }
+        #CustomMetadataPeoplePage .pp-crop-zoom { display: flex; align-items: center; gap: 10px; }
+        #CustomMetadataPeoplePage .pp-crop-zoom input { flex: 1; accent-color: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-crop-hint { font-size: 12px; opacity: 0.6; }
+        #CustomMetadataPeoplePage .pp-crop-actions { display: flex; justify-content: flex-end; gap: 10px; }
+        #CustomMetadataPeoplePage .pp-crop-actions .emby-button { margin: 0; }
     </style>
 
     <div data-role="content">
@@ -511,7 +524,7 @@
                     + '<div><h4>Photo</h4><div class="pp-photo">' + avatar(person)
                     + '<div class="pp-photo-ctl"><div class="inputContainer"><input is="emby-input" type="text" data-f="Photo" aria-label="Photo : adresse web" value="' + escapeHtml(local ? '' : (person.Photo || '')) + '" placeholder="' + (local ? 'Fichier envoyé au plugin' : 'Adresse web (https://…)') + '"' + (local ? ' disabled' : '') + ' /></div>'
                     + '<div class="pp-btns"><button is="emby-button" type="button" class="raised" data-upload="1"><span>Envoyer un fichier…</span></button>'
-                    + (person.Photo ? '<button type="button" class="pp-linkbtn" data-clear-photo="1">Retirer</button>' : '')
+                    + (person.Photo ? '<button type="button" class="pp-linkbtn" data-adjust-photo="1">Ajuster</button><button type="button" class="pp-linkbtn" data-clear-photo="1">Retirer</button>' : '')
                     + '<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-file="1" hidden /></div></div></div></div>'
                     + '<div class="inputContainer"><label class="inputLabel" for="ppBio">Biographie</label><textarea id="ppBio" data-f="Bio" rows="4">' + escapeHtml(person.Bio || '') + '</textarea></div>'
                     + '<div><h4>Identifiants dans les sources</h4><div class="pp-links">';
@@ -626,6 +639,107 @@
                 }, function() {
                     Dashboard.alert('Image refusée : JPEG, PNG, WebP ou GIF, 8 Mo au maximum.');
                     renderDetail();
+                });
+            }
+
+            // ---- Photo cropper: zoom and move the picture inside a square frame, then upload the result ----
+            function openCropper(blob) {
+                var url = URL.createObjectURL(blob);
+                var img = new Image();
+                img.onload = function() { showCropper(img, url); };
+                img.onerror = function() { URL.revokeObjectURL(url); Dashboard.alert('Impossible de lire cette image.'); };
+                img.src = url;
+            }
+
+            function showCropper(img, url) {
+                var back = document.createElement('div');
+                back.className = 'pp-crop-back';
+                back.innerHTML = '<div class="pp-crop" role="dialog" aria-modal="true" aria-label="Ajuster la photo"><h3>Ajuster la photo</h3>'
+                    + '<div class="pp-crop-view"><img alt="" /><div class="pp-crop-guide"></div></div>'
+                    + '<div class="pp-crop-zoom"><span aria-hidden="true">−</span><input type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom" /><span aria-hidden="true">+</span></div>'
+                    + '<div class="pp-crop-hint">Glissez l\'image pour la déplacer, molette ou curseur pour zoomer.</div>'
+                    + '<div class="pp-crop-actions"><button is="emby-button" type="button" class="raised" data-crop-cancel="1"><span>Annuler</span></button>'
+                    + '<button is="emby-button" type="button" class="raised button-submit" data-crop-ok="1"><span>Valider</span></button></div></div>';
+                page.appendChild(back);
+                var view = back.querySelector('.pp-crop-view');
+                var pic = view.querySelector('img');
+                var range = back.querySelector('input[type=range]');
+                pic.src = url;
+                var V = view.clientWidth;
+                var base = Math.max(V / img.naturalWidth, V / img.naturalHeight);   // scale at which the picture just covers the frame
+                var zoom = 1, ox = 0, oy = 0;
+                function clamp() {
+                    var s = base * zoom;
+                    ox = Math.min(0, Math.max(V - img.naturalWidth * s, ox));
+                    oy = Math.min(0, Math.max(V - img.naturalHeight * s, oy));
+                }
+                function apply() {
+                    clamp();
+                    pic.style.transform = 'translate(' + ox + 'px,' + oy + 'px) scale(' + (base * zoom) + ')';
+                    range.value = zoom;
+                }
+                function setZoom(z, cx, cy) {
+                    z = Math.min(4, Math.max(1, z));
+                    var k = z / zoom;
+                    ox = cx - (cx - ox) * k;   // keep the point under (cx, cy) still
+                    oy = cy - (cy - oy) * k;
+                    zoom = z;
+                    apply();
+                }
+                ox = (V - img.naturalWidth * base) / 2;
+                oy = (V - img.naturalHeight * base) / 2;
+                apply();
+                var drag = null;
+                view.addEventListener('pointerdown', function(e) {
+                    drag = { x: e.clientX, y: e.clientY, ox: ox, oy: oy };
+                    view.classList.add('pp-drag');
+                    try { view.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                });
+                view.addEventListener('pointermove', function(e) {
+                    if (!drag) { return; }
+                    var r = V / view.getBoundingClientRect().width;
+                    ox = drag.ox + (e.clientX - drag.x) * r;
+                    oy = drag.oy + (e.clientY - drag.y) * r;
+                    apply();
+                });
+                function endDrag() { drag = null; view.classList.remove('pp-drag'); }
+                view.addEventListener('pointerup', endDrag);
+                view.addEventListener('pointercancel', endDrag);
+                view.addEventListener('wheel', function(e) {
+                    e.preventDefault();
+                    var rect = view.getBoundingClientRect();
+                    var r = V / rect.width;
+                    setZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), (e.clientX - rect.left) * r, (e.clientY - rect.top) * r);
+                }, { passive: false });
+                range.addEventListener('input', function() { setZoom(parseFloat(range.value), V / 2, V / 2); });
+                function close() { document.removeEventListener('keydown', onKey, true); back.remove(); URL.revokeObjectURL(url); }
+                function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } }
+                document.addEventListener('keydown', onKey, true);
+                back.addEventListener('click', function(e) {
+                    if (e.target === back || e.target.closest('[data-crop-cancel]')) { close(); return; }
+                    if (!e.target.closest('[data-crop-ok]')) { return; }
+                    var OUT = 512, s = base * zoom;
+                    var canvas = document.createElement('canvas');
+                    canvas.width = OUT; canvas.height = OUT;
+                    var ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(0, 0, OUT, OUT);
+                    ctx.drawImage(img, -ox / s, -oy / s, V / s, V / s, 0, 0, OUT, OUT);
+                    canvas.toBlob(function(out) {
+                        close();
+                        if (out) { uploadPhoto(out); } else { Dashboard.alert('Impossible de préparer la photo.'); }
+                    }, 'image/jpeg', 0.92);
+                });
+            }
+
+            function adjustExistingPhoto(person) {
+                var src = photoSrc(person.Photo);
+                if (!src) { return; }
+                fetch(src).then(function(response) {
+                    if (!response.ok) { throw new Error('HTTP ' + response.status); }
+                    return response.blob();
+                }).then(openCropper, function() {
+                    Dashboard.alert('Cette image ne peut pas être ajustée ici (son adresse n\'autorise pas l\'accès depuis cette page). Envoyez le fichier pour pouvoir le recadrer.');
                 });
             }
 
@@ -1070,7 +1184,14 @@
             qs('#ppDetail').addEventListener('change', function(e) {
                 var person = selected ? byId(selected) : null;
                 if (!person) { return; }
-                if (e.target.hasAttribute('data-file')) { uploadPhoto(e.target.files && e.target.files[0]); e.target.value = ''; return; }
+                if (e.target.hasAttribute('data-file')) {
+                    var picked = e.target.files && e.target.files[0];
+                    e.target.value = '';
+                    if (!picked) { return; }
+                    if (picked.size > 8 * 1024 * 1024) { Dashboard.alert('Image trop lourde : 8 Mo au maximum.'); return; }
+                    openCropper(picked);
+                    return;
+                }
                 if (e.target.hasAttribute('data-link-prefix')) { person.Links[parseInt(e.target.getAttribute('data-link-prefix'), 10)].Prefix = e.target.value; markDirty(); return; }
                 if (e.target.getAttribute('data-f') === 'Photo') { renderList(); renderDetail(); }
             });
@@ -1081,10 +1202,11 @@
 
             qs('#ppDetail').addEventListener('click', function(e) {
                 var person = selected ? byId(selected) : null;
-                var t = e.target.closest('button[data-upload],[data-clear-photo],[data-link-add],[data-link-fill],[data-link-overwrite],[data-link-remove],[data-delete],[data-merge]');
+                var t = e.target.closest('button[data-upload],[data-adjust-photo],[data-clear-photo],[data-link-add],[data-link-fill],[data-link-overwrite],[data-link-remove],[data-delete],[data-merge]');
                 if (!t || !person) { return; }
                 if (t.hasAttribute('data-merge')) { mergeInto(person, t); return; }
                 if (t.hasAttribute('data-upload')) { qs('#ppDetail [data-file]').click(); return; }
+                if (t.hasAttribute('data-adjust-photo')) { adjustExistingPhoto(person); return; }
                 if (t.hasAttribute('data-clear-photo')) { person.Photo = ''; markDirty(); renderList(); renderDetail(); return; }
                 if (t.hasAttribute('data-link-add')) {
                     person.Links = person.Links || [];
