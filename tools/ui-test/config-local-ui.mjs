@@ -164,6 +164,11 @@ try {
   check('gallery: an address is added with its type', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)) === 1 && (await ev(`document.querySelector('#lfGallery .cm-gal-meta span').textContent`)) === 'Miniature');
   await ev(`(function(){var dt=new DataTransfer(); ['b.jpg','c.png'].forEach(function(n){dt.items.add(new File([new Uint8Array([255,216,255,224,0,16,74,70,73,70,0,1])],n,{type:'image/jpeg'}));}); var i=document.querySelector('[data-gal-file]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(900);
   check('gallery: several files are sent and added', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)) === 3, String(await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)));
+  // a folder: the image under "Affiche/" takes the Primary type, the text file is skipped, a Backdrop folder is not allowed on an episode so it takes the chosen type
+  await ev(`(function(){var dt=new DataTransfer(); [['Affiche','p.jpg','image/jpeg'],['Affiche','notes.txt','text/plain']].forEach(function(a){var f=new File([new Uint8Array([255,216,255,224,0,16,74,70,73,70,0,1])],a[1],{type:a[2]}); Object.defineProperty(f,'webkitRelativePath',{value:'root/'+a[0]+'/'+a[1]}); dt.items.add(f);}); var i=document.querySelector('[data-gal-dir]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(900);
+  check('gallery folder: only the image is added, typed by its folder name', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-pick').length`)) === 4 && (await ev(`Array.from(document.querySelectorAll('#lfGallery .cm-gal-pick .cm-gal-meta span:first-child')).pop().textContent`)) === 'Affiche');
+  await click('#lfGallery [data-gal-sel="3"]'); await wait(250);
+  await click('[data-gal-act="remove"]'); await wait(250);
   await click('#lfGallery [data-gal-sel="0"]'); await wait(250);
   check('gallery: clicking an image selects it and enables the buttons', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-selected').length`)) === 1 && (await ev(`document.querySelector('[data-gal-act="remove"]').disabled`)) === false);
   await click('[data-gal-act="remove"]'); await wait(250);

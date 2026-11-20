@@ -3380,8 +3380,10 @@
                     + '<input type="text" id="lfGalUrl" placeholder="Adresse web (https://…)" aria-label="Adresse de la nouvelle image" />'
                     + '<button is="emby-button" type="button" class="raised" data-gal-url><span>Ajouter l\'adresse</span></button>'
                     + '<button is="emby-button" type="button" class="raised" data-gal-pick><span>Envoyer des fichiers…</span></button>'
+                    + '<button is="emby-button" type="button" class="raised" data-gal-pickdir title="Envoie toutes les images d\'un dossier. Un sous-dossier nommé Primary, Backdrop, Logo, Banner ou Thumb (ou Affiche, Fond, Bannière, Miniature) fixe le type de ses images, les autres prennent le type choisi à gauche. Vous pouvez aussi glisser un dossier ici."><span>Envoyer un dossier…</span></button>'
                     + (kind === 'episode' ? '' : '<button is="emby-button" type="button" class="raised" data-gal-folders title="Copie dans la galerie les images des sous-dossiers Primary, Backdrop, Logo, Banner, Thumb du dossier ' + (kind === 'series' ? 'de la série' : 'de la saison') + '"><span>Importer depuis les dossiers</span></button>')
-                    + '<input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" data-gal-file hidden /></div>'
+                    + '<input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" data-gal-file hidden />'
+                    + '<input type="file" multiple webkitdirectory data-gal-dir hidden /></div>'
                     + '<div class="cm-hint" id="lfGalMsg" role="status"></div></div>';
                 return html;
             }
@@ -3715,11 +3717,56 @@
                 if (tile && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tile.click(); }
             });
 
+            // Files or folders dropped on the gallery: folders are read recursively, the folder name above each file fixes its type
+            function readDropped(entry, folder, out) {
+                return new Promise(function(resolve) {
+                    if (entry.isFile) {
+                        entry.file(function(f) { out.push({ file: f, folder: folder }); resolve(); }, function() { resolve(); });
+                    } else if (entry.isDirectory) {
+                        var reader = entry.createReader(), all = [];
+                        var pump = function() {
+                            reader.readEntries(function(batch) {
+                                if (!batch.length) {
+                                    Promise.all(all.map(function(e) { return readDropped(e, entry.name, out); })).then(resolve);
+                                    return;
+                                }
+                                all = all.concat(Array.prototype.slice.call(batch));
+                                pump();   // readEntries returns at most ~100 entries per call
+                            }, function() { resolve(); });
+                        };
+                        pump();
+                    } else { resolve(); }
+                });
+            }
+            ['dragover', 'dragenter'].forEach(function(name) {
+                qs('#localDetail').addEventListener(name, function(e) {
+                    if (e.target.closest && e.target.closest('.cm-gal-add, .cm-gal-list') && e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0) {
+                        e.preventDefault();
+                    }
+                });
+            });
+            qs('#localDetail').addEventListener('drop', function(e) {
+                if (!(e.target.closest && e.target.closest('.cm-gal-add, .cm-gal-list')) || !e.dataTransfer) { return; }
+                e.preventDefault();
+                var entries = Array.prototype.map.call(e.dataTransfer.items || [], function(i) { return i.webkitGetAsEntry ? i.webkitGetAsEntry() : null; }).filter(Boolean);
+                if (!entries.length) { uploadGallery(e.dataTransfer.files); return; }
+                gallerySay('Lecture du dossier…');
+                var found = [];
+                Promise.all(entries.map(function(en) { return readDropped(en, '', found); })).then(function() { uploadGallery(found); });
+            });
+
             // Web address typed: the preview follows when the field loses focus
             qs('#localDetail').addEventListener('change', function(e) {
                 var t = e.target;
                 if (t.hasAttribute && t.hasAttribute('data-node-id')) { renameNode(t.value); return; }
                 if (t.hasAttribute && t.hasAttribute('data-gal-file')) { uploadGallery(t.files); t.value = ''; return; }
+                if (t.hasAttribute && t.hasAttribute('data-gal-dir')) {
+                    uploadGallery(Array.prototype.map.call(t.files || [], function(f) {
+                        var parts = (f.webkitRelativePath || '').split('/');
+                        return { file: f, folder: parts.length > 1 ? parts[parts.length - 2] : '' };
+                    }));
+                    t.value = ''; return;
+                }
                 if (t.hasAttribute && t.hasAttribute('data-vfile')) { uploadVideo(t.getAttribute('data-vfile'), t.files && t.files[0]); t.value = ''; return; }
                 if (t.hasAttribute && t.hasAttribute('data-file')) { uploadImage(t.getAttribute('data-file'), t.files && t.files[0]); t.value = ''; return; }
                 var box = t.closest && t.closest('[data-img-field]');
@@ -3802,20 +3849,37 @@
                 markDirty(); renderLocalDetail();
             }
 
-            // Several files at once, sent one after the other: each becomes an image of the chosen type
-            function uploadGallery(files) {
+            // Folder names that fix the type of the images they hold (same list as Services/FolderImages)
+            var GALLERY_FOLDER_TYPES = {
+                primary: 'Primary', principal: 'Primary', poster: 'Primary', posters: 'Primary', affiche: 'Primary', affiches: 'Primary',
+                backdrop: 'Backdrop', backdrops: 'Backdrop', background: 'Backdrop', backgrounds: 'Backdrop', fond: 'Backdrop', fonds: 'Backdrop',
+                logo: 'Logo', logos: 'Logo',
+                banner: 'Banner', banners: 'Banner', 'bannière': 'Banner', banniere: 'Banner', 'bannières': 'Banner', bannieres: 'Banner',
+                thumb: 'Thumb', thumbs: 'Thumb', thumbnail: 'Thumb', thumbnails: 'Thumb', miniature: 'Thumb', miniatures: 'Thumb'
+            };
+            var GALLERY_IMAGE_EXT = /\.(jpe?g|png|webp|gif)$/i;
+
+            // Several files at once, sent one after the other: each becomes an image of the chosen type.
+            // An item is a File or { file, folder }: the name of its folder fixes the type when it is an image folder name.
+            // Items that are not images (a folder holds other things) are skipped without counting as refused.
+            function uploadGallery(items) {
                 var hit = localSel ? findNode(localSel) : null;
-                var type = qs('#lfGalType') ? qs('#lfGalType').value : 'Primary';
-                files = Array.prototype.slice.call(files || []);
-                if (!hit || !files.length) { return; }
+                var chosen = qs('#lfGalType') ? qs('#lfGalType').value : 'Primary';
+                var allowed = hit ? galleryTypes(hit.kind) : [];
+                items = Array.prototype.slice.call(items || []).map(function(i) { return i && i.file ? i : { file: i, folder: '' }; })
+                    .filter(function(i) { return i.file && GALLERY_IMAGE_EXT.test(i.file.name || ''); })
+                    .sort(function(a, b) { return (a.folder + '/' + a.file.name).localeCompare(b.folder + '/' + b.file.name, undefined, { numeric: true }); });
+                if (!hit || !items.length) { if (hit) { gallerySay('Aucune image (JPEG, PNG, WebP ou GIF) trouvée.', true); } return; }
                 var node = hit.node, done = 0, refused = 0;
                 var next = function() {
-                    if (!files.length) {
+                    if (!items.length) {
                         markDirty(); renderLocalDetail();
                         gallerySay(plural(done, 'image ajoutée', 'images ajoutées') + (refused ? ', ' + plural(refused, 'refusée', 'refusées') + ' (JPEG, PNG, WebP ou GIF, 8 Mo au maximum)' : '') + '.', !!refused);
                         return;
                     }
-                    var file = files.shift();
+                    var item = items.shift(), file = item.file;
+                    var byFolder = GALLERY_FOLDER_TYPES[(item.folder || '').trim().toLowerCase()];
+                    var type = byFolder && allowed.indexOf(byFolder) >= 0 ? byFolder : chosen;
                     gallerySay('Envoi de ' + file.name + '…');
                     if (file.size > 8 * 1024 * 1024) { refused++; next(); return; }
                     fetch(ApiClient.getUrl('CustomMetadata/Local/' + localDataId + '/Image', { node: node.Id }), {
@@ -4073,7 +4137,7 @@
             function onLocalClick(e) {
                 var ltab = e.target.closest('[data-ltab-btn]');
                 if (ltab) { localTab = ltab.getAttribute('data-ltab-btn'); renderLocalDetail(); return; }
-                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-upload-video],[data-clear-video],[data-chip],[data-clear-img],[data-gal-sel],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
+                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-upload-video],[data-clear-video],[data-chip],[data-clear-img],[data-gal-sel],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-pickdir],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
                 if (!target || !localContent) { return; }
                 if (target.hasAttribute('data-node')) { selectNode(target.getAttribute('data-node')); return; }
                 if (target.hasAttribute('data-toggle-node')) {
@@ -4154,6 +4218,7 @@
                 }
                 if (target.hasAttribute('data-gal-url')) { addGalleryUrl(); return; }
                 if (target.hasAttribute('data-gal-pick')) { var gp = qs('#localDetail [data-gal-file]'); if (gp) { gp.click(); } return; }
+                if (target.hasAttribute('data-gal-pickdir')) { var gd = qs('#localDetail [data-gal-dir]'); if (gd) { gd.click(); } return; }
                 if (target.hasAttribute('data-gal-folders')) { importFolderImages(target); return; }
                 if (target.hasAttribute('data-apply-images')) { applyImages(target); return; }
                 if (target.hasAttribute('data-clear-img')) {
