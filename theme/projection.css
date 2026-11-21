@@ -328,6 +328,13 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
   background: linear-gradient(to bottom, rgba(var(--pj-veil), 0), var(--pj-bg)); pointer-events: none;
 }
 .layout-mobile .detailPageWrapperContainer { background: var(--pj-bg) !important; }
+/* phones keep the fixed backdrop layer too: under a short season (one episode) it came
+   back below the content. The banner already shows the picture, so on a detail page
+   the fixed layer is covered with ink. */
+html.layout-mobile:has(.itemDetailPage:not(.hide)) .backgroundContainer.withBackdrop {
+  background: var(--pj-bg) !important;
+}
+html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity: 0 !important; }
 
 /* desktop: a smaller poster, the content column moves with it */
 .layout-desktop .detailImageContainer .card { width: var(--pj-poster-w); max-width: none; left: var(--pj-gutter); }
