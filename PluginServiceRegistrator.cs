@@ -69,6 +69,10 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddSingleton<CastInheritance>();
             serviceCollection.AddSingleton<CastApplyService>();
 
+            // Source option "download the videos": a background queue, one download at a time
+            serviceCollection.AddSingleton<VideoDownloadService>();
+            serviceCollection.AddHostedService(sp => sp.GetRequiredService<VideoDownloadService>());
+
             serviceCollection.AddSingleton<MissingEpisodeService>();
             serviceCollection.AddSingleton<TaxonomyService>();
             // Applies the rules to a managed item each time it is saved

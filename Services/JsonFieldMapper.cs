@@ -222,6 +222,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     RunTimeTicks = duration?.Ticks,
                     ThumbUrl = GetListString(item, mapping.ThumbUrl),
                     PreviewUrl = GetListString(item, mapping.PreviewUrl),
+                    VideoUrl = GetListString(item, mapping.VideoUrl),
                     RawJson = item.GetRawText()
                 });
             }

@@ -1107,6 +1107,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string ThumbUrl { get; set; }
         public string PreviewUrl { get; set; }
 
+        /// <summary>Full video (EpisodeListMapping.VideoUrl) for the AutoDownloadVideos option</summary>
+        public string VideoUrl { get; set; }
+
         /// <summary>Overview recognised as a list of tags/genres (VideoFieldMappings.OverviewListTarget): cleared</summary>
         public bool OverviewIsList { get; set; }
 

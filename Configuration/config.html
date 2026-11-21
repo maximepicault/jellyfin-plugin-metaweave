@@ -1027,6 +1027,18 @@
                             <input is="emby-input" type="text" id="srcListPreview" placeholder="preview.url" data-count="1" />
                             <div class="cm-hint">Lue via le bouton « Bande-annonce » de la fiche de l&#x27;épisode manquant.</div>
                         </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcListVideo">Vidéo complète (URL)</label>
+                            <input is="emby-input" type="text" id="srcListVideo" placeholder="(vide = utilise l&#x27;aperçu)" />
+                            <div class="cm-hint">Lien direct vers la vidéo : fichier MP4, WebM, MKV, ou liste HLS (.m3u8). Sert uniquement au téléchargement automatique ci-dessous.</div>
+                        </div>
+                        <h4>Téléchargement (facultatif)</h4>
+                        <div class="cm-rows" style="margin: 0; grid-column: 1 / -1;">
+                        <label class="cm-row">
+                            <span class="cm-row-text"><span class="cm-row-title">Télécharger automatiquement les vidéos des épisodes manquants</span><span class="cm-row-hint">À chaque analyse, la vidéo de chaque épisode manquant est téléchargée dans le dossier de sa saison, sous le nom « Titre {préfixe-id}.mp4 », un fichier à la fois en arrière-plan. Le format est détecté : un flux HLS (.m3u8) est converti en MP4 par le ffmpeg de Jellyfin. Le scan de la bibliothèque qui suit transforme l&#x27;épisode manquant en vrai épisode. Désactivé par défaut : vérifiez l&#x27;espace disque et vos droits sur ces vidéos.</span></span>
+                            <input type="checkbox" class="cm-switch" id="srcAutoDownloadVideos" />
+                        </label>
+                        </div>
                         <h4>Pagination (facultatif)</h4>
                         <div class="inputContainer">
                             <label class="inputLabel" for="srcListPageParam">Paramètre de page</label>
@@ -1648,6 +1660,7 @@
                 document.querySelector('#srcListDuration').value = lm.Duration || '';
                 document.querySelector('#srcListThumb').value = lm.ThumbUrl || '';
                 document.querySelector('#srcListPreview').value = lm.PreviewUrl || '';
+                document.querySelector('#srcListVideo').value = lm.VideoUrl || '';
                 document.querySelector('#srcListPageParam').value = lm.PageParameter || '';
                 document.querySelector('#srcListFirstPage').value = (lm.FirstPage === 0 || lm.FirstPage) ? lm.FirstPage : '';
                 document.querySelector('#srcListMaxPages').value = lm.MaxPages || '';
@@ -1666,6 +1679,7 @@
                     Duration: document.querySelector('#srcListDuration').value || 'duration',
                     ThumbUrl: document.querySelector('#srcListThumb').value || 'thumb',
                     PreviewUrl: document.querySelector('#srcListPreview').value || 'preview.url',
+                    VideoUrl: document.querySelector('#srcListVideo').value.trim(),
                     PageParameter: document.querySelector('#srcListPageParam').value || '',
                     FirstPage: isNaN(firstPage) ? 1 : firstPage,
                     MaxPages: isNaN(maxPages) || maxPages < 1 ? 100 : maxPages
@@ -1684,6 +1698,7 @@
                 updateOriginRefererFields();
                 document.querySelector('#srcUseHttp2').checked = source.UseHttp2 === true;
                 document.querySelector('#srcLandscapePortraitThumbs').checked = source.LandscapePortraitThumbs === true;
+                document.querySelector('#srcAutoDownloadVideos').checked = source.AutoDownloadVideos === true;
             }
 
             // Origin/Referer overrides: editable only if sending is enabled.
@@ -2271,6 +2286,7 @@
                     RefererOverride: document.querySelector('#srcRefererOverride').value.trim(),
                     UseHttp2: document.querySelector('#srcUseHttp2').checked,
                     LandscapePortraitThumbs: document.querySelector('#srcLandscapePortraitThumbs').checked,
+                    AutoDownloadVideos: document.querySelector('#srcAutoDownloadVideos').checked,
                     CustomHeaders: filteredHeaders
                 };
                 

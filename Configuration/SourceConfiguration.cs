@@ -178,6 +178,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         public bool LandscapePortraitThumbs { get; set; } = false;
 
         /// <summary>
+        /// Missing episodes: download the video of each one (EpisodeListMapping.VideoUrl, else PreviewUrl) into the season folder,
+        /// named "{title} {prefix-id}.mp4", so that the next library scan turns the missing episode into a real one.
+        /// HLS (.m3u8) streams are remuxed to MP4 with the server's ffmpeg. Off by default.
+        /// </summary>
+        public bool AutoDownloadVideos { get; set; } = false;
+
+        /// <summary>
         /// Builds a source from the old single-source global config (PatternPrefix, ApiBaseUrl…).
         /// Used by SourceResolver when Sources is empty, and by the movie provider (legacy path).
         /// Static method: ignored by XmlSerializer.
@@ -347,6 +354,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         /// played through the Jellyfin server (see MissingEpisodeService.SyncPreviewAsync)
         /// </summary>
         public string PreviewUrl { get; set; } = "preview.url";
+
+        /// <summary>
+        /// URL of the full video (direct file or HLS playlist) used by the source's AutoDownloadVideos option.
+        /// Empty = the PreviewUrl is used
+        /// </summary>
+        public string VideoUrl { get; set; } = string.Empty;
 
         /// <summary>
         /// Pagination parameter added to the URL (e.g. "page" → ?page=1, ?page=2...)

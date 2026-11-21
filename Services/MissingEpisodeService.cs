@@ -49,6 +49,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly PeopleStore _people;
         private readonly CastInheritance _inheritance;
         private readonly LocalSourceStore _localStore;
+        private readonly VideoDownloadService _downloads;
 
         public MissingEpisodeService(
             ILibraryManager libraryManager,
@@ -60,8 +61,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             PeopleStore people,
             CastInheritance inheritance,
             LocalSourceStore localStore,
+            VideoDownloadService downloads,
             ILogger<MissingEpisodeService> logger)
         {
+            _downloads = downloads;
             _localStore = localStore;
             _inheritance = inheritance;
             _castOverlay = castOverlay;
@@ -338,6 +341,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 season.SeriesName, season.Name, physical.Count, apiEpisodes.Count, missing.Count);
 
             var stats = await SyncVirtualEpisodesAsync(season, source, createVirtual ? missing : new List<EpisodeListItem>(), episodes.Where(e => e.IsVirtualItem).ToList(), virtualFromLibrary, ignoreCache, cancellationToken);
+            QueueVideoDownloads(season, source, missing);
             totals.Created += stats.Created;
             totals.Updated += stats.Updated;
             totals.Unchanged += stats.Unchanged;
@@ -585,6 +589,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 target.RunTimeTicks = item.RunTimeTicks ?? target.RunTimeTicks;
                 target.ThumbUrl = string.IsNullOrWhiteSpace(item.ThumbUrl) ? target.ThumbUrl : item.ThumbUrl;
                 target.PreviewUrl = string.IsNullOrWhiteSpace(item.PreviewUrl) ? target.PreviewUrl : item.PreviewUrl;
+                target.VideoUrl = string.IsNullOrWhiteSpace(item.VideoUrl) ? target.VideoUrl : item.VideoUrl;
                 target.OverviewIsList = false;
                 // The fingerprint of the episode (cache) follows the local data too (valid JSON: it is parsed back later)
                 target.RawJson = "{\"api\":" + (string.IsNullOrWhiteSpace(target.RawJson) ? "null" : target.RawJson) + ",\"local\":" + (string.IsNullOrWhiteSpace(item.RawJson) ? "null" : item.RawJson) + "}";
@@ -662,6 +667,36 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 season.SeriesName, season.Name, virtualChildren.Count, virtualFromLibrary.Count, foundById, result.Count, orphans.Count);
 
             return (result, orphans);
+        }
+
+        /// <summary>
+        /// Source option AutoDownloadVideos: queues the download of each missing episode's video into the season folder.
+        /// The URL is the VideoUrl mapping, else the PreviewUrl. Already downloaded, queued or recently failed ones are skipped.
+        /// </summary>
+        private void QueueVideoDownloads(Season season, SourceConfiguration source, List<EpisodeListItem> missing)
+        {
+            if (!source.AutoDownloadVideos || source.IsLocal || string.IsNullOrWhiteSpace(season.Path))
+            {
+                return;
+            }
+
+            foreach (var item in missing)
+            {
+                var url = PreviewMapper.ResolveUrl(string.IsNullOrWhiteSpace(item.VideoUrl) ? item.PreviewUrl : item.VideoUrl, source.BaseUrl);
+                if (url == null || !(url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                _downloads.Enqueue(new VideoDownloadService.DownloadJob
+                {
+                    Key = EpisodeKey(source, item),
+                    Title = item.Title,
+                    Url = url,
+                    Folder = season.Path,
+                    Source = source
+                });
+            }
         }
 
         /// <summary>
