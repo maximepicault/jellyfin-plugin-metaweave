@@ -119,8 +119,10 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
    4. Header, tabs, drawer
    ============================================================ */
 /* Opaque: a 94% header let scrolled titles ghost through and drew a two-tone strip on phones */
-.skinHeader, .skinHeader.skinHeader-withBackground, .skinHeader.skinHeader-blurred,
-.skinHeader.semiTransparent {
+/* not the video player's header (same element, with .osdHeader): it must stay a light
+   scrim over the picture, see section 16 */
+.skinHeader:not(.osdHeader), .skinHeader.skinHeader-withBackground:not(.osdHeader),
+.skinHeader.skinHeader-blurred:not(.osdHeader), .skinHeader.semiTransparent:not(.osdHeader) {
   background: var(--pj-bg) !important;
   -webkit-backdrop-filter: none; backdrop-filter: none;
   border-bottom: 1px solid var(--pj-line);
@@ -527,7 +529,11 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
 /* ============================================================
    16. Player
    ============================================================ */
-.osdHeader { background: linear-gradient(to bottom, rgba(5, 9, 10, .85), transparent) !important; border-bottom: 0 !important; }
+/* a light scrim behind the player's top buttons, not a band over the picture */
+.skinHeader.osdHeader {
+  background: linear-gradient(to bottom, rgba(5, 9, 10, .6), rgba(5, 9, 10, 0)) !important;
+  border-bottom: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
 .videoOsdBottom { background: linear-gradient(to top, rgba(5, 9, 10, .9), transparent) !important; }
 .mdl-slider-background-lower, .emby-slider-background-lower { background: var(--pj-amber) !important; }
 .mdl-slider-background-upper, .emby-slider-background-upper { background: rgba(235, 230, 217, .22) !important; }
