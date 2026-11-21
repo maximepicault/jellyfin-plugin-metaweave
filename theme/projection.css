@@ -1,0 +1,563 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap");
+
+/*
+ * Projection 2 - a flat, cinema-minded dark theme for jellyfin-web 10.11.
+ *
+ * Install: Dashboard > General > Custom CSS code, then either paste this whole
+ * file, or import it so it follows the updates of the repository:
+ *   @import url("https://cdn.jsdelivr.net/gh/maximepicault/jellyfin-plugin-metaweave@main/theme/projection.css");
+ * (jsDelivr serves it as text/css; a raw.githubusercontent.com link is refused
+ * by browsers because it is served as text/plain.)
+ * Scope: pages rendered by jellyfin-web itself (home, libraries, details,
+ * search, player, login). The 10.11 admin dashboard is a separate React app
+ * that does not receive custom CSS, so it keeps the stock look.
+ *
+ * Ideas:
+ * - Ink and paper, one accent (projector-lamp amber) kept for what you act on
+ *   or what you did: the play button, focus, selection, progress, "watched".
+ *   Counts, links and labels stay neutral so the amber keeps its meaning.
+ * - Detail pages put the content first: smaller poster, title and a labelled
+ *   play button together, episodes as a grid of 16:9 cards (rows on phones).
+ * - The backdrop is a mood, not a wall: it fades as you scroll.
+ * Offline or blocked Google Fonts? The serif falls back to Georgia.
+ * The labels in section 13 ("Manquant"...) are French: edit them for your language.
+ */
+
+/* ============================================================
+   1. Tokens
+   ============================================================ */
+:root {
+  /* colour */
+  --pj-bg: #0d1415;            /* ink, teal-leaning */
+  --pj-raise: #152022;         /* raised surfaces: panels, dialogs */
+  --pj-raise-2: #1c2a2d;       /* hover */
+  --pj-line: #2a3a3e;          /* hairlines */
+  --pj-line-2: #3a4d52;        /* chips, hover rings */
+  --pj-line-strong: #607376;   /* edges that must be seen (fields, scrollbar): 3.7:1 on --pj-bg */
+  --pj-text: #ebe6d9;          /* warm paper */
+  --pj-text-2: #c9c4b8;        /* body copy under a title */
+  --pj-dim: #98a5a2;           /* secondary text, 6.4:1 on --pj-bg */
+  --pj-amber: #f2b441;         /* the accent */
+  --pj-amber-ink: #1a1405;     /* text on amber */
+  --pj-danger: #ff8a7a;
+  --pj-veil: 13, 20, 21;       /* --pj-bg as r, g, b for translucent layers */
+
+  /* shape and depth */
+  --pj-r: 4px;                 /* frames: cards, images */
+  --pj-r-ui: 6px;              /* controls */
+  --pj-shadow-lift: 0 18px 40px rgba(0, 0, 0, .5);
+  --pj-shadow-pop: 0 24px 60px rgba(0, 0, 0, .6);
+
+  /* type */
+  --pj-serif: "Fraunces", "Iowan Old Style", Georgia, serif;
+
+  /* detail page geometry */
+  --pj-gutter: max(1.25rem, 3.3vw);
+  --pj-poster-w: clamp(13rem, 17vw, 21rem);
+  --pj-indent: calc(var(--pj-gutter) + var(--pj-poster-w) + clamp(1.5rem, 2.6vw, 3rem));
+
+  --pj-fast: .15s;
+}
+
+/* ============================================================
+   2. Base
+   ============================================================ */
+/* The colour lives on <html> only: a painted <body> would cover the fixed
+   backdrop layer (z-index -1) that Jellyfin puts behind the pages. */
+html { background-color: var(--pj-bg) !important; }
+body { background: transparent !important; color: var(--pj-text); }
+/* not during playback: jellyfin then adds .backgroundContainer-transparent (and
+   .transparentDocument on <html>) so the video shows through; painting it hid the picture */
+.backgroundContainer:not(.withBackdrop):not(.backgroundContainer-transparent) { background-color: var(--pj-bg) !important; }
+/* Pages stay transparent so the item's backdrop (fixed layer) shows through. */
+.page, .libraryPage, .itemDetailPage, .detailPage, .mainAnimatedPage, .pageContainer,
+.detailPageWrapperContainer, .detailPageContent, .standalonePage {
+  background: transparent !important;
+}
+/* stock paints a grey ribbon behind the title row and, with "backdrop transparency"
+   off, #101010 behind both halves of the page: that left a hard grey band */
+.detailRibbon, .detailPagePrimaryContainer, .detailPageSecondaryContainer, .mainDetailButtons,
+.noBackdropTransparency .detailPagePrimaryContainer,
+.noBackdropTransparency .detailPageSecondaryContainer { background: transparent !important; }
+
+/* Backdrop veil (fixed layer): a light wash, darker at the bottom. Detail pages add a
+   veil that scrolls with their content (section 8). */
+.backgroundContainer.withBackdrop {
+  background-color: transparent !important;
+  background-image: linear-gradient(to bottom, rgba(var(--pj-veil), .3), rgba(var(--pj-veil), .65)) !important;
+}
+.backdropImage { filter: saturate(.9) contrast(1.02); }
+
+::selection { background: var(--pj-amber); color: var(--pj-amber-ink); }
+html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--pj-line-strong); border-radius: 10px; border: 2px solid var(--pj-bg); }
+::-webkit-scrollbar-track { background: transparent; }
+
+.secondaryText, .listItemBodyText.secondary, .fieldDescription,
+.cardText-secondary, .mediaInfoItem, .inputLabel, .selectLabel, .textareaLabel { color: var(--pj-dim) !important; }
+
+/* Long text must never push the layout sideways */
+.overview, .itemOverview, .detailSection, .itemMiscInfo, .listItemBody, .cardText {
+  overflow-wrap: break-word; /* not "anywhere": that breaks titles mid-word */
+}
+.overview, .itemOverview { line-height: 1.7; max-width: 68ch; color: var(--pj-text-2); }
+
+/* ============================================================
+   3. Type
+   ============================================================ */
+.sectionTitle, .sectionTitle-cards, .detailSectionHeader, .nameContainer .itemName,
+.itemName.infoText, .dialogHeaderTitle, .formDialogHeaderTitle, .actionSheetTitle, .headerText {
+  font-family: var(--pj-serif);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.nameContainer .itemName, .itemName.infoText { font-size: clamp(1.8rem, 3vw, 2.6rem); line-height: 1.1; text-wrap: balance; }
+.sectionTitle { font-size: 1.45em; }
+
+/* ============================================================
+   4. Header, tabs, drawer
+   ============================================================ */
+/* Opaque: a 94% header let scrolled titles ghost through and drew a two-tone strip on phones */
+.skinHeader, .skinHeader.skinHeader-withBackground, .skinHeader.skinHeader-blurred,
+.skinHeader.semiTransparent {
+  background: var(--pj-bg) !important;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  border-bottom: 1px solid var(--pj-line);
+  box-shadow: none !important;
+}
+@media (hover: hover) { .headerButton:hover { background: var(--pj-raise-2) !important; } }
+.headerTabs .emby-tab-button { color: var(--pj-dim); font-weight: 600; }
+.emby-tab-button:hover, .emby-tab-button.show-focus:focus { color: var(--pj-text); }
+/* the current tab: paper label + amber underline (a shape, not only a colour) */
+.emby-tab-button-active, .emby-tab-button.emby-tab-button-active {
+  color: var(--pj-text) !important; box-shadow: inset 0 -2px 0 var(--pj-amber);
+}
+@media (max-width: 600px) {
+  /* hint that the tab strip scrolls */
+  .headerTabs .emby-tabs { -webkit-mask-image: linear-gradient(to right, #000 85%, transparent); mask-image: linear-gradient(to right, #000 85%, transparent); }
+}
+
+.mainDrawer { background: var(--pj-raise) !important; border-right: 1px solid var(--pj-line); }
+.mainDrawer .navMenuOption { color: var(--pj-text); border-radius: var(--pj-r-ui) !important; margin: 1px 8px !important; width: auto !important; }
+.mainDrawer .navMenuOptionIcon { color: var(--pj-dim); }
+.mainDrawer .navMenuOption:hover { background: var(--pj-raise-2) !important; }
+.mainDrawer .navMenuOption-selected {
+  background: rgba(242, 180, 65, .1) !important; color: var(--pj-amber) !important;
+  box-shadow: inset 3px 0 0 var(--pj-amber);
+}
+.mainDrawer .navMenuOption-selected .navMenuOptionIcon { color: var(--pj-amber); }
+.mainDrawer .sidebarHeader {
+  color: var(--pj-dim) !important; font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+}
+
+/* ============================================================
+   5. Cards: the poster is a film frame
+   ============================================================ */
+.cardScalable, .cardImageContainer, .cardImage, .cardOverlayContainer { border-radius: var(--pj-r) !important; }
+.cardScalable { background: var(--pj-raise); overflow: hidden; }
+/* titles: paper vs dim carries the hierarchy, normal weight keeps more characters visible */
+.cardText:not(.cardText-secondary) { color: var(--pj-text); }
+/* hover is a neutral lift; the amber ring is kept for keyboard focus */
+@media (hover: hover) {
+  .card:hover .cardScalable { box-shadow: 0 0 0 1px var(--pj-line-2), 0 10px 24px rgba(0, 0, 0, .45); }
+}
+.card:focus-visible .cardScalable, .card:has(:focus-visible) .cardScalable,
+.card.show-focus:focus .cardScalable { box-shadow: 0 0 0 2px var(--pj-amber) !important; }
+.card:focus .cardBox:not(.visualCardBox) .cardScalable,
+.card:focus .cardBox.visualCardBox { border-color: var(--pj-amber) !important; }
+/* overlay: a bottom scrim, so the corner badges stay readable */
+.cardOverlayContainer { background: linear-gradient(to top, rgba(8, 12, 13, .85), rgba(8, 12, 13, .1) 65%) !important; }
+.cardOverlayFab-primary, .cardOverlayButton-br .cardOverlayFab-primary {
+  background: var(--pj-amber) !important; color: var(--pj-amber-ink) !important;
+}
+
+/* placeholder art (no image): quiet tints, not Jellyfin cyan */
+[class*="defaultCardBackground"] { background-color: var(--pj-raise-2) !important; color: var(--pj-dim); }
+.defaultCardBackground1 { background-color: #1d2c2e !important; }
+.defaultCardBackground2 { background-color: #25292f !important; }
+.defaultCardBackground3 { background-color: #2a2622 !important; }
+.defaultCardBackground4 { background-color: #1f2a26 !important; }
+.defaultCardBackground5 { background-color: #29232a !important; }
+.cardImageIcon { color: var(--pj-dim) !important; }
+
+/* people: always round, wherever they appear (stock card is 2:3, hence the 1:1 padder) */
+.personCard .cardPadder, .card[data-type="Person"] .cardPadder { padding-bottom: 100% !important; }
+.personCard .cardScalable, .personCard .cardImageContainer,
+.card[data-type="Person"] .cardScalable, .card[data-type="Person"] .cardImageContainer { border-radius: 50% !important; }
+.personCard .cardImageContainer, .card[data-type="Person"] .cardImageContainer { background-size: cover; background-position: center top; }
+.personCard .cardText, .card[data-type="Person"] .cardText { text-align: center; }
+.personCard .cardOverlayButton-br { right: 50%; bottom: .35em; transform: translateX(50%); }
+
+/* phones: a title may take two lines rather than being cut after a dozen characters */
+@media (max-width: 600px) {
+  .cardText-first { white-space: normal !important; overflow-wrap: normal; -webkit-hyphens: auto; hyphens: auto; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.3; min-height: 2.6em; }
+}
+
+/* ============================================================
+   6. Indicators and progress
+   ============================================================ */
+/* counts are information, not a call to action: ink chips. The watched tick keeps the accent. */
+.countIndicator, .fullSyncIndicator, .mediaSourceIndicator, .cardIndicators .indicator {
+  background: rgba(var(--pj-veil), .85) !important; color: var(--pj-text) !important;
+  box-shadow: inset 0 0 0 1px rgba(235, 230, 217, .22) !important; border-radius: 99px;
+}
+.playedIndicator {
+  background: rgba(var(--pj-veil), .85) !important; color: var(--pj-amber) !important;
+  box-shadow: inset 0 0 0 1px rgba(242, 180, 65, .45) !important; border-radius: 99px;
+}
+.itemProgressBar { height: 3px; background: rgba(235, 230, 217, .2); border-radius: 0; }
+.itemProgressBarForeground { background: var(--pj-amber) !important; }
+
+/* horizontal row arrows: quiet, and on pointer devices only when the row is pointed at */
+.emby-scrollbuttons .paper-icon-button-light { background: transparent !important; color: var(--pj-dim); font-size: .85em; }
+.emby-scrollbuttons .paper-icon-button-light:hover:not(:disabled) { background: var(--pj-raise-2) !important; color: var(--pj-text); }
+.emby-scrollbuttons .paper-icon-button-light:disabled { opacity: .25; }
+@media (hover: hover) {
+  .emby-scroller-container .emby-scrollbuttons { opacity: 0; transition: opacity var(--pj-fast); }
+  .emby-scroller-container:hover .emby-scrollbuttons, .emby-scroller-container:focus-within .emby-scrollbuttons { opacity: 1; }
+}
+
+/* ============================================================
+   7. Buttons
+   ============================================================ */
+.emby-button { border-radius: var(--pj-r-ui); }
+.raised { background: var(--pj-raise-2); color: var(--pj-text); border: 1px solid var(--pj-line-2); font-weight: 600; text-transform: none; }
+.raised:hover { background: var(--pj-line); }
+.button-submit, .raised.button-submit, .emby-button.detailFloatingButton {
+  background: var(--pj-amber) !important; color: var(--pj-amber-ink) !important; border-color: var(--pj-amber);
+}
+.button-submit:hover { filter: brightness(1.08); }
+.button-delete { background: transparent !important; color: var(--pj-danger) !important; border: 1px solid var(--pj-danger); }
+.button-link, a.button-link { color: inherit; }
+.button-link:hover { color: var(--pj-amber) !important; }
+@media (hover: hover) { .paper-icon-button-light:hover:not(:disabled) { background-color: var(--pj-raise-2); } }
+.detailButton, .detailButton-icon { color: var(--pj-text); }
+.metadataSidebarIcon { color: var(--pj-amber); }
+/* watched / favourite: a different shape as well as a colour */
+.material-icons.playstatebutton-icon-played::before { content: "\e86c"; }   /* check_circle */
+.playstatebutton-icon-played { color: var(--pj-amber) !important; }
+.ratingbutton-icon-withrating { color: var(--pj-danger) !important; }
+.listViewUserDataButtons .material-icons.favorite:not(.ratingbutton-icon-withrating)::before,
+.mainDetailButtons .material-icons.favorite:not(.ratingbutton-icon-withrating)::before { content: "\e87e"; } /* favorite_border */
+
+/* ============================================================
+   8. Detail pages (series, season, episode, movie)
+   ============================================================ */
+/* One continuous fade, carried by the content so it scrolls with it: the band at the
+   top shows the picture, the veil thickens slowly down the first screen and ends in
+   pure ink. Scrolled text never lands on the bright top of the backdrop.
+   - the band (.itemBackdrop) gets it through ::after: stock gives it
+     background-attachment:fixed, which would stretch a background gradient over the
+     whole viewport (that is what left a hard edge at the bottom of the band);
+   - the content block continues from the same value, and is at least as tall as
+     the rest of the screen, so a short season does not let the picture back in
+     at the bottom. --pj-hero-h mirrors the band height for that. */
+.layout-desktop .itemDetailPage { --pj-hero-h: 40vh; }
+.layout-desktop .itemDetailPage:has(#listChildrenCollapsible .listItem-largeImage) { --pj-hero-h: 26vh; }
+@media (max-height: 31.25em) { .layout-desktop .itemDetailPage { --pj-hero-h: 52vh; } }
+.layout-desktop .itemDetailPage .itemBackdrop { height: var(--pj-hero-h); }
+.layout-desktop .itemBackdrop::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 30%, rgba(var(--pj-veil), .4));
+}
+.layout-desktop .detailPageWrapperContainer {
+  min-height: calc(100vh - var(--pj-hero-h));
+  background: linear-gradient(to bottom, rgba(var(--pj-veil), .4) 0, rgba(var(--pj-veil), .8) 25vh,
+    rgba(var(--pj-veil), .94) 45vh, var(--pj-bg) 65vh) !important;
+}
+/* phones show the backdrop as a banner: melt its bottom edge into the ink */
+.layout-mobile .itemBackdrop::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 55%;
+  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0), var(--pj-bg)); pointer-events: none;
+}
+.layout-mobile .detailPageWrapperContainer { background: var(--pj-bg) !important; }
+
+/* desktop: a smaller poster, the content column moves with it */
+.layout-desktop .detailImageContainer .card { width: var(--pj-poster-w); max-width: none; left: var(--pj-gutter); }
+.detailImageContainer .cardScalable { box-shadow: var(--pj-shadow-lift); }
+.layout-desktop [dir=ltr] .detailRibbon { padding-left: var(--pj-indent); padding-right: var(--pj-gutter); }
+.layout-desktop [dir=ltr] .detailPagePrimaryContent { padding-left: var(--pj-indent); padding-right: var(--pj-gutter); }
+/* below the hero, rows use the whole width, aligned with the poster's edge */
+.layout-desktop [dir=ltr] .detailPageContent { padding-left: var(--pj-gutter); padding-right: var(--pj-gutter); }
+/* season pages: the episodes are the content, so the band above them is shorter
+   (--pj-hero-h above) */
+
+/* title block, then the actions right under it, on the same left edge */
+/* display:block and align-content:normal: a flex ribbon (or a block with stock's
+   align-content:center) is a new formatting context, pushed right of the floated
+   poster as soon as it grows taller than stock's 7.2em */
+.layout-desktop .detailRibbon { display: block; align-content: normal; height: auto; min-height: 7.2em; padding-bottom: .25rem; }
+.layout-desktop .detailRibbon .infoWrapper { margin-bottom: .9rem; }
+.layout-desktop .mainDetailButtons { margin: 0; justify-content: flex-start; flex-wrap: wrap; }
+
+/* the series name above an episode or season title: a small pill on its own dark,
+   blurred ground with a shadow, so it stays readable on any picture; amber on hover */
+.detailRibbon .parentName, .detailRibbon h1.parentName {
+  font-family: inherit !important; font-size: .78rem !important; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; margin: 0 0 .55rem !important; overflow: visible;
+}
+.detailRibbon .parentName a {
+  display: inline-block; padding: .35em .85em; border-radius: 99px; line-height: 1.2;
+  color: var(--pj-text) !important; background: rgba(var(--pj-veil), .72);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(235, 230, 217, .14);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.detailRibbon .parentName a:hover { color: var(--pj-amber) !important; box-shadow: 0 2px 12px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(242, 180, 65, .5); }
+.detailRibbon .itemName.subtitle, .detailRibbon h3.itemName, .detailRibbon .itemName { margin: 0 !important; padding-left: 0 !important; }
+/* the title and its facts sit on the picture too: a soft shadow keeps them readable */
+.detailRibbon .itemName, .detailRibbon .itemMiscInfo { text-shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 2px 16px rgba(0, 0, 0, .45); }
+.itemMiscInfo { color: var(--pj-dim); font-size: .9rem; }
+
+/* the main action: a labelled amber button ("Lire", "Reprendre": the label is the
+   button's own localised title), the other actions stay quiet icons */
+.mainDetailButtons .btnPlay:not(.hide), .mainDetailButtons .btnResume:not(.hide) {
+  flex-direction: row !important; gap: .35em; border-radius: 99px;
+  background: var(--pj-amber) !important; color: var(--pj-amber-ink) !important;
+  padding: .55em 1.35em .55em 1em !important; margin-right: .6em !important;
+}
+.mainDetailButtons .btnPlay .detailButton-icon, .mainDetailButtons .btnResume .detailButton-icon { color: inherit; font-size: 1.5em !important; }
+.mainDetailButtons .btnPlay::after, .mainDetailButtons .btnResume::after { content: attr(title); font-weight: 700; font-size: .95rem; }
+.mainDetailButtons .btnPlay:hover { filter: brightness(1.08); }
+.mainDetailButtons .detailButton:not(.btnPlay):not(.btnResume) { color: var(--pj-text-2); }
+@media (hover: hover) { .mainDetailButtons .detailButton:not(.btnPlay):not(.btnResume):hover { color: var(--pj-text); background: var(--pj-raise-2); } }
+
+/* phones: one left-aligned column next to the poster, actions on the page edge */
+.layout-mobile .detailRibbon .nameContainer, .layout-mobile .detailRibbon .parentName,
+.layout-mobile .detailRibbon .itemName, .layout-mobile .detailRibbon .itemMiscInfo {
+  text-align: left; align-items: flex-start; justify-content: flex-start;
+}
+.layout-mobile .detailRibbon h3.itemName, .layout-mobile .detailRibbon h1.itemName { font-size: 1.55rem; }
+.layout-mobile [dir=ltr] .mainDetailButtons { padding-left: 0 !important; justify-content: flex-start; margin-top: 1.1rem; }
+.layout-mobile .detailPagePrimaryContent { padding-top: .5em; }
+/* empty stock blocks leave dead space above the content */
+.detailSectionContent > p:empty, .overview-controls:not(:has(> :not(.hide))),
+.itemDetailsGroup:not(:has(> .detailsGroupItem:not(.hide))) { display: none; }
+
+.mediaInfoOfficialRating, .mediaInfoTimerIcon {
+  border: 1px solid var(--pj-line-2) !important; background: transparent; padding: 0 .5em; border-radius: 3px; color: var(--pj-text);
+}
+.starRatingContainer .material-icons, .starIcon { color: var(--pj-amber) !important; }
+.itemGenres a, .itemTags a, .genreList a, .itemExternalLinks a { color: var(--pj-text) !important; border-bottom: 1px solid var(--pj-line-2); }
+.itemGenres a:hover, .itemTags a:hover, .itemExternalLinks a:hover { border-color: var(--pj-amber); color: var(--pj-amber) !important; }
+
+/* ============================================================
+   9. Episodes
+   ============================================================ */
+/* --- every large-image list (season page, playlists...): frame, text, states --- */
+.listItem-largeImage { padding: 0 !important; border-radius: 0; background: none !important; }
+.listItemImage-large {
+  width: min(17em, 38vw) !important; height: auto !important; aspect-ratio: 16 / 9; flex: none;
+  margin: 0 !important; border-radius: var(--pj-r); background-color: var(--pj-raise-2); position: relative; overflow: hidden;
+}
+.listItem-largeImage .listItemBody { display: flex; flex-direction: column; padding: 0 !important; justify-content: flex-start !important; gap: .25rem; min-width: 0; }
+.listItem-largeImage .listItemBodyText:first-child { font-size: 1.05rem; font-weight: 700; color: var(--pj-text); line-height: 1.3; white-space: normal; }
+.listItem-largeImage .listItemMediaInfo { font-size: .85rem; }
+.listItem-largeImage .listItem-overview {
+  display: -webkit-box !important; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  white-space: normal; color: var(--pj-text-2) !important; font-size: .9rem; line-height: 1.5; margin-top: .2rem;
+}
+/* the info button repeats a click on the episode */
+.listItem-largeImage .listItemButton[data-action="link"] { display: none; }
+.listItemButton { color: var(--pj-dim); }
+@media (hover: hover) { .listItemButton:hover { color: var(--pj-text); } }
+
+/* play: a small chip in the corner of the frame, always visible; amber when you point
+   at the episode, and on the one you can resume */
+.listItemImage-large .listItemImageButton {
+  position: absolute; left: .45rem; bottom: .55rem; margin: 0; padding: .3em;
+  background: rgba(var(--pj-veil), .78) !important; color: var(--pj-text) !important;
+  transition: background var(--pj-fast), color var(--pj-fast); transform: none !important;
+}
+.listItemImage-large .listItemImageButton-icon { font-size: 1.9rem; padding: 0; }
+.listItem:hover .listItemImageButton, .listItem:focus-within .listItemImageButton,
+.listItem[data-positionticks] .listItemImageButton {
+  background: var(--pj-amber) !important; color: var(--pj-amber-ink) !important;
+}
+/* progress of a started episode: a bar along the bottom edge of the frame */
+.listItemImage-large .listItemProgressBar {
+  position: absolute; left: 0; right: 0; bottom: 0; width: auto; height: 4px;
+  margin: 0; background: rgba(5, 9, 10, .65); border-radius: 0;
+}
+.listItemImage-large .listItemProgressBar .itemProgressBarForeground { height: 100%; }
+/* watched episodes recede a little */
+.listItem-largeImage:has(.playedIndicator) .listItemImage { opacity: .62; transition: opacity var(--pj-fast); }
+.listItem-largeImage:hover .listItemImage { opacity: 1; }
+/* missing episodes (no file yet): an empty, dashed frame and a dim title */
+.listItem-largeImage:has(.missingIndicator) .listItemImage {
+  opacity: .35; filter: grayscale(1); outline: 1px dashed var(--pj-line-2); outline-offset: -1px;
+}
+.listItem-largeImage:has(.missingIndicator) .listItemBodyText:first-child { color: var(--pj-dim); }
+.listItem-largeImage:has(.missingIndicator) .listItemImageButton { display: none; }
+
+/* --- season page: a grid of 16:9 cards (2 per row at 1440, 3 at 1920) --- */
+#listChildrenCollapsible .itemsContainer.vertical-list {
+  display: grid !important; grid-template-columns: repeat(auto-fill, minmax(min(100%, 25rem), 1fr));
+  gap: 2rem 1.25rem; max-width: 100rem; padding-right: 0 !important;
+}
+#listChildrenCollapsible .listItem-largeImage { overflow: visible; contain: none; display: block; }
+#listChildrenCollapsible .listItem-largeImage .listItem-content {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 1fr;
+  gap: .75rem .25rem; padding: 0; width: 100%; height: 100%;
+  align-items: start; /* stock centres the row: a card without synopsis had its title lower */
+}
+#listChildrenCollapsible .listItemImage-large { grid-column: 1 / -1; grid-row: 1; width: 100% !important; }
+/* the text spans the card; the actions sit at the right end of the title line */
+#listChildrenCollapsible .listItemBody { grid-column: 1 / -1; grid-row: 2; }
+#listChildrenCollapsible .listItemBodyText:first-child { padding-right: 5.5rem !important; }
+#listChildrenCollapsible .listViewUserDataButtons {
+  grid-column: 2; grid-row: 2; align-self: start; display: flex; margin-top: -.45rem; position: relative; z-index: 1;
+}
+#listChildrenCollapsible .listItem-bottomoverview { display: none !important; }
+@media (hover: hover) {
+  #listChildrenCollapsible .listItem:hover .listItemImage-large { box-shadow: 0 0 0 1px var(--pj-line-2), 0 10px 24px rgba(0, 0, 0, .45); }
+}
+#listChildrenCollapsible .listItem:has(:focus-visible) .listItemImage-large { box-shadow: 0 0 0 2px var(--pj-amber); }
+
+/* --- phones: rows (frame left, title and runtime right, synopsis under) --- */
+@media (max-width: 600px) {
+  #listChildrenCollapsible .itemsContainer.vertical-list { display: flex !important; flex-direction: column; gap: 0; }
+  #listChildrenCollapsible .listItem-largeImage { border-bottom: 1px solid var(--pj-line); padding: .85rem 0 !important; }
+  #listChildrenCollapsible .listItem-largeImage:last-child { border-bottom: 0; }
+  #listChildrenCollapsible .listItem-largeImage .listItem-content {
+    grid-template-columns: 40vw minmax(0, 1fr); grid-template-rows: auto auto; column-gap: .85rem; row-gap: .1rem; height: auto;
+  }
+  #listChildrenCollapsible .listItemImage-large { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+  #listChildrenCollapsible .listItemBody { grid-column: 2; grid-row: 1; align-self: end; }
+  #listChildrenCollapsible .listItemBodyText:first-child { padding-right: 0 !important; font-size: 1rem; }
+  /* actions under the title, so the title keeps the whole column */
+  #listChildrenCollapsible .listViewUserDataButtons { grid-column: 2; grid-row: 2; justify-self: start; align-self: start; margin: 0 0 0 -.55rem; }
+  .listItem-largeImage .listItemMediaInfo { display: flex !important; }
+  /* the synopsis goes under the row, full width: hide the copy squeezed next to the frame */
+  #listChildrenCollapsible .listItem-overview { display: none !important; }
+  #listChildrenCollapsible .listItem-bottomoverview {
+    display: -webkit-box !important; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+    margin: .65rem 0 0; font-size: .88rem; line-height: 1.5; color: var(--pj-dim);
+  }
+  /* the whole frame plays; the chip stays the visible cue */
+  .layout-mobile .listItemImage-large .listItemImageButton { inset: 0; background: transparent !important; border-radius: 0; align-items: flex-end; justify-content: flex-start; padding: .4rem; }
+  .layout-mobile .listItemImage-large .listItemImageButton-icon { background: rgba(var(--pj-veil), .78); border-radius: 50%; font-size: 1.5rem; padding: .15em; color: var(--pj-text); }
+  .layout-mobile .listItem[data-positionticks] .listItemImageButton-icon { background: var(--pj-amber); color: var(--pj-amber-ink); }
+}
+
+/* ============================================================
+   10. Other lists
+   ============================================================ */
+.listItem { border-radius: var(--pj-r-ui); }
+@media (hover: hover) { .listItem:not(.listItem-largeImage):hover { background: var(--pj-raise-2) !important; } }
+.listItemImage, .listItemImageContainer { border-radius: var(--pj-r); overflow: hidden; }
+.paperList { background: var(--pj-raise); border: 1px solid var(--pj-line); border-radius: var(--pj-r); }
+
+/* ============================================================
+   11. Forms
+   ============================================================ */
+.emby-input, .emby-textarea, .emby-select {
+  background: var(--pj-raise) !important; border: 1px solid var(--pj-line-strong) !important;
+  border-radius: var(--pj-r-ui) !important; color: var(--pj-text) !important;
+}
+.dialog .emby-input, .dialog .emby-textarea, .dialog .emby-select { background: var(--pj-bg) !important; }
+.emby-input:focus, .emby-textarea:focus, .emby-select:focus, .emby-select-withcolor:focus {
+  border-color: var(--pj-amber) !important; box-shadow: 0 0 0 2px rgba(242, 180, 65, .3) !important;
+}
+.emby-select-withcolor > option { background: var(--pj-raise); color: var(--pj-text); }
+.inputLabelFocused, .selectLabelFocused, .textareaLabelFocused { color: var(--pj-amber) !important; }
+.emby-checkbox:checked + span + .checkboxOutline { border-color: var(--pj-amber); background-color: var(--pj-amber); }
+.emby-checkbox:checked + span + .checkboxOutline .checkboxIcon { color: var(--pj-amber-ink); }
+.emby-checkbox:focus-visible + span + .checkboxOutline { box-shadow: 0 0 0 2px var(--pj-amber); }
+
+/* ============================================================
+   12. Dialogs and menus
+   ============================================================ */
+.dialog, .actionSheet, .actionSheetContent {
+  background: var(--pj-raise) !important; border: 1px solid var(--pj-line);
+  border-radius: var(--pj-r) !important; box-shadow: var(--pj-shadow-pop);
+}
+/* opaque colour, dimming through opacity: stock multiplies a translucent colour by its own opacity */
+.dialogBackdrop { background-color: rgb(5, 9, 10) !important; }
+.dialogBackdrop.dialogBackdropOpened { opacity: .72; }
+.actionSheetMenuItem { padding-top: .75em; padding-bottom: .75em; }
+.actionSheetMenuItem:hover, .actionSheetMenuItem:focus { background: var(--pj-raise-2); }
+.actionSheetMenuItem:focus { box-shadow: inset 3px 0 0 var(--pj-amber); }
+.actionSheetItemAsideText { color: var(--pj-dim) !important; font-size: .9em; }
+.actionsheetMenuItemIcon.check, .actionSheetMenuItem .check { color: var(--pj-amber) !important; }
+.actionSheetTitle { padding-bottom: .4em; }
+.itemSelectionPanel { border-color: var(--pj-amber); }
+.selectionCommandsPanel { background: var(--pj-amber); color: var(--pj-amber-ink); }
+.upNextDialog-countdownText { color: var(--pj-amber); }
+.mdl-spinner__layer-1, .mdl-spinner__layer-2, .mdl-spinner__layer-3, .mdl-spinner__layer-4 { border-color: var(--pj-amber) !important; }
+
+/* ============================================================
+   13. Labels jellyfin-web leaves in English (edit for your language)
+   ============================================================ */
+.missingIndicator, .unairedIndicator {
+  font-size: 0 !important; background: transparent !important; border: 1px solid var(--pj-line-2);
+  padding: .1rem .5rem !important; border-radius: 99px; color: var(--pj-dim) !important; margin: 0 .25rem !important;
+}
+.missingIndicator::before { content: "Manquant"; font-size: .75rem; }
+.unairedIndicator::before { content: "Pas encore diffusé"; font-size: .75rem; }
+
+/* ============================================================
+   14. Login
+   ============================================================ */
+.standalonePage, .loginPage { background: var(--pj-bg) !important; }
+/* one narrow column, every block the same width */
+#loginPage .readOnlyContent, #loginPage .manualLoginForm, #loginPage .visualLoginForm {
+  max-width: 26rem !important; margin-left: auto !important; margin-right: auto !important;
+}
+#loginPage .padded-left.padded-right { padding-top: 8vh; }
+#loginPage h1, #loginPage h2 { font-family: var(--pj-serif); text-align: center; }
+#loginPage .emby-input { min-height: 48px; }
+#loginPage .readOnlyContent .emby-button, #loginPage .manualLoginForm .emby-button { width: 100%; margin: .5rem 0 0 !important; }
+
+/* ============================================================
+   15. Search
+   ============================================================ */
+.searchFields { max-width: 44rem; }
+.searchfields-txtSearch { font-size: 1.15em; }
+/* suggestions start on the same left edge as the field above them (stock centres them) */
+.searchSuggestions, .searchSuggestions .sectionTitle { text-align: left !important; }
+.searchSuggestions a { font-weight: 400; }
+.searchSuggestions a, .searchSuggestionsList a { color: var(--pj-text) !important; }
+.searchSuggestions a:hover { color: var(--pj-amber) !important; }
+
+/* ============================================================
+   16. Player
+   ============================================================ */
+.osdHeader { background: linear-gradient(to bottom, rgba(5, 9, 10, .85), transparent) !important; border-bottom: 0 !important; }
+.videoOsdBottom { background: linear-gradient(to top, rgba(5, 9, 10, .9), transparent) !important; }
+.mdl-slider-background-lower, .emby-slider-background-lower { background: var(--pj-amber) !important; }
+.mdl-slider-background-upper, .emby-slider-background-upper { background: rgba(235, 230, 217, .22) !important; }
+.mdl-slider::-webkit-slider-thumb, .emby-slider::-webkit-slider-thumb { background: var(--pj-amber) !important; }
+.mdl-slider::-moz-range-thumb, .emby-slider::-moz-range-thumb { background: var(--pj-amber) !important; }
+.sliderBubble { background: var(--pj-raise); border: 1px solid var(--pj-line); }
+
+/* ============================================================
+   17. Focus, TV, motion, forced colours
+   ============================================================ */
+/* stock removes outlines with !important on most controls: put the ring back for keyboards */
+:focus-visible { outline: 2px solid var(--pj-amber); outline-offset: 2px; }
+.emby-button:focus-visible, .paper-icon-button-light:focus-visible, .textActionButton:focus-visible,
+.alphaPickerButton:focus-visible, .navMenuOption:focus-visible, .listItem:focus-visible {
+  outline: 2px solid var(--pj-amber) !important; outline-offset: 2px;
+}
+.emby-tab-button:focus-visible { outline-offset: -4px !important; }
+/* a filled amber control gets a paper ring, so focus differs from "primary" */
+.button-submit:focus-visible, .mainDetailButtons .btnPlay:focus-visible, .cardOverlayFab-primary:focus-visible { outline-color: var(--pj-text) !important; }
+/* TV remote: focus is a ring, the fill stays for the primary action */
+.layout-tv .emby-button.show-focus:focus { background: var(--pj-raise-2) !important; color: var(--pj-text) !important; box-shadow: 0 0 0 3px var(--pj-amber); }
+.layout-tv .button-submit.show-focus:focus, .layout-tv .btnPlay.show-focus:focus {
+  background: var(--pj-amber) !important; color: var(--pj-amber-ink) !important; box-shadow: 0 0 0 3px var(--pj-text);
+}
+.paper-icon-button-light.show-focus:focus { color: var(--pj-amber); }
+
+/* Less motion: no scaling, near-instant transitions; loading spinners keep turning */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  .backdropImageFadeIn, .itemBackdrop, .page { animation: none !important; }
+  .emby-button.show-focus:focus, .paper-icon-button-light.show-focus:focus, .card.show-focus:focus .cardBox,
+  .listItemImageButton:hover { transform: none !important; }
+}
+@media (forced-colors: active) {
+  :focus-visible { outline: 2px solid CanvasText !important; }
+  .navMenuOption-selected, .emby-tab-button-active { border-bottom: 2px solid Highlight; }
+}

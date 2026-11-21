@@ -79,6 +79,16 @@ The **Personnes** screen holds the directory (add by identifier from a people so
 
 Include these files in your backups: local sources and the people directory exist nowhere else.
 
+## Web theme (optional)
+
+`theme/projection.css` is a dark theme for jellyfin-web 10.11, unrelated to the plugin itself: smaller poster and a labelled play button on detail pages, episodes as a grid of 16:9 cards (rows on phones), missing episodes shown as empty frames, a backdrop that fades as you scroll. To use it, put this line in Dashboard → General → Custom CSS code:
+
+```css
+@import url("https://cdn.jsdelivr.net/gh/maximepicault/jellyfin-plugin-metaweave@main/theme/projection.css");
+```
+
+The French labels it adds (for example "Manquant" on missing episodes, a label jellyfin-web leaves in English) are in section 13 of the file. jsDelivr caches the file for up to 12 hours after a change.
+
 ## Troubleshooting
 
 - Logs are very detailed and prefixed by component: `journalctl -u jellyfin -f | grep -E "PROVIDER|API CLIENT|CACHE|MISSING|PEOPLE|LOCAL SOURCE"`.
