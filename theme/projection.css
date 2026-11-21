@@ -297,8 +297,13 @@ html.layout-desktop:has(.itemDetailPage:not(.hide)) .backgroundContainer.withBac
 }
 .layout-desktop .itemDetailPage #listChildrenCollapsible:not(.hide)::after {
   content: ""; position: absolute; z-index: -1; pointer-events: none;
-  top: 0; bottom: 0; left: -100vmax; right: -100vmax; background: var(--pj-bg);
+  /* down past its own bottom margin, to the next section: the gap between them used
+     to show the picture through a strip */
+  top: 0; bottom: -12rem; left: -100vmax; right: -100vmax; background: var(--pj-bg);
 }
+/* the section under it is already on ink: no second fade (its transparent top was
+   the visible strip) */
+.layout-desktop .detailPageWrapperContainer:has(#listChildrenCollapsible:not(.hide), .nextUpSection:not(.hide)) .detailPageSecondaryContainer::before { display: none; }
 .layout-desktop .itemDetailPage .detailPageSecondaryContainer { background: var(--pj-bg) !important; }
 /* "À suivre" (next episode) comes right before the seasons: it is content too, so it
    opens the ink area instead of floating on the picture; the seasons then follow on
