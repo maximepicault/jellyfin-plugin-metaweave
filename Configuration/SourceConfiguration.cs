@@ -185,6 +185,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         public bool AutoDownloadVideos { get; set; } = false;
 
         /// <summary>
+        /// Quality picked in an HLS master playlist by the automatic download: "best" (default, empty too), "1080" or "720" (maximum height),
+        /// "lowest". Ignored for direct files and for playlists with a single stream.
+        /// </summary>
+        public string VideoQuality { get; set; } = "best";
+
+        /// <summary>
         /// Builds a source from the old single-source global config (PatternPrefix, ApiBaseUrl…).
         /// Used by SourceResolver when Sources is empty, and by the movie provider (legacy path).
         /// Static method: ignored by XmlSerializer.

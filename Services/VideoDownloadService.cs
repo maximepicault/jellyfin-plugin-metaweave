@@ -191,6 +191,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             if (kind == VideoKind.Hls || kind == VideoKind.Dash)
             {
+                if (kind == VideoKind.Hls)
+                {
+                    var variant = await PickVariantAsync(job, head, read, body, cancellationToken);
+                    if (variant != null)
+                    {
+                        job = new DownloadJob { Key = job.Key, Title = job.Title, IndexNumber = job.IndexNumber, Url = variant, Folder = job.Folder, Source = job.Source };
+                    }
+                }
+
                 var target = Path.Combine(job.Folder, baseName + ".mp4");
                 return await RemuxAsync(job, client, target, cancellationToken);
             }
@@ -231,6 +240,90 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             _logger.LogInformation("⬇️ [DOWNLOAD] ✅ '{Title}' saved as {File} ({Size} MB)", job.Title, Path.GetFileName(final), new FileInfo(final).Length / (1024 * 1024));
             return true;
+        }
+
+        /// <summary>Reads the master playlist (the first bytes are already in hand) and returns the URL of the variant that matches the source's quality, or null to leave the playlist as it is (ffmpeg then takes the first variant listed, not the best).</summary>
+        private async Task<string> PickVariantAsync(DownloadJob job, byte[] head, int headLength, Stream body, CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var buffer = new MemoryStream();
+                buffer.Write(head, 0, headLength);
+                var chunk = new byte[1 << 14];
+                while (buffer.Length < 1 << 20)
+                {
+                    var n = await body.ReadAsync(chunk.AsMemory(0, chunk.Length), cancellationToken);
+                    if (n == 0) { break; }
+                    buffer.Write(chunk, 0, n);
+                }
+
+                var chosen = ChooseVariant(Encoding.UTF8.GetString(buffer.ToArray()), job.Source?.VideoQuality, job.Url);
+                _logger.LogInformation("⬇️ [DOWNLOAD] '{Title}': quality '{Quality}' → {Variant}", job.Title, job.Source?.VideoQuality, chosen ?? "(playlist as it is)");
+                return chosen;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "⬇️ [DOWNLOAD] ⚠️ '{Title}': could not read the playlist to choose a quality; ffmpeg picks", job.Title);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Picks a variant of an HLS master playlist. quality: "best" or empty (largest bandwidth), "lowest" (smallest bandwidth) or a maximum height such as "720" or "1080"
+        /// (the tallest variant not above it, else the smallest one above it). Null when the playlist is not a master, has no usable
+        /// variant, or relies on separate audio renditions (a bare variant URL would then lose the sound).
+        /// </summary>
+        internal static string ChooseVariant(string playlist, string quality, string playlistUrl)
+        {
+            if (string.IsNullOrEmpty(playlist) || !playlist.Contains("#EXT-X-STREAM-INF", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var lines = playlist.Replace("\r", string.Empty).Split('\n');
+            if (lines.Any(l => l.StartsWith("#EXT-X-MEDIA:", StringComparison.Ordinal) && l.Contains("TYPE=AUDIO", StringComparison.Ordinal) && l.Contains("URI=", StringComparison.Ordinal)))
+            {
+                return null;
+            }
+
+            var variants = new List<(string Uri, long Bandwidth, int Height)>();
+            for (var i = 0; i < lines.Length - 1; i++)
+            {
+                if (!lines[i].StartsWith("#EXT-X-STREAM-INF:", StringComparison.Ordinal)) { continue; }
+                var uri = lines.Skip(i + 1).Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0 && !l.StartsWith('#'));
+                if (uri == null) { continue; }
+                var bandwidth = System.Text.RegularExpressions.Regex.Match(lines[i], @"(?:^|[:,])BANDWIDTH=(\d+)");
+                var resolution = System.Text.RegularExpressions.Regex.Match(lines[i], @"RESOLUTION=\d+x(\d+)");
+                variants.Add((uri, bandwidth.Success ? long.Parse(bandwidth.Groups[1].Value) : 0, resolution.Success ? int.Parse(resolution.Groups[1].Value) : 0));
+            }
+
+            if (variants.Count < 2) { return null; }
+
+            quality = (quality ?? string.Empty).Trim();
+            (string Uri, long Bandwidth, int Height) pick;
+            if (quality.Length == 0 || quality.Equals("best", StringComparison.OrdinalIgnoreCase))
+            {
+                pick = variants.OrderByDescending(v => v.Bandwidth).ThenByDescending(v => v.Height).First();
+            }
+            else if (quality.Equals("lowest", StringComparison.OrdinalIgnoreCase))
+            {
+                pick = variants.OrderBy(v => v.Bandwidth).ThenBy(v => v.Height).First();
+            }
+            else if (int.TryParse(quality.Trim(), out var maxHeight) && maxHeight > 0)
+            {
+                var sized = variants.Where(v => v.Height > 0).ToList();
+                if (sized.Count == 0) { return null; }
+                var fitting = sized.Where(v => v.Height <= maxHeight).ToList();
+                pick = fitting.Count > 0
+                    ? fitting.OrderByDescending(v => v.Height).ThenByDescending(v => v.Bandwidth).First()
+                    : sized.OrderBy(v => v.Height).ThenBy(v => v.Bandwidth).First();
+            }
+            else
+            {
+                return null;
+            }
+
+            return Uri.TryCreate(new Uri(playlistUrl), pick.Uri, out var absolute) ? absolute.ToString() : null;
         }
 
         /// <summary>HLS/DASH → MP4 through ffmpeg. Stream copy first; if the codecs do not fit MP4, a re-encode.</summary>

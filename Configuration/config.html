@@ -1039,6 +1039,16 @@
                             <input type="checkbox" class="cm-switch" id="srcAutoDownloadVideos" />
                         </label>
                         </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcVideoQuality">Qualité des flux HLS</label>
+                            <select is="emby-select" id="srcVideoQuality">
+                                <option value="best">La meilleure</option>
+                                <option value="1080">1080p maximum</option>
+                                <option value="720">720p maximum</option>
+                                <option value="lowest">La plus basse</option>
+                            </select>
+                            <div class="cm-hint">Utilisé quand le lien est une liste HLS (.m3u8) qui propose plusieurs qualités. Sans effet sur un fichier direct ou une liste à un seul flux. Si aucune qualité ne tient sous la limite, la plus proche au-dessus est prise.</div>
+                        </div>
                         <h4>Pagination (facultatif)</h4>
                         <div class="inputContainer">
                             <label class="inputLabel" for="srcListPageParam">Paramètre de page</label>
@@ -1699,6 +1709,7 @@
                 document.querySelector('#srcUseHttp2').checked = source.UseHttp2 === true;
                 document.querySelector('#srcLandscapePortraitThumbs').checked = source.LandscapePortraitThumbs === true;
                 document.querySelector('#srcAutoDownloadVideos').checked = source.AutoDownloadVideos === true;
+                document.querySelector('#srcVideoQuality').value = source.VideoQuality || 'best';
             }
 
             // Origin/Referer overrides: editable only if sending is enabled.
@@ -2287,6 +2298,7 @@
                     UseHttp2: document.querySelector('#srcUseHttp2').checked,
                     LandscapePortraitThumbs: document.querySelector('#srcLandscapePortraitThumbs').checked,
                     AutoDownloadVideos: document.querySelector('#srcAutoDownloadVideos').checked,
+                    VideoQuality: document.querySelector('#srcVideoQuality').value || 'best',
                     CustomHeaders: filteredHeaders
                 };
                 
