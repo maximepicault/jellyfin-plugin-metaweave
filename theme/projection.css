@@ -257,6 +257,10 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
 .layout-desktop .itemDetailPage:has(#listChildrenCollapsible .listItem-largeImage) { --pj-hero-h: 26vh; }
 @media (max-height: 31.25em) { .layout-desktop .itemDetailPage { --pj-hero-h: 52vh; } }
 .layout-desktop .itemDetailPage .itemBackdrop { height: var(--pj-hero-h); }
+/* on desktop the band holds no picture (the fixed layer does), only its share of the
+   veil: stock still fades it in from opacity 0 over .8s, which left the band less veiled
+   than the content under it, a visible edge while the page loads */
+.layout-desktop .itemBackdrop { animation: none !important; opacity: 1 !important; }
 .layout-desktop .itemBackdrop::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 30%, rgba(var(--pj-veil), .4));
