@@ -167,6 +167,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     images = new List<ImageInfo>();
                 }
 
+                // Option LandscapePosterCrop: the source of the tag, or the local source that overrides this series / season
+                // (its uploaded poster is the one served, so its own setting counts too). Read again when the image is downloaded.
+                var isPosterItem = item is Series || item is Season;
+                var overrideSource = isPosterItem ? _localStore?.FindOverride(idWithPrefix, item is Series ? "series" : "season")?.Source : null;
+                var cropPosters = isPosterItem && (source.LandscapePosterCrop || overrideSource?.LandscapePosterCrop == true);
+
                 // Conversion to the Jellyfin format
                 foreach (var image in images)
                 {
@@ -175,7 +181,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     {
                         // Portrait → 16:9 conversion: only episode thumbnails (Primary/Thumb, shown
                         // in a landscape frame), never a logo, a banner or a backdrop
-                        RememberImageSource(image.Url, source, item is Episode && imageType.Value is ImageType.Primary or ImageType.Thumb, item is Series or Season && imageType.Value == ImageType.Primary);
+                        RememberImageSource(image.Url, source, item is Episode && imageType.Value is ImageType.Primary or ImageType.Thumb, isPosterItem && imageType.Value == ImageType.Primary, overrideSource?.Prefix);
                         results.Add(new RemoteImageInfo
                         {
                             Url = image.Url,
@@ -270,7 +276,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     found.ThumbnailUrl = found.Url;
                 }
 
-                ForgetLandscapePoster(item, source, results);
+                ForgetLandscapePoster(item, cropPosters, results);
 
                 _logger.LogInformation("🖼️ [IMAGE PROVIDER] ✅ Found {Count} images for {ItemName}", results.Count, item.Name);
             }
@@ -288,9 +294,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         /// image for a series or season whose current Primary is landscape, that entry is dropped (the file is not deleted): Jellyfin then
         /// sees no poster and downloads ours, cropped to portrait. A portrait poster is never touched, so this happens once.
         /// </summary>
-        private void ForgetLandscapePoster(BaseItem item, SourceConfiguration source, List<RemoteImageInfo> results)
+        private void ForgetLandscapePoster(BaseItem item, bool cropPosters, List<RemoteImageInfo> results)
         {
-            if (source?.LandscapePosterCrop != true || !(item is Series || item is Season) || !results.Any(r => r.Type == ImageType.Primary))
+            if (!cropPosters || !results.Any(r => r.Type == ImageType.Primary))
             {
                 return;
             }
@@ -349,9 +355,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         private static readonly ConcurrentDictionary<string, ImageOrigin> ImageSourcePrefixes = new ConcurrentDictionary<string, ImageOrigin>(StringComparer.Ordinal);
         private const int MaxRememberedImageUrls = 20000;
 
-        private sealed record ImageOrigin(string Prefix, bool IsEpisodeThumbnail, bool IsPoster);
+        private sealed record ImageOrigin(string Prefix, bool IsEpisodeThumbnail, bool IsPoster, string OverridePrefix);
 
-        private static void RememberImageSource(string url, SourceConfiguration source, bool isEpisodeThumbnail, bool isPoster = false)
+        private static void RememberImageSource(string url, SourceConfiguration source, bool isEpisodeThumbnail, bool isPoster = false, string overridePrefix = null)
         {
             if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(source?.Prefix))
             {
@@ -365,9 +371,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
             ImageSourcePrefixes.AddOrUpdate(
                 url,
-                new ImageOrigin(source.Prefix, isEpisodeThumbnail, isPoster),
+                new ImageOrigin(source.Prefix, isEpisodeThumbnail, isPoster, overridePrefix),
                 // Same URL seen as an episode thumbnail AND something else: keep "thumbnail" (same for a poster)
-                (_, previous) => new ImageOrigin(source.Prefix, isEpisodeThumbnail || previous.IsEpisodeThumbnail, isPoster || previous.IsPoster));
+                (_, previous) => new ImageOrigin(source.Prefix, isEpisodeThumbnail || previous.IsEpisodeThumbnail, isPoster || previous.IsPoster, overridePrefix ?? previous.OverridePrefix));
         }
 
         /// <summary>The address the person is using right now (the picker request), so that their browser can preview the image; the local address otherwise (library refresh)</summary>
@@ -435,11 +441,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             SourceConfiguration source = null;
             var isEpisodeImage = false;
             var isPosterImage = false;
+            string posterOverridePrefix = null;
             if (ImageSourcePrefixes.TryGetValue(url ?? string.Empty, out var origin))
             {
                 source = _sourceResolver.GetSourceByPrefix(origin.Prefix);
                 isEpisodeImage = origin.IsEpisodeThumbnail;
                 isPosterImage = origin.IsPoster;
+                posterOverridePrefix = origin.OverridePrefix;
             }
 
             source ??= FindSourceByUrl(url);
@@ -516,7 +524,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     response.Content.Dispose();
                     response.Content = content;
                 }
-                else if (isPosterImage && source?.LandscapePosterCrop == true)
+                else if (isPosterImage && (source?.LandscapePosterCrop == true || _sourceResolver.GetSourceByPrefix(posterOverridePrefix)?.LandscapePosterCrop == true))
                 {
                     // Landscape series / season poster → 2:3 centre crop at full resolution (source option)
                     var data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
