@@ -197,12 +197,12 @@ try {
   check('default: with no default field, the first image of each type carries the badge', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-badge').length`)) === 2);
   await click('#lfGallery .cm-gal-pick'); await wait(200);
   check('default: the image that already is the default cannot be chosen again', (await ev(`document.querySelector('[data-gal-act="default"]').disabled`)) === true);
-  // a second Primary image: select it and make it the default (no default field: it moves to the first place of its type)
+  // a second Primary image: select it and make it the default (no default field: it fills the field above and leaves the gallery)
   await ev(`document.querySelector('#lfGalType').value='Primary'; true`);
   await type('#lfGalUrl', 'https://img.test/second.jpg'); await click('[data-gal-url]'); await wait(250);
   await click('#lfGallery .cm-gal-pick:last-of-type'); await wait(200);
   await click('[data-gal-act="default"]'); await wait(250);
-  check('default: another image can become the first one of its type', (await ev(`var f=document.querySelector('#lfGallery .cm-gal-pick'); f.classList.contains('cm-gal-default') && f.classList.contains('cm-gal-selected') && f.querySelector('.cm-gal-meta span').textContent==='Affiche'`)) === true);
+  check('default: another image fills the empty default field and leaves the gallery', (await ev(`var d=document.querySelector('#lfGallery .cm-gal-item.cm-gal-default:not(.cm-gal-pick)'); !!d && d.querySelector('.cm-gal-meta span').textContent==='Affiche' && document.querySelectorAll('#lfGallery .cm-gal-pick').length===2`)) === true);
   // backdrops are a slideshow: no single default, each one shows its rank, any can be put first
   await ev(`document.querySelector('#lfGalType').value='Backdrop'; true`);
   await type('#lfGalUrl', 'https://img.test/back2.jpg'); await click('[data-gal-url]'); await wait(250);

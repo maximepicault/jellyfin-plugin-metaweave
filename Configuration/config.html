@@ -4246,6 +4246,9 @@
                         var field = GALLERY_FIELD[chosen.Type], previous = gh.node[field];
                         if (previous) {
                             gh.node[field] = chosen.Url; gal[gi] = { Type: chosen.Type, Url: previous };
+                        } else if (chosen.Type !== 'Backdrop') {
+                            // Empty field: the image fills it (shown above as the default) and leaves the gallery
+                            gh.node[field] = chosen.Url; gal.splice(gi, 1); galSel = null;
                         } else {
                             gal.splice(gi, 1); var at = 0;
                             for (var k = 0; k < gal.length; k++) { if (gal[k].Type === chosen.Type) { at = k; break; } at = k + 1; }
