@@ -515,19 +515,17 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
     linear-gradient(to right, rgba(var(--pj-veil), .25), rgba(var(--pj-veil), .78));
 }
 
-/* --- the poster: whole, at the left edge, never cropped --- */
+/* --- the poster: its own 2:3 slot at the left edge, whatever the image's shape
+   (a landscape season image used to spread under the name and the chips) --- */
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] a.cardImageContainer {
-  position: absolute; inset: 0; z-index: 1;
-  background-size: auto 100% !important;
-  background-position: left center !important;
+  position: absolute; top: 0; bottom: 0; left: 0; right: auto !important; width: var(--sf-poster) !important; z-index: 1;
+  background-size: cover !important;
+  background-position: center top !important;
   background-repeat: no-repeat !important;
-}
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] a.cardImageContainer:not([class*="defaultCardBackground"]) {
-  background-color: transparent !important;
-}
-/* no poster at all: the placeholder tint only fills the poster slot */
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] a.cardImageContainer[class*="defaultCardBackground"] {
-  right: calc(100% - var(--sf-poster));
+  border-radius: var(--pj-r) 0 0 var(--pj-r) !important;
+  /* stock clips it (overflow:hidden, contain:strict): the state chips inside it sit
+     past its right edge, so they must be allowed out */
+  overflow: visible !important; contain: none !important;
 }
 
 /* --- the name: large, serif, on the halo --- */
@@ -551,8 +549,10 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
 
 /* --- the state: a chip at the bottom of the text side --- */
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardIndicators {
+  /* the chips live inside the poster's link, so they are placed from the poster
+     slot: just past its right edge */
   position: absolute; top: auto; right: auto;
-  left: calc(var(--sf-poster) + var(--sf-pad)); bottom: var(--sf-pad);
+  left: calc(100% + var(--sf-pad)); bottom: var(--sf-pad); white-space: nowrap;
   margin: 0; display: flex; gap: .4rem;
 }
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .countIndicator,
