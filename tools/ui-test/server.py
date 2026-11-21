@@ -105,6 +105,9 @@ class H(BaseHTTPRequestHandler):
                 for i in range(0, len(data), 65536):
                     self.wfile.write(data[i:i + 65536]); self.wfile.flush(); time.sleep(0.15)
                 return
+            if name.endswith(".ts"):
+                import time
+                time.sleep(0.25)   # a segment takes a moment: an HLS conversion lasts a few seconds, long enough to overlap another download
             return self.send(200, open(f, "rb").read(), ctype) if os.path.exists(f) else self.send(404, {})
         # A record whose fields are null / empty / missing, to exercise the fallback "a || b"
         m = re.fullmatch(r"/fallback/(\w+)", p)
