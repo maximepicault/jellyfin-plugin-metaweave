@@ -63,15 +63,16 @@ try {
     check(`${f} is a real MP4 with video and audio`, /mp4/.test(info.format.format_name) && info.streams.some(s => s.codec_type === 'video') && info.streams.some(s => s.codec_type === 'audio'), JSON.stringify(info));
   }
 
-  // The scan the service requested turns the files into real episodes: the next analysis no longer reports them
+  // Once the queue is empty the service asks for a library scan, then for an analysis by itself: we only watch the report
   let second = null, still = [];
-  for (let i = 0; i < 8; i++) {
-    await wait(10000);
-    second = await analyze();
+  for (let i = 0; i < 40; i++) {
+    await wait(5000);
+    const state = await api('GET', '/CustomMetadata/MissingEpisodes');
+    second = state && state.Report;
     still = missingTags(second);
-    if (!still.includes('dm-b1v2') && !still.includes('dm-b1v3')) break;
+    if (!state.Running && !still.includes('dm-b1v2') && !still.includes('dm-b1v3')) break;
   }
-  check('after the scan, the downloaded episodes are no longer missing', !still.includes('dm-b1v2') && !still.includes('dm-b1v3') && still.includes('dm-b1v4'), JSON.stringify(still));
+  check('without any manual analysis, the downloaded episodes are no longer missing after the scan', !still.includes('dm-b1v2') && !still.includes('dm-b1v3') && still.includes('dm-b1v4'), JSON.stringify(still));
 
   // Quality of the HLS master playlist (renditions really 90 / 180 / 270 px tall, advertised 360 / 720 / 1080)
   const hlsFile = () => downloaded().find(f => f.includes('{dm-b1v3}') && f.endsWith('.mp4'));

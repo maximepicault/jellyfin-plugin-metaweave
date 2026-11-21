@@ -13,6 +13,8 @@ using Jellyfin.Plugin.CustomMetadata.Api;
 using Jellyfin.Plugin.CustomMetadata.Configuration;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
+using MediaBrowser.Model.Tasks;
+using Jellyfin.Plugin.CustomMetadata.ScheduledTasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -34,6 +36,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IMediaEncoder _mediaEncoder;
         private readonly ILibraryManager _libraryManager;
+        private readonly ITaskManager _taskManager;
         private readonly ILogger _logger;
         private bool _scanNeeded;
         private readonly Channel<DownloadJob> _queue = Channel.CreateUnbounded<DownloadJob>();
@@ -44,11 +47,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             IHttpClientFactory httpClientFactory,
             IMediaEncoder mediaEncoder,
             ILibraryManager libraryManager,
+            ITaskManager taskManager,
             ILogger<VideoDownloadService> logger)
         {
             _httpClientFactory = httpClientFactory;
             _mediaEncoder = mediaEncoder;
             _libraryManager = libraryManager;
+            _taskManager = taskManager;
             _logger = logger;
         }
 
@@ -320,6 +325,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         try
                         {
                             _libraryManager.QueueLibraryScan();
+                            _ = AnalyzeAfterScanAsync(stoppingToken);
                         }
                         catch (Exception ex)
                         {
@@ -336,6 +342,45 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 // A background service that throws would stop the whole server: log and give up on downloads instead
                 _logger.LogError(ex, "⬇️ [DOWNLOAD] ❌ the download service stopped on an unexpected error: {Message}", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Once the library scan that follows the downloads is over, runs the missing-episodes analysis again: the downloaded files are real
+        /// episodes by then, so their grey virtual episodes are removed without waiting for the next scheduled analysis.
+        /// Runs apart from the queue and never throws.
+        /// </summary>
+        private async Task AnalyzeAfterScanAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                var scan = _taskManager.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask.Key == "RefreshLibrary");
+                if (scan != null)
+                {
+                    // The scan was only queued: give it two minutes to start, then wait for it to end (3 hours at most)
+                    var give = DateTime.UtcNow.AddMinutes(2);
+                    while (scan.State == TaskState.Idle && DateTime.UtcNow < give)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                    }
+
+                    var limit = DateTime.UtcNow.AddHours(3);
+                    while (scan.State != TaskState.Idle && DateTime.UtcNow < limit)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    }
+                }
+
+                _logger.LogInformation("⬇️ [DOWNLOAD] Library scan over: missing-episodes analysis requested");
+                _taskManager.QueueScheduledTask<MissingEpisodesTask>();
+            }
+            catch (OperationCanceledException)
+            {
+                // Server stopping
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⬇️ [DOWNLOAD] ⚠️ could not run the analysis after the scan: {Message}", ex.Message);
             }
         }
 
