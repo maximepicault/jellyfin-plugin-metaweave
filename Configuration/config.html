@@ -621,7 +621,7 @@
                     <button type="button" class="cm-nav-item" data-go="episodes" data-types="api"><span>Liste des épisodes</span><span class="cm-count" data-count-for="episodes"></span></button>
                     <span class="cm-nav-group">Avancé</span>
                     <button type="button" class="cm-nav-item" data-go="network" data-types="api people dump"><span>Réseau</span><span class="cm-count" data-count-for="network"></span></button>
-                    <button type="button" class="cm-nav-item" data-go="thumbs"><span>Miniatures</span><span class="cm-count" data-count-for="thumbs"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="thumbs"><span>Miniatures et posters</span><span class="cm-count" data-count-for="thumbs"></span></button>
                         </nav>
                         <div style="min-width: 0;">
                     <section class="cm-pane" data-section="general" aria-labelledby="paneTitle-general">
@@ -1154,11 +1154,15 @@
                         </div>
                     </section>
                     <section class="cm-pane" data-section="thumbs" aria-labelledby="paneTitle-thumbs" hidden>
-                        <div><h3 class="cm-pane-title" id="paneTitle-thumbs">Miniatures d&#x27;épisodes</h3><p class="cm-pane-intro">Évite que les photos en portrait soient rognées dans les listes d&#x27;épisodes.</p></div>
+                        <div><h3 class="cm-pane-title" id="paneTitle-thumbs">Miniatures et posters</h3><p class="cm-pane-intro">Adapte la forme des images à leur cadre dans Jellyfin : miniatures d&#x27;épisodes (paysage) et posters de séries et de saisons (portrait).</p></div>
                         <div class="cm-rows" style="margin: 0;">
                         <label class="cm-row">
                             <span class="cm-row-text"><span class="cm-row-title">Convertir les miniatures portrait en 16:9 (fond flouté)</span><span class="cm-row-hint">Les listes d&#x27;épisodes affichent les miniatures dans un cadre paysage qui rogne les photos en hauteur. Activé : la photo entière est centrée sur un fond flouté d&#x27;elle-même, sur tous les clients. Les images paysage ne sont pas modifiées. Ensuite : « Remplacer les images existantes » sur la série (les épisodes manquants sont convertis à la prochaine analyse).</span></span>
                             <input type="checkbox" class="cm-switch" id="srcLandscapePortraitThumbs" />
+                        </label>
+                        <label class="cm-row">
+                            <span class="cm-row-text"><span class="cm-row-title">Recadrer les posters paysage en portrait 2:3</span><span class="cm-row-hint">Jellyfin réduit d&#x27;abord un poster paysage à une largeur limitée, puis le recadre et le zoome au centre dans le navigateur : une image 1080p finit floue. Activé : le plugin donne à Jellyfin le recadrage central 2:3 pris dans l&#x27;image d&#x27;origine, à sa pleine résolution. Posters de séries et de saisons seulement ; une image déjà en portrait n&#x27;est pas modifiée. Ensuite : « Remplacer les images existantes » sur la série.</span></span>
+                            <input type="checkbox" class="cm-switch" id="srcLandscapePosterCrop" />
                         </label>
                         </div>
                     </section>
@@ -1710,6 +1714,7 @@
                 updateOriginRefererFields();
                 document.querySelector('#srcUseHttp2').checked = source.UseHttp2 === true;
                 document.querySelector('#srcLandscapePortraitThumbs').checked = source.LandscapePortraitThumbs === true;
+                document.querySelector('#srcLandscapePosterCrop').checked = source.LandscapePosterCrop === true;
                 document.querySelector('#srcAutoDownloadVideos').checked = source.AutoDownloadVideos === true;
                 document.querySelector('#srcVideoQuality').value = source.VideoQuality || 'best';
             }
@@ -2299,6 +2304,7 @@
                     RefererOverride: document.querySelector('#srcRefererOverride').value.trim(),
                     UseHttp2: document.querySelector('#srcUseHttp2').checked,
                     LandscapePortraitThumbs: document.querySelector('#srcLandscapePortraitThumbs').checked,
+                    LandscapePosterCrop: document.querySelector('#srcLandscapePosterCrop').checked,
                     AutoDownloadVideos: document.querySelector('#srcAutoDownloadVideos').checked,
                     VideoQuality: document.querySelector('#srcVideoQuality').value || 'best',
                     CustomHeaders: filteredHeaders
@@ -2442,7 +2448,8 @@
                         var n = countLocal(localContent);
                         text = localContent ? n.episodes + (n.episodes > 1 ? ' épisodes' : ' épisode') : '';
                     } else if (key === 'thumbs') {
-                        text = qs('#srcLandscapePortraitThumbs').checked ? 'Activé' : 'Désactivé';
+                        var thumbsOn = (qs('#srcLandscapePortraitThumbs').checked ? 1 : 0) + (qs('#srcLandscapePosterCrop').checked ? 1 : 0);
+                        text = thumbsOn === 2 ? 'Activé' : thumbsOn === 1 ? '1 sur 2' : 'Désactivé';
                     } else {
                         var inputs = document.querySelectorAll('#CustomMetadataConfigPage [data-section="' + key + '"] input[data-count]');
                         var filled = Array.prototype.filter.call(inputs, function(i) { return i.value.trim() !== ''; }).length;

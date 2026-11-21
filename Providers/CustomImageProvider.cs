@@ -175,7 +175,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     {
                         // Portrait → 16:9 conversion: only episode thumbnails (Primary/Thumb, shown
                         // in a landscape frame), never a logo, a banner or a backdrop
-                        RememberImageSource(image.Url, source, item is Episode && imageType.Value is ImageType.Primary or ImageType.Thumb);
+                        RememberImageSource(image.Url, source, item is Episode && imageType.Value is ImageType.Primary or ImageType.Thumb, item is Series or Season && imageType.Value == ImageType.Primary);
                         results.Add(new RemoteImageInfo
                         {
                             Url = image.Url,
@@ -302,9 +302,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         private static readonly ConcurrentDictionary<string, ImageOrigin> ImageSourcePrefixes = new ConcurrentDictionary<string, ImageOrigin>(StringComparer.Ordinal);
         private const int MaxRememberedImageUrls = 20000;
 
-        private sealed record ImageOrigin(string Prefix, bool IsEpisodeThumbnail);
+        private sealed record ImageOrigin(string Prefix, bool IsEpisodeThumbnail, bool IsPoster);
 
-        private static void RememberImageSource(string url, SourceConfiguration source, bool isEpisodeThumbnail)
+        private static void RememberImageSource(string url, SourceConfiguration source, bool isEpisodeThumbnail, bool isPoster = false)
         {
             if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(source?.Prefix))
             {
@@ -318,9 +318,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
             ImageSourcePrefixes.AddOrUpdate(
                 url,
-                new ImageOrigin(source.Prefix, isEpisodeThumbnail),
-                // Same URL seen as an episode thumbnail AND something else: keep "thumbnail"
-                (_, previous) => new ImageOrigin(source.Prefix, isEpisodeThumbnail || previous.IsEpisodeThumbnail));
+                new ImageOrigin(source.Prefix, isEpisodeThumbnail, isPoster),
+                // Same URL seen as an episode thumbnail AND something else: keep "thumbnail" (same for a poster)
+                (_, previous) => new ImageOrigin(source.Prefix, isEpisodeThumbnail || previous.IsEpisodeThumbnail, isPoster || previous.IsPoster));
         }
 
         /// <summary>The address the person is using right now (the picker request), so that their browser can preview the image; the local address otherwise (library refresh)</summary>
@@ -387,10 +387,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             // Source that supplied this URL, otherwise the source whose BaseUrl has the same host
             SourceConfiguration source = null;
             var isEpisodeImage = false;
+            var isPosterImage = false;
             if (ImageSourcePrefixes.TryGetValue(url ?? string.Empty, out var origin))
             {
                 source = _sourceResolver.GetSourceByPrefix(origin.Prefix);
                 isEpisodeImage = origin.IsEpisodeThumbnail;
+                isPosterImage = origin.IsPoster;
             }
 
             source ??= FindSourceByUrl(url);
@@ -456,6 +458,24 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     var landscape = PortraitThumbConverter.ToLandscapeIfPortrait(data, _logger, url);
                     var content = new ByteArrayContent(landscape ?? data);
                     if (landscape != null)
+                    {
+                        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+                    }
+                    else if (response.Content.Headers.ContentType != null)
+                    {
+                        content.Headers.ContentType = response.Content.Headers.ContentType;
+                    }
+
+                    response.Content.Dispose();
+                    response.Content = content;
+                }
+                else if (isPosterImage && source?.LandscapePosterCrop == true)
+                {
+                    // Landscape series / season poster → 2:3 centre crop at full resolution (source option)
+                    var data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                    var portrait = LandscapePosterConverter.ToPortraitIfLandscape(data, _logger, url);
+                    var content = new ByteArrayContent(portrait ?? data);
+                    if (portrait != null)
                     {
                         content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
                     }

@@ -313,7 +313,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>
         /// Applies the EXIF orientation. Returns the original bitmap if no transformation is needed.
         /// </summary>
-        private static SKBitmap ApplyOrigin(SKBitmap bitmap, SKEncodedOrigin origin)
+        internal static SKBitmap ApplyOrigin(SKBitmap bitmap, SKEncodedOrigin origin)
         {
             if (origin == SKEncodedOrigin.TopLeft)
             {

@@ -178,6 +178,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         public bool LandscapePortraitThumbs { get; set; } = false;
 
         /// <summary>
+        /// LANDSCAPE series and season posters cropped to portrait 2:3 (centre) at the source's full resolution, on download. Without it
+        /// Jellyfin shrinks the landscape picture, then zooms on its middle in the browser: a 1080p picture ends up blurry.
+        /// </summary>
+        public bool LandscapePosterCrop { get; set; } = false;
+
+        /// <summary>
         /// Missing episodes: download the video of each one (EpisodeListMapping.VideoUrl, else PreviewUrl) into the season folder,
         /// named "{title} {prefix-id}.mp4", so that the next library scan turns the missing episode into a real one.
         /// HLS (.m3u8) streams are remuxed to MP4 with the server's ffmpeg. Off by default.
