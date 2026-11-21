@@ -31,6 +31,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         private readonly PeopleStore _people;
         private readonly CastInheritance _inheritance;
         private readonly DumpStore _dump;
+        private readonly EpisodePositionService _positions;
 
         public CustomEpisodeProvider(
             IHttpClientFactory httpClientFactory,
@@ -40,8 +41,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             CastOverlayStore castOverlay,
             PeopleStore people,
             CastInheritance inheritance,
-            DumpStore dump)
+            DumpStore dump,
+            EpisodePositionService positions)
         {
+            _positions = positions;
             _dump = dump;
             _inheritance = inheritance;
             _castOverlay = castOverlay;
@@ -234,6 +237,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 {
                     episode.IndexNumber = metadata.IndexNumber;
                     _logger.LogInformation("🎬 [EPISODE PROVIDER] Episode number from API: {IndexNumber}", metadata.IndexNumber);
+                }
+
+                // Still no number (none in the file name, none from the API): the position in the season's list sorted by release date,
+                // like the missing episodes, otherwise the episode keeps an empty number in its metadata
+                if (!string.IsNullOrEmpty(info.Path) && !(episode.IndexNumber is int current && current > 0))
+                {
+                    var position = await _positions.GetNumberAsync(info.Path, idWithPrefix, cancellationToken);
+                    if (position.HasValue)
+                    {
+                        episode.IndexNumber = position;
+                        _logger.LogInformation("🎬 [EPISODE PROVIDER] Episode number from its position in the season list: {IndexNumber}", position);
+                    }
                 }
 
                 // Double episode: if the API numbers are consecutive, Jellyfin shows it as a range ("3-4")

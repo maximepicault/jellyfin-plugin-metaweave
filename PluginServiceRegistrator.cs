@@ -70,6 +70,10 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddSingleton<CastApplyService>();
 
             // Source option "download the videos": a background queue, one download at a time
+            serviceCollection.AddSingleton(sp => new EpisodePositionService(
+                sp.GetRequiredService<CustomApiClient>(),
+                sp.GetRequiredService<SourceResolver>(),
+                sp.GetRequiredService<ILogger<EpisodePositionService>>()));
             serviceCollection.AddSingleton<VideoDownloadService>();
             serviceCollection.AddHostedService(sp => sp.GetRequiredService<VideoDownloadService>());
 
