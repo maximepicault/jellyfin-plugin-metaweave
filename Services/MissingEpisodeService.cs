@@ -682,21 +682,29 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             foreach (var item in missing)
             {
-                var url = PreviewMapper.ResolveUrl(string.IsNullOrWhiteSpace(item.VideoUrl) ? item.PreviewUrl : item.VideoUrl, source.BaseUrl);
-                if (url == null || !(url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                // Whatever goes wrong with one download (a folder the server may not write in, a odd value), the analysis goes on
+                try
                 {
-                    continue;
-                }
+                    var url = PreviewMapper.ResolveUrl(string.IsNullOrWhiteSpace(item.VideoUrl) ? item.PreviewUrl : item.VideoUrl, source.BaseUrl);
+                    if (url == null || !(url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
 
-                _downloads.Enqueue(new VideoDownloadService.DownloadJob
+                    _downloads.Enqueue(new VideoDownloadService.DownloadJob
+                    {
+                        Key = EpisodeKey(source, item),
+                        Title = item.Title,
+                        IndexNumber = item.IndexNumber,
+                        Url = url,
+                        Folder = season.Path,
+                        Source = source
+                    });
+                }
+                catch (Exception ex)
                 {
-                    Key = EpisodeKey(source, item),
-                    Title = item.Title,
-                    IndexNumber = item.IndexNumber,
-                    Url = url,
-                    Folder = season.Path,
-                    Source = source
-                });
+                    _logger.LogWarning(ex, "⬇️ [DOWNLOAD] ⚠️ '{Title}': could not be queued ({Message}); the analysis goes on", item.Title, ex.Message);
+                }
             }
         }
 

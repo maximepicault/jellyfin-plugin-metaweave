@@ -317,13 +317,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         // One scan once the queue is empty (whatever the last job did): the files become real episodes
                         _scanNeeded = false;
                         _logger.LogInformation("⬇️ [DOWNLOAD] Queue empty: library scan requested");
-                        _libraryManager.QueueLibraryScan();
+                        try
+                        {
+                            _libraryManager.QueueLibraryScan();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "⬇️ [DOWNLOAD] ⚠️ could not request the library scan: {Message}", ex.Message);
+                        }
                     }
                 }
             }
             catch (OperationCanceledException)
             {
                 // Server stopping
+            }
+            catch (Exception ex)
+            {
+                // A background service that throws would stop the whole server: log and give up on downloads instead
+                _logger.LogError(ex, "⬇️ [DOWNLOAD] ❌ the download service stopped on an unexpected error: {Message}", ex.Message);
             }
         }
 
