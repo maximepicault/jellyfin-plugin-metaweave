@@ -80,3 +80,15 @@ if not os.path.exists(src):
 if not os.path.exists(os.path.join(dl, "b1v3.m3u8")):
     subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", src, "-c", "copy", "-f", "hls", "-hls_time", "1", "-hls_list_size", "0",
                     "-hls_segment_filename", os.path.join(dl, "b1v3-%d.ts"), os.path.join(dl, "b1v3.m3u8")], check=True)
+
+# Master playlist of the HLS episode (b1v3): three real renditions (90, 180 and 270 px tall) advertised as 360 / 720 / 1080
+# so that the quality choice of the download can be checked on the height of the resulting MP4. b1v3.m3u8 is replaced by this master.
+if not os.path.exists(os.path.join(dl, "b1v3-q720.m3u8")):
+    for tag, size in (("q360", "160x90"), ("q720", "320x180"), ("q1080", "480x270")):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", src, "-vf", "scale=" + size.replace("x", ":"), "-c:v", "libx264", "-c:a", "aac",
+                        "-f", "hls", "-hls_time", "1", "-hls_list_size", "0", "-hls_segment_filename", os.path.join(dl, f"b1v3-{tag}-%d.ts"),
+                        os.path.join(dl, f"b1v3-{tag}.m3u8")], check=True)
+    with open(os.path.join(dl, "b1v3.m3u8"), "w") as f:
+        f.write("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=300000,RESOLUTION=640x360\nb1v3-q360.m3u8\n"
+                "#EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=1280x720\nb1v3-q720.m3u8\n"
+                "#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1920x1080\nb1v3-q1080.m3u8\n")

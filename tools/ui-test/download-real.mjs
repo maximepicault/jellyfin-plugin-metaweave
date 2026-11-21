@@ -33,6 +33,7 @@ const cleanup = () => { for (const f of downloaded()) fs.rmSync(path.join(DIR, f
 // After the files are removed the library still holds their episodes: a scan drops them
 const scan = async () => { await api('POST', '/Library/Refresh'); await wait(6000);
   for (let i = 0; i < 80; i++) { if ((await api('GET', '/ScheduledTasks')).find(t => t.Key === 'RefreshLibrary')?.State === 'Idle') break; await wait(1500); } await wait(2000); };
+const height = file => JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=height', '-of', 'json', file]).toString()).streams[0].height;
 const probe = file => JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type:format=format_name', '-of', 'json', file]).toString());
 
 const original = await api('GET', `/Plugins/${PLUGIN}/Configuration`);
@@ -71,6 +72,23 @@ try {
     if (!still.includes('dm-b1v2') && !still.includes('dm-b1v3')) break;
   }
   check('after the scan, the downloaded episodes are no longer missing', !still.includes('dm-b1v2') && !still.includes('dm-b1v3') && still.includes('dm-b1v4'), JSON.stringify(still));
+
+  // Quality of the HLS master playlist (renditions really 90 / 180 / 270 px tall, advertised 360 / 720 / 1080)
+  const hlsFile = () => downloaded().find(f => f.includes('{dm-b1v3}') && f.endsWith('.mp4'));
+  check('default quality "best" took the tallest rendition (270 px)', hls && height(path.join(DIR, hls)) === 270, hls);
+  for (const [quality, expected] of [['720', 180], ['lowest', 90], ['1080', 270]]) {
+    cleanup(); await scan();
+    const cfg = JSON.parse(JSON.stringify(original));
+    const src = cfg.Sources.find(s => s.Prefix === 'dm');
+    src.AutoDownloadVideos = true; src.VideoQuality = quality;
+    src.EpisodeListMappings = { ...(src.EpisodeListMappings || {}), VideoUrl: 'video.url' };
+    await api('POST', `/Plugins/${PLUGIN}/Configuration`, cfg);
+    check(`quality "${quality}" is stored`, (await api('GET', `/Plugins/${PLUGIN}/Configuration`)).Sources.find(s => s.Prefix === 'dm').VideoQuality === quality);
+    await analyze();
+    let f = null;
+    for (let i = 0; i < 60 && !f; i++) { f = hlsFile(); if (!f) await wait(2000); }
+    check(`quality "${quality}": rendition ${expected} px tall`, f && height(path.join(DIR, f)) === expected, f ? String(height(path.join(DIR, f))) : 'no file');
+  }
 } finally {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, original);
   cleanup();
