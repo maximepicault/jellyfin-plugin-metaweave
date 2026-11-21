@@ -292,6 +292,36 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
   top: 0; bottom: 0; left: -100vmax; right: -100vmax; background: var(--pj-bg);
 }
 .layout-desktop .itemDetailPage .detailPageSecondaryContainer { background: var(--pj-bg) !important; }
+/* "À suivre" (next episode) comes right before the seasons: it is content too, so it
+   opens the ink area instead of floating on the picture; the seasons then follow on
+   the same ink without a second fade */
+.layout-desktop .itemDetailPage .nextUpSection:not(.hide) { position: relative; z-index: 0; margin-top: 2.5rem; }
+.layout-desktop .itemDetailPage .nextUpSection:not(.hide)::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  left: -100vmax; right: -100vmax; bottom: 100%; height: clamp(4rem, 9vh, 7rem);
+  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0), var(--pj-bg));
+}
+.layout-desktop .itemDetailPage .nextUpSection:not(.hide)::after {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  top: 0; bottom: -4rem; left: -100vmax; right: -100vmax; background: var(--pj-bg);
+}
+.layout-desktop .itemDetailPage .nextUpSection:not(.hide) ~ #listChildrenCollapsible { margin-top: 0; }
+.layout-desktop .itemDetailPage .nextUpSection:not(.hide) ~ #listChildrenCollapsible::before { display: none; }
+
+/* the next episode as one wide card: frame on the left, its title large on the right */
+.itemDetailPage .nextUpItems .card { width: min(100%, 40rem) !important; max-width: none !important; }
+.itemDetailPage .nextUpItems .cardBox {
+  display: grid; grid-template-columns: minmax(9rem, 46%) minmax(0, 1fr);
+  grid-template-rows: 1fr auto auto 1fr; column-gap: 1.25rem; row-gap: .2rem;
+}
+/* the texts take the two middle rows, so they stay centred next to the frame */
+.itemDetailPage .nextUpItems .cardScalable { grid-column: 1; grid-row: 1 / -1; }
+.itemDetailPage .nextUpItems .cardText { grid-column: 2; grid-row: 2; text-align: left !important; padding: 0 !important; }
+.itemDetailPage .nextUpItems .cardText ~ .cardText { grid-row: 3; }
+.itemDetailPage .nextUpItems .cardText-first {
+  font-family: var(--pj-serif); font-size: clamp(1.15rem, 1rem + .5vw, 1.5rem); font-weight: 700; line-height: 1.2;
+  white-space: normal !important; overflow: visible;
+}
 /* phones show the backdrop as a banner: melt its bottom edge into the ink */
 .layout-mobile .itemBackdrop::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 55%;
