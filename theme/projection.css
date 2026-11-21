@@ -257,7 +257,7 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
      the rest of the screen, so a short season does not let the picture back in
      at the bottom. --pj-hero-h mirrors the band height for that. */
 .layout-desktop .itemDetailPage { --pj-hero-h: 40vh; }
-.layout-desktop .itemDetailPage:has(#listChildrenCollapsible .listItem-largeImage) { --pj-hero-h: 26vh; }
+.layout-desktop .itemDetailPage:has(#listChildrenCollapsible .listItem-largeImage) { --pj-hero-h: 34vh; }
 @media (max-height: 31.25em) { .layout-desktop .itemDetailPage { --pj-hero-h: 52vh; } }
 .layout-desktop .itemDetailPage .itemBackdrop { height: var(--pj-hero-h); }
 /* on desktop the band holds no picture (the fixed layer does), only its share of the
@@ -270,9 +270,28 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
 }
 .layout-desktop .detailPageWrapperContainer {
   min-height: calc(100vh - var(--pj-hero-h));
-  background: linear-gradient(to bottom, rgba(var(--pj-veil), .4) 0, rgba(var(--pj-veil), .8) 25vh,
-    rgba(var(--pj-veil), .94) 45vh, var(--pj-bg) 65vh) !important;
+  background: linear-gradient(to bottom, rgba(var(--pj-veil), .4) 0, rgba(var(--pj-veil), .62) 30vh,
+    rgba(var(--pj-veil), .8) 55vh) !important;
+  overflow-x: clip; /* the full-bleed layers below reach past the column */
 }
+/* The hero ends where the content begins: the season list (episodes on a season
+   page, seasons on a series page) and everything under it sit on solid ink, with a
+   soft fade above, across the whole width. The picture stays in the hero (title,
+   actions, synopsis) instead of running under the cards. */
+.layout-desktop .itemDetailPage #listChildrenCollapsible:not(.hide),
+.layout-desktop .itemDetailPage .detailPageSecondaryContainer { position: relative; z-index: 0; }
+.layout-desktop .itemDetailPage #listChildrenCollapsible:not(.hide) { margin-top: 2.5rem; }
+.layout-desktop .itemDetailPage #listChildrenCollapsible:not(.hide)::before,
+.layout-desktop .itemDetailPage .detailPageSecondaryContainer::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  left: -100vmax; right: -100vmax; bottom: 100%; height: clamp(4rem, 9vh, 7rem);
+  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0), var(--pj-bg));
+}
+.layout-desktop .itemDetailPage #listChildrenCollapsible:not(.hide)::after {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  top: 0; bottom: 0; left: -100vmax; right: -100vmax; background: var(--pj-bg);
+}
+.layout-desktop .itemDetailPage .detailPageSecondaryContainer { background: var(--pj-bg) !important; }
 /* phones show the backdrop as a banner: melt its bottom edge into the ink */
 .layout-mobile .itemBackdrop::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 55%;
