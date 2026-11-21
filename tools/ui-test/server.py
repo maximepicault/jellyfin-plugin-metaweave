@@ -179,6 +179,9 @@ class H(BaseHTTPRequestHandler):
                     return self.send(200, {"id": m[1], "title": s["seasons"][m[1]]["title"], "poster": f"{BASE}/img/{m[1]}.jpg"})
         m = re.fullmatch(r"/videos/(\w+)", p)
         if m and m[1] in VIDS:
-            return self.send(200, video_json(m[1]))
+            j = video_json(m[1])
+            # The season of the unnumbered episodes (b1) gives no number on the single-video endpoint either
+            if m[1].startswith("b1v"): j.pop("indexNumber", None)
+            return self.send(200, j)
         self.send(404, {"error": "not found"})
 ThreadingHTTPServer(("0.0.0.0", 8765), H).serve_forever()

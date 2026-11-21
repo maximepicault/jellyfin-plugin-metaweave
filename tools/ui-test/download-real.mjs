@@ -77,7 +77,21 @@ try {
   // Quality of the HLS master playlist (renditions really 90 / 180 / 270 px tall, advertised 360 / 720 / 1080)
   const hlsFile = () => downloaded().find(f => f.includes('{dm-b1v3}') && f.endsWith('.mp4'));
   check('default quality "best" took the tallest rendition (270 px)', hls && height(path.join(DIR, hls)) === 270, hls);
+  // The service scans the library and analyses again by itself after a download: wait for all of that before the next phase
+  const settle = async () => {
+    for (let round = 0; round < 2; round++) {
+      for (let i = 0; i < 80; i++) {
+        const d = await api('GET', '/CustomMetadata/Downloads');
+        const m = await api('GET', '/CustomMetadata/MissingEpisodes');
+        const scanning = (await api('GET', '/ScheduledTasks')).find(t => t.Key === 'RefreshLibrary')?.State !== 'Idle';
+        if (!d.Items.some(x => ['queued', 'downloading', 'converting'].includes(x.Status)) && !m.Running && !scanning) break;
+        await wait(3000);
+      }
+      await wait(8000);
+    }
+  };
   for (const [quality, expected] of [['720', 180], ['lowest', 90], ['1080', 270]]) {
+    await settle();
     cleanup(); await scan();
     const cfg = JSON.parse(JSON.stringify(original));
     const src = cfg.Sources.find(s => s.Prefix === 'dm');
