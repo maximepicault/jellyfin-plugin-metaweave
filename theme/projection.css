@@ -256,17 +256,25 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
    - the content block continues from the same value, and is at least as tall as
      the rest of the screen, so a short season does not let the picture back in
      at the bottom. --pj-hero-h mirrors the band height for that. */
-.layout-desktop .itemDetailPage { --pj-hero-h: 40vh; }
-.layout-desktop .itemDetailPage:has(#listChildrenCollapsible .listItem-largeImage) { --pj-hero-h: 34vh; }
-@media (max-height: 31.25em) { .layout-desktop .itemDetailPage { --pj-hero-h: 52vh; } }
+/* a panoramic band (about 2.8:1, capped by the screen height) so the picture is seen,
+   not cut in half; defined on <html> so the fixed layer can use it too */
+html.layout-desktop:has(.itemDetailPage:not(.hide)) { --pj-hero-h: min(60vh, 36vw); }
+@media (max-height: 31.25em) { html.layout-desktop:has(.itemDetailPage:not(.hide)) { --pj-hero-h: 52vh; } }
 .layout-desktop .itemDetailPage .itemBackdrop { height: var(--pj-hero-h); }
+/* the fixed picture layer itself turns to ink under the band: below the content
+   (a one-episode season, a series without seasons) the picture cannot come back,
+   whatever the height of the content */
+html.layout-desktop:has(.itemDetailPage:not(.hide)) .backgroundContainer.withBackdrop {
+  background-image: linear-gradient(to bottom, rgba(var(--pj-veil), .2) 0,
+    rgba(var(--pj-veil), .35) calc(var(--pj-hero-h) - 8vh), var(--pj-bg) calc(var(--pj-hero-h) + 22vh)) !important;
+}
 /* on desktop the band holds no picture (the fixed layer does), only its share of the
    veil: stock still fades it in from opacity 0 over .8s, which left the band less veiled
    than the content under it, a visible edge while the page loads */
 .layout-desktop .itemBackdrop { animation: none !important; opacity: 1 !important; }
 .layout-desktop .itemBackdrop::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 30%, rgba(var(--pj-veil), .4));
+  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 55%, rgba(var(--pj-veil), .4));
 }
 .layout-desktop .detailPageWrapperContainer {
   min-height: calc(100vh - var(--pj-hero-h));
