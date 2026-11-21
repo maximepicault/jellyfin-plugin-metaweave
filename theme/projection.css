@@ -20,7 +20,8 @@
  *   play button together, episodes as a grid of 16:9 cards (rows on phones).
  * - The backdrop is a mood, not a wall: it fades as you scroll.
  * Offline or blocked Google Fonts? The serif falls back to Georgia.
- * The labels in section 13 ("Manquant"...) are French: edit them for your language.
+ * The labels in sections 9b ("à voir", "Vue", "À suivre") and 13 ("Manquant"...)
+ * are French: edit them for your language.
  */
 
 /* ============================================================
@@ -444,6 +445,183 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
   .layout-mobile .listItemImage-large .listItemImageButton { inset: 0; background: transparent !important; border-radius: 0; align-items: flex-end; justify-content: flex-start; padding: .4rem; }
   .layout-mobile .listItemImage-large .listItemImageButton-icon { background: rgba(var(--pj-veil), .78); border-radius: 50%; font-size: 1.5rem; padding: .15em; color: var(--pj-text); }
   .layout-mobile .listItem[data-positionticks] .listItemImageButton-icon { background: var(--pj-amber); color: var(--pj-amber-ink); }
+}
+
+/* ============================================================
+   9b. Seasons: wide "sleeves" on the series page
+   Each season becomes a wide card (about 2.4:1): the WHOLE poster,
+   uncropped, stands at the left edge at the full height of the card,
+   and the rest of the card is lit by the poster's own colours (the
+   blurhash canvas jellyfin-web already draws under every image,
+   stretched and darkened). On that halo: the season name, large, in
+   the serif, and its state as a chip ("6 à voir", "Vue").
+   - 3 cards per row at 1920, 2 at 1440 (like the episode cards), 1 on
+     phones; auto-fill keeps empty tracks, so 1-3 seasons never stretch.
+   - the first season still to watch gets an amber chip "À suivre".
+   - watched seasons recede: veiled poster, dim name; hover restores.
+   Scoped to season cards of a detail page; the episode list
+   (.listItem-largeImage) and every other card are untouched.
+   ============================================================ */
+
+/* --- geometry: one place to tune the card shape --- */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] {
+  --sf-ratio: 41.6667%;        /* card height / width: 2.4:1 */
+  --sf-poster: 27.7778%;       /* poster width / card width: 2:3 poster at full card height */
+  --sf-pad: clamp(.9rem, 1.1vw, 1.35rem);
+}
+
+/* --- the grid (desktop vertical-wrap and phone scrollX alike) --- */
+.itemDetailPage #listChildrenCollapsible #childrenContent > .itemsContainer:has(> .card[data-type="Season"]) {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 27rem), 1fr));
+  gap: 1.1rem 1.25rem;
+  max-width: 100rem;
+  padding-right: 0 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-align: left;
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] {
+  width: auto !important; max-width: none !important; min-width: 0;
+  margin: 0 !important; padding: 0 !important; display: block !important;
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardBox {
+  position: relative; margin: 0 !important; padding: 0 !important;
+}
+
+/* --- the frame: wide, with a quiet fallback when there is no blurhash --- */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardScalable {
+  position: relative;
+  background: linear-gradient(110deg, var(--pj-raise-2), var(--pj-raise));
+  box-shadow: 0 0 0 1px var(--pj-line);
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardPadder {
+  padding-bottom: var(--sf-ratio) !important;
+}
+/* the halo: the poster's blurhash, stretched over the whole card. Stock fades it
+   out once the image has loaded (.lazy-hidden); here it is kept on purpose. */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .blurhash-canvas {
+  position: absolute; inset: 0; width: 100% !important; height: 100% !important;
+  opacity: 1 !important; z-index: 0;
+  filter: saturate(1.25) brightness(.62);
+}
+/* a veil on the text side, darker towards the right, and a soft shadow where the
+   poster ends, so the name reads on any colour */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardScalable::after {
+  content: ""; position: absolute; top: 0; bottom: 0; right: 0; left: var(--sf-poster);
+  z-index: 0; pointer-events: none;
+  background:
+    linear-gradient(to right, rgba(0, 0, 0, .5), rgba(0, 0, 0, 0) 1.1rem),
+    linear-gradient(to right, rgba(var(--pj-veil), .25), rgba(var(--pj-veil), .78));
+}
+
+/* --- the poster: whole, at the left edge, never cropped --- */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] a.cardImageContainer {
+  position: absolute; inset: 0; z-index: 1;
+  background-size: auto 100% !important;
+  background-position: left center !important;
+  background-repeat: no-repeat !important;
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] a.cardImageContainer:not([class*="defaultCardBackground"]) {
+  background-color: transparent !important;
+}
+/* no poster at all: the placeholder tint only fills the poster slot */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] a.cardImageContainer[class*="defaultCardBackground"] {
+  right: calc(100% - var(--sf-poster));
+}
+
+/* --- the name: large, serif, on the halo --- */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText-first {
+  position: absolute; z-index: 4;
+  top: 0; left: calc(var(--sf-poster) + var(--sf-pad)); right: var(--sf-pad);
+  margin: 0 !important; padding: var(--sf-pad) 0 0 !important; min-height: 0 !important;
+  text-align: left !important;
+  font-family: var(--pj-serif); font-weight: 700; letter-spacing: .005em;
+  font-size: clamp(1.25rem, .95rem + .75vw, 1.95rem); line-height: 1.12;
+  color: var(--pj-text);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .55), 0 2px 18px rgba(0, 0, 0, .35);
+  white-space: normal !important; overflow: hidden;
+  display: -webkit-box !important; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  pointer-events: none;           /* the card's own link and overlay take the clicks */
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText-first a {
+  color: inherit !important; pointer-events: auto; text-decoration: none;
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText-first a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .18em; }
+
+/* --- the state: a chip at the bottom of the text side --- */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardIndicators {
+  position: absolute; top: auto; right: auto;
+  left: calc(var(--sf-poster) + var(--sf-pad)); bottom: var(--sf-pad);
+  margin: 0; display: flex; gap: .4rem;
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .countIndicator,
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .playedIndicator {
+  width: auto !important; height: auto !important; min-width: 0;
+  padding: .32em .8em; border-radius: 99px;
+  font-size: .8rem; font-weight: 600; line-height: 1.2; letter-spacing: .01em;
+  display: inline-flex; align-items: center; gap: .3em;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .countIndicator::after { content: "\00a0à voir"; font-weight: 500; color: var(--pj-text-2); }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .playedIndicator .material-icons,
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .playedIndicator .indicatorIcon { font-size: 1.05em; width: auto; height: auto; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .playedIndicator::after { content: "Vue"; }
+
+/* the first season still to watch: the amber chip says where to resume */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.countIndicator):not(.card[data-type="Season"]:has(.countIndicator) ~ .card) .countIndicator {
+  background: var(--pj-amber) !important; color: var(--pj-amber-ink) !important; box-shadow: none !important;
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.countIndicator):not(.card[data-type="Season"]:has(.countIndicator) ~ .card) .countIndicator::before { content: "À suivre ·\00a0"; font-weight: 700; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.countIndicator):not(.card[data-type="Season"]:has(.countIndicator) ~ .card) .countIndicator::after { color: inherit; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.countIndicator):not(.card[data-type="Season"]:has(.countIndicator) ~ .card) .cardScalable {
+  box-shadow: 0 0 0 1px rgba(242, 180, 65, .55);
+}
+
+/* --- watched seasons recede (the chip, on the text side, stays readable) --- */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .cardScalable::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: var(--sf-poster);
+  z-index: 2; pointer-events: none; background: rgba(var(--pj-veil), .5);
+  transition: opacity var(--pj-fast);
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .blurhash-canvas { filter: saturate(.5) brightness(.45); }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .cardText-first { color: var(--pj-dim); }
+@media (hover: hover) {
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator):hover .cardScalable::before { opacity: 0; }
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator):hover .cardText-first { color: var(--pj-text); }
+}
+
+/* --- hover overlay: darken the poster only, play button centred on it --- */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardOverlayContainer {
+  z-index: 3;
+  background: linear-gradient(to right, rgba(8, 12, 13, .5) var(--sf-poster), rgba(8, 12, 13, 0) var(--sf-poster)) !important;
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardOverlayFab-primary {
+  position: absolute; margin: 0 !important;
+  top: 50%; left: calc(var(--sf-poster) / 2); transform: translate(-50%, -50%);
+}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardOverlayButton-br { z-index: 5; }
+
+/* --- phones: one card per row, a little taller so the poster stays a real image --- */
+@media (max-width: 600px) {
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] {
+    --sf-ratio: 45.4545%;      /* 2.2:1 */
+    --sf-poster: 30.303%;
+    --sf-pad: .85rem;
+  }
+  .itemDetailPage #listChildrenCollapsible #childrenContent > .itemsContainer:has(> .card[data-type="Season"]) {
+    grid-template-columns: 1fr; gap: .75rem;
+  }
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText-first { font-size: 1.2rem; min-height: 0 !important; }
+}
+.layout-mobile .itemDetailPage #listChildrenCollapsible #childrenContent > .itemsContainer:has(> .card[data-type="Season"]) {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  padding-left: 0 !important; transform: none !important;
+}
+.layout-mobile .itemDetailPage #listChildrenCollapsible .emby-scrollbuttons:has(~ * .card[data-type="Season"]),
+.layout-mobile .itemDetailPage #listChildrenCollapsible:has(.card[data-type="Season"]) .emby-scrollbuttons { display: none !important; }
+.layout-mobile .itemDetailPage #listChildrenCollapsible:has(.card[data-type="Season"]) .emby-scroller {
+  overflow: visible !important; margin-left: 0; margin-right: 0;
 }
 
 /* ============================================================
