@@ -97,6 +97,14 @@ class H(BaseHTTPRequestHandler):
             if name == "notvideo": return self.send(200, b"<html><body>Please sign in</body></html>", "text/html")
             f = os.path.join(IMG_DIR, "media", name)
             ctype = {".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t"}.get(os.path.splitext(name)[1], "application/octet-stream")
+            if name == "b1v2.mp4" and os.path.exists(f):
+                # Served slowly (about 0.4 MB/s) so that the downloads page has a running download to show
+                import time
+                data = open(f, "rb").read()
+                self.send_response(200); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(data))); self.end_headers()
+                for i in range(0, len(data), 65536):
+                    self.wfile.write(data[i:i + 65536]); self.wfile.flush(); time.sleep(0.15)
+                return
             return self.send(200, open(f, "rb").read(), ctype) if os.path.exists(f) else self.send(404, {})
         # A record whose fields are null / empty / missing, to exercise the fallback "a || b"
         m = re.fullmatch(r"/fallback/(\w+)", p)

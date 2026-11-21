@@ -33,17 +33,18 @@ try {
   await page.click('.manualLoginForm button[type=submit]');
   await page.waitForFunction(() => !location.hash.includes('login'));
 
-  // ---- 1. the shared tab bar on the four pages
+  // ---- 1. the shared tab bar on the pages
   for (const [name, root, label] of [['Custom%20Metadata%20Provider', C, 'Configuration'], ['CustomMetadataMissingEpisodes', M, 'Épisodes manquants'], ['CustomMetadataPeople', P, 'Personnes'], ['CustomMetadataDiagnostic', D, 'Diagnostic'], ['CustomMetadataTaxonomy', '#CustomMetadataTaxonomyPage', 'Genres et tags']]) {
     await open(name, root);
     const tabs = await page.$$eval(`${root} .cmn-tab`, els => els.map(e => e.firstChild.textContent.trim()));
-    check(`tab bar on ${label}: five tabs`, tabs.join('|') === 'Configuration|Épisodes manquants|Personnes|Diagnostic|Genres et tags', tabs.join('|'));
+    check(`tab bar on ${label}: six tabs`, tabs.join('|') === 'Configuration|Épisodes manquants|Téléchargements|Personnes|Diagnostic|Genres et tags', tabs.join('|'));
     check(`tab bar on ${label}: current tab marked`, (await page.$eval(`${root} .cmn-tab[aria-current="page"]`, e => e.firstChild.textContent.trim())) === label);
   }
   await open('CustomMetadataMissingEpisodes', M);
   await page.waitForFunction(sel => document.querySelector(sel).textContent !== '', `${M} [data-cmn-count="sources"]`, { timeout: 15000 });
   const counts = await page.$$eval(`${M} .cmn-count`, els => els.map(e => e.textContent));
-  check('tab bar: counters filled (sources, missing, people)', counts[0] !== '' && counts[1] !== '' && counts[2] !== '', counts.join('|'));
+  // counts: sources, missing, downloads (empty when nothing is pending), people, ...
+  check('tab bar: counters filled (sources, missing, people)', counts[0] !== '' && counts[1] !== '' && counts[3] !== '', counts.join('|'));
   check('tab bar: missing episodes shown as an alert', await page.$eval(`${M} [data-cmn-count="missing"]`, e => e.classList.contains('cmn-alert')));
   await page.waitForSelector(`${M} .me-card`, { state: 'visible' });
   await shot('N1-missing-with-tabs-1440');
