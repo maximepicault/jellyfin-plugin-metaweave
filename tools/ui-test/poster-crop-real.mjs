@@ -26,7 +26,7 @@ const size = async id => {
   fs.unlinkSync(file);
   return { w, h };
 };
-const refresh = async id => { await api('POST', `/Items/${id}/Refresh?Recursive=false&ImageRefreshMode=FullRefresh&MetadataRefreshMode=FullRefresh&ReplaceAllImages=true&ReplaceAllMetadata=false`); await wait(8000); };
+const refresh = async (id, replace = true) => { await api('POST', `/Items/${id}/Refresh?Recursive=false&ImageRefreshMode=FullRefresh&MetadataRefreshMode=FullRefresh&ReplaceAllImages=${replace}&ReplaceAllMetadata=false`); await wait(8000); };
 const setOption = async (original, on) => {
   const config = JSON.parse(JSON.stringify(original));
   config.Sources.find(s => s.Prefix === 'dm').LandscapePosterCrop = on;
@@ -48,6 +48,14 @@ try {
   await refresh(series.Id);
   const off = await size(series.Id);
   check('option off: the poster is kept as it is (1920x1080)', off.w === 1920 && off.h === 1080, JSON.stringify(off));
+  // The usual "Actualiser" (no "Remplacer les images existantes"): the landscape poster Jellyfin already holds is converted too
+  await setOption(original, true);
+  await refresh(series.Id, false);
+  const plain = await size(series.Id);
+  check('option on, plain refresh (images not replaced): the landscape poster already stored is cropped (720x1080)', plain.w === 720 && plain.h === 1080, JSON.stringify(plain));
+  await refresh(series.Id, false);
+  const again = await size(series.Id);
+  check('a second plain refresh leaves the cropped poster as it is', again.w === 720 && again.h === 1080, JSON.stringify(again));
 } finally {
   if (fs.existsSync(backup)) { fs.renameSync(backup, poster); }
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, original);
