@@ -553,6 +553,7 @@
                             <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Récupérer les images</span><span class="cm-row-hint">Affiches, fonds, miniatures, logos et bannières.</span></span><input type="checkbox" class="cm-switch" id="chkEnableImages" /></label>
                             <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Importer le casting</span><span class="cm-row-hint">Acteurs, réalisateurs, scénaristes… (champ « Cast » des mappings).</span></span><input type="checkbox" class="cm-switch" id="chkEnableCasting" /></label>
                             <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Ajouter les épisodes manquants à la médiathèque</span><span class="cm-row-hint">Crée des épisodes virtuels (grisés) pour ceux que l'API liste mais qui n'ont pas de fichier. Visibles avec le réglage utilisateur « Afficher les épisodes manquants dans les saisons ». Analyse : tâche planifiée « Détecter les épisodes manquants » ou <a class="cm-link" href="#/configurationpage?name=CustomMetadataMissingEpisodes">écran Épisodes manquants</a>.</span></span><input type="checkbox" class="cm-switch" id="chkCreateVirtualEpisodes" /></label>
+                            <div class="cm-row cm-row-static"><label class="cm-row-text" for="txtMaxParallelDownloads"><span class="cm-row-title">Téléchargements simultanés</span><span class="cm-row-hint">Nombre de vidéos téléchargées en même temps par le téléchargement automatique des épisodes manquants (1 à 8). 1 = un à la fois. Plus de téléchargements parallèles vont plus vite, mais chargent la bande passante, le disque et le serveur d&#x27;origine : certains refusent plusieurs connexions.</span></label><div class="inputContainer"><input is="emby-input" type="number" id="txtMaxParallelDownloads" name="txtMaxParallelDownloads" min="1" max="8" aria-label="Téléchargements simultanés" /></div></div>
                             <div class="cm-row cm-row-static"><label class="cm-row-text" for="txtDefaultSourceName"><span class="cm-row-title">Nom de source par défaut</span><span class="cm-row-hint">Utilisé quand l'API ne renvoie pas de titre et que le dossier ne contient que le tag {PRÉFIXE-ID}.</span></label><div class="inputContainer"><input is="emby-input" type="text" id="txtDefaultSourceName" name="txtDefaultSourceName" aria-label="Nom de source par défaut" /></div></div>
                         </div>
                         <div class="cm-rows">
@@ -1364,6 +1365,7 @@
                     document.querySelector('#txtDefaultSourceName').value = config.DefaultSourceName || '';
                     document.querySelector('#chkEnableCache').checked = config.EnableCache !== false;
                     document.querySelector('#txtCacheTTL').value = config.CacheTTLHours || 24;
+                    document.querySelector('#txtMaxParallelDownloads').value = config.MaxParallelDownloads || 1;
                     
                     // Show the sources (always on the list: an old editing state no longer makes sense)
                     renderSourcesList(config.Sources || []);
@@ -1403,6 +1405,7 @@
                 currentConfig.DefaultSourceName = document.querySelector('#txtDefaultSourceName').value;
                 currentConfig.EnableCache = document.querySelector('#chkEnableCache').checked;
                 currentConfig.CacheTTLHours = parseInt(document.querySelector('#txtCacheTTL').value) || 24;
+                currentConfig.MaxParallelDownloads = Math.min(8, Math.max(1, parseInt(document.querySelector('#txtMaxParallelDownloads').value) || 1));
 
 
                 ApiClient.updatePluginConfiguration(pluginId, currentConfig).then(function() {

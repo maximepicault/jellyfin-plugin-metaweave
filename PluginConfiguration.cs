@@ -110,6 +110,12 @@ namespace Jellyfin.Plugin.CustomMetadata
         /// </summary>
         public bool CreateVirtualEpisodes { get; set; } = true;
 
+        /// <summary>
+        /// How many videos the automatic download of missing episodes fetches at the same time (1 to 8, default 1).
+        /// Read again before each download, so a change applies without restarting the server.
+        /// </summary>
+        public int MaxParallelDownloads { get; set; } = 1;
+
         // === Cache ===
         /// <summary>
         /// Cache lifetime in hours (default 24h)

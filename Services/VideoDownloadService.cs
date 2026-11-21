@@ -264,74 +264,48 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             return true;
         }
 
+        private int _held;     // jobs taken from the queue and not finished (running, or waiting for a free slot)
+        private int _running;  // jobs running right now
+        private readonly object _scanLock = new object();
+
+        /// <summary>Downloads allowed at the same time, from the configuration (1 to 8)</summary>
+        private static int Limit => Math.Clamp(Plugin.Instance?.Configuration?.MaxParallelDownloads ?? 1, 1, 8);
+
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             try
             {
                 await foreach (var job in _queue.Reader.ReadAllAsync(stoppingToken))
                 {
-                    if (job.Status == StatusCancelled)
+                    Interlocked.Increment(ref _held);
+                    // Wait for a free slot (the limit is read again each time: a change in the settings applies at once)
+                    while (Volatile.Read(ref _running) >= Limit)
                     {
-                        _pending.TryRemove(job.Key, out _);
-                        continue;
+                        await Task.Delay(TimeSpan.FromMilliseconds(500), stoppingToken);
                     }
 
-                    job.StartedAt = DateTime.UtcNow;
-                    job.Status = StatusDownloading;
-                    using var jobCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                    job.Cts = jobCts;
-                    try
+                    Interlocked.Increment(ref _running);
+                    _ = Task.Run(async () =>
                     {
-                        if (await DownloadAsync(job, jobCts.Token))
-                        {
-                            _failed.TryRemove(job.Key, out _);
-                            _scanNeeded = true;
-                            job.Status = StatusDone;
-                        }
-                        else
-                        {
-                            _failed[job.Key] = DateTime.UtcNow;
-                            job.Status = StatusFailed;
-                            job.Error ??= "Échec (voir le journal du serveur).";
-                        }
-                    }
-                    catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
-                    {
-                        _failed[job.Key] = DateTime.UtcNow;
-                        job.Status = StatusCancelled;
-                        job.Error = "Annulé.";
-                        _logger.LogInformation("⬇️ [DOWNLOAD] '{Title}' ({Key}) cancelled", job.Title, job.Key);
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        _failed[job.Key] = DateTime.UtcNow;
-                        job.Status = StatusFailed;
-                        job.Error = ex.Message;
-                        _logger.LogWarning(ex, "⬇️ [DOWNLOAD] ⚠️ '{Title}' ({Key}) failed: {Message}", job.Title, job.Key, ex.Message);
-                    }
-                    finally
-                    {
-                        job.Cts = null;
-                        job.FinishedAt = DateTime.UtcNow;
-                        _pending.TryRemove(job.Key, out _);
-                        TrimFinished();
-                    }
-
-                    if (_scanNeeded && _queue.Reader.Count == 0)
-                    {
-                        // One scan once the queue is empty (whatever the last job did): the files become real episodes
-                        _scanNeeded = false;
-                        _logger.LogInformation("⬇️ [DOWNLOAD] Queue empty: library scan requested");
                         try
                         {
-                            _libraryManager.QueueLibraryScan();
-                            _ = AnalyzeAfterScanAsync(stoppingToken);
+                            await RunJobAsync(job, stoppingToken);
                         }
-                        catch (Exception ex)
+                        catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            _logger.LogWarning(ex, "⬇️ [DOWNLOAD] ⚠️ could not request the library scan: {Message}", ex.Message);
+                            _logger.LogError(ex, "⬇️ [DOWNLOAD] ❌ unexpected error on '{Title}': {Message}", job.Title, ex.Message);
                         }
-                    }
+                        catch (OperationCanceledException)
+                        {
+                            // Server stopping
+                        }
+                        finally
+                        {
+                            Interlocked.Decrement(ref _running);
+                            Interlocked.Decrement(ref _held);
+                            RequestScanWhenIdle(stoppingToken);
+                        }
+                    }, CancellationToken.None);
                 }
             }
             catch (OperationCanceledException)
@@ -342,6 +316,82 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 // A background service that throws would stop the whole server: log and give up on downloads instead
                 _logger.LogError(ex, "⬇️ [DOWNLOAD] ❌ the download service stopped on an unexpected error: {Message}", ex.Message);
+            }
+        }
+
+        /// <summary>One download from start to end, with its state. Never leaves a job in "downloading".</summary>
+        private async Task RunJobAsync(DownloadJob job, CancellationToken stoppingToken)
+        {
+            if (job.Status == StatusCancelled)
+            {
+                _pending.TryRemove(job.Key, out _);
+                return;
+            }
+
+            job.StartedAt = DateTime.UtcNow;
+            job.Status = StatusDownloading;
+            using var jobCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            job.Cts = jobCts;
+            try
+            {
+                if (await DownloadAsync(job, jobCts.Token))
+                {
+                    _failed.TryRemove(job.Key, out _);
+                    _scanNeeded = true;
+                    job.Status = StatusDone;
+                }
+                else
+                {
+                    _failed[job.Key] = DateTime.UtcNow;
+                    job.Status = StatusFailed;
+                    job.Error ??= "Échec (voir le journal du serveur).";
+                }
+            }
+            catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+            {
+                _failed[job.Key] = DateTime.UtcNow;
+                job.Status = StatusCancelled;
+                job.Error = "Annulé.";
+                _logger.LogInformation("⬇️ [DOWNLOAD] '{Title}' ({Key}) cancelled", job.Title, job.Key);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _failed[job.Key] = DateTime.UtcNow;
+                job.Status = StatusFailed;
+                job.Error = ex.Message;
+                _logger.LogWarning(ex, "⬇️ [DOWNLOAD] ⚠️ '{Title}' ({Key}) failed: {Message}", job.Title, job.Key, ex.Message);
+            }
+            finally
+            {
+                job.Cts = null;
+                job.FinishedAt = DateTime.UtcNow;
+                _pending.TryRemove(job.Key, out _);
+                TrimFinished();
+            }
+        }
+
+        /// <summary>Once nothing is running, waiting or queued any more, and at least one download succeeded: one library scan, then one analysis</summary>
+        private void RequestScanWhenIdle(CancellationToken stoppingToken)
+        {
+            lock (_scanLock)
+            {
+                if (!_scanNeeded || Volatile.Read(ref _held) > 0 || _queue.Reader.Count > 0)
+                {
+                    return;
+                }
+
+                // One scan once the queue is empty (whatever the last job did): the files become real episodes
+                _scanNeeded = false;
+                _logger.LogInformation("⬇️ [DOWNLOAD] Queue empty: library scan requested");
+                try
+                {
+                    _libraryManager.QueueLibraryScan();
+                    _ = AnalyzeAfterScanAsync(stoppingToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⬇️ [DOWNLOAD] ⚠️ could not request the library scan: {Message}", ex.Message);
+                }
             }
         }
 
