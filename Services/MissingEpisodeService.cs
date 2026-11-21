@@ -692,6 +692,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     Key = EpisodeKey(source, item),
                     Title = item.Title,
+                    IndexNumber = item.IndexNumber,
                     Url = url,
                     Folder = season.Path,
                     Source = source

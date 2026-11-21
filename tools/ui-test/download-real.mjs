@@ -1,7 +1,7 @@
 // Automatic download of the videos of missing episodes (source option AutoDownloadVideos + EpisodeListMapping.VideoUrl).
 // The mock API offers, for the season "Cuisine du monde / Saison 1": a direct MP4 served as application/octet-stream (b1v2),
 // an HLS playlist with MPEG-TS segments (b1v3) and an HTML page that is not a video (b1v4).
-// Expected: b1v2 and b1v3 end up as "{title} {dm-id}.mp4" in the season folder (the HLS one converted to a real MP4 by ffmpeg),
+// Expected: b1v2 and b1v3 end up as "E{n} {title} {dm-id}.mp4" in the season folder (the HLS one converted to a real MP4 by ffmpeg),
 // b1v4 is refused, and once the scan has run the two downloaded episodes are no longer reported as missing.
 // Usage: node download-real.mjs <base_url> <season_dir> [user] [password]
 //   season_dir: the host folder of "Saison 1 {dm-b1}" (the container must be able to write in it)
@@ -30,11 +30,15 @@ const analyze = async () => {
 const missingTags = report => (report?.Seasons || []).filter(s => s.SourceItemId === 'dm-b1').flatMap(s => (s.Missing || []).map(m => m.Tag));
 const downloaded = () => fs.readdirSync(DIR).filter(f => /\{dm-b1v[2-4]\}.*\.(mp4|part)$/.test(f));
 const cleanup = () => { for (const f of downloaded()) fs.rmSync(path.join(DIR, f), { force: true }); };
+// After the files are removed the library still holds their episodes: a scan drops them
+const scan = async () => { await api('POST', '/Library/Refresh'); await wait(6000);
+  for (let i = 0; i < 80; i++) { if ((await api('GET', '/ScheduledTasks')).find(t => t.Key === 'RefreshLibrary')?.State === 'Idle') break; await wait(1500); } await wait(2000); };
 const probe = file => JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type:format=format_name', '-of', 'json', file]).toString());
 
 const original = await api('GET', `/Plugins/${PLUGIN}/Configuration`);
 try {
   cleanup();
+  await scan();
   const config = JSON.parse(JSON.stringify(original));
   const source = config.Sources.find(s => s.Prefix === 'dm');
   source.AutoDownloadVideos = true;
@@ -49,8 +53,8 @@ try {
   let files = [];
   for (let i = 0; i < 60; i++) { files = downloaded().filter(f => !f.endsWith('.part')); if (files.length >= 2) break; await wait(2000); }
   const direct = files.find(f => f.includes('{dm-b1v2}')), hls = files.find(f => f.includes('{dm-b1v3}'));
-  check('direct MP4 downloaded as "{title} {tag}.mp4"', direct === 'Le Japon {dm-b1v2}.mp4', JSON.stringify(files));
-  check('HLS playlist converted to "{title} {tag}.mp4"', hls === 'Le Pérou {dm-b1v3}.mp4', JSON.stringify(files));
+  check('direct MP4 downloaded as "E{n} {title} {tag}.mp4"', direct === 'E02 Le Japon {dm-b1v2}.mp4', JSON.stringify(files));
+  check('HLS playlist converted to "E{n} {title} {tag}.mp4"', hls === 'E03 Le Pérou {dm-b1v3}.mp4', JSON.stringify(files));
   check('the HTML page was refused (no file for b1v4)', !downloaded().some(f => f.includes('{dm-b1v4}')), JSON.stringify(downloaded()));
   check('no .part file left behind', !downloaded().some(f => f.endsWith('.part')), JSON.stringify(downloaded()));
   for (const f of [direct, hls].filter(Boolean)) {
@@ -70,6 +74,7 @@ try {
 } finally {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, original);
   cleanup();
+  await scan();
 }
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

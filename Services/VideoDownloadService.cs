@@ -20,7 +20,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 {
     /// <summary>
     /// Downloads the video of a missing episode into its season folder (source option AutoDownloadVideos), one at a time,
-    /// in the background. The file is named "{title} {prefix-id}.mp4": the tag makes the next library scan pair it with the
+    /// in the background. The file is named "E{number} {title} {prefix-id}.mp4": the tag makes the next library scan pair it with the
     /// API episode, which then stops being reported as missing.
     /// The format is detected, not assumed: a direct file (MP4, WebM, MKV) is streamed to disk as it is, an HLS playlist
     /// (.m3u8) or a DASH manifest is remuxed to MP4 by the server's own ffmpeg (re-encoded only if the streams cannot be copied).
@@ -56,6 +56,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         {
             public string Key { get; set; }
             public string Title { get; set; }
+            public int? IndexNumber { get; set; }
             public string Url { get; set; }
             public string Folder { get; set; }
             public SourceConfiguration Source { get; set; }
@@ -144,7 +145,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         private async Task<bool> DownloadAsync(DownloadJob job, CancellationToken cancellationToken)
         {
-            var baseName = SafeFileName(job.Title, job.Key) + " {" + job.Key + "}";
+            // "E02 Title {prefix-id}": the number first, like the other files of the season, so the folder sorts in episode order
+            var number = job.IndexNumber is int index && index > 0 ? $"E{index:D2} " : string.Empty;
+            var baseName = number + SafeFileName(job.Title, job.Key) + " {" + job.Key + "}";
             if (HasFileFor(job.Folder, job.Key))
             {
                 return true;
