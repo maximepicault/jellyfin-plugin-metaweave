@@ -270,6 +270,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     found.ThumbnailUrl = found.Url;
                 }
 
+                ForgetLandscapePoster(item, source, results);
+
                 _logger.LogInformation("🖼️ [IMAGE PROVIDER] ✅ Found {Count} images for {ItemName}", results.Count, item.Name);
             }
             catch (Exception ex)
@@ -278,6 +280,51 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             }
 
             return results;
+        }
+
+        /// <summary>
+        /// Option LandscapePosterCrop: Jellyfin keeps the poster it already holds unless "Replace existing images" is ticked, so a landscape
+        /// poster downloaded before the option was on would stay blurry after a plain "Refresh". When this provider is about to offer a Primary
+        /// image for a series or season whose current Primary is landscape, that entry is dropped (the file is not deleted): Jellyfin then
+        /// sees no poster and downloads ours, cropped to portrait. A portrait poster is never touched, so this happens once.
+        /// </summary>
+        private void ForgetLandscapePoster(BaseItem item, SourceConfiguration source, List<RemoteImageInfo> results)
+        {
+            if (source?.LandscapePosterCrop != true || !(item is Series || item is Season) || !results.Any(r => r.Type == ImageType.Primary))
+            {
+                return;
+            }
+
+            try
+            {
+                var current = item.GetImageInfo(ImageType.Primary, 0);
+                if (current == null)
+                {
+                    return;
+                }
+
+                var width = current.Width;
+                var height = current.Height;
+                if ((width <= 0 || height <= 0) && !string.IsNullOrEmpty(current.Path) && System.IO.File.Exists(current.Path))
+                {
+                    using var codec = SkiaSharp.SKCodec.Create(current.Path);
+                    if (codec != null)
+                    {
+                        width = codec.Info.Width;
+                        height = codec.Info.Height;
+                    }
+                }
+
+                if (width > height && height > 0)
+                {
+                    item.RemoveImage(current);
+                    _logger.LogInformation("📐 [POSTER] {ItemName}: its {Width}x{Height} landscape poster is replaced by the cropped one", item.Name, width, height);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("📐 [POSTER] ⚠️ Could not check the current poster of {ItemName}: {Message}", item.Name, ex.Message);
+            }
         }
 
         /// <summary>
