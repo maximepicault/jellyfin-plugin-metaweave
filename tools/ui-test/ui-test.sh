@@ -97,7 +97,7 @@ if ! docker inspect "$NAME" >/dev/null 2>&1; then
 EOF
   log "Creating container $NAME ($IMAGE) sur :$PORT"
   docker run -d --name "$NAME" --user "$(id -u):$(id -g)" -p "$PORT:8096" \
-    -v "$WORK/config:/config" -v "$WORK/cache:/cache" -v "$WORK/media:/media:ro" "$IMAGE" >/dev/null
+    -v "$WORK/config:/config" -v "$WORK/cache:/cache" -v "$WORK/media:/media" "$IMAGE" >/dev/null
 else
   log "Restarting $NAME with the new DLL"
   docker restart "$NAME" >/dev/null

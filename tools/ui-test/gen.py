@@ -70,3 +70,13 @@ for fname in ["Épisode démo 10 S01E01.mkv", "Épisode démo 11 S01E02.mkv"]:
     os.makedirs(os.path.dirname(out), exist_ok=True)
     if not os.path.exists(out):
         subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=2", "-c:v", "libx264", "-t", "2", out], check=True)
+
+# Videos the mock API offers for download (download-real.mjs): a direct MP4 (served with a generic content type), an HLS playlist
+# with MPEG-TS segments, and a page that is not a video at all
+dl = os.path.join(img, "media"); os.makedirs(dl, exist_ok=True)
+src = os.path.join(dl, "b1v2.mp4")
+if not os.path.exists(src):
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:d=3", "-f", "lavfi", "-i", "sine=d=3", "-c:v", "libx264", "-c:a", "aac", "-shortest", src], check=True)
+if not os.path.exists(os.path.join(dl, "b1v3.m3u8")):
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", src, "-c", "copy", "-f", "hls", "-hls_time", "1", "-hls_list_size", "0",
+                    "-hls_segment_filename", os.path.join(dl, "b1v3-%d.ts"), os.path.join(dl, "b1v3.m3u8")], check=True)

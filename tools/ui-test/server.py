@@ -19,10 +19,13 @@ CHAPTERS = {
     "d1v1": [{"time": "00:00", "end": 0.4, "title": "Introduction"}, {"time": 1, "end": "0:01.5", "title": "Milieu en secondes"}, {"time": "0:01.5", "end": "0:01.7", "title": "Fin"}, {"time": "0:30", "title": "Au-delà de la vidéo"}],
     "d1v3": [{"time": "0:00", "end": "12:34", "title": "Début"}, {"time": 754, "end": "1:02:03", "title": "Le débat"}, {"time": "1:02:03", "title": "Conclusion"}],   # a missing episode: no video, text in the synopsis
 }
+DOWNLOADS = {"b1v2": "b1v2.mp4", "b1v3": "b1v3.m3u8", "b1v4": "notvideo"}
 def video_json(vid):
     sid, nid, i, (t, d, dur) = VIDS[vid]
     j = {"id": vid, "title": t, "overview": OV if i % 2 else None, "premiereDate": d, "indexNumber": i, "duration": dur, "thumb": f"{BASE}/img/{vid}.jpg"}
     if vid in CHAPTERS: j["chapters"] = CHAPTERS[vid]
+    # Full videos offered for download (download-real.mjs): direct MP4, HLS playlist, and an HTML page
+    if vid in DOWNLOADS: j["video"] = {"url": f"{BASE}/media/{DOWNLOADS[vid]}"}
     # Genres and tags with case variants and terms one would not want: the rules of the "Genres et tags" screen act on them
     if vid in ("d1v1", "d1v2"):
         j["genres"] = ["Docu", "DOCU", "Voyage", "Sponsorisé"]
@@ -89,6 +92,12 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/img/"):
             f = os.path.join(IMG_DIR, os.path.basename(p))
             return self.send(200, open(f, "rb").read(), "image/jpeg") if os.path.exists(f) else self.send(404, {})
+        if p.startswith("/media/"):
+            name = os.path.basename(p)
+            if name == "notvideo": return self.send(200, b"<html><body>Please sign in</body></html>", "text/html")
+            f = os.path.join(IMG_DIR, "media", name)
+            ctype = {".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t"}.get(os.path.splitext(name)[1], "application/octet-stream")
+            return self.send(200, open(f, "rb").read(), ctype) if os.path.exists(f) else self.send(404, {})
         # A record whose fields are null / empty / missing, to exercise the fallback "a || b"
         m = re.fullmatch(r"/fallback/(\w+)", p)
         if m:
