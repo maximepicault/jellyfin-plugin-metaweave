@@ -164,7 +164,12 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
 .MuiTab-root.Mui-selected { color: var(--pj-text) !important; }
 /* MUI's "primary" colour is Jellyfin blue everywhere in that layout: the toolbar's main
    button (Lecture aléatoire), checked boxes and switches, progress */
-.MuiButton-containedPrimary { background-color: var(--pj-amber) !important; color: var(--pj-amber-ink) !important; box-shadow: none !important; }
+.MuiButton-containedPrimary, .MuiAppBar-root .MuiButton-containedPrimary {
+  background-color: var(--pj-amber) !important; color: var(--pj-amber-ink) !important; box-shadow: none !important; text-transform: none;
+}
+.MuiButton-containedPrimary .MuiButton-startIcon, .MuiButton-containedPrimary .MuiSvgIcon-root { color: inherit !important; }
+/* buttons glued in a group (Tout lire | shuffle): a dark hairline between them */
+.MuiButtonGroup-grouped.MuiButton-containedPrimary:not(:last-of-type) { border-right-color: rgba(26, 20, 5, .35) !important; }
 .MuiButton-containedPrimary:hover { filter: brightness(1.08); }
 .MuiButton-outlinedPrimary { color: var(--pj-amber) !important; border-color: rgba(242, 180, 65, .5) !important; }
 .MuiButton-textPrimary:not(.MuiAppBar-root .MuiButton-textPrimary) { color: var(--pj-amber) !important; }
@@ -172,8 +177,10 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
 .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track { background-color: var(--pj-amber) !important; }
 .MuiCircularProgress-root { color: var(--pj-amber) !important; }
 .MuiLinearProgress-bar { background-color: var(--pj-amber) !important; }
-.MuiAppBar-root .MuiButton-root { color: var(--pj-text-2) !important; border-radius: var(--pj-r-ui); text-transform: none; }
-@media (hover: hover) { .MuiAppBar-root .MuiButton-root:hover { color: var(--pj-text) !important; background: rgba(235, 230, 217, .06) !important; } }
+/* only the text links: the app bar also holds the library toolbar, whose filled
+   buttons (Tout lire, shuffle) must keep dark text on amber */
+.MuiAppBar-root .MuiButton-text { color: var(--pj-text-2) !important; border-radius: var(--pj-r-ui); text-transform: none; }
+@media (hover: hover) { .MuiAppBar-root .MuiButton-text:hover { color: var(--pj-text) !important; background: rgba(235, 230, 217, .06) !important; } }
 .MuiAppBar-root .MuiButton-textPrimary {
   color: var(--pj-text) !important; border-radius: var(--pj-r-ui) var(--pj-r-ui) 0 0;
   box-shadow: inset 0 -2px 0 var(--pj-amber);
