@@ -117,6 +117,7 @@
                 <nav class="cmn-nav" aria-label="Pages du plugin">
                     <a class="cmn-tab" href="#/configurationpage?name=Custom%20Metadata%20Provider">Configuration <span class="cmn-count" data-cmn-count="sources"></span></a>
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataMissingEpisodes">Épisodes manquants <span class="cmn-count" data-cmn-count="missing"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDownloads">Téléchargements <span class="cmn-count" data-cmn-count="downloads"></span></a>
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataPeople">Personnes <span class="cmn-count" data-cmn-count="people"></span></a>
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDiagnostic">Diagnostic <span class="cmn-count" data-cmn-count="diagnostic"></span></a>
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataTaxonomy" aria-current="page">Genres et tags <span class="cmn-count" data-cmn-count="taxonomy"></span></a>
@@ -275,6 +276,7 @@
                     set('missing', s.MissingEpisodes, s.MissingEpisodes > 0 ? 'alert' : (s.SourceErrors > 0 ? 'warn' : ''),
                         s.MissingEpisodes == null ? '' : n(s.MissingEpisodes, 'épisode manquant', 'épisodes manquants') + (s.SourceErrors > 0 ? ', ' + n(s.SourceErrors, 'source en erreur', 'sources en erreur') : ''));
                     set('people', s.People, '', n(s.People, 'personne', 'personnes'));
+                    set('downloads', s.Downloads > 0 ? s.Downloads : (s.DownloadsFailed > 0 ? s.DownloadsFailed : null), s.Downloads > 0 ? '' : 'alert', s.Downloads > 0 ? n(s.Downloads, 'téléchargement en cours ou en attente', 'téléchargements en cours ou en attente') : (s.DownloadsFailed > 0 ? n(s.DownloadsFailed, 'téléchargement en échec', 'téléchargements en échec') : ''));
                     set('diagnostic', s.NotEnriched, s.NotEnriched > 0 ? 'warn' : '', s.NotEnriched == null ? '' : n(s.NotEnriched, 'élément non enrichi', 'éléments non enrichis'));
                     set('taxonomy', s.TaxonomyRules, '', s.TaxonomyRules == null ? '' : n(s.TaxonomyRules, 'règle', 'règles'));
                     centre();

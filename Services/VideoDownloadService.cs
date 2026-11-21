@@ -60,6 +60,162 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             public string Url { get; set; }
             public string Folder { get; set; }
             public SourceConfiguration Source { get; set; }
+
+            // Follow-up state, shown by the downloads page
+            public string Status { get; set; } = StatusQueued;
+            public string Kind { get; set; }
+            public string Error { get; set; }
+            public string File { get; set; }
+            public string Variant { get; set; }
+            public long BytesDone { get; set; }
+            public long? BytesTotal { get; set; }
+            public string PartPath { get; set; }
+            public DateTime QueuedAt { get; set; } = DateTime.UtcNow;
+            public DateTime? StartedAt { get; set; }
+            public DateTime? FinishedAt { get; set; }
+            internal CancellationTokenSource Cts { get; set; }
+        }
+
+        public const string StatusQueued = "queued";
+        public const string StatusDownloading = "downloading";
+        public const string StatusConverting = "converting";
+        public const string StatusDone = "done";
+        public const string StatusFailed = "failed";
+        public const string StatusCancelled = "cancelled";
+        private const int MaxFinishedKept = 200;
+
+        private readonly ConcurrentDictionary<string, DownloadJob> _jobs = new ConcurrentDictionary<string, DownloadJob>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>What the downloads page shows: one row per download, running first, then queued, then the finished ones (newest first).</summary>
+        public sealed class DownloadInfo
+        {
+            public string Key { get; set; }
+            public string Title { get; set; }
+            public int? IndexNumber { get; set; }
+            public string Series { get; set; }
+            public string Season { get; set; }
+            public string Source { get; set; }
+            public string Host { get; set; }
+            public string Status { get; set; }
+            public string Kind { get; set; }
+            public string Quality { get; set; }
+            public long BytesDone { get; set; }
+            public long? BytesTotal { get; set; }
+
+            /// <summary>Average speed since the download started (0 until it has run for a second)</summary>
+            public long BytesPerSecond { get; set; }
+            public string Message { get; set; }
+            public string File { get; set; }
+            public DateTime QueuedAt { get; set; }
+            public DateTime? StartedAt { get; set; }
+            public DateTime? FinishedAt { get; set; }
+        }
+
+        public List<DownloadInfo> Snapshot()
+        {
+            static int Rank(string status) => status == StatusDownloading || status == StatusConverting ? 0 : status == StatusQueued ? 1 : 2;
+            var list = new List<DownloadInfo>();
+            foreach (var job in _jobs.Values)
+            {
+                var done = job.BytesDone;
+                if (job.Status == StatusConverting && job.PartPath != null)
+                {
+                    try { var part = new FileInfo(job.PartPath); done = part.Exists ? part.Length : 0; } catch (IOException) { }
+                }
+
+                string host = null;
+                try { host = new Uri(job.Url).Host; } catch (UriFormatException) { }
+                list.Add(new DownloadInfo
+                {
+                    Key = job.Key,
+                    Title = job.Title,
+                    IndexNumber = job.IndexNumber,
+                    Series = TagParser.Strip(Path.GetFileName(Path.GetDirectoryName(job.Folder.TrimEnd('/', '\\')) ?? string.Empty)),
+                    Season = TagParser.Strip(Path.GetFileName(job.Folder.TrimEnd('/', '\\'))),
+                    Source = job.Source?.Name,
+                    Host = host,
+                    Status = job.Status,
+                    Kind = job.Kind,
+                    Quality = job.Source?.VideoQuality,
+                    BytesDone = done,
+                    BytesTotal = job.BytesTotal,
+                    BytesPerSecond = job.StartedAt.HasValue && (job.Status == StatusDownloading || job.Status == StatusConverting) && (DateTime.UtcNow - job.StartedAt.Value).TotalSeconds > 1 ? (long)(done / (DateTime.UtcNow - job.StartedAt.Value).TotalSeconds) : 0,
+                    Message = job.Error,
+                    File = job.File,
+                    QueuedAt = job.QueuedAt,
+                    StartedAt = job.StartedAt,
+                    FinishedAt = job.FinishedAt
+                });
+            }
+
+            return list.OrderBy(i => Rank(i.Status))
+                .ThenBy(i => Rank(i.Status) == 2 ? 0 : 1).ThenByDescending(i => Rank(i.Status) == 2 ? (i.FinishedAt ?? i.QueuedAt) : DateTime.MinValue)
+                .ThenBy(i => i.QueuedAt).ToList();
+        }
+
+        /// <summary>Stops a queued or running download (a running one is interrupted and its partial file deleted). It is not retried on its own for the failure backoff.</summary>
+        public bool Cancel(string key)
+        {
+            if (!_jobs.TryGetValue(key, out var job) || (job.Status != StatusQueued && job.Status != StatusDownloading && job.Status != StatusConverting))
+            {
+                return false;
+            }
+
+            if (job.Status == StatusQueued)
+            {
+                job.Status = StatusCancelled;
+                job.Error = "Annulé avant le début.";
+                job.FinishedAt = DateTime.UtcNow;
+                _failed[key] = DateTime.UtcNow;
+                return true;
+            }
+
+            try { job.Cts?.Cancel(); } catch (ObjectDisposedException) { }
+            return true;
+        }
+
+        /// <summary>Queues again a failed or cancelled download, without waiting for the failure backoff</summary>
+        public bool Retry(string key)
+        {
+            if (!_jobs.TryGetValue(key, out var job) || (job.Status != StatusFailed && job.Status != StatusCancelled))
+            {
+                return false;
+            }
+
+            _failed.TryRemove(key, out _);
+            var fresh = new DownloadJob { Key = job.Key, Title = job.Title, IndexNumber = job.IndexNumber, Url = job.Url, Folder = job.Folder, Source = job.Source };
+            return Enqueue(fresh);
+        }
+
+        /// <summary>Forgets the finished rows (done, failed, cancelled), and the failure backoff of those that failed or were cancelled.</summary>
+        public int ClearFinished()
+        {
+            var removed = 0;
+            foreach (var pair in _jobs)
+            {
+                if ((pair.Value.Status == StatusDone || pair.Value.Status == StatusFailed || pair.Value.Status == StatusCancelled) && _jobs.TryRemove(pair.Key, out _))
+                {
+                    // Forgetting a failure also forgets its backoff: the next analysis tries that episode again
+                    _failed.TryRemove(pair.Key, out _);
+                    removed++;
+                }
+            }
+
+            return removed;
+        }
+
+        /// <summary>Number of downloads waiting or running (the tab counter)</summary>
+        public int ActiveCount => _jobs.Values.Count(j => j.Status == StatusQueued || j.Status == StatusDownloading || j.Status == StatusConverting);
+
+        public int FailedCount => _jobs.Values.Count(j => j.Status == StatusFailed);
+
+        private void TrimFinished()
+        {
+            var finished = _jobs.Values.Where(j => j.Status == StatusDone || j.Status == StatusFailed || j.Status == StatusCancelled).OrderByDescending(j => j.FinishedAt ?? j.QueuedAt).Skip(MaxFinishedKept).ToList();
+            foreach (var job in finished)
+            {
+                _jobs.TryRemove(job.Key, out _);
+            }
         }
 
         /// <summary>
@@ -95,6 +251,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 return false;
             }
 
+            job.Status = StatusQueued;
+            job.QueuedAt = DateTime.UtcNow;
+            _jobs[job.Key] = job;
             _queue.Writer.TryWrite(job);
             _logger.LogInformation("⬇️ [DOWNLOAD] Queued '{Title}' ({Key}) from {Url}", job.Title, job.Key, job.Url);
             return true;
@@ -106,26 +265,51 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 await foreach (var job in _queue.Reader.ReadAllAsync(stoppingToken))
                 {
+                    if (job.Status == StatusCancelled)
+                    {
+                        _pending.TryRemove(job.Key, out _);
+                        continue;
+                    }
+
+                    job.StartedAt = DateTime.UtcNow;
+                    job.Status = StatusDownloading;
+                    using var jobCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    job.Cts = jobCts;
                     try
                     {
-                        if (await DownloadAsync(job, stoppingToken))
+                        if (await DownloadAsync(job, jobCts.Token))
                         {
                             _failed.TryRemove(job.Key, out _);
                             _scanNeeded = true;
+                            job.Status = StatusDone;
                         }
                         else
                         {
                             _failed[job.Key] = DateTime.UtcNow;
+                            job.Status = StatusFailed;
+                            job.Error ??= "Échec (voir le journal du serveur).";
                         }
+                    }
+                    catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+                    {
+                        _failed[job.Key] = DateTime.UtcNow;
+                        job.Status = StatusCancelled;
+                        job.Error = "Annulé.";
+                        _logger.LogInformation("⬇️ [DOWNLOAD] '{Title}' ({Key}) cancelled", job.Title, job.Key);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         _failed[job.Key] = DateTime.UtcNow;
+                        job.Status = StatusFailed;
+                        job.Error = ex.Message;
                         _logger.LogWarning(ex, "⬇️ [DOWNLOAD] ⚠️ '{Title}' ({Key}) failed: {Message}", job.Title, job.Key, ex.Message);
                     }
                     finally
                     {
+                        job.Cts = null;
+                        job.FinishedAt = DateTime.UtcNow;
                         _pending.TryRemove(job.Key, out _);
+                        TrimFinished();
                     }
 
                     if (_scanNeeded && _queue.Reader.Count == 0)
@@ -150,6 +334,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var baseName = number + SafeFileName(job.Title, job.Key) + " {" + job.Key + "}";
             if (HasFileFor(job.Folder, job.Key))
             {
+                job.Error = "Un fichier avec ce tag existe déjà dans le dossier.";
                 return true;
             }
 
@@ -162,6 +347,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("⬇️ [DOWNLOAD] ⚠️ '{Title}': HTTP {Status} {Reason}", job.Title, (int)response.StatusCode, response.ReasonPhrase);
+                job.Error = $"Le serveur a répondu HTTP {(int)response.StatusCode} {response.ReasonPhrase}.";
                 return false;
             }
 
@@ -181,11 +367,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             var kind = DetectKind(job.Url, contentType, head, read);
+            job.Kind = kind.ToString();
             _logger.LogInformation("⬇️ [DOWNLOAD] '{Title}': detected {Kind} (content-type '{Type}')", job.Title, kind, contentType);
 
             if (kind == VideoKind.Unknown)
             {
                 _logger.LogWarning("⬇️ [DOWNLOAD] ⚠️ '{Title}': not a video (content-type '{Type}'): skipped", job.Title, contentType);
+                job.Error = $"Le lien ne mène pas à une vidéo (type « {(string.IsNullOrEmpty(contentType) ? "inconnu" : contentType)} »).";
                 return false;
             }
 
@@ -196,11 +384,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     var variant = await PickVariantAsync(job, head, read, body, cancellationToken);
                     if (variant != null)
                     {
-                        job = new DownloadJob { Key = job.Key, Title = job.Title, IndexNumber = job.IndexNumber, Url = variant, Folder = job.Folder, Source = job.Source };
+                        job.Variant = variant;
                     }
                 }
 
                 var target = Path.Combine(job.Folder, baseName + ".mp4");
+                job.Status = StatusConverting;
+                job.PartPath = target + ".part";
                 return await RemuxAsync(job, client, target, cancellationToken);
             }
 
@@ -209,9 +399,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var final = Path.Combine(job.Folder, baseName + extension);
             var part = final + ".part";
             var length = response.Content.Headers.ContentLength;
+            job.BytesTotal = length;
             if (!HasRoomFor(job.Folder, length ?? 0))
             {
                 _logger.LogWarning("⬇️ [DOWNLOAD] ⚠️ '{Title}': not enough free disk space in {Folder}", job.Title, job.Folder);
+                job.Error = "Pas assez d'espace disque libre dans le dossier (1 Go de marge est exigé).";
                 return false;
             }
 
@@ -220,17 +412,26 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 await using (var file = new FileStream(part, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true))
                 {
                     await file.WriteAsync(head.AsMemory(0, read), cancellationToken);
-                    await body.CopyToAsync(file, 1 << 16, cancellationToken);
+                    job.BytesDone = read;
+                    var buffer = new byte[1 << 16];
+                    int got;
+                    while ((got = await body.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+                    {
+                        await file.WriteAsync(buffer.AsMemory(0, got), cancellationToken);
+                        job.BytesDone += got;
+                    }
                 }
 
                 if (length.HasValue && new FileInfo(part).Length != length.Value)
                 {
                     _logger.LogWarning("⬇️ [DOWNLOAD] ⚠️ '{Title}': incomplete download ({Got}/{Expected} bytes)", job.Title, new FileInfo(part).Length, length.Value);
+                    job.Error = $"Téléchargement incomplet ({new FileInfo(part).Length} octets reçus sur {length.Value}).";
                     File.Delete(part);
                     return false;
                 }
 
                 File.Move(part, final, true);
+                job.File = Path.GetFileName(final);
             }
             catch
             {
@@ -333,12 +534,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             if (string.IsNullOrWhiteSpace(ffmpeg) || !File.Exists(ffmpeg))
             {
                 _logger.LogWarning("⬇️ [DOWNLOAD] ⚠️ '{Title}': ffmpeg not found (Jellyfin's encoder path is empty): cannot convert the stream to MP4", job.Title);
+                job.Error = "ffmpeg est introuvable (le chemin de Jellyfin est vide) : impossible de convertir le flux en MP4.";
                 return false;
             }
 
             if (!HasRoomFor(job.Folder, 0))
             {
                 _logger.LogWarning("⬇️ [DOWNLOAD] ⚠️ '{Title}': not enough free disk space in {Folder}", job.Title, job.Folder);
+                job.Error = "Pas assez d'espace disque libre dans le dossier (1 Go de marge est exigé).";
                 return false;
             }
 
@@ -358,7 +561,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var args = new List<string> { "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-allowed_extensions", "ALL" };
                 if (userAgent != null) { args.Add("-user_agent"); args.Add(userAgent); }
                 if (headerBlock.Length > 0) { args.Add("-headers"); args.Add(headerBlock.ToString()); }
-                args.AddRange(new[] { "-i", job.Url, "-map", "0:v:0?", "-map", "0:a?" });
+                args.AddRange(new[] { "-i", job.Variant ?? job.Url, "-map", "0:v:0?", "-map", "0:a?" });
                 if (attempt == "copy")
                 {
                     args.AddRange(new[] { "-c", "copy", "-bsf:a", "aac_adtstoasc" });
@@ -371,16 +574,30 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 args.AddRange(new[] { "-movflags", "+faststart", "-f", "mp4", part });
 
                 _logger.LogInformation("⬇️ [DOWNLOAD] '{Title}': ffmpeg {Mode} → {File}", job.Title, attempt, Path.GetFileName(target));
-                var (code, error) = await RunAsync(ffmpeg, args, cancellationToken);
+                int code;
+                string error;
+                try
+                {
+                    (code, error) = await RunAsync(ffmpeg, args, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    TryDelete(part);
+                    throw;
+                }
+
                 if (code == 0 && File.Exists(part) && new FileInfo(part).Length > 0)
                 {
                     File.Move(part, target, true);
+                    job.File = Path.GetFileName(target);
+                    job.BytesDone = new FileInfo(target).Length;
                     _logger.LogInformation("⬇️ [DOWNLOAD] ✅ '{Title}' saved as {File} ({Size} MB)", job.Title, Path.GetFileName(target), new FileInfo(target).Length / (1024 * 1024));
                     return true;
                 }
 
                 TryDelete(part);
                 _logger.LogWarning("⬇️ [DOWNLOAD] ⚠️ '{Title}': ffmpeg {Mode} failed (exit {Code}): {Error}", job.Title, attempt, code, Truncate(error, 500));
+                job.Error = "ffmpeg a échoué : " + (code == -1 && error == "timeout" ? "délai dépassé (6 h)." : Truncate(string.Join(" ", (error ?? string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries).TakeLast(2)), 300));
             }
 
             return false;

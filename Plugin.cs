@@ -68,6 +68,13 @@ namespace Jellyfin.Plugin.CustomMetadata
                     Name = "CustomMetadataTaxonomy",
                     DisplayName = "Genres et tags",
                     EmbeddedResourcePath = GetType().Namespace + ".Configuration.taxonomy.html"
+                },
+                new PluginPageInfo
+                {
+                    // "Téléchargements" screen: follow-up of the automatic video downloads. Reached from the tab bar, not from the left menu.
+                    Name = "CustomMetadataDownloads",
+                    DisplayName = "Téléchargements",
+                    EmbeddedResourcePath = GetType().Namespace + ".Configuration.downloads.html"
                 }
             };
         }

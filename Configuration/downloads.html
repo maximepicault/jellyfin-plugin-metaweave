@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Téléchargements</title>
+</head>
+<body>
+<div id="CustomMetadataDownloadsPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button">
+    <!-- Styles INSIDE the page: jellyfin-web keeps only this div, a <style> in the <head> would be ignored -->
+    <style>
+        #CustomMetadataDownloadsPage { --dl-border: rgba(255, 255, 255, 0.14); --dl-surface: rgba(255, 255, 255, 0.04); --dl-muted: rgba(255, 255, 255, 0.7); --dl-warn: #ffd27f; --dl-accent: #00a4dc; --dl-ok: #3fbf7f; }
+        #CustomMetadataDownloadsPage [data-role="content"] { overflow: visible; }
+        #CustomMetadataDownloadsPage .dl-wrap { container-type: inline-size; max-width: 1340px; }
+        #CustomMetadataDownloadsPage .cmn-nav { position: relative; display: flex; gap: 4px; margin: 0 0 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.16); overflow-x: auto; scrollbar-width: none; }
+        #CustomMetadataDownloadsPage .cmn-tab { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 46px; padding: 0 16px; margin-bottom: -1px; border-bottom: 3px solid transparent; color: rgba(255, 255, 255, 0.72); font-weight: 600; text-decoration: none; white-space: nowrap; }
+        #CustomMetadataDownloadsPage .cmn-tab:hover { color: #fff; }
+        #CustomMetadataDownloadsPage .cmn-tab:focus-visible { outline: 2px solid #00a4dc; outline-offset: -2px; }
+        #CustomMetadataDownloadsPage .cmn-tab[aria-current="page"] { color: #fff; border-bottom-color: #00a4dc; }
+        #CustomMetadataDownloadsPage .cmn-count { min-width: 20px; box-sizing: border-box; padding: 2px 7px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 12px; font-weight: 700; text-align: center; }
+        #CustomMetadataDownloadsPage .cmn-count:empty { display: none; }
+        #CustomMetadataDownloadsPage .cmn-count.cmn-alert { background: #c0392b; }
+        #CustomMetadataDownloadsPage .cmn-count.cmn-warn { background: #a8620f; }
+        #CustomMetadataDownloadsPage h2 { margin: 0 0 6px; }
+        #CustomMetadataDownloadsPage .dl-lead { margin: 0 0 22px; max-width: 800px; color: var(--dl-muted); line-height: 1.5; }
+        #CustomMetadataDownloadsPage [hidden] { display: none !important; }
+        #CustomMetadataDownloadsPage .dl-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 0 0 16px; }
+        #CustomMetadataDownloadsPage .dl-tile { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border: 1px solid var(--dl-border); border-radius: 8px; background: rgba(255, 255, 255, 0.03); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataDownloadsPage .dl-tile[aria-pressed="true"] { border-color: var(--dl-accent); background: rgba(0, 164, 220, 0.14); }
+        #CustomMetadataDownloadsPage .dl-tile:focus-visible, #CustomMetadataDownloadsPage .dl-btn:focus-visible { outline: 2px solid var(--dl-accent); outline-offset: 2px; }
+        #CustomMetadataDownloadsPage .dl-tile b { font-size: 22px; }
+        #CustomMetadataDownloadsPage .dl-tile span { font-size: 13px; color: var(--dl-muted); }
+        #CustomMetadataDownloadsPage .dl-tile.dl-alert b { color: var(--dl-warn); }
+        #CustomMetadataDownloadsPage .dl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 14px; }
+        #CustomMetadataDownloadsPage .dl-bar .dl-live { flex: 1 1 auto; font-size: 13px; color: var(--dl-muted); }
+        #CustomMetadataDownloadsPage .dl-rows { border: 1px solid var(--dl-border); border-radius: 10px; overflow: hidden; }
+        #CustomMetadataDownloadsPage .dl-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) 112px; gap: 6px 24px; align-items: center; padding: 14px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+        #CustomMetadataDownloadsPage .dl-row:last-child { border-bottom: 0; }
+        #CustomMetadataDownloadsPage .dl-row[data-status="downloading"], #CustomMetadataDownloadsPage .dl-row[data-status="converting"] { background: rgba(0, 164, 220, 0.07); }
+        #CustomMetadataDownloadsPage .dl-row[data-status="failed"] { background: rgba(255, 210, 127, 0.07); }
+        #CustomMetadataDownloadsPage .dl-name { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+        #CustomMetadataDownloadsPage .dl-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+        #CustomMetadataDownloadsPage .dl-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--dl-muted); }
+        #CustomMetadataDownloadsPage .dl-state { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+        #CustomMetadataDownloadsPage .dl-badge { align-self: flex-start; padding: 2px 10px; border-radius: 11px; font-size: 12px; font-weight: 700; background: rgba(255, 255, 255, 0.14); color: #fff; }
+        #CustomMetadataDownloadsPage .dl-row[data-status="downloading"] .dl-badge, #CustomMetadataDownloadsPage .dl-row[data-status="converting"] .dl-badge { background: #0b6f95; }
+        #CustomMetadataDownloadsPage .dl-row[data-status="done"] .dl-badge { background: #24734a; }
+        #CustomMetadataDownloadsPage .dl-row[data-status="failed"] .dl-badge { background: #a8620f; }
+        #CustomMetadataDownloadsPage .dl-progress { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+        #CustomMetadataDownloadsPage .dl-progress > i { display: block; height: 100%; border-radius: 4px; background: var(--dl-accent); transition: width .4s ease; }
+        #CustomMetadataDownloadsPage .dl-progress.dl-wait > i { width: 35%; animation: dl-slide 1.4s ease-in-out infinite alternate; }
+        @keyframes dl-slide { from { margin-left: 0; } to { margin-left: 65%; } }
+        @media (prefers-reduced-motion: reduce) { #CustomMetadataDownloadsPage .dl-progress.dl-wait > i { animation: none; margin-left: 32%; } }
+        #CustomMetadataDownloadsPage .dl-detail { font-size: 13px; color: var(--dl-muted); overflow-wrap: anywhere; }
+        #CustomMetadataDownloadsPage .dl-detail code { font-size: 13px; }
+        #CustomMetadataDownloadsPage .dl-why { font-size: 14px; color: var(--dl-warn); line-height: 1.4; overflow-wrap: anywhere; }
+        #CustomMetadataDownloadsPage .dl-btn { min-height: 36px; padding: 0 14px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        #CustomMetadataDownloadsPage .dl-btn:hover { border-color: var(--dl-accent); }
+        #CustomMetadataDownloadsPage .dl-btn[disabled] { opacity: .5; cursor: default; }
+        #CustomMetadataDownloadsPage .dl-actions { display: flex; gap: 8px; justify-content: flex-end; }
+        #CustomMetadataDownloadsPage .dl-empty { padding: 26px 20px; text-align: center; color: var(--dl-muted); line-height: 1.6; }
+        #CustomMetadataDownloadsPage .dl-empty a { color: #33b6e6; }
+        #CustomMetadataDownloadsPage .dl-empty .dl-btn { margin-top: 12px; }
+        #CustomMetadataDownloadsPage .dl-note { margin: 12px 0 0; font-size: 13px; color: var(--dl-muted); line-height: 1.5; }
+        @container (max-width: 760px) {
+            #CustomMetadataDownloadsPage .dl-row { grid-template-columns: minmax(0, 1fr); }
+            #CustomMetadataDownloadsPage .dl-actions { justify-content: flex-start; }
+            #CustomMetadataDownloadsPage .dl-btn { min-height: 44px; }
+        }
+    </style>
+    <div data-role="content">
+        <div class="content-primary">
+            <div class="dl-wrap">
+                <nav class="cmn-nav" aria-label="Pages du plugin">
+                    <a class="cmn-tab" href="#/configurationpage?name=Custom%20Metadata%20Provider">Configuration <span class="cmn-count" data-cmn-count="sources"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataMissingEpisodes">Épisodes manquants <span class="cmn-count" data-cmn-count="missing"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDownloads" aria-current="page">Téléchargements <span class="cmn-count" data-cmn-count="downloads"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataPeople">Personnes <span class="cmn-count" data-cmn-count="people"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataDiagnostic">Diagnostic <span class="cmn-count" data-cmn-count="diagnostic"></span></a>
+                    <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataTaxonomy">Genres et tags <span class="cmn-count" data-cmn-count="taxonomy"></span></a>
+                </nav>
+                <h2>Téléchargements</h2>
+                <p class="dl-lead">Suivi du téléchargement automatique des vidéos des épisodes manquants : ce qui est en cours, ce qui attend, ce qui est terminé et ce qui a échoué. Les fichiers sont téléchargés un par un, en arrière-plan.</p>
+                <div class="dl-tiles" id="dlTiles"></div>
+                <div class="dl-bar">
+                    <span class="dl-live" id="dlLive" role="status" aria-live="polite"></span>
+                    <button type="button" class="dl-btn" id="dlClear">Vider les terminés</button>
+                </div>
+                <div id="dlList"></div>
+                <p class="dl-note">L'historique est gardé en mémoire : il repart de zéro au redémarrage de Jellyfin. Un téléchargement en échec ou annulé n'est pas relancé tout seul pendant 6 heures : « Relancer » l'ajoute tout de suite à la file, et « Vider les terminés » l'oublie, donc la prochaine analyse le retente.</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var page = document.querySelector('#CustomMetadataDownloadsPage');
+            var qs = function (selector) { return page.querySelector(selector); };
+            var state = null, filter = '', lastJson = '', timer = null;
+            var LABELS = { queued: 'En attente', downloading: 'Téléchargement', converting: 'Conversion', done: 'Terminé', failed: 'Échec', cancelled: 'Annulé' };
+            var KINDS = { Mp4: 'MP4', Webm: 'WebM', Matroska: 'MKV', Hls: 'flux HLS', Dash: 'flux DASH' };
+
+            // Counters of the shared tab bar (same code in the pages)
+            function loadNavStatus() {
+                // On a phone the bar scrolls sideways: centre the current tab (again once the counters have their width)
+                var centre = function() {
+                    var current = document.querySelector('#CustomMetadataDownloadsPage .cmn-tab[aria-current="page"]');
+                    if (current) { current.parentNode.scrollLeft = current.offsetLeft - (current.parentNode.clientWidth - current.offsetWidth) / 2; }
+                };
+                centre();
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Status')).then(function(s) {
+                    var set = function(name, value, tone, title) {
+                        var el = document.querySelector('#CustomMetadataDownloadsPage [data-cmn-count="' + name + '"]');
+                        if (!el) { return; }
+                        el.textContent = value == null ? '' : String(value);
+                        el.className = 'cmn-count' + (tone ? ' cmn-' + tone : '');
+                        el.title = title || '';
+                    };
+                    var n = function(count, one, many) { return count + ' ' + (count > 1 ? many : one); };
+                    set('sources', s.Sources, '', n(s.Sources, 'source', 'sources'));
+                    set('missing', s.MissingEpisodes, s.MissingEpisodes > 0 ? 'alert' : (s.SourceErrors > 0 ? 'warn' : ''),
+                        s.MissingEpisodes == null ? '' : n(s.MissingEpisodes, 'épisode manquant', 'épisodes manquants') + (s.SourceErrors > 0 ? ', ' + n(s.SourceErrors, 'source en erreur', 'sources en erreur') : ''));
+                    set('people', s.People, '', n(s.People, 'personne', 'personnes'));
+                    set('downloads', s.Downloads > 0 ? s.Downloads : (s.DownloadsFailed > 0 ? s.DownloadsFailed : null), s.Downloads > 0 ? '' : 'alert', s.Downloads > 0 ? n(s.Downloads, 'téléchargement en cours ou en attente', 'téléchargements en cours ou en attente') : (s.DownloadsFailed > 0 ? n(s.DownloadsFailed, 'téléchargement en échec', 'téléchargements en échec') : ''));
+                    set('diagnostic', s.NotEnriched, s.NotEnriched > 0 ? 'warn' : '', s.NotEnriched == null ? '' : n(s.NotEnriched, 'élément non enrichi', 'éléments non enrichis'));
+                    set('taxonomy', s.TaxonomyRules, '', s.TaxonomyRules == null ? '' : n(s.TaxonomyRules, 'règle', 'règles'));
+                    centre();
+                }, function() { /* counters are a comfort: the page works without them */ });
+            }
+
+            function escapeHtml(text) {
+                return String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            function plural(n, one, many) { return n + ' ' + (n > 1 ? many : one); }
+
+            function size(bytes) {
+                if (!bytes) { return '0 Mo'; }
+                if (bytes >= 1073741824) { return (bytes / 1073741824).toFixed(2).replace('.', ',') + ' Go'; }
+                if (bytes >= 1048576) { return (bytes / 1048576).toFixed(bytes >= 104857600 ? 0 : 1).replace('.', ',') + ' Mo'; }
+                return Math.max(1, Math.round(bytes / 1024)) + ' Ko';
+            }
+
+            function duration(seconds) {
+                seconds = Math.max(0, Math.round(seconds));
+                if (seconds < 60) { return seconds + ' s'; }
+                var m = Math.round(seconds / 60);
+                if (m < 60) { return m + ' min'; }
+                return Math.floor(m / 60) + ' h ' + ('0' + (m % 60)).slice(-2);
+            }
+
+            function ago(date) {
+                var minutes = Math.round((Date.now() - new Date(date).getTime()) / 60000);
+                if (minutes < 1) { return 'à l\'instant'; }
+                if (minutes < 60) { return 'il y a ' + minutes + ' min'; }
+                if (minutes < 60 * 24) { return 'il y a ' + Math.round(minutes / 60) + ' h'; }
+                return 'le ' + new Date(date).toLocaleDateString();
+            }
+
+            function isRunning(item) { return item.Status === 'downloading' || item.Status === 'converting'; }
+            function group(item) { return isRunning(item) ? 'running' : item.Status === 'queued' ? 'queued' : item.Status === 'done' ? 'done' : 'problem'; }
+
+            function stateHtml(item) {
+                var label = LABELS[item.Status] || item.Status;
+                var kind = item.Kind && KINDS[item.Kind] ? ' · ' + KINDS[item.Kind] : '';
+                var html = '<span class="dl-badge">' + escapeHtml(label) + '</span>';
+                if (isRunning(item)) {
+                    var total = item.Status === 'downloading' ? item.BytesTotal : null;
+                    var pct = total ? Math.min(100, Math.round(item.BytesDone * 100 / total)) : null;
+                    var rate = item.BytesPerSecond || 0;
+                    html += '<div class="dl-progress' + (pct == null ? ' dl-wait' : '') + '" role="progressbar" aria-label="' + escapeHtml(label + ' de ' + item.Title) + '"'
+                        + (pct == null ? '' : ' aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"') + '><i' + (pct == null ? '' : ' style="width:' + pct + '%"') + '></i></div>';
+                    var detail = pct != null ? pct + ' % · ' + size(item.BytesDone) + ' sur ' + size(total) : size(item.BytesDone) + (item.Status === 'converting' ? ' écrits' : ' reçus');
+                    if (rate) { detail += ' · ' + size(rate) + '/s'; }
+                    if (rate && total) { detail += ' · reste ' + duration((total - item.BytesDone) / rate); }
+                    html += '<span class="dl-detail">' + escapeHtml(detail + kind) + (item.Status === 'converting' ? ' · la durée n\'est pas connue d\'avance' : '') + '</span>';
+                } else if (item.Status === 'queued') {
+                    html += '<span class="dl-detail">Ajouté ' + ago(item.QueuedAt) + '</span>';
+                } else if (item.Status === 'done') {
+                    html += '<span class="dl-detail"><code>' + escapeHtml(item.File || '') + '</code>' + (item.BytesDone ? ' · ' + size(item.BytesDone) : '') + (item.FinishedAt ? ' · ' + ago(item.FinishedAt) : '') + '</span>';
+                } else {
+                    if (item.Status === 'failed') { html += '<span class="dl-why">' + escapeHtml(item.Message || '') + '</span>'; }
+                    if (item.FinishedAt) { html += '<span class="dl-detail">' + ago(item.FinishedAt) + '</span>'; }
+                }
+                return html;
+            }
+
+            function actionsHtml(item) {
+                var key = escapeHtml(item.Key);
+                if (isRunning(item) || item.Status === 'queued') { return '<button type="button" class="dl-btn" data-act="cancel" data-key="' + key + '">Annuler</button>'; }
+                if (item.Status === 'failed' || item.Status === 'cancelled') { return '<button type="button" class="dl-btn" data-act="retry" data-key="' + key + '">Relancer</button>'; }
+                return '';
+            }
+
+            function emptyHtml() {
+                if (state && !state.EnabledSources) {
+                    return '<div class="dl-empty">Le téléchargement automatique n\'est activé sur aucune source.<br>Dans la configuration d\'une source, ouvrez <b>Épisodes manquants</b>, renseignez « Vidéo complète (URL) » et activez « Télécharger automatiquement les vidéos des épisodes manquants ».<br><a href="#/configurationpage?name=Custom%20Metadata%20Provider">Ouvrir la configuration</a></div>';
+                }
+                return '<div class="dl-empty">Aucun téléchargement pour le moment.<br>Ils démarrent à chaque analyse des épisodes manquants, pour chaque épisode qui a un lien vidéo.<br><button type="button" class="dl-btn" data-act="analyze">Lancer l\'analyse maintenant</button></div>';
+            }
+
+            function render() {
+                var items = state ? state.Items : [];
+                var counts = { running: 0, queued: 0, done: 0, problem: 0 };
+                items.forEach(function (i) { counts[group(i)]++; });
+                var tile = function (name, number, text, alert) {
+                    return '<button type="button" class="dl-tile' + (alert && number ? ' dl-alert' : '') + '" data-filter="' + name + '" aria-pressed="' + (filter === name ? 'true' : 'false') + '"><b>' + number + '</b><span>' + text + '</span></button>';
+                };
+                qs('#dlTiles').innerHTML = tile('', items.length, items.length > 1 ? 'téléchargements' : 'téléchargement')
+                    + tile('running', counts.running, 'en cours') + tile('queued', counts.queued, 'en attente')
+                    + tile('done', counts.done, counts.done > 1 ? 'terminés' : 'terminé') + tile('problem', counts.problem, 'en échec ou annulés', true);
+                qs('#dlClear').disabled = !(counts.done || counts.problem);
+                qs('#dlTiles').hidden = qs('.dl-bar').hidden = !items.length;
+                qs('#dlLive').textContent = counts.running || counts.queued ? 'Actualisation automatique toutes les 2 secondes.' : '';
+
+                var shown = items.filter(function (i) { return !filter || group(i) === filter; });
+                if (!items.length) { qs('#dlList').innerHTML = '<div class="dl-rows">' + emptyHtml() + '</div>'; return; }
+                if (!shown.length) { qs('#dlList').innerHTML = '<div class="dl-rows"><div class="dl-empty">Aucun téléchargement dans cette catégorie.</div></div>'; return; }
+                var rows = '';
+                shown.forEach(function (item) {
+                    var number = item.IndexNumber > 0 ? 'É' + item.IndexNumber + ' · ' : '';
+                    var where = [item.Series, item.Season].filter(function (x) { return x; }).join(' · ');
+                    rows += '<div class="dl-row" data-status="' + escapeHtml(item.Status) + '">'
+                        + '<div class="dl-name"><strong title="' + escapeHtml(item.Title) + '">' + escapeHtml(number + item.Title) + '</strong><span>' + escapeHtml(where) + '</span><span>' + escapeHtml([item.Source, item.Host].filter(function (x) { return x; }).join(' · ')) + '</span></div>'
+                        + '<div class="dl-state">' + stateHtml(item) + '</div>'
+                        + '<div class="dl-actions">' + actionsHtml(item) + '</div></div>';
+                });
+                qs('#dlList').innerHTML = '<div class="dl-rows">' + rows + '</div>';
+            }
+
+            function post(path, body) {
+                return ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('CustomMetadata/' + path), data: body ? JSON.stringify(body) : undefined, contentType: 'application/json' });
+            }
+
+            function load() {
+                return ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Downloads')).then(function (result) {
+                    state = result;
+                    var json = JSON.stringify(result);
+                    if (json !== lastJson) { lastJson = json; render(); }
+                    schedule(result.Items.some(function (i) { return isRunning(i) || i.Status === 'queued'; }));
+                    loadNavStatus();
+                }, function () {
+                    qs('#dlList').innerHTML = '<div class="dl-rows"><div class="dl-empty">Le serveur n\'a pas répondu. Consultez le journal de Jellyfin (lignes « DOWNLOAD »).</div></div>';
+                    schedule(false);
+                });
+            }
+
+            function schedule(active) {
+                clearTimeout(timer);
+                timer = setTimeout(function () {
+                    if (location.hash.indexOf('CustomMetadataDownloads') < 0) { return; }
+                    load();
+                }, active ? 2000 : 10000);
+            }
+
+            qs('#dlTiles').addEventListener('click', function (e) {
+                var tile = e.target.closest('[data-filter]');
+                if (tile) { filter = tile.getAttribute('data-filter'); render(); }
+            });
+
+            qs('#dlClear').addEventListener('click', function () {
+                post('Downloads/Clear').then(function () { lastJson = ''; return load(); });
+            });
+
+            qs('#dlList').addEventListener('click', function (e) {
+                var button = e.target.closest('[data-act]');
+                if (!button) { return; }
+                var act = button.getAttribute('data-act');
+                button.disabled = true;
+                if (act === 'analyze') {
+                    post('MissingEpisodes/Analyze').then(function () { qs('#dlLive').textContent = 'Analyse lancée : les téléchargements apparaissent dès qu\'elle trouve des épisodes manquants.'; schedule(true); });
+                    return;
+                }
+                post('Downloads/' + (act === 'cancel' ? 'Cancel' : 'Retry'), { Key: button.getAttribute('data-key') }).then(function () { lastJson = ''; return load(); }, function () { lastJson = ''; return load(); });
+            });
+
+            page.addEventListener('pageshow', function () {
+                loadNavStatus();
+                filter = ''; lastJson = '';
+                load();
+            });
+            page.addEventListener('pagehide', function () { clearTimeout(timer); });
+        })();
+    </script>
+</div>
+</body>
+</html>

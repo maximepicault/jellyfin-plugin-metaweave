@@ -27,9 +27,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         private readonly PeopleStore _people;
         private readonly ILibraryManager _library;
         private readonly TaxonomyStore _taxonomy;
+        private readonly VideoDownloadService _downloads;
 
-        public DiagnosticController(DiagnosticService diagnostic, MissingEpisodeService missing, PeopleStore people, ILibraryManager library, TaxonomyStore taxonomy)
+        public DiagnosticController(DiagnosticService diagnostic, MissingEpisodeService missing, PeopleStore people, ILibraryManager library, TaxonomyStore taxonomy, VideoDownloadService downloads)
         {
+            _downloads = downloads;
             _library = library;
             _taxonomy = taxonomy;
             _diagnostic = diagnostic;
@@ -81,6 +83,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 People = _people.Load()?.People?.Count ?? 0,
                 NotEnriched = _diagnostic.GetLast()?.Total,
                 TaggedSeries = CountTaggedSeries(),
+                Downloads = _downloads.ActiveCount,
+                DownloadsFailed = _downloads.FailedCount,
                 TaxonomyRules = _taxonomy.Load().Rules.Count(r => r.Ignored || r.ReplaceWith != null)
             });
         }
@@ -131,5 +135,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
         /// <summary>Rules of the "Genres et tags" screen that ignore or rename a term</summary>
         public int TaxonomyRules { get; set; }
+
+        /// <summary>Downloads of missing episodes waiting or running</summary>
+        public int Downloads { get; set; }
+
+        /// <summary>Downloads that failed since the server started (until cleared)</summary>
+        public int DownloadsFailed { get; set; }
     }
 }
