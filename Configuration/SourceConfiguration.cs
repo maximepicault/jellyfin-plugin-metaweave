@@ -323,6 +323,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         public string PhotoBaseUrl { get; set; } = string.Empty;
 
         public string Bio { get; set; } = "bio";
+
+        /// <summary>Optional paths (empty = not read)</summary>
+        public string BirthDate { get; set; } = string.Empty;
+
+        public string DeathDate { get; set; } = string.Empty;
+
+        public string BirthPlace { get; set; } = string.Empty;
+
+        public string Website { get; set; } = string.Empty;
     }
 
     /// <summary>

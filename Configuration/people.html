@@ -86,12 +86,14 @@
         #CustomMetadataPeoplePage .pp-photo-ctl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
         #CustomMetadataPeoplePage .pp-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
         #CustomMetadataPeoplePage .pp-btns .emby-button { margin: 0; }
+        #CustomMetadataPeoplePage .pp-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+        #CustomMetadataPeoplePage .pp-info-grid .pp-span { grid-column: 1 / -1; }
         #CustomMetadataPeoplePage .pp-links { display: flex; flex-direction: column; gap: 10px; }
         #CustomMetadataPeoplePage .pp-link-row { display: grid; grid-template-columns: minmax(170px, 250px) minmax(120px, 1fr) auto; gap: 10px; align-items: center; }
         #CustomMetadataPeoplePage .pp-link-row input, #CustomMetadataPeoplePage .pp-link-row select { min-height: 40px; box-sizing: border-box; width: 100%; padding: 0 10px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; border: 1px solid transparent; border-radius: 4px; }
         #CustomMetadataPeoplePage .pp-link-row select option { color: #000; }
         #CustomMetadataPeoplePage .pp-link-actions { display: flex; flex-wrap: wrap; gap: 2px 12px; }
-        @container (max-width: 640px) { #CustomMetadataPeoplePage .pp-link-row { grid-template-columns: minmax(0, 1fr); } #CustomMetadataPeoplePage .pp-photo { flex-direction: column; } }
+        @container (max-width: 640px) { #CustomMetadataPeoplePage .pp-info-grid { grid-template-columns: minmax(0, 1fr); } #CustomMetadataPeoplePage .pp-link-row { grid-template-columns: minmax(0, 1fr); } #CustomMetadataPeoplePage .pp-photo { flex-direction: column; } }
         #CustomMetadataPeoplePage .pp-merge { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 14px 16px; border: 1px solid var(--pp-border); border-radius: 8px; background: rgba(255, 255, 255, 0.03); }
         #CustomMetadataPeoplePage .pp-merge > div { flex: 1 1 100%; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.45; }
         #CustomMetadataPeoplePage .pp-merge strong { font-size: 14px; }
@@ -528,6 +530,13 @@
                     + (person.Photo ? '<button type="button" class="pp-linkbtn" data-adjust-photo="1">Ajuster</button><button type="button" class="pp-linkbtn" data-clear-photo="1">Retirer</button>' : '')
                     + '<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-file="1" hidden /></div></div></div></div>'
                     + '<div class="inputContainer"><label class="inputLabel" for="ppBio">Biographie</label><textarea id="ppBio" data-f="Bio" rows="4">' + escapeHtml(person.Bio || '') + '</textarea></div>'
+                    + '<div><h4>Informations</h4><div class="pp-info-grid">'
+                    + '<div class="inputContainer"><label class="inputLabel" for="ppBirthDate">Date de naissance</label><input is="emby-input" type="date" id="ppBirthDate" data-f="BirthDate" value="' + escapeHtml(person.BirthDate || '') + '" /></div>'
+                    + '<div class="inputContainer"><label class="inputLabel" for="ppDeathDate">Date de décès</label><input is="emby-input" type="date" id="ppDeathDate" data-f="DeathDate" value="' + escapeHtml(person.DeathDate || '') + '" /></div>'
+                    + '<div class="inputContainer pp-span"><label class="inputLabel" for="ppBirthPlace">Lieu de naissance</label><input is="emby-input" type="text" id="ppBirthPlace" data-f="BirthPlace" value="' + escapeHtml(person.BirthPlace || '') + '" /></div>'
+                    + '<div class="inputContainer pp-span"><label class="inputLabel" for="ppWebsite">Site web</label><input is="emby-input" type="url" id="ppWebsite" data-f="Website" placeholder="https://…" value="' + escapeHtml(person.Website || '') + '" />'
+                    + (/^https?:\/\//i.test(person.Website || '') ? '<a class="pp-linkbtn" href="' + escapeHtml(person.Website) + '" target="_blank" rel="noopener noreferrer">Ouvrir le site ↗</a>' : '') + '</div>'
+                    + '<div class="inputContainer pp-span"><label class="inputLabel" for="ppNotes">Notes privées</label><textarea id="ppNotes" data-f="Notes" rows="3" placeholder="Visibles ici seulement, jamais envoyées à Jellyfin">' + escapeHtml(person.Notes || '') + '</textarea></div></div></div>'
                     + '<div><h4>Identifiants dans les sources</h4><div class="pp-links">';
                 (person.Links || []).forEach(function(link, i) {
                     html += '<div class="pp-link-row"><select data-link-prefix="' + i + '" aria-label="Source">' + sourceOptions(link.Prefix) + '</select>'
@@ -587,7 +596,7 @@
             }
 
             function addFromResult(result) {
-                var person = { Id: newId(), Name: result.Name, Photo: result.Photo || '', Bio: result.Bio || '', Links: [{ Prefix: result.Prefix, ExternalId: result.ExternalId }] };
+                var person = { Id: newId(), Name: result.Name, Photo: result.Photo || '', Bio: result.Bio || '', BirthDate: result.BirthDate || '', DeathDate: result.DeathDate || '', BirthPlace: result.BirthPlace || '', Website: result.Website || '', Notes: '', Links: [{ Prefix: result.Prefix, ExternalId: result.ExternalId }] };
                 people.push(person);
                 markDirty();
                 qs('#ppFound').innerHTML = '';
@@ -601,7 +610,7 @@
                 match.Links = match.Links || [];
                 match.Links.push({ Prefix: result.Prefix, ExternalId: result.ExternalId });
                 if (!match.Photo && result.Photo) { match.Photo = result.Photo; }
-                if (!match.Bio && result.Bio) { match.Bio = result.Bio; }
+                ['Bio', 'BirthDate', 'DeathDate', 'BirthPlace', 'Website'].forEach(function(k) { if (!match[k] && result[k]) { match[k] = result[k]; } });
                 markDirty(match.Id);
                 qs('#ppFound').innerHTML = '';
                 qs('#ppAddId').value = '';
@@ -610,9 +619,11 @@
 
             function applyFetched(person, result, overwrite) {
                 var changed = [];
-                [['Name', result.Name], ['Photo', result.Photo], ['Bio', result.Bio]].forEach(function(pair) {
+                var labels = { Name: 'nom', Photo: 'photo', Bio: 'bio', BirthDate: 'naissance', DeathDate: 'décès', BirthPlace: 'lieu de naissance', Website: 'site web' };
+                Object.keys(labels).forEach(function(k) {
+                    var pair = [k, result[k]];
                     if (pair[1] && (overwrite || !person[pair[0]])) {
-                        if (person[pair[0]] !== pair[1]) { person[pair[0]] = pair[1]; changed.push(pair[0] === 'Name' ? 'nom' : (pair[0] === 'Photo' ? 'photo' : 'bio')); }
+                        if (person[pair[0]] !== pair[1]) { person[pair[0]] = pair[1]; changed.push(labels[k]); }
                     }
                 });
                 return changed;
@@ -1269,7 +1280,7 @@
             });
 
             qs('#ppAddManual').addEventListener('click', function() {
-                var person = { Id: newId(), Name: '', Photo: '', Bio: '', Links: [] };
+                var person = { Id: newId(), Name: '', Photo: '', Bio: '', BirthDate: '', DeathDate: '', BirthPlace: '', Website: '', Notes: '', Links: [] };
                 people.push(person);
                 markDirty();
                 qs('#ppSearch').value = '';

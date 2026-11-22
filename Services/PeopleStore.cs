@@ -33,6 +33,20 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         public string Bio { get; set; }
 
+        /// <summary>Birth date, normalised to yyyy-MM-dd (empty when unknown or not a date)</summary>
+        public string BirthDate { get; set; }
+
+        /// <summary>Death date, normalised to yyyy-MM-dd</summary>
+        public string DeathDate { get; set; }
+
+        public string BirthPlace { get; set; }
+
+        /// <summary>Web page of the person (http/https)</summary>
+        public string Website { get; set; }
+
+        /// <summary>Private notes, shown only in the directory (never sent to Jellyfin)</summary>
+        public string Notes { get; set; }
+
         public List<PersonLink> Links { get; set; } = new List<PersonLink>();
     }
 
@@ -51,6 +65,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public string Photo { get; set; }
 
         public string Bio { get; set; }
+
+        public string BirthDate { get; set; }
+
+        public string DeathDate { get; set; }
+
+        public string BirthPlace { get; set; }
+
+        public string Website { get; set; }
     }
 
     /// <summary>
@@ -252,6 +274,26 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         private static string Clean(string text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
+        /// <summary>A date as yyyy-MM-dd (time and zone dropped), or null when it is not a date</summary>
+        public static string NormalizeDate(string value)
+        {
+            value = Clean(value);
+            if (value == null) { return null; }
+            if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed) && parsed.Year >= 1 && parsed.Year <= 9999)
+            {
+                return value.Length >= 10 && Regex.IsMatch(value, @"^\d{4}-\d{2}-\d{2}") ? value.Substring(0, 10) : parsed.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            }
+
+            return null;
+        }
+
+        /// <summary>An http(s) address, or null (anything else, such as javascript:, is dropped)</summary>
+        public static string NormalizeWebsite(string value)
+        {
+            value = Clean(value);
+            return value != null && Uri.TryCreate(value, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) ? value : null;
+        }
+
         /// <summary>Ids generated or kept (unique), texts cleaned and decoded, source identifiers without duplicates</summary>
         public static void Normalize(PeopleDirectory directory)
         {
@@ -266,6 +308,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 person.Name = Clean(HtmlText.Decode(person.Name));
                 person.Bio = Clean(HtmlText.Decode(person.Bio));
                 person.Photo = Clean(person.Photo);
+                person.BirthDate = NormalizeDate(person.BirthDate);
+                person.DeathDate = NormalizeDate(person.DeathDate);
+                person.BirthPlace = Clean(HtmlText.Decode(person.BirthPlace));
+                person.Website = NormalizeWebsite(person.Website);
+                person.Notes = Clean(person.Notes);
 
                 // An identifier (source + id) belongs to one person only: the first one that carries it keeps it
                 person.Links = (person.Links ?? new List<PersonLink>())

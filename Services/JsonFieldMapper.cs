@@ -132,7 +132,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var name = Read(mapping.Name)?.Trim();
             return string.IsNullOrEmpty(name)
                 ? null
-                : new PersonData { Name = name, Photo = GetStringValue(root, mapping.Photo)?.Trim(), Bio = Read(mapping.Bio)?.Trim() };
+                : new PersonData
+                {
+                    Name = name,
+                    Photo = GetStringValue(root, mapping.Photo)?.Trim(),
+                    Bio = Read(mapping.Bio)?.Trim(),
+                    BirthDate = PeopleStore.NormalizeDate(Read(mapping.BirthDate)),
+                    DeathDate = PeopleStore.NormalizeDate(Read(mapping.DeathDate)),
+                    BirthPlace = Read(mapping.BirthPlace)?.Trim(),
+                    Website = PeopleStore.NormalizeWebsite(Read(mapping.Website))
+                };
         }
 
         /// <summary>

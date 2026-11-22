@@ -1145,6 +1145,22 @@
                             <label class="inputLabel" for="srcPersonBio">Biographie</label>
                             <input is="emby-input" type="text" id="srcPersonBio" data-count="1" />
                         </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPersonBirthDate">Date de naissance (facultatif)</label>
+                            <input is="emby-input" type="text" id="srcPersonBirthDate" data-count="1" placeholder="birth_date" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPersonDeathDate">Date de décès (facultatif)</label>
+                            <input is="emby-input" type="text" id="srcPersonDeathDate" data-count="1" placeholder="death_date" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPersonBirthPlace">Lieu de naissance (facultatif)</label>
+                            <input is="emby-input" type="text" id="srcPersonBirthPlace" data-count="1" placeholder="birth_place" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPersonWebsite">Site web (facultatif)</label>
+                            <input is="emby-input" type="text" id="srcPersonWebsite" data-count="1" placeholder="homepage" />
+                        </div>
                         </div>
                     </section>
                     <section class="cm-pane" data-section="content" data-types="local" aria-labelledby="paneTitle-content" hidden>
@@ -1812,7 +1828,8 @@
                 if (r.Person) {
                     html += '<h4>Personne trouvée</h4><div><strong>' + escapeHtml(r.Person.Name) + '</strong></div>'
                         + (r.Person.Photo ? '<div style="word-break: break-all;">Photo : ' + escapeHtml(r.Person.Photo) + '</div><img alt="" src="' + escapeHtml(r.Person.Photo) + '" style="max-width: 120px; max-height: 120px; margin-top: 8px; border-radius: 6px;" />' : '<div class="cm-hint">Pas de photo trouvée.</div>')
-                        + (r.Person.Bio ? '<div class="cm-hint">' + escapeHtml(r.Person.Bio) + '</div>' : '');
+                        + (r.Person.Bio ? '<div class="cm-hint">' + escapeHtml(r.Person.Bio) + '</div>' : '')
+                        + [['Naissance', r.Person.BirthDate], ['Décès', r.Person.DeathDate], ['Lieu de naissance', r.Person.BirthPlace], ['Site web', r.Person.Website]].map(function(x) { return x[1] ? '<div class="cm-hint">' + x[0] + ' : ' + escapeHtml(x[1]) + '</div>' : ''; }).join('');
                 }
 
                 if (r.Metadata) {
@@ -2334,7 +2351,9 @@
                     merged.SourceType = 'People';
                     merged.PersonEndpoint = qs('#srcPersonEndpoint').value.trim() || '/people/{id}';
                     merged.PersonMappings = Object.assign({}, base.PersonMappings || {}, {
-                        Name: qs('#srcPersonName').value.trim(), Photo: qs('#srcPersonPhoto').value.trim(), PhotoBaseUrl: qs('#srcPersonPhotoBase').value.trim(), Bio: qs('#srcPersonBio').value.trim()
+                        Name: qs('#srcPersonName').value.trim(), Photo: qs('#srcPersonPhoto').value.trim(), PhotoBaseUrl: qs('#srcPersonPhotoBase').value.trim(), Bio: qs('#srcPersonBio').value.trim(),
+                        BirthDate: qs('#srcPersonBirthDate').value.trim(), DeathDate: qs('#srcPersonDeathDate').value.trim(),
+                        BirthPlace: qs('#srcPersonBirthPlace').value.trim(), Website: qs('#srcPersonWebsite').value.trim()
                     });
                     merged.EpisodeListEndpoint = '';
                 }
@@ -2885,6 +2904,10 @@
                 qs('#srcPersonPhoto').value = pm.Photo || 'photo';
                 qs('#srcPersonPhotoBase').value = pm.PhotoBaseUrl || '';
                 qs('#srcPersonBio').value = pm.Bio || 'bio';
+                qs('#srcPersonBirthDate').value = pm.BirthDate || '';
+                qs('#srcPersonDeathDate').value = pm.DeathDate || '';
+                qs('#srcPersonBirthPlace').value = pm.BirthPlace || '';
+                qs('#srcPersonWebsite').value = pm.Website || '';
             }
 
             function randomHex(len) {

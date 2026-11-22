@@ -99,6 +99,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             if (string.IsNullOrWhiteSpace(keep.Photo)) { keep.Photo = remove.Photo; }
             if (string.IsNullOrWhiteSpace(keep.Bio)) { keep.Bio = remove.Bio; }
+            if (string.IsNullOrWhiteSpace(keep.BirthDate)) { keep.BirthDate = remove.BirthDate; }
+            if (string.IsNullOrWhiteSpace(keep.DeathDate)) { keep.DeathDate = remove.DeathDate; }
+            if (string.IsNullOrWhiteSpace(keep.BirthPlace)) { keep.BirthPlace = remove.BirthPlace; }
+            if (string.IsNullOrWhiteSpace(keep.Website)) { keep.Website = remove.Website; }
+            if (!string.IsNullOrWhiteSpace(remove.Notes))
+            {
+                keep.Notes = string.IsNullOrWhiteSpace(keep.Notes) ? remove.Notes : keep.Notes + "\n" + remove.Notes;
+            }
             keep.Links ??= new System.Collections.Generic.List<PersonLink>();
             foreach (var link in remove.Links ?? new System.Collections.Generic.List<PersonLink>())
             {
@@ -226,6 +234,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 Name = person.Name,
                 Photo = person.Photo,
                 Bio = person.Bio,
+                BirthDate = person.BirthDate,
+                DeathDate = person.DeathDate,
+                BirthPlace = person.BirthPlace,
+                Website = person.Website,
                 MatchPersonId = match?.Person.Id,
                 MatchReason = match?.Reason
             });
@@ -269,6 +281,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string Photo { get; set; }
 
         public string Bio { get; set; }
+
+        public string BirthDate { get; set; }
+
+        public string DeathDate { get; set; }
+
+        public string BirthPlace { get; set; }
+
+        public string Website { get; set; }
 
         /// <summary>Entry already in the directory: same identifier ("link") or same name ("name")</summary>
         public string MatchPersonId { get; set; }
