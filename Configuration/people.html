@@ -1460,6 +1460,34 @@
                 if (t.hasAttribute('data-net-add')) { person.Networks = person.Networks || []; person.Networks.push({ NetworkId: networks[0].Id, Value: '' }); markDirty(); renderDetail(); var nv = qs('#ppDetail').querySelectorAll('[data-net-value]'); if (nv.length) { nv[nv.length - 1].focus(); } return; }
                 if (t.hasAttribute('data-net-remove')) { person.Networks.splice(parseInt(t.getAttribute('data-net-remove'), 10), 1); markDirty(); renderDetail(); return; }
                 if (t.hasAttribute('data-net-manage')) { showTab('networks'); return; }
+                if (t.hasAttribute('data-upload')) { qs('#ppDetail [data-file]').click(); return; }
+                if (t.hasAttribute('data-adjust-photo')) { adjustExistingPhoto(person); return; }
+                if (t.hasAttribute('data-clear-photo')) { person.Photo = ''; markDirty(); renderList(); renderDetail(); return; }
+                if (t.hasAttribute('data-link-add')) {
+                    person.Links = person.Links || [];
+                    person.Links.push({ Prefix: sources[0] ? sources[0].Prefix : '', ExternalId: '' });
+                    markDirty();
+                    renderDetail();
+                    var inputs = qs('#ppDetail').querySelectorAll('[data-link-id]');
+                    if (inputs.length) { inputs[inputs.length - 1].focus(); }
+                    return;
+                }
+                if (t.hasAttribute('data-link-remove')) { person.Links.splice(parseInt(t.getAttribute('data-link-remove'), 10), 1); markDirty(); renderList(); renderDetail(); return; }
+                if (t.hasAttribute('data-link-fill') || t.hasAttribute('data-link-overwrite')) {
+                    var overwrite = t.hasAttribute('data-link-overwrite');
+                    var index = parseInt(t.getAttribute(overwrite ? 'data-link-overwrite' : 'data-link-fill'), 10);
+                    var link = person.Links[index];
+                    if (!link.Prefix || !link.ExternalId) { linkMessage('Choisissez une source et saisissez un identifiant.', false); return; }
+                    if (overwrite && needConfirm('overwrite', 'Écraser cette fiche avec la source ?\nLe nom, la photo et la biographie saisis ici sont remplacés par ceux de la source.', { ok: 'Écraser', danger: true }, function() { t.click(); })) { return; }
+                    linkMessage('Interrogation de la source…', true);
+                    fetchPerson(link.Prefix, link.ExternalId).then(function(result) {
+                        if (result.Error) { linkMessage(result.Error, false); return; }
+                        var changed = applyFetched(person, result, overwrite);
+                        if (changed.length) { markDirty(); renderList(); renderDetail(); linkMessage('Mis à jour : ' + changed.join(', ') + '.', true); }
+                        else { linkMessage(overwrite ? 'Déjà identique à la source.' : 'Rien à compléter : les champs sont déjà remplis.', true); }
+                    }, function() { linkMessage('Le serveur Jellyfin n\'a pas pu interroger la source.', false); });
+                    return;
+                }
                 if (t.hasAttribute('data-delete')) {
                     if (needConfirm('delete', 'Supprimer « ' + (person.Name || 'sans nom') + ' » ?\nPris en compte à l\'enregistrement.', { ok: 'Supprimer', danger: true }, function() { t.click(); })) { return; }
                     people = people.filter(function(p) { return p.Id !== person.Id; });
