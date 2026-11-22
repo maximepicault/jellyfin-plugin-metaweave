@@ -35,6 +35,8 @@ namespace Jellyfin.Plugin.CustomMetadata
                 () => sp.GetRequiredService<IServerApplicationHost>().GetLocalApiUrl("127.0.0.1")));
 
             serviceCollection.AddSingleton<PersonNetworkStore>();
+            // Lets the person-network link providers answer their real names once Jellyfin has sorted them (see PersonNetworkUrlProvider.Ready)
+            serviceCollection.AddHostedService<Providers.PersonNetworkReadyService>();
 
             // "Dump" sources: one catalogue downloaded once, served entry by entry and matched against file names
             serviceCollection.AddSingleton(sp => new DumpStore(

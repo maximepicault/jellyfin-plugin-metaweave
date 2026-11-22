@@ -25,11 +25,23 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             _slot = slot;
         }
 
+        /// <summary>
+        /// Set once Jellyfin has finished starting (<see cref="PersonNetworkReadyService"/>). Jellyfin sorts the providers by Name
+        /// once, while it collects them, and shows links in that order: until then every slot answers a fixed sort key made of its
+        /// number, so the links come out in the order of the configured list; afterwards the real name.
+        /// </summary>
+        public static volatile bool Ready;
+
         /// <inheritdoc />
         public string Name
         {
             get
             {
+                if (!Ready)
+                {
+                    return "PersonNetwork " + _slot.ToString("00");
+                }
+
                 var network = Network();
                 // An image icon (put in front of the link by the plugin's style sheet) replaces the emoji
                 return network == null ? "Custom" : (string.IsNullOrEmpty(network.Icon) || network.IconFile != null ? network.Name : network.Icon + " " + network.Name);
@@ -59,6 +71,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 .Distinct()
                 .ToList();
         }
+    }
+
+    /// <summary>Flips <see cref="PersonNetworkUrlProvider.Ready"/> once the server has started (after the providers were collected and sorted)</summary>
+    public sealed class PersonNetworkReadyService : Microsoft.Extensions.Hosting.IHostedService
+    {
+        public System.Threading.Tasks.Task StartAsync(System.Threading.CancellationToken cancellationToken)
+        {
+            PersonNetworkUrlProvider.Ready = true;
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+
+        public System.Threading.Tasks.Task StopAsync(System.Threading.CancellationToken cancellationToken) => System.Threading.Tasks.Task.CompletedTask;
     }
 
     public sealed class PersonNetworkSlot00 : PersonNetworkUrlProvider { public PersonNetworkSlot00(PersonNetworkStore n, PeopleStore p) : base(n, p, 0) { } }
