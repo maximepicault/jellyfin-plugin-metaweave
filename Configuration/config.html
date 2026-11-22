@@ -170,7 +170,7 @@
         @container (min-width: 1020px) {
             #CustomMetadataConfigPage .cm-layout { grid-template-columns: 220px minmax(0, 1fr) 340px; }
             #CustomMetadataConfigPage .cm-layout .cm-nav { grid-row: auto; }
-            #CustomMetadataConfigPage .cm-layout .cm-test { grid-column: 3; position: sticky; top: 72px; }
+            #CustomMetadataConfigPage .cm-layout .cm-test { grid-column: 3; position: sticky; top: 72px; box-sizing: border-box; max-height: calc(100vh - 72px - 88px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
         }
         @container (max-width: 760px) {
             #CustomMetadataConfigPage .cm-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }

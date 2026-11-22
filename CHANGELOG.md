@@ -6,6 +6,7 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **The test panel scrolls on its own**: in a source's editor, the « Tester la source » panel stays in view while the form scrolls and now has a maximum height with its own scrollbar, so a long result (a raw response, a list of candidates) can be read to the end without losing the form's position.
 - **Readable raw response, also in the mapping test**: the raw response shown when a dump cannot be read is now indented JSON (long lists cut to their first two elements, so the structure is visible), and « Lire une entrée avec les mappings » (with or without an id) shows the same explanation and raw response instead of a bare error.
 - **Dump test shows what the API answered**: when the list of entries is not found, the message now says where the lists of the response are (« Listes trouvées : « results » (100 éléments) », or that the response is itself a list), and a « Réponse brute de l'API (début) » block shows the start of the response (or the HTTP error and its body). A failed reload that fell back to an older copy is now reported as a failure in the test instead of looking successful.
 - **Dump test without an id**: the « Tester » button of a dump source's editor now works with an empty identifier and reads the first entry of the dump through the mappings, so the mappings can be checked without knowing an id.
