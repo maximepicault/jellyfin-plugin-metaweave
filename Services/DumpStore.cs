@@ -140,6 +140,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             return _catalogs.TryGetValue(Key(source), out var catalog) && catalog.Signature == SignatureOf(source) ? catalog : null;
         }
 
+        private readonly ConcurrentDictionary<string, string> _lastResponses = new ConcurrentDictionary<string, string>();
+        private const int PreviewChars = 3000;
+
+        /// <summary>The start of the last response received for this source (or of its error body): what the editor shows when the dump cannot be read</summary>
+        public string LastResponsePreview(SourceConfiguration source)
+        {
+            return _lastResponses.TryGetValue(Key(source), out var text) ? text : null;
+        }
+
+        private void RememberResponse(SourceConfiguration source, string text)
+        {
+            if (text != null && text.Length > PreviewChars)
+            {
+                text = text.Substring(0, PreviewChars) + "\n… (suite tronquée)";
+            }
+
+            _lastResponses[Key(source)] = text;
+        }
+
         private static string Key(SourceConfiguration source) => (source.Prefix ?? string.Empty).Trim().ToLowerInvariant();
 
         /// <summary>Forgets the copy in memory: the next use downloads the dump again</summary>
@@ -237,6 +256,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     }
 
                     var fetch = await _http.GetStringAsync(client, pageUrl, source, Tag, cancellationToken).ConfigureAwait(false);
+                    RememberResponse(source, fetch.IsSuccess ? fetch.Content : $"HTTP {fetch.StatusCode?.ToString() ?? "(pas de réponse)"} — {fetch.Error}\n{fetch.ErrorBody}");
                     if (!fetch.IsSuccess)
                     {
                         if (i > 0 && fetch.StatusCode == 404)
@@ -260,7 +280,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         }
 
                         var where = string.IsNullOrWhiteSpace(settings.ItemsPath) ? "à la racine" : $"au chemin « {settings.ItemsPath} »";
-                        return (null, $"Aucune liste d'entrées {where} dans la réponse");
+                        return (null, $"Aucune liste d'entrées {where} dans la réponse. {DescribeLists(doc.RootElement)}");
                     }
 
                     pagesRead++;
@@ -401,6 +421,41 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 return text;
             }
+        }
+
+        /// <summary>Tells where the lists of the response are, so that the "list path" can be corrected without guessing</summary>
+        internal static string DescribeLists(JsonElement root)
+        {
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                return $"La réponse EST une liste de {root.GetArrayLength()} éléments : laissez « Liste des entrées » vide.";
+            }
+
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return "La réponse n'est ni un objet ni une liste.";
+            }
+
+            var found = new List<string>();
+            foreach (var property in root.EnumerateObject())
+            {
+                if (property.Value.ValueKind == JsonValueKind.Array)
+                {
+                    found.Add($"« {property.Name} » ({property.Value.GetArrayLength()} éléments)");
+                }
+                else if (property.Value.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var inner in property.Value.EnumerateObject().Where(p => p.Value.ValueKind == JsonValueKind.Array))
+                    {
+                        found.Add($"« {property.Name}.{inner.Name} » ({inner.Value.GetArrayLength()} éléments)");
+                    }
+                }
+            }
+
+            var keys = string.Join(", ", root.EnumerateObject().Select(p => p.Name).Take(12));
+            return found.Count > 0
+                ? "Listes trouvées : " + string.Join(", ", found.Take(8)) + "."
+                : $"Aucune liste dans la réponse (champs : {keys}).";
         }
 
         private static string Read(JsonElement element, string path)

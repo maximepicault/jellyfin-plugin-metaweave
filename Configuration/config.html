@@ -2874,7 +2874,8 @@
                     dataType: 'json'
                 }).then(function(r) {
                     if (!r.Ok) {
-                        out.innerHTML = '<div class="cm-test-status ko"><strong>Échec</strong><div>' + escapeHtml(r.Error || 'Le dump n\'a pas pu être chargé.') + '</div></div>';
+                        out.innerHTML = '<div class="cm-test-status ko"><strong>Échec</strong><div>' + escapeHtml(r.Error || 'Le dump n\'a pas pu être chargé.') + '</div></div>'
+                            + (r.ResponsePreview ? '<details open><summary>Réponse brute de l\'API (début)</summary><pre style="max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;margin:6px 0 0">' + escapeHtml(r.ResponsePreview) + '</pre></details>' : '');
                         return;
                     }
                     var html = '<div class="cm-test-status ok"><strong>Dump chargé</strong>' + dumpStatusLine(r) + '</div>';

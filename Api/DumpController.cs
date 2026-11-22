@@ -94,9 +94,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             source.Dump ??= new DumpSettings();
             var stopwatch = Stopwatch.StartNew();
             var (catalog, error) = await _dump.GetCatalogAsync(source, true, cancellationToken);
-            var result = new DumpTestResult { DurationMs = stopwatch.ElapsedMilliseconds, Error = catalog == null ? error : null };
-            if (catalog == null)
+            // A failed reload that falls back to an older copy is still a failure here: the form's settings did not work
+            var result = new DumpTestResult { DurationMs = stopwatch.ElapsedMilliseconds, Error = error };
+            if (catalog == null || error != null)
             {
+                result.ResponsePreview = _dump.LastResponsePreview(source);
                 return Ok(result);
             }
 
@@ -831,6 +833,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public bool Ok { get; set; }
         public string Error { get; set; }
         public long DurationMs { get; set; }
+
+        /// <summary>On a failure: the start of what the API answered (or of its error body), to see why the list was not found</summary>
+        public string ResponsePreview { get; set; }
 
         /// <summary>Time spent matching the file name against the catalogue (without the download)</summary>
         public double MatchMs { get; set; }
