@@ -215,6 +215,14 @@ try {
   await click('#lfGallery .cm-gal-pick:last-of-type'); await wait(200);
   await click('[data-gal-act="default"]'); await wait(250);
   check('default: another image fills the empty default field and leaves the gallery', (await ev(`var d=document.querySelector('#lfGallery .cm-gal-item.cm-gal-default:not(.cm-gal-pick)'); !!d && d.querySelector('.cm-gal-meta span').textContent==='Affiche' && document.querySelectorAll('#lfGallery .cm-gal-pick').length===2`)) === true);
+  // A default image (single field) can be selected: retyped (it moves to the gallery) or removed
+  await ev(`(function(){var n=document.querySelector('#lfGallery [data-gal-field]'); return !!n;})()`);
+  check('default image: it is selectable', (await ev(`document.querySelectorAll('#lfGallery [data-gal-field]').length`)) >= 1);
+  const defBefore = await ev(`document.querySelectorAll('#lfGallery [data-gal-field]').length`);
+  await click('#lfGallery [data-gal-field]'); await wait(250);
+  check('default image: selecting it enables the retype menu and "Retirer"', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-selected').length`)) === 1 && (await ev(`!!document.querySelector('[data-gal-retype]') && document.querySelector('[data-gal-act="remove"]').disabled`)) === false);
+  await click('[data-gal-act="remove"]'); await wait(250);
+  check('default image: "Retirer" empties its field', (await ev(`document.querySelectorAll('#lfGallery [data-gal-field]').length`)) === defBefore - 1);
   // backdrops are a slideshow: no single default, each one shows its rank, any can be put first
   await ev(`document.querySelector('#lfGalType').value='Backdrop'; true`);
   await type('#lfGalUrl', 'https://img.test/back2.jpg'); await click('[data-gal-url]'); await wait(250);

@@ -475,8 +475,8 @@
         #CustomMetadataConfigPage .cm-gal-item { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--cm-border); border-radius: 6px; background: var(--cm-surface-2); font-size: 12px; }
         #CustomMetadataConfigPage .cm-gal-item .cm-imgprev { flex: none; width: 100%; height: 90px; }
         #CustomMetadataConfigPage .cm-gal-default { border-color: var(--cm-accent); }
-        #CustomMetadataConfigPage .cm-gal-pick { cursor: pointer; }
-        #CustomMetadataConfigPage .cm-gal-pick:hover { background: rgba(255, 255, 255, 0.08); }
+        #CustomMetadataConfigPage .cm-gal-pick, #CustomMetadataConfigPage .cm-gal-fieldpick { cursor: pointer; }
+        #CustomMetadataConfigPage .cm-gal-pick:hover, #CustomMetadataConfigPage .cm-gal-fieldpick:hover { background: rgba(255, 255, 255, 0.08); }
         #CustomMetadataConfigPage .cm-gal-selected { outline: 3px solid #fff; outline-offset: 1px; }
         #CustomMetadataConfigPage .cm-gal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
         #CustomMetadataConfigPage .cm-gal-actions .emby-button { margin: 0; }
@@ -3419,10 +3419,11 @@
                 types.forEach(function(t) { if (t !== 'Backdrop' && !n[GALLERY_FIELD[t]]) { for (var k = 0; k < list.length; k++) { if (list[k].Type === t) { firstOf[t] = k; break; } } } });
                 var slideRank = {}, rank = n.Backdrop ? 1 : 0;
                 list.forEach(function(g, i) { if (g.Type === 'Backdrop') { rank++; slideRank[i] = rank; } });
-                var selected = galSel && galSel.key === localSel && list[galSel.i] ? galSel.i : -1;
+                var selected = galSel && galSel.key === localSel && !galSel.field && list[galSel.i] ? galSel.i : -1;
+                var selectedField = galSel && galSel.key === localSel && galSel.field && n[GALLERY_FIELD[galSel.field]] ? galSel.field : null;   // a default image (single field) can be selected too
                 var defaults = types.filter(function(t) { return n[GALLERY_FIELD[t]]; }).map(function(t) {
                     var src = imagePreviewUrl(n[GALLERY_FIELD[t]]);
-                    return '<div class="cm-gal-item cm-gal-default"><div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
+                    return '<div class="cm-gal-item cm-gal-default cm-gal-fieldpick' + (t === selectedField ? ' cm-gal-selected' : '') + '" data-gal-field="' + t + '" role="button" tabindex="0" aria-pressed="' + (t === selectedField) + '"><div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
                         + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[t]) + '</span><span class="cm-gal-badge">' + (t === 'Backdrop' ? 'Diaporama · 1' : 'Par défaut') + '</span></div></div>';
                 });
                 if (defaults.length || list.length) {
@@ -3433,8 +3434,8 @@
                             + '<div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
                             + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[g.Type] || g.Type) + '</span>' + (isDefault ? '<span class="cm-gal-badge">Par défaut</span>' : (g.Type === 'Backdrop' ? '<span class="cm-gal-badge cm-gal-badge-soft">Diaporama · ' + slideRank[i] + '</span>' : '')) + '</div></div>';
                     }).join('') + '</div>';
-                    var chosen = selected >= 0 ? list[selected] : null;
-                    var chosenIsDefault = chosen && (firstOf[chosen.Type] === selected || (chosen.Type === 'Backdrop' && slideRank[selected] === 1));
+                    var chosen = selected >= 0 ? list[selected] : (selectedField ? { Type: selectedField, Url: n[GALLERY_FIELD[selectedField]] } : null);
+                    var chosenIsDefault = chosen && (selectedField || firstOf[chosen.Type] === selected || (chosen.Type === 'Backdrop' && slideRank[selected] === 1));
                     html += '<div class="cm-gal-actions"><span class="cm-hint" style="margin:0;">' + (chosen ? 'Image sélectionnée : ' + escapeHtml(GALLERY_LABELS[chosen.Type]) : 'Cliquez sur une image pour la sélectionner.') + '</span>'
                         + (chosen ? '<select data-gal-retype aria-label="Type de l\'image sélectionnée" title="Changer le type de l\'image sélectionnée">' + galleryTypes(kind).map(function(t) { return '<option value="' + t + '"' + (t === chosen.Type ? ' selected' : '') + '>' + GALLERY_LABELS[t] + '</option>'; }).join('') + '</select>' : '')
                         + '<button is="emby-button" type="button" class="raised" data-gal-act="default"' + (!chosen || chosenIsDefault ? ' disabled' : '') + '><span>' + (chosen && chosen.Type === 'Backdrop' ? 'Placer en tête du diaporama' : 'Utiliser comme image par défaut') + '</span></button>'
@@ -3778,7 +3779,7 @@
             }
 
             qs('#localDetail').addEventListener('keydown', function(e) {
-                var tile = e.target.closest && e.target.closest('[data-gal-sel]');
+                var tile = e.target.closest && e.target.closest('[data-gal-sel],[data-gal-field]');
                 if (tile && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tile.click(); }
             });
 
@@ -3825,6 +3826,16 @@
                 var t = e.target;
                 if (t.hasAttribute && t.hasAttribute('data-node-id')) { renameNode(t.value); return; }
                 if (t.hasAttribute && t.hasAttribute('data-gal-retype')) {
+                    var fh = localSel ? findNode(localSel) : null;
+                    if (fh && galSel && galSel.key === localSel && galSel.field) {
+                        // Retyping a default image: it leaves its field and goes to the FRONT of the gallery under its new type (so it is that type's default when the field is empty)
+                        var oldField = GALLERY_FIELD[galSel.field], url = fh.node[oldField];
+                        if (url && t.value !== galSel.field) {
+                            fh.node[oldField] = ''; (fh.node.Gallery = fh.node.Gallery || []).unshift({ Type: t.value, Url: url }); galSel = { key: localSel, i: 0 };
+                            markDirty(); renderLocalDetail();
+                        }
+                        return;
+                    }
                     var rh = localSel ? findNode(localSel) : null, rg = rh && rh.node.Gallery && galSel && galSel.key === localSel ? rh.node.Gallery[galSel.i] : null;
                     if (rg && rg.Type !== t.value) { rg.Type = t.value; markDirty(); renderLocalDetail(); }
                     return;
@@ -4231,7 +4242,7 @@
             function onLocalClick(e) {
                 var ltab = e.target.closest('[data-ltab-btn]');
                 if (ltab) { localTab = ltab.getAttribute('data-ltab-btn'); renderLocalDetail(); return; }
-                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-upload-video],[data-clear-video],[data-chip],[data-clear-img],[data-gal-sel],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-pickdir],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
+                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-upload-video],[data-clear-video],[data-chip],[data-clear-img],[data-gal-sel],[data-gal-field],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-pickdir],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
                 if (!target || !localContent) { return; }
                 if (target.hasAttribute('data-node')) { selectNode(target.getAttribute('data-node')); return; }
                 if (target.hasAttribute('data-toggle-node')) {
@@ -4281,6 +4292,12 @@
                     if (picker) { picker.click(); }
                     return;
                 }
+                if (target.hasAttribute('data-gal-field')) {
+                    var gf = target.getAttribute('data-gal-field');
+                    galSel = galSel && galSel.key === localSel && galSel.field === gf ? null : { key: localSel, field: gf };
+                    renderLocalDetail();
+                    return;
+                }
                 if (target.hasAttribute('data-gal-sel')) {
                     var si = parseInt(target.getAttribute('data-gal-sel'), 10);
                     galSel = galSel && galSel.key === localSel && galSel.i === si ? null : { key: localSel, i: si };
@@ -4289,6 +4306,11 @@
                 }
                 if (target.hasAttribute('data-gal-act')) {
                     var gh = localSel ? findNode(localSel) : null;
+                    if (gh && galSel && galSel.key === localSel && galSel.field) {
+                        // A default image (single field): "Retirer" empties the field, the next gallery image of the type becomes the default
+                        if (target.getAttribute('data-gal-act') === 'remove') { gh.node[GALLERY_FIELD[galSel.field]] = ''; galSel = null; markDirty(); renderLocalDetail(); }
+                        return;
+                    }
                     var gi = galSel && galSel.key === localSel ? galSel.i : -1;
                     var gal = gh && gh.node.Gallery;
                     if (!gal || !gal[gi]) { return; }
