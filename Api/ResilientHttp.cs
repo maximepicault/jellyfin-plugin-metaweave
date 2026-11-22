@@ -74,7 +74,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// </summary>
         public static string BuildUrl(string baseUrl, string endpoint, string id)
         {
-            var root = (baseUrl ?? string.Empty).Trim().TrimEnd('/');
+            var root = (baseUrl ?? string.Empty).Trim();
+            // A base URL may already carry a query (https://api.x/dump?options={...}): the path goes BEFORE it, the query stays at the end
+            var query = string.Empty;
+            var queryStart = root.IndexOf('?');
+            if (queryStart >= 0)
+            {
+                query = root.Substring(queryStart);
+                root = root.Substring(0, queryStart);
+            }
+
+            root = root.TrimEnd('/');
             var path = (endpoint ?? string.Empty).Trim();
 
             if (id != null)
@@ -84,15 +94,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             if (path.Length == 0)
             {
-                return root;
+                return root + query;
             }
 
             if (path.StartsWith("?", StringComparison.Ordinal))
             {
-                return root + path;
+                return root + (query.Length > 1 ? query + "&" + path.Substring(1) : path);
             }
 
-            return root + "/" + path.TrimStart('/');
+            return root + "/" + path.TrimStart('/') + query;
         }
 
         /// <summary>

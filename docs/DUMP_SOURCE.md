@@ -29,7 +29,7 @@ The editor's test panel shows the candidates and the score of any file name, so 
 
 ## Paginated dumps
 
-If the API returns the catalogue in pages, set the **pagination parameter** (for example `page`) in the Catalogue section. The plugin reads `?page=1`, `?page=2`… (the first page number and a page limit are editable) and merges all pages into one catalogue. Reading stops at an empty page, at a page that brings no new id (an API that ignores the parameter), or at a 404 after the first page. If a page fails, or the limit is reached before the end, the download is refused and the previous copy, if any, keeps serving. For an API that expects JSON in the URL, write the whole parameter with `{page}` in place of the number, for example `options={"pagination":{"page":{page},"pageSize":100}}` (the value is URL-encoded for you). Leave the parameter empty for a single request.
+If the API returns the catalogue in pages, set the **pagination parameter** (for example `page`) in the Général section, under the URL. The plugin reads `?page=1`, `?page=2`… (the first page number and a page limit are editable) and merges all pages into one catalogue. Reading stops at an empty page, at a page that brings no new id (an API that ignores the parameter), or at a 404 after the first page. If a page fails, or the limit is reached before the end, the download is refused and the previous copy, if any, keeps serving. For an API that expects JSON in the URL, write the whole parameter with `{page}` in place of the number, for example `options={"pagination":{"page":{page},"pageSize":100}}` (the value is URL-encoded for you). The base URL can also carry that query itself (the pagination parameter replaces it). Leave the parameter empty for a single request.
 
 ## Mappings
 

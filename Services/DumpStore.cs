@@ -365,15 +365,42 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         internal static string AppendPage(string url, string parameter, int page)
         {
             var spec = (parameter ?? string.Empty).Trim();
-            var separator = url.Contains('?') ? "&" : "?";
+            string name;
+            string value;
             var eq = spec.IndexOf('=');
             if (spec.Contains("{page}", StringComparison.OrdinalIgnoreCase) && eq > 0)
             {
-                var value = spec.Substring(eq + 1).Replace("{page}", page.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase);
-                return $"{url}{separator}{Uri.EscapeDataString(spec.Substring(0, eq).Trim())}={Uri.EscapeDataString(value)}";
+                name = spec.Substring(0, eq).Trim();
+                value = spec.Substring(eq + 1).Replace("{page}", page.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                name = spec;
+                value = page.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
 
-            return $"{url}{separator}{Uri.EscapeDataString(spec)}={page}";
+            // The URL may already carry this parameter (typed by hand in the base URL): the pagination one replaces it
+            var queryStart = url.IndexOf('?');
+            var root = queryStart >= 0 ? url.Substring(0, queryStart) : url;
+            var kept = queryStart >= 0
+                ? url.Substring(queryStart + 1).Split('&', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(pair => !string.Equals(SafeUnescape(pair.Split('=')[0]), name, StringComparison.OrdinalIgnoreCase))
+                    .ToList()
+                : new List<string>();
+            kept.Add($"{Uri.EscapeDataString(name)}={Uri.EscapeDataString(value)}");
+            return root + "?" + string.Join("&", kept);
+        }
+
+        private static string SafeUnescape(string text)
+        {
+            try
+            {
+                return Uri.UnescapeDataString(text);
+            }
+            catch (UriFormatException)
+            {
+                return text;
+            }
         }
 
         private static string Read(JsonElement element, string path)

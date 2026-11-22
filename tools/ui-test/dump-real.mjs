@@ -130,6 +130,16 @@ try {
   check('test: reaching the page limit before the end is refused, not kept half-loaded', pick(t9, 'Ok') === false && /limite/.test(pick(t9, 'Error') || ''), JSON.stringify(t9)?.slice(0, 200));
   const tj = await test('x', { ...pg, BaseUrl: `${API}/dump-paged-json`, Dump: { ...pg.Dump, PageParameter: 'options={"pagination":{"page":{page},"pageSize":7}}' } });
   check('test: a {page} template sends a JSON query parameter (40 entries in pages of 7)', pick(tj, 'Ok') === true && pick(tj, 'Count') === 40, JSON.stringify(tj)?.slice(0, 200));
+  // the pagination typed by hand in the base URL (a query string): the dump and the entry test must both still work
+  const hard = { ...dumpSource, BaseUrl: `${API}/dump-paged-json?options=${encodeURIComponent('{"pagination":{"page":1,"pageSize":100}}')}` };
+  const th = await test('x', hard);
+  check('test: a base URL that already holds the pagination query downloads', pick(th, 'Ok') === true && pick(th, 'Count') === 40, JSON.stringify(th)?.slice(0, 200));
+  const thr = (await api('POST', '/CustomMetadata/TestSource', { Source: hard, ItemType: 'video', Id: '1002' })).json;
+  check('source test: an id with a query in the base URL is read (no ".../items/1002" glued after the query)', pick(thr, 'Success') === true && !/\}\/items/.test(pick(thr, 'Url') || ''), JSON.stringify(thr)?.slice(0, 300));
+  const thn = (await api('POST', '/CustomMetadata/TestSource', { Source: hard, ItemType: 'video', Id: '' })).json;
+  check('source test: no id with a query in the base URL reads the first entry', pick(thn, 'Success') === true && pick(thn, 'Id') === '1001', JSON.stringify(thn)?.slice(0, 300));
+  const thp = await test('x', { ...hard, Dump: { ...hard.Dump, PageParameter: 'options={"pagination":{"page":{page},"pageSize":7}}' } });
+  check('test: the pagination field replaces the same parameter typed in the URL (pages of 7, 40 entries)', pick(thp, 'Ok') === true && pick(thp, 'Count') === 40, JSON.stringify(thp)?.slice(0, 200));
   const t10 = await test('x', { ...dumpSource, BaseUrl: `${API}/dump-bare`, Dump: { ...dumpSource.Dump, ItemsPath: '', PageParameter: 'page' } });
   check('test: an API that ignores the page parameter stops at the first repeated page', pick(t10, 'Ok') === true && pick(t10, 'Count') === 40, JSON.stringify(t10)?.slice(0, 200));
   await test('x');   // the real dump is the loaded one again

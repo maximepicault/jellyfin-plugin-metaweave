@@ -649,10 +649,23 @@
                             <input is="emby-input" type="text" id="srcApiKey" />
                             <div class="cm-hint">Facultative. Envoyée dans l&#x27;en-tête X-API-Key. Pour un autre en-tête (Authorization…), voir « Réseau ».</div>
                         </div>
+                        <div class="inputContainer cm-span" data-types="dump">
+                            <label class="inputLabel" for="srcDumpPageParam">Paramètre de pagination</label>
+                            <input is="emby-input" type="text" id="srcDumpPageParam" placeholder="page   ou   options={&quot;pagination&quot;:{&quot;page&quot;:{page},&quot;pageSize&quot;:100}}" />
+                            <div class="cm-hint">Vide = une seule requête. Sinon <code>?page=1</code>, <code>?page=2</code>… sont lues jusqu&#x27;à une page vide, répétée, ou un 404 après la première. Mettez l&#x27;URL de base sans ce paramètre (ou avec : celui-ci le remplace). Pour une API qui attend du JSON dans l&#x27;URL, écrivez le paramètre complet avec <code>{page}</code> à la place du numéro : <code>options={&quot;pagination&quot;:{&quot;page&quot;:{page},&quot;pageSize&quot;:100}}</code>. Si la limite est atteinte avant la fin, le téléchargement est refusé (un dump incomplet n&#x27;est jamais gardé).</div>
+                        </div>
+                        <div class="inputContainer" data-types="dump">
+                            <label class="inputLabel" for="srcDumpFirstPage">Première page</label>
+                            <input is="emby-input" type="number" id="srcDumpFirstPage" min="0" max="1000" step="1" />
+                        </div>
+                        <div class="inputContainer" data-types="dump">
+                            <label class="inputLabel" for="srcDumpMaxPages">Limite de pages</label>
+                            <input is="emby-input" type="number" id="srcDumpMaxPages" min="1" max="10000" step="1" />
+                        </div>
                         </div>
                         <div class="cm-callout cm-callout-info" data-types="dump">
                             <span aria-hidden="true">ⓘ</span>
-                            <span><strong>Source de type dump.</strong> L&#x27;URL ci-dessus renvoie <em>tout</em> le catalogue en un seul appel. Le plugin le garde en mémoire (section « Catalogue ») puis retrouve chaque fichier : par le tag <code>{préfixe-123}</code> s&#x27;il y en a un, sinon par son nom. L&#x27;écran « Épisodes manquants » montre ce que le catalogue contient et que vous n&#x27;avez pas.</span>
+                            <span><strong>Source de type dump.</strong> L&#x27;URL ci-dessus renvoie <em>tout</em> le catalogue, en un seul appel ou page par page (voir « Paramètre de pagination »). Le plugin le garde en mémoire (section « Catalogue ») puis retrouve chaque fichier : par le tag <code>{préfixe-123}</code> s&#x27;il y en a un, sinon par son nom. L&#x27;écran « Épisodes manquants » montre ce que le catalogue contient et que vous n&#x27;avez pas.</span>
                         </div>
                         <div class="cm-callout cm-callout-info" data-types="local">
                             <span aria-hidden="true">ⓘ</span>
@@ -691,19 +704,6 @@
                             <input is="emby-input" type="text" id="srcDumpDislikes" placeholder="dislikes" data-count="1" />
                         </div>
                         <div class="cm-hint cm-span" style="margin-top: -6px;">La note est calculée : j&#x27;aime ÷ (j&#x27;aime + je n&#x27;aime pas) × 10. Les deux vides = pas de note calculée. Elle est servie dans le champ <code>communityRating</code> ; une entrée qui en a déjà une la garde.</div>
-                        <div class="inputContainer">
-                            <label class="inputLabel" for="srcDumpPageParam">Paramètre de pagination</label>
-                            <input is="emby-input" type="text" id="srcDumpPageParam" placeholder="page   ou   options={&quot;pagination&quot;:{&quot;page&quot;:{page},&quot;pageSize&quot;:100}}" />
-                            <div class="cm-hint">Vide = une seule requête. Sinon <code>?page=1</code>, <code>?page=2</code>… sont lues jusqu&#x27;à une page vide, répétée, ou un 404 après la première. Pour une API qui attend du JSON dans l&#x27;URL, écrivez le paramètre complet avec <code>{page}</code> à la place du numéro : <code>options={&quot;pagination&quot;:{&quot;page&quot;:{page},&quot;pageSize&quot;:100}}</code>. Si la limite est atteinte avant la fin, le téléchargement est refusé (un dump incomplet n&#x27;est jamais gardé).</div>
-                        </div>
-                        <div class="inputContainer">
-                            <label class="inputLabel" for="srcDumpFirstPage">Première page</label>
-                            <input is="emby-input" type="number" id="srcDumpFirstPage" min="0" max="1000" step="1" />
-                        </div>
-                        <div class="inputContainer">
-                            <label class="inputLabel" for="srcDumpMaxPages">Limite de pages</label>
-                            <input is="emby-input" type="number" id="srcDumpMaxPages" min="1" max="10000" step="1" />
-                        </div>
                         <div class="inputContainer">
                             <label class="inputLabel" for="srcDumpCache">Durée du cache (minutes)</label>
                             <input is="emby-input" type="number" id="srcDumpCache" min="1" max="10080" step="1" />
