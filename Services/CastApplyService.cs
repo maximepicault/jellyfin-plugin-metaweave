@@ -141,6 +141,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// </summary>
         public CastApplyResult Apply(CastApplyRequest request)
         {
+            // The directory's details (bio, dates, place) live on Jellyfin's own person items, whether or not an episode changes
+            var personIds = (request?.PersonIds ?? new List<string>()).ToList();
+            _ = System.Threading.Tasks.Task.Run(() => SyncPersonItemsAsync(personIds, System.Threading.CancellationToken.None));
+
             var wanted = AffectedKeys(request);
             var result = new CastApplyResult();
             if (wanted.Count == 0)
@@ -191,6 +195,61 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             _logger.LogInformation("👥 [CAST APPLY] {Queued} episodes queued for refresh ({Missing} missing, {Keys} keys wanted)", result.Queued, result.Missing, wanted.Count);
             return result;
+        }
+
+        /// <summary>
+        /// Copies the directory's details (biography, birth and death dates, birth place) onto Jellyfin's person items, so the
+        /// person page shows them. Empty directory fields never erase what Jellyfin already has. No ids = every person of the directory.
+        /// A person Jellyfin does not know yet (no episode carries them) is skipped: it receives the details once it is created.
+        /// </summary>
+        public async System.Threading.Tasks.Task<int> SyncPersonItemsAsync(IEnumerable<string> personIds, System.Threading.CancellationToken cancellationToken)
+        {
+            var ids = new HashSet<string>((personIds ?? Enumerable.Empty<string>()).Select(i => i.Trim()), StringComparer.OrdinalIgnoreCase);
+            var changed = 0;
+            foreach (var person in _people.Load().People.Where(p => ids.Count == 0 || ids.Contains(p.Id ?? string.Empty)))
+            {
+                try
+                {
+                    var item = _libraryManager.GetPerson(person.Name);
+                    if (item == null)
+                    {
+                        continue;
+                    }
+
+                    var dirty = false;
+                    if (!string.IsNullOrWhiteSpace(person.Bio) && item.Overview != person.Bio) { item.Overview = person.Bio; dirty = true; }
+                    if (DateTime.TryParseExact(person.BirthDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var birth) && item.PremiereDate != birth)
+                    {
+                        item.PremiereDate = birth;
+                        dirty = true;
+                    }
+
+                    if (DateTime.TryParseExact(person.DeathDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var death) && item.EndDate != death)
+                    {
+                        item.EndDate = death;
+                        dirty = true;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(person.BirthPlace) && !(item.ProductionLocations ?? Array.Empty<string>()).SequenceEqual(new[] { person.BirthPlace }))
+                    {
+                        item.ProductionLocations = new[] { person.BirthPlace };
+                        dirty = true;
+                    }
+
+                    if (dirty)
+                    {
+                        await _libraryManager.UpdateItemAsync(item, item, ItemUpdateType.MetadataEdit, cancellationToken);
+                        changed++;
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "👥 [CAST APPLY] ⚠️ Cannot update the Jellyfin person '{Name}'", person.Name);
+                }
+            }
+
+            _logger.LogInformation("👥 [CAST APPLY] ✅ Details written on {Changed} Jellyfin person items", changed);
+            return changed;
         }
 
         // ---- Children without an identifier: the cast is written straight into Jellyfin ----
