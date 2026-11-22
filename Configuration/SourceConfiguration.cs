@@ -286,7 +286,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         public string PreviewRatio { get; set; } = "16:9";
 
         /// <summary>
-        /// Pagination parameter added to the dump URL (e.g. "page" → ?page=1, ?page=2...). Empty = one call only.
+        /// Pagination parameter added to the dump URL (e.g. "page" → ?page=1, ?page=2...). A template with {page} is a whole
+        /// query parameter, e.g. options={"pagination":{"page":{page},"pageSize":100}}. Empty = one call only.
         /// Pages are read until one is empty, repeats the previous one, or answers 404 after the first.
         /// </summary>
         public string PageParameter { get; set; } = string.Empty;

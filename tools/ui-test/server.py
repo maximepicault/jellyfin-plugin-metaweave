@@ -94,6 +94,13 @@ class H(BaseHTTPRequestHandler):
             n = int(q.get("page", ["1"])[0]); items = dump_json()[(n - 1) * 3:n * 3]
             if not items and q.get("mode", [""])[0] == "404": return self.send(404, {})
             return self.send(200, {"data": items})
+        if p == "/dump-paged-json":
+            # Pagination as JSON in one query parameter: ?options={"pagination":{"page":N,"pageSize":3}}
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            try: pg = json.loads(q["options"][0])["pagination"]
+            except Exception: return self.send(400, {"error": "options?"})
+            n, size = int(pg["page"]), int(pg["pageSize"])
+            return self.send(200, {"data": dump_json()[(n - 1) * size:n * size]})
         if p == "/dump-bare": return self.send(200, dump_json())
         if p.startswith("/img/"):
             f = os.path.join(IMG_DIR, os.path.basename(p))

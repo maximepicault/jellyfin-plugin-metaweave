@@ -232,7 +232,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     var pageUrl = url;
                     if (paginated)
                     {
-                        pageUrl = $"{url}{(url.Contains('?') ? "&" : "?")}{Uri.EscapeDataString(settings.PageParameter.Trim())}={settings.FirstPage + i}";
+                        pageUrl = AppendPage(url, settings.PageParameter, settings.FirstPage + i);
                         _logger.LogInformation("{Tag} Page {Page} of '{Source}': {Url}", Tag, settings.FirstPage + i, source.Name, pageUrl);
                     }
 
@@ -356,6 +356,24 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 _logger.LogError(ex, "{Tag} ❌ The response of '{Source}' is not valid JSON", Tag, source.Name);
                 return (null, "La réponse n'est pas du JSON valide : " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// A plain name ("page") gives "?page=N". A template holding {page} (e.g. options={"pagination":{"page":{page},"pageSize":100}})
+        /// is a whole query parameter: the text before the first "=" is the name, the rest the value with {page} replaced; both are URL-encoded.
+        /// </summary>
+        internal static string AppendPage(string url, string parameter, int page)
+        {
+            var spec = (parameter ?? string.Empty).Trim();
+            var separator = url.Contains('?') ? "&" : "?";
+            var eq = spec.IndexOf('=');
+            if (spec.Contains("{page}", StringComparison.OrdinalIgnoreCase) && eq > 0)
+            {
+                var value = spec.Substring(eq + 1).Replace("{page}", page.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase);
+                return $"{url}{separator}{Uri.EscapeDataString(spec.Substring(0, eq).Trim())}={Uri.EscapeDataString(value)}";
+            }
+
+            return $"{url}{separator}{Uri.EscapeDataString(spec)}={page}";
         }
 
         private static string Read(JsonElement element, string path)

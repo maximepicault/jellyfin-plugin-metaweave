@@ -693,8 +693,8 @@
                         <div class="cm-hint cm-span" style="margin-top: -6px;">La note est calculée : j&#x27;aime ÷ (j&#x27;aime + je n&#x27;aime pas) × 10. Les deux vides = pas de note calculée. Elle est servie dans le champ <code>communityRating</code> ; une entrée qui en a déjà une la garde.</div>
                         <div class="inputContainer">
                             <label class="inputLabel" for="srcDumpPageParam">Paramètre de pagination</label>
-                            <input is="emby-input" type="text" id="srcDumpPageParam" placeholder="page" />
-                            <div class="cm-hint">Vide = une seule requête. Sinon <code>?page=1</code>, <code>?page=2</code>… sont lues jusqu&#x27;à une page vide, répétée, ou un 404 après la première. Si la limite est atteinte avant la fin, le téléchargement est refusé (un dump incomplet n&#x27;est jamais gardé).</div>
+                            <input is="emby-input" type="text" id="srcDumpPageParam" placeholder="page   ou   options={&quot;pagination&quot;:{&quot;page&quot;:{page},&quot;pageSize&quot;:100}}" />
+                            <div class="cm-hint">Vide = une seule requête. Sinon <code>?page=1</code>, <code>?page=2</code>… sont lues jusqu&#x27;à une page vide, répétée, ou un 404 après la première. Pour une API qui attend du JSON dans l&#x27;URL, écrivez le paramètre complet avec <code>{page}</code> à la place du numéro : <code>options={&quot;pagination&quot;:{&quot;page&quot;:{page},&quot;pageSize&quot;:100}}</code>. Si la limite est atteinte avant la fin, le téléchargement est refusé (un dump incomplet n&#x27;est jamais gardé).</div>
                         </div>
                         <div class="inputContainer">
                             <label class="inputLabel" for="srcDumpFirstPage">Première page</label>

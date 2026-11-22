@@ -128,6 +128,8 @@ try {
   check('test: a 404 after the last page ends the dump (40 entries, no error)', pick(t8, 'Ok') === true && pick(t8, 'Count') === 40, JSON.stringify(t8)?.slice(0, 200));
   const t9 = await test('x', { ...pg, Dump: { ...pg.Dump, MaxPages: 3 } });
   check('test: reaching the page limit before the end is refused, not kept half-loaded', pick(t9, 'Ok') === false && /limite/.test(pick(t9, 'Error') || ''), JSON.stringify(t9)?.slice(0, 200));
+  const tj = await test('x', { ...pg, BaseUrl: `${API}/dump-paged-json`, Dump: { ...pg.Dump, PageParameter: 'options={"pagination":{"page":{page},"pageSize":7}}' } });
+  check('test: a {page} template sends a JSON query parameter (40 entries in pages of 7)', pick(tj, 'Ok') === true && pick(tj, 'Count') === 40, JSON.stringify(tj)?.slice(0, 200));
   const t10 = await test('x', { ...dumpSource, BaseUrl: `${API}/dump-bare`, Dump: { ...dumpSource.Dump, ItemsPath: '', PageParameter: 'page' } });
   check('test: an API that ignores the page parameter stops at the first repeated page', pick(t10, 'Ok') === true && pick(t10, 'Count') === 40, JSON.stringify(t10)?.slice(0, 200));
   await test('x');   // the real dump is the loaded one again
