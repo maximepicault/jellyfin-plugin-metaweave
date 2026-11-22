@@ -332,7 +332,29 @@ try {
   check('series link: a series id found nowhere in the library links to nothing', lkBy('nolib') && !lkBy('nolib').LibraryItemId && !lkBy('nolib').LibrarySeries, JSON.stringify(lkBy('nolib')));
   const lkInfo = pick((await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dm&status=all&series=' + encodeURIComponent('s:d1'))).json, 'SeriesInfo');
   check('series link: the series page gets the item to open, and its kind', pick(lkInfo, 'LibraryItemKind') === 'Season' && !!pick(lkInfo, 'LibraryItemId'), JSON.stringify(lkInfo));
+  // a season tagged with the dump's series id is analysed like an API season: its missing entries become virtual episodes
+  const reportOf = async () => pick((await api('GET', '/CustomMetadata/MissingEpisodes')).json, 'Report');
+  const analyze = async () => {
+    const before = pick(await reportOf(), 'GeneratedAt');
+    await api('POST', '/CustomMetadata/MissingEpisodes/Analyze?full=true');
+    for (let i = 0; i < 90; i++) {
+      await wait(2000);
+      const state = (await api('GET', '/CustomMetadata/MissingEpisodes')).json;
+      if (!pick(state, 'Running') && pick(pick(state, 'Report'), 'GeneratedAt') !== before) { return; }
+    }
+  };
+  await analyze();
+  const dumpSeason = (pick(await reportOf(), 'Seasons') || []).find(x => x.SourceItemId === 'dm-d1');
+  const dumpEntries = (dumpSeason?.Missing || []).map(e => e.Tag).sort().join();
+  check('missing analysis: a season tagged with a dump series id gets that series\' entries as missing episodes', /Dump lié/.test(dumpSeason?.SourceName || '') && dumpEntries === 'dm-9001,dm-9002' && dumpSeason.ApiCount === 2, JSON.stringify(dumpSeason && { n: dumpSeason.SourceName, a: dumpSeason.ApiCount, m: dumpEntries }));
+  check('missing analysis: each one has its virtual episode (like the other sources)', (dumpSeason?.Missing || []).length === 2 && dumpSeason.Missing.every(e => !!e.EpisodeId), JSON.stringify(dumpSeason?.Missing?.map(e => e.EpisodeId)));
+  const statusCount = pick((await api('GET', '/CustomMetadata/Status')).json, 'MissingEpisodes');
+  const reportCount = (pick(await reportOf(), 'Seasons') || []).reduce((n, x) => n + (x.Missing || []).length, 0);
+  check('missing analysis: the tab counter follows', statusCount === reportCount, `${statusCount} vs ${reportCount}`);
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
+  await analyze();
+  const backToApi = (pick(await reportOf(), 'Seasons') || []).find(x => x.SourceItemId === 'dm-d1');
+  check('missing analysis: with the dump source gone the season is the API source\'s again (virtual episodes follow)', /Démo API/.test(backToApi?.SourceName || '') && !(backToApi?.Missing || []).some(e => /^dm-90/.test(e.Tag)), JSON.stringify(backToApi && { n: backToApi.SourceName, m: backToApi.Missing?.map(e => e.Tag) }));
   const withSeriesIdNoName = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, SeriesIdPath: 'brand_id', SeriesNamePath: '' } } : x) };
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, withSeriesIdNoName);
   const sidn = (pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&pageSize=50')).json, 'Items') || []);

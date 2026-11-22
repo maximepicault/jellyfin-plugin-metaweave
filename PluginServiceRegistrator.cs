@@ -86,6 +86,7 @@ namespace Jellyfin.Plugin.CustomMetadata
             // Keeps the dump coverage screen's results until the dump, its settings or the library change
             serviceCollection.AddSingleton<DumpCoverageCache>();
             serviceCollection.AddHostedService(sp => sp.GetRequiredService<DumpCoverageCache>());
+            serviceCollection.AddSingleton<DumpCoverageService>();
             serviceCollection.AddSingleton<DiagnosticService>();
         }
     }

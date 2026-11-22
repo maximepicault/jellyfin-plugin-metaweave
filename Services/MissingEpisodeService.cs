@@ -50,6 +50,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly CastInheritance _inheritance;
         private readonly LocalSourceStore _localStore;
         private readonly VideoDownloadService _downloads;
+        private readonly DumpCoverageService _dumpCoverage;
 
         public MissingEpisodeService(
             ILibraryManager libraryManager,
@@ -62,8 +63,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             CastInheritance inheritance,
             LocalSourceStore localStore,
             VideoDownloadService downloads,
+            DumpCoverageService dumpCoverage,
             ILogger<MissingEpisodeService> logger)
         {
+            _dumpCoverage = dumpCoverage;
             _downloads = downloads;
             _localStore = localStore;
             _inheritance = inheritance;
@@ -244,7 +247,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var overrideSource = overridden.Value.Source;
                 _logger.LogInformation("🔎 [MISSING] {Tag}: local season '{Title}' of source '{Source}' overrides the episodes",
                     seasonTag, overridden.Value.Node.Title ?? overridden.Value.Node.Id, overrideSource.Name);
-                if (string.IsNullOrWhiteSpace(source.EpisodeListEndpoint))
+                if (string.IsNullOrWhiteSpace(source.EpisodeListEndpoint) && !source.IsDump)
                 {
                     source = overrideSource;
                     sourceItemId = overridden.Value.Node.Id;
@@ -256,7 +259,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
             }
 
-            if (source == null || string.IsNullOrWhiteSpace(source.EpisodeListEndpoint))
+            // A dump source has no list endpoint: its list is the entries that carry the season tag's series id (DumpCoverageService)
+            if (source == null || (string.IsNullOrWhiteSpace(source.EpisodeListEndpoint) && !source.IsDump))
             {
                 // No source, or no list endpoint configured for this source: nothing to analyse
                 return null;
@@ -287,7 +291,22 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 StringComparer.OrdinalIgnoreCase);
             seasonReport.LocalCount = physical.Count;
 
-            var apiEpisodes = await _apiClient.GetEpisodeListAsync(sourceItemId, source, cancellationToken);
+            List<EpisodeListItem> apiEpisodes;
+            if (source.IsDump)
+            {
+                var (dumpList, dumpError) = await _dumpCoverage.EpisodeListAsync(source, sourceItemId, cancellationToken);
+                if (dumpList == null && dumpError == null)
+                {
+                    // The dump has no series with this id: not a season of this dump
+                    return null;
+                }
+
+                apiEpisodes = dumpList;
+            }
+            else
+            {
+                apiEpisodes = await _apiClient.GetEpisodeListAsync(sourceItemId, source, cancellationToken);
+            }
             if (apiEpisodes == null)
             {
                 // List unavailable: touch nothing (no deletion of virtual episodes on an error)
