@@ -158,6 +158,33 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
             }
 
+            // Networks given as a list of {identifier, handle} objects
+            var unmapped = new List<string>();
+            var listMapping = mapping.NetworkList;
+            if (listMapping != null && !string.IsNullOrWhiteSpace(listMapping.ItemsPath) && !string.IsNullOrWhiteSpace(listMapping.KeyPath) && !string.IsNullOrWhiteSpace(listMapping.ValuePath)
+                && JsonPathExtractor.TryGetArray(root, listMapping.ItemsPath, out var entries))
+            {
+                foreach (var entry in entries)
+                {
+                    var key = JsonPathExtractor.GetString(entry, listMapping.KeyPath)?.Trim();
+                    var value = JsonPathExtractor.GetString(entry, listMapping.ValuePath)?.Trim();
+                    if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    var target = (listMapping.Keys ?? new List<PersonNetworkKey>()).FirstOrDefault(k => string.Equals(k?.Key?.Trim(), key, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(k.NetworkId));
+                    if (target == null)
+                    {
+                        unmapped.Add($"{key} = {value}");
+                    }
+                    else
+                    {
+                        networks.Add(new PersonNetworkValue { NetworkId = target.NetworkId, Value = HtmlText.Decode(value) });
+                    }
+                }
+            }
+
             return string.IsNullOrEmpty(name)
                 ? null
                 : new PersonData
@@ -170,7 +197,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     BirthPlace = Read(mapping.BirthPlace)?.Trim(),
                     Website = PeopleStore.NormalizeWebsite(Read(mapping.Website)),
                     Backdrops = ReadMany(mapping.Backdrops),
-                    Networks = networks
+                    Networks = networks,
+                    UnmappedNetworks = unmapped
                 };
         }
 

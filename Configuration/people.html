@@ -1483,8 +1483,9 @@
                     fetchPerson(link.Prefix, link.ExternalId).then(function(result) {
                         if (result.Error) { linkMessage(result.Error, false); return; }
                         var changed = applyFetched(person, result, overwrite);
-                        if (changed.length) { markDirty(); renderList(); renderDetail(); linkMessage('Mis à jour : ' + changed.join(', ') + '.', true); }
-                        else { linkMessage(overwrite ? 'Déjà identique à la source.' : 'Rien à compléter : les champs sont déjà remplis.', true); }
+                        var unmapped = (result.UnmappedNetworks || []).length ? ' Réseaux non reconnus par la source (à relier dans ses réglages) : ' + result.UnmappedNetworks.join(', ') + '.' : '';
+                        if (changed.length) { markDirty(); renderList(); renderDetail(); linkMessage('Mis à jour : ' + changed.join(', ') + '.' + unmapped, true); }
+                        else { linkMessage((overwrite ? 'Déjà identique à la source.' : 'Rien à compléter : les champs sont déjà remplis.') + unmapped, true); }
                     }, function() { linkMessage('Le serveur Jellyfin n\'a pas pu interroger la source.', false); });
                     return;
                 }

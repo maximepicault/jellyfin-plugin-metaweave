@@ -382,6 +382,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 Website = person.Website,
                 Backdrops = person.Backdrops,
                 Networks = person.Networks,
+                UnmappedNetworks = person.UnmappedNetworks,
                 MatchPersonId = match?.Person.Id,
                 MatchReason = match?.Reason
             });
@@ -449,6 +450,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public System.Collections.Generic.List<string> Backdrops { get; set; }
 
         public System.Collections.Generic.List<PersonNetworkValue> Networks { get; set; }
+
+        /// <summary>Entries of the source's networks list whose identifier is not linked to a network yet ("5 = name3")</summary>
+        public System.Collections.Generic.List<string> UnmappedNetworks { get; set; }
 
         /// <summary>Entry already in the directory: same identifier ("link") or same name ("name")</summary>
         public string MatchPersonId { get; set; }

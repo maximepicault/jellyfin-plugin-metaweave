@@ -83,6 +83,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public List<string> Backdrops { get; set; } = new List<string>();
 
         public List<PersonNetworkValue> Networks { get; set; } = new List<PersonNetworkValue>();
+
+        /// <summary>Entries of a networks list whose identifier is not in the table ("5 = name3"): shown by the source's test, never stored</summary>
+        public List<string> UnmappedNetworks { get; set; } = new List<string>();
     }
 
     /// <summary>

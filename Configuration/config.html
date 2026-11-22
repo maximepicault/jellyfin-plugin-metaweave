@@ -1195,6 +1195,18 @@
                             <div class="cm-hint">Pour chaque réseau que l&#x27;API renseigne, indiquez où lire le pseudo ou l&#x27;adresse (social.instagram). La liste des réseaux se gère dans l&#x27;écran Personnes.</div>
                             <button is="emby-button" type="button" class="raised" id="srcPersonNetAdd"><span>Ajouter un réseau</span></button>
                         </div>
+                        <div class="inputContainer cm-span">
+                            <span class="inputLabel">Réseaux dans une liste (facultatif)</span>
+                            <div class="cm-hint" style="margin-top:0;">Quand l&#x27;API renvoie les réseaux sous forme de liste d&#x27;objets, par exemple <code>"profileSocials": [{ "providerId": "1", "handle": "name1" }]</code> : indiquez où est la liste et comment lire chaque élément, puis reliez chaque identifiant à un réseau.</div>
+                            <div class="cm-grid" style="margin-top:10px;">
+                                <div class="inputContainer"><label class="inputLabel" for="srcPersonNetListItems">Chemin de la liste</label><input is="emby-input" type="text" id="srcPersonNetListItems" placeholder="profileSocials" /></div>
+                                <div class="inputContainer"><label class="inputLabel" for="srcPersonNetListKey">Identifiant du réseau (dans chaque élément)</label><input is="emby-input" type="text" id="srcPersonNetListKey" placeholder="providerId" /></div>
+                                <div class="inputContainer"><label class="inputLabel" for="srcPersonNetListValue">Pseudo ou adresse (dans chaque élément)</label><input is="emby-input" type="text" id="srcPersonNetListValue" placeholder="handle" /></div>
+                            </div>
+                            <div id="srcPersonNetKeys" style="margin-top:6px;"></div>
+                            <div class="cm-hint">Chaque ligne relie une valeur de l&#x27;identifiant (par exemple 1) à un réseau de la liste. Les identifiants non reliés sont signalés par le test de la source.</div>
+                            <button is="emby-button" type="button" class="raised" id="srcPersonNetKeyAdd"><span>Relier un identifiant</span></button>
+                        </div>
                         </div>
                     </section>
                     <section class="cm-pane" data-section="content" data-types="local" aria-labelledby="paneTitle-content" hidden>
@@ -1863,7 +1875,7 @@
                     html += '<h4>Personne trouvée</h4><div><strong>' + escapeHtml(r.Person.Name) + '</strong></div>'
                         + (r.Person.Photo ? '<div style="word-break: break-all;">Photo : ' + escapeHtml(r.Person.Photo) + '</div><img alt="" src="' + escapeHtml(r.Person.Photo) + '" style="max-width: 120px; max-height: 120px; margin-top: 8px; border-radius: 6px;" />' : '<div class="cm-hint">Pas de photo trouvée.</div>')
                         + (r.Person.Bio ? '<div class="cm-hint">' + escapeHtml(r.Person.Bio) + '</div>' : '')
-                        + [['Naissance', r.Person.BirthDate], ['Décès', r.Person.DeathDate], ['Lieu de naissance', r.Person.BirthPlace], ['Site web', r.Person.Website], ['Images de fond', (r.Person.Backdrops || []).length ? (r.Person.Backdrops || []).length + ' : ' + r.Person.Backdrops.join(', ') : ''], ['Réseaux', (r.Person.Networks || []).map(function(n) { return n.NetworkId + ' = ' + n.Value; }).join(', ')]].map(function(x) { return x[1] ? '<div class="cm-hint" style="word-break: break-all;">' + x[0] + ' : ' + escapeHtml(x[1]) + '</div>' : ''; }).join('');
+                        + [['Naissance', r.Person.BirthDate], ['Décès', r.Person.DeathDate], ['Lieu de naissance', r.Person.BirthPlace], ['Site web', r.Person.Website], ['Images de fond', (r.Person.Backdrops || []).length ? (r.Person.Backdrops || []).length + ' : ' + r.Person.Backdrops.join(', ') : ''], ['Réseaux', (r.Person.Networks || []).map(function(n) { return n.NetworkId + ' = ' + n.Value; }).join(', ')], ['Identifiants sans réseau (à relier ci-dessus)', (r.Person.UnmappedNetworks || []).join(', ')]].map(function(x) { return x[1] ? '<div class="cm-hint" style="word-break: break-all;">' + x[0] + ' : ' + escapeHtml(x[1]) + '</div>' : ''; }).join('');
                 }
 
                 if (r.Metadata) {
@@ -2390,6 +2402,12 @@
                         BirthDate: qs('#srcPersonBirthDate').value.trim(), DeathDate: qs('#srcPersonDeathDate').value.trim(),
                         BirthPlace: qs('#srcPersonBirthPlace').value.trim(), Website: qs('#srcPersonWebsite').value.trim(),
                         Backdrops: qs('#srcPersonBackdrops').value.trim(),
+                        NetworkList: {
+                            ItemsPath: qs('#srcPersonNetListItems').value.trim(), KeyPath: qs('#srcPersonNetListKey').value.trim(), ValuePath: qs('#srcPersonNetListValue').value.trim(),
+                            Keys: [].slice.call(document.querySelectorAll('#srcPersonNetKeys .cm-pnet')).map(function(row) {
+                                return { Key: row.querySelector('input').value.trim(), NetworkId: row.querySelector('select').value };
+                            }).filter(function(k) { return k.Key && k.NetworkId; })
+                        },
                         Networks: [].slice.call(document.querySelectorAll('#srcPersonNets .cm-pnet')).map(function(row) {
                             return { NetworkId: row.querySelector('select').value, Path: row.querySelector('input').value.trim() };
                         }).filter(function(n) { return n.NetworkId && n.Path; })
@@ -2957,8 +2975,16 @@
                 qs('#srcPersonWebsite').value = pm.Website || '';
                 qs('#srcPersonBackdrops').value = pm.Backdrops || '';
                 qs('#srcPersonNets').innerHTML = '';
+                qs('#srcPersonNetKeys').innerHTML = '';
+                var nl = pm.NetworkList || {};
+                qs('#srcPersonNetListItems').value = nl.ItemsPath || '';
+                qs('#srcPersonNetListKey').value = nl.KeyPath || '';
+                qs('#srcPersonNetListValue').value = nl.ValuePath || '';
                 personNets = null;
-                loadPersonNets().then(function() { (pm.Networks || []).forEach(function(n) { addPersonNetRow(n.NetworkId, n.Path); }); });
+                loadPersonNets().then(function() {
+                    (pm.Networks || []).forEach(function(n) { addPersonNetRow(n.NetworkId, n.Path); });
+                    (nl.Keys || []).forEach(function(k) { addPersonKeyRow(k.Key, k.NetworkId); });
+                });
             }
 
             // Networks of the people screen, to pick from in a people source's mapping
@@ -2979,6 +3005,25 @@
                 row.querySelector('button').addEventListener('click', function() { row.remove(); });
                 qs('#srcPersonNets').appendChild(row);
             }
+            // One row of the table "network identifier in the list → network"
+            function addPersonKeyRow(key, networkId) {
+                var row = document.createElement('div');
+                row.className = 'cm-pnet';
+                row.style.cssText = 'display:grid;grid-template-columns:minmax(90px,160px) minmax(150px,220px) auto;gap:10px;align-items:center;margin-bottom:8px;';
+                var known = (personNets || []).some(function(n) { return n.Id === networkId; });
+                row.innerHTML = '<input type="text" aria-label="Valeur de l\'identifiant" placeholder="1" value="' + escapeHtml(key || '') + '" />'
+                    + '<select aria-label="Réseau">' + (personNets || []).map(function(n) { return '<option value="' + escapeHtml(n.Id) + '"' + (n.Id === networkId ? ' selected' : '') + '>' + escapeHtml((n.Icon ? n.Icon + ' ' : '') + n.Name) + '</option>'; }).join('')
+                    + (networkId && !known ? '<option value="' + escapeHtml(networkId) + '" selected>' + escapeHtml(networkId) + ' (supprimé)</option>' : '') + '</select>'
+                    + '<button type="button" class="cm-linkbtn" aria-label="Retirer cette liaison">Retirer</button>';
+                row.querySelector('button').addEventListener('click', function() { row.remove(); });
+                qs('#srcPersonNetKeys').appendChild(row);
+            }
+            qs('#srcPersonNetKeyAdd').addEventListener('click', function() {
+                loadPersonNets().then(function(list) {
+                    if (!list.length) { Dashboard.alert('Aucun réseau défini : créez-les dans l\'écran Personnes.'); return; }
+                    addPersonKeyRow('', list[0].Id);
+                });
+            });
             qs('#srcPersonNetAdd').addEventListener('click', function() {
                 loadPersonNets().then(function(list) {
                     if (!list.length) { Dashboard.alert('Aucun réseau défini : créez-les dans l\'écran Personnes.'); return; }

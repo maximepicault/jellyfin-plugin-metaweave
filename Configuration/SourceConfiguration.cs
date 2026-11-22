@@ -363,6 +363,37 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
 
         /// <summary>Optional: where the API gives the person's link on a network (one path per network of the people screen)</summary>
         public List<PersonNetworkMapping> Networks { get; set; } = new List<PersonNetworkMapping>();
+
+        /// <summary>
+        /// Optional: networks given as a LIST of objects, each carrying an identifier of the network and a handle, like
+        /// [{"providerId": "1", "handle": "name1"}, …]. The table of identifiers says which network each one is.
+        /// </summary>
+        public PersonNetworkListMapping NetworkList { get; set; } = new PersonNetworkListMapping();
+    }
+
+    /// <summary>Networks read from a list of objects: where the list is, how to read each item, and what each network identifier means</summary>
+    public class PersonNetworkListMapping
+    {
+        /// <summary>Path of the list ("profileSocials")</summary>
+        public string ItemsPath { get; set; } = string.Empty;
+
+        /// <summary>Path, inside each item, of the network identifier ("providerId")</summary>
+        public string KeyPath { get; set; } = string.Empty;
+
+        /// <summary>Path, inside each item, of the handle or address ("handle")</summary>
+        public string ValuePath { get; set; } = string.Empty;
+
+        /// <summary>Which network of the people screen each identifier is ("1" → instagram)</summary>
+        public List<PersonNetworkKey> Keys { get; set; } = new List<PersonNetworkKey>();
+    }
+
+    public class PersonNetworkKey
+    {
+        /// <summary>Value found at KeyPath ("1")</summary>
+        public string Key { get; set; } = string.Empty;
+
+        /// <summary>Id of a network of the people screen ("instagram")</summary>
+        public string NetworkId { get; set; } = string.Empty;
     }
 
     /// <summary>Path of the value (handle or address) of one network in the PersonEndpoint response</summary>

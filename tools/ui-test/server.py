@@ -159,7 +159,8 @@ class H(BaseHTTPRequestHandler):
             if m[1] not in PEOPLE: return self.send(404, {"error": "inconnue"})
             name, bio = PEOPLE[m[1]]
             return self.send(200, {"name": name, "photo": f"/img/{m[1]}.jpg", "bio": bio,   # RELATIVE photo: completed with the base URL
-                                   "backdrops": [f"/img/{m[1]}.jpg", "/img/a1.jpg"], "social": {"instagram": "@" + m[1], "imdb": "nm" + m[1]}})
+                                   "backdrops": [f"/img/{m[1]}.jpg", "/img/a1.jpg"], "social": {"instagram": "@" + m[1], "imdb": "nm" + m[1]},
+                                   "profileSocials": [{"providerId": "1", "handle": "ig_" + m[1]}, {"providerId": "4", "handle": "x_" + m[1]}, {"providerId": "5", "handle": "autre_" + m[1]}]})
         if p == "/series/echoheaders":   # returns the headers received, to check what really goes on the wire
             import json as _json
             return self.send(200, {"id": "echoheaders", "title": _json.dumps({k: v for k, v in self.headers.items()}, ensure_ascii=False)})
