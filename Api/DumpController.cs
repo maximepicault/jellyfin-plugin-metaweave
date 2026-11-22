@@ -193,6 +193,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             var rows = RowsOf(catalog, source);
             LinkOwned(rows, OwnedIds(source), catalog, source);
+            LinkContainers(rows, source);
 
             var coverage = new DumpCoverage
             {
@@ -253,6 +254,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             var rows = RowsOf(catalog, source);
             LinkOwned(rows, OwnedIds(source), catalog, source);
+            LinkContainers(rows, source);
             var page = new DumpSeriesPage
             {
                 Prefix = source.Prefix, SourceName = source.Name, LoadedAtUtc = catalog.LoadedAtUtc, Error = error,
@@ -304,8 +306,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     Key = g.Key,
                     Alone = alone,
                     Name = members[0].Series,
-                    LibrarySeries = linked.GroupBy(r => r.LibrarySeries).OrderByDescending(x => x.Count()).Select(x => x.Key).FirstOrDefault(),
-                    LibrarySeasons = linked.Where(r => r.LibrarySeason.HasValue).Select(r => r.LibrarySeason.Value).Distinct().OrderBy(x => x).ToList(),
+                    LibrarySeries = linked.GroupBy(r => r.LibrarySeries).OrderByDescending(x => x.Count()).Select(x => x.Key).FirstOrDefault() ?? members.FirstOrDefault(r => r.LinkItemId != null)?.LinkSeries,
+                    LibrarySeasons = linked.Where(r => r.LibrarySeason.HasValue).Select(r => r.LibrarySeason.Value)
+                        .Concat(members.Where(r => r.LinkSeason.HasValue).Select(r => r.LinkSeason.Value)).Distinct().OrderBy(x => x).ToList(),
+                    LibraryItemId = members.FirstOrDefault(r => r.LinkItemId != null)?.LinkItemId,
                     // Only when every entry has the same group: otherwise the card would claim a brand it does not belong to
                     Group = members.Select(r => r.Group).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1 && !string.IsNullOrWhiteSpace(members[0].Group) && members[0].Group != "(sans groupe)" ? members[0].Group : null,
                     Total = members.Count,
@@ -359,6 +363,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             var rows = RowsOf(catalog, source);
             LinkOwned(rows, OwnedIds(source), catalog, source);
+            LinkContainers(rows, source);
 
             var sb = new StringBuilder("﻿tag;id;nom;groupe;date;tags;statut;fichier;score\r\n");
             foreach (var row in Filter(rows, query))
@@ -725,6 +730,87 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return owned;
         }
 
+        /// <summary>A series or season folder of the library that carries a {prefix-id} tag of this dump</summary>
+        private sealed class ContainerInfo
+        {
+            public Guid Id;
+            public bool IsSeason;
+            public string SeriesName;
+            public int? SeasonNumber;
+        }
+
+        /// <summary>
+        /// Links the dump's series (those grouped by a series id) to the library: a season or series folder whose own name carries
+        /// {prefix-seriesId} (or whose stored id is that), so the screen can open it even before any entry is owned. A season wins over
+        /// a series with the same tag.
+        /// </summary>
+        private void LinkContainers(List<DumpRow> rows, SourceConfiguration source)
+        {
+            if (!rows.Any(r => r.SeriesId != null))
+            {
+                return;
+            }
+
+            var prefix = (source.Prefix ?? string.Empty).Trim();
+            var found = new Dictionary<string, ContainerInfo>(StringComparer.OrdinalIgnoreCase);
+            var items = _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                IncludeItemTypes = new[] { BaseItemKind.Series, BaseItemKind.Season },
+                Recursive = true,
+                IsVirtualItem = false
+            });
+
+            foreach (var item in items)
+            {
+                var tags = new List<string>();
+                if (!string.IsNullOrEmpty(item.Path))
+                {
+                    tags.AddRange(TagParser.ExtractAll(TagParser.GetOwnName(item.Path)));
+                }
+
+                var stored = CustomId.Get(item.ProviderIds);
+                if (stored != null)
+                {
+                    tags.Add(stored);
+                }
+
+                foreach (var tag in tags)
+                {
+                    var dash = tag.IndexOf('-');
+                    if (dash <= 0 || !string.Equals(tag.Substring(0, dash), prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var id = tag.Substring(dash + 1);
+                    var season = item as Season;
+                    if (found.TryGetValue(id, out var before) && before.IsSeason && season == null)
+                    {
+                        continue;
+                    }
+
+                    found[id] = new ContainerInfo
+                    {
+                        Id = item.Id,
+                        IsSeason = season != null,
+                        SeriesName = season != null ? season.SeriesName : item.Name,
+                        SeasonNumber = season?.IndexNumber
+                    };
+                }
+            }
+
+            foreach (var row in rows.Where(r => r.SeriesId != null))
+            {
+                if (found.TryGetValue(row.SeriesId, out var container))
+                {
+                    row.LinkItemId = container.Id.ToString("N");
+                    row.LinkKind = container.IsSeason ? "Season" : "Series";
+                    row.LinkSeries = container.SeriesName;
+                    row.LinkSeason = container.SeasonNumber;
+                }
+            }
+        }
+
         /// <summary>
         /// Marks the owned entries and tells HOW each owned file was recognised: certain when its name carries the tag, otherwise the
         /// score of its name against the entry (so the poor matches can be found and their file names fixed by hand)
@@ -875,12 +961,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return rows.Where(r => r.SeriesKey != null).GroupBy(r => r.SeriesKey).Select(g =>
             {
                 var linked = g.Where(r => r.Owned && !string.IsNullOrWhiteSpace(r.LibrarySeries)).ToList();
+                var container = g.FirstOrDefault(r => r.LinkItemId != null);
                 return new DumpSeriesCoverage
                 {
                     Key = g.Key,
                     Name = g.First().Series,
-                    LibrarySeries = linked.GroupBy(r => r.LibrarySeries).OrderByDescending(x => x.Count()).Select(x => x.Key).FirstOrDefault(),
-                    LibrarySeasons = linked.Where(r => r.LibrarySeason.HasValue).Select(r => r.LibrarySeason.Value).Distinct().OrderBy(x => x).ToList(),
+                    LibrarySeries = linked.GroupBy(r => r.LibrarySeries).OrderByDescending(x => x.Count()).Select(x => x.Key).FirstOrDefault() ?? container?.LinkSeries,
+                    LibrarySeasons = linked.Where(r => r.LibrarySeason.HasValue).Select(r => r.LibrarySeason.Value)
+                        .Concat(g.Where(r => r.LinkSeason.HasValue).Select(r => r.LinkSeason.Value)).Distinct().OrderBy(x => x).ToList(),
+                    LibraryItemId = container?.LinkItemId,
+                    LibraryItemKind = container?.LinkKind,
                     Total = g.Count(),
                     Owned = g.Count(r => r.Owned),
                     Missing = g.Count(r => !r.Owned),
@@ -1020,6 +1110,19 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         [System.Text.Json.Serialization.JsonIgnore]
         public string SeriesNameValue { get; set; }
 
+        /// <summary>The library season or series whose folder carries this entry's series tag (LinkContainers); null when none</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string LinkItemId { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string LinkKind { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string LinkSeries { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public int? LinkSeason { get; set; }
+
         /// <summary>True when the series holds several entries (the trailing number of the title is then a hint)</summary>
         public bool Grouped { get; set; }
 
@@ -1095,6 +1198,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string LibrarySeries { get; set; }
         public List<int> LibrarySeasons { get; set; } = new List<int>();
 
+        /// <summary>The library season or series whose folder carries the series tag (Jellyfin item id, "N" format); null when none</summary>
+        public string LibraryItemId { get; set; }
+
         /// <summary>The group (brand…) shared by all its entries; null when they differ</summary>
         public string Group { get; set; }
         public int Total { get; set; }
@@ -1149,6 +1255,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public int Total { get; set; }
         public int Owned { get; set; }
         public int Missing { get; set; }
+
+        /// <summary>The library season or series whose folder carries the series tag, and which of the two it is ("Season" | "Series")</summary>
+        public string LibraryItemId { get; set; }
+        public string LibraryItemKind { get; set; }
 
         /// <summary>"prefix-seriesId" when the dump gives the series its own id (SeriesIdPath), else null: what the screen offers to copy</summary>
         public string Tag { get; set; }

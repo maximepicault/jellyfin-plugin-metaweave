@@ -322,6 +322,17 @@ try {
   check('series id: the entries are grouped by it (4 brands, 40 entries) and named by the name path', sid.length === 4 && sid.reduce((n, c) => n + c.Total, 0) === 40 && sid.map(c => c.Name).sort().join('|') === 'Aurora Studio|Boréal Films|Cinéma Lumen|Delta Prod', JSON.stringify(sid.map(c => [c.Name, c.Total])));
   const sinfo = pick((await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&series=' + encodeURIComponent('s:1'))).json, 'SeriesInfo');
   check('series id: the series gives its tag (prefix-seriesId) for the copy button', pick(sinfo, 'Tag') === 'dp-1', JSON.stringify(sinfo));
+  // a series id that is the tag of a library season (or series) links the dump's series to it, even with no entry owned
+  const linkedSource = { ...dumpSource, Name: 'Dump lié', Prefix: 'dm', BaseUrl: `${API}/dump-linked`, Dump: { ...dumpSource.Dump, SeriesIdPath: 'series', SeriesNamePath: 'series', GroupPath: 'brand' } };
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, { ...config, Sources: [...config.Sources.filter(x => x.Prefix !== 'dm' && x.Prefix !== 'dp'), linkedSource] });
+  const lk = (pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dm&pageSize=50&refresh=true')).json, 'Items') || []);
+  const lkBy = k => lk.find(c => c.Key === 's:' + k);
+  check('series link: a season folder tagged with the series id is linked (item to open + its series name)', !!lkBy('d1')?.LibraryItemId && /Tech Talks/.test(lkBy('d1')?.LibrarySeries || ''), JSON.stringify(lkBy('d1')));
+  check('series link: a series folder tagged with the series id is linked too', !!lkBy('techtalks')?.LibraryItemId && /Tech Talks/.test(lkBy('techtalks')?.LibrarySeries || ''), JSON.stringify(lkBy('techtalks')));
+  check('series link: a series id found nowhere in the library links to nothing', lkBy('nolib') && !lkBy('nolib').LibraryItemId && !lkBy('nolib').LibrarySeries, JSON.stringify(lkBy('nolib')));
+  const lkInfo = pick((await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dm&status=all&series=' + encodeURIComponent('s:d1'))).json, 'SeriesInfo');
+  check('series link: the series page gets the item to open, and its kind', pick(lkInfo, 'LibraryItemKind') === 'Season' && !!pick(lkInfo, 'LibraryItemId'), JSON.stringify(lkInfo));
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
   const withSeriesIdNoName = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, SeriesIdPath: 'brand_id', SeriesNamePath: '' } } : x) };
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, withSeriesIdNoName);
   const sidn = (pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&pageSize=50')).json, 'Items') || []);

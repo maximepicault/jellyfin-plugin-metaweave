@@ -105,6 +105,10 @@ class H(BaseHTTPRequestHandler):
             # Tags as a list of objects (the shape many APIs use): [{"id": 1, "label": "aventure"}]
             return self.send(200, {"data": [{"id": 6001 + i, "name": "Tagué %d" % i, "slug": "tg%d" % i, "brand": "T",
                                              "tags": [{"id": 1, "label": "aventure"}, {"id": 2, "label": "nuit" if i % 2 else "jour"}]} for i in range(4)]})
+        if p == "/dump-linked":
+            # Entries whose series id is the tag of a season ("d1"), of a series ("techtalks") or of nothing in the library ("nolib")
+            return self.send(200, {"data": [{"id": 9001, "name": "Lié A", "slug": "la", "brand": "L", "series": "d1"}, {"id": 9002, "name": "Lié B", "slug": "lb", "brand": "L", "series": "d1"},
+                                            {"id": 9003, "name": "Lié C", "slug": "lc", "brand": "L", "series": "techtalks"}, {"id": 9004, "name": "Lié D", "slug": "ld", "brand": "L", "series": "nolib"}]})
         if p == "/dump-bare": return self.send(200, dump_json())
         if p.startswith("/img/"):
             f = os.path.join(IMG_DIR, os.path.basename(p))

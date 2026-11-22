@@ -1843,6 +1843,9 @@
                 if (!s) { $('#dcSeriesHead').innerHTML = ''; return; }
                 var title = s.LibrarySeries || state.seriesName || s.Name || 'Série';
                 var lib = s.LibrarySeries ? '<div class="me-muted">✓ Dans votre médiathèque : <strong>' + esc(s.LibrarySeries) + '</strong>' + (s.LibrarySeasons && s.LibrarySeasons.length ? ' · saison ' + esc(s.LibrarySeasons.join(', ')) : '') + '</div>' : '';
+                if (s.LibraryItemId) {
+                    lib += '<div><a class="me-link" href="#/details?id=' + esc(s.LibraryItemId) + '">Ouvrir ' + (s.LibraryItemKind === 'Season' ? 'la saison' : 'la série') + ' dans Jellyfin ↗</a></div>';
+                }
                 var tagRow = s.Tag
                     ? '<div class="me-tagrow"><span class="me-muted">Tag de la série</span><code>{' + esc(s.Tag) + '}</code>'
                         + '<button type="button" class="me-copy me-copy-sm" data-copy-tag="{' + esc(s.Tag) + '}" aria-label="Copier le tag {' + esc(s.Tag) + '}">' + ICON_COPY + '<span>Copier le tag</span></button></div>'
