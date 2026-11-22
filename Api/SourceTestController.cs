@@ -18,10 +18,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     public class SourceTestController : ControllerBase
     {
         private readonly CustomApiClient _apiClient;
+        private readonly Services.DumpStore _dump;
 
-        public SourceTestController(CustomApiClient apiClient)
+        public SourceTestController(CustomApiClient apiClient, Services.DumpStore dump)
         {
             _apiClient = apiClient;
+            _dump = dump;
         }
 
         [HttpPost]
@@ -35,6 +37,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
 
             var id = NormalizeId(request.Id, request.Source.Prefix);
+            if (string.IsNullOrEmpty(id) && request.Source.IsDump)
+            {
+                // A dump test needs no id: the first entry of the catalogue is read (the one the editor test already downloaded, or a fresh copy)
+                var (catalog, error) = await _dump.GetCatalogAsync(request.Source, false, cancellationToken);
+                if (catalog == null || catalog.Entries.Count == 0)
+                {
+                    return Ok(new SourceTestResult { ItemType = request.ItemType ?? "video", Error = catalog == null ? error : "Le dump ne contient aucune entrée" });
+                }
+
+                id = catalog.Entries[0].Id;
+            }
+
             if (string.IsNullOrEmpty(id))
             {
                 return BadRequest("ID manquant");

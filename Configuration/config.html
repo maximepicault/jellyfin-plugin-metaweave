@@ -2106,7 +2106,8 @@
             window.testSource = function() {
                 var resultDiv = document.querySelector('#testResult');
                 var id = document.querySelector('#testItemId').value;
-                if (!id) {
+                // A dump needs no id: the server reads its first entry
+                if (!id && readSourceFromForm().SourceType !== 'Dump') {
                     resultDiv.innerHTML = '<div class="cm-test-status ko">Saisissez un identifiant à tester.</div>';
                     document.querySelector('#testItemId').focus();
                     return;
@@ -2565,7 +2566,8 @@
                 });
                 typeSelect.value = type === 'people' ? 'person' : 'video';
                 qs('#testItemId').placeholder = type === 'people' ? 'Identifiant : 123, pe-123 ou {pe-123}' : '123, mv1-123 ou {mv1-123}';
-                qs('#testItemId').closest('.inputContainer').querySelector('label').textContent = type === 'dump' ? 'Identifiant d\'une entrée' : 'Identifiant';
+                qs('#testItemId').closest('.inputContainer').querySelector('label').textContent = type === 'dump' ? 'Identifiant d\'une entrée (facultatif)' : 'Identifiant';
+                if (type === 'dump') { qs('#testItemId').placeholder = 'Vide = la première entrée du dump'; }
                 qs('#dangerText').textContent = isLocal
                     ? 'Les médias qui portent son tag ne seront plus enrichis, et tout le contenu saisi (séries, saisons, épisodes) est supprimé.'
                     : 'Les médias qui portent son tag ne seront plus enrichis. Les métadonnées déjà enregistrées restent.';

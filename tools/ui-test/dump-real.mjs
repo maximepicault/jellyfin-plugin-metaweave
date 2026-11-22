@@ -137,6 +137,8 @@ try {
   // ---- 2. an entry through the usual source test (the mappings applied)
   const read = (await api('POST', '/CustomMetadata/TestSource', { Source: dumpSource, ItemType: 'video', Id: '1002' })).json;
   check('source test: an entry is read through the mappings', pick(read, 'Success') === true && /Sentiers/.test(JSON.stringify(read)), JSON.stringify(read)?.slice(0, 300));
+  const noId = (await api('POST', '/CustomMetadata/TestSource', { Source: dumpSource, ItemType: 'video', Id: '' })).json;
+  check('source test: a dump needs no id (its first entry is read)', pick(noId, 'Success') === true && pick(noId, 'Id') === '1001', JSON.stringify(noId)?.slice(0, 300));
   const series = (await api('POST', '/CustomMetadata/TestSource', { Source: dumpSource, ItemType: 'series', Id: '1002' })).json;
   check('source test: a dump has no series (said, not a crash)', pick(series, 'Success') === false && /autonomes|série/.test(pick(series, 'Error') || ''), JSON.stringify(series)?.slice(0, 200));
 
