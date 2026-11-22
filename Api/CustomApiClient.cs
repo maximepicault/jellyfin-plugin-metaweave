@@ -661,6 +661,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 }
 
                 person.Photo = PersonPhotoUrl.Resolve(person.Photo, source.PersonMappings?.PhotoBaseUrl, source.BaseUrl);
+                person.Backdrops = (person.Backdrops ?? new List<string>())
+                    .Select(b => PersonPhotoUrl.Resolve(b, source.PersonMappings?.PhotoBaseUrl, source.BaseUrl))
+                    .Where(b => !string.IsNullOrEmpty(b)).ToList();
                 return (person, null);
             }
             catch (JsonException)

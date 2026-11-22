@@ -79,6 +79,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public string BirthPlace { get; set; }
 
         public string Website { get; set; }
+
+        public List<string> Backdrops { get; set; } = new List<string>();
+
+        public List<PersonNetworkValue> Networks { get; set; } = new List<PersonNetworkValue>();
     }
 
     /// <summary>

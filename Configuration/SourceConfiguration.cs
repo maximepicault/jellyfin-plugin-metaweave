@@ -354,6 +354,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         public string BirthPlace { get; set; } = string.Empty;
 
         public string Website { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Optional path of the person's background images (Backdrop): an array of addresses or paths ("images.backdrops",
+        /// "images[].file_path") or a single value. Completed like the photo (PhotoBaseUrl). Empty = not read.
+        /// </summary>
+        public string Backdrops { get; set; } = string.Empty;
+
+        /// <summary>Optional: where the API gives the person's link on a network (one path per network of the people screen)</summary>
+        public List<PersonNetworkMapping> Networks { get; set; } = new List<PersonNetworkMapping>();
+    }
+
+    /// <summary>Path of the value (handle or address) of one network in the PersonEndpoint response</summary>
+    public class PersonNetworkMapping
+    {
+        /// <summary>Id of a network of the people screen ("instagram")</summary>
+        public string NetworkId { get; set; } = string.Empty;
+
+        /// <summary>Path of the handle or address (a single value or an array of them)</summary>
+        public string Path { get; set; } = string.Empty;
     }
 
     /// <summary>

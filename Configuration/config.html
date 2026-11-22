@@ -1184,6 +1184,17 @@
                             <label class="inputLabel" for="srcPersonWebsite">Site web (facultatif)</label>
                             <input is="emby-input" type="text" id="srcPersonWebsite" data-count="1" placeholder="homepage" />
                         </div>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcPersonBackdrops">Images de fond (facultatif)</label>
+                            <input is="emby-input" type="text" id="srcPersonBackdrops" data-count="1" placeholder="images.backdrops" />
+                            <div class="cm-hint">Chemin d&#x27;une liste d&#x27;images (images[].file_path) ou d&#x27;une seule. Complétées avec l&#x27;adresse des photos ci-dessus, comme la photo. Elles deviennent les fonds de la page de la personne dans Jellyfin.</div>
+                        </div>
+                        <div class="inputContainer cm-span">
+                            <span class="inputLabel">Réseaux et liens (facultatif)</span>
+                            <div id="srcPersonNets"></div>
+                            <div class="cm-hint">Pour chaque réseau que l&#x27;API renseigne, indiquez où lire le pseudo ou l&#x27;adresse (social.instagram). La liste des réseaux se gère dans l&#x27;écran Personnes.</div>
+                            <button is="emby-button" type="button" class="raised" id="srcPersonNetAdd"><span>Ajouter un réseau</span></button>
+                        </div>
                         </div>
                     </section>
                     <section class="cm-pane" data-section="content" data-types="local" aria-labelledby="paneTitle-content" hidden>
@@ -1852,7 +1863,7 @@
                     html += '<h4>Personne trouvée</h4><div><strong>' + escapeHtml(r.Person.Name) + '</strong></div>'
                         + (r.Person.Photo ? '<div style="word-break: break-all;">Photo : ' + escapeHtml(r.Person.Photo) + '</div><img alt="" src="' + escapeHtml(r.Person.Photo) + '" style="max-width: 120px; max-height: 120px; margin-top: 8px; border-radius: 6px;" />' : '<div class="cm-hint">Pas de photo trouvée.</div>')
                         + (r.Person.Bio ? '<div class="cm-hint">' + escapeHtml(r.Person.Bio) + '</div>' : '')
-                        + [['Naissance', r.Person.BirthDate], ['Décès', r.Person.DeathDate], ['Lieu de naissance', r.Person.BirthPlace], ['Site web', r.Person.Website]].map(function(x) { return x[1] ? '<div class="cm-hint">' + x[0] + ' : ' + escapeHtml(x[1]) + '</div>' : ''; }).join('');
+                        + [['Naissance', r.Person.BirthDate], ['Décès', r.Person.DeathDate], ['Lieu de naissance', r.Person.BirthPlace], ['Site web', r.Person.Website], ['Images de fond', (r.Person.Backdrops || []).length ? (r.Person.Backdrops || []).length + ' : ' + r.Person.Backdrops.join(', ') : ''], ['Réseaux', (r.Person.Networks || []).map(function(n) { return n.NetworkId + ' = ' + n.Value; }).join(', ')]].map(function(x) { return x[1] ? '<div class="cm-hint" style="word-break: break-all;">' + x[0] + ' : ' + escapeHtml(x[1]) + '</div>' : ''; }).join('');
                 }
 
                 if (r.Metadata) {
@@ -2377,7 +2388,11 @@
                     merged.PersonMappings = Object.assign({}, base.PersonMappings || {}, {
                         Name: qs('#srcPersonName').value.trim(), Photo: qs('#srcPersonPhoto').value.trim(), PhotoBaseUrl: qs('#srcPersonPhotoBase').value.trim(), Bio: qs('#srcPersonBio').value.trim(),
                         BirthDate: qs('#srcPersonBirthDate').value.trim(), DeathDate: qs('#srcPersonDeathDate').value.trim(),
-                        BirthPlace: qs('#srcPersonBirthPlace').value.trim(), Website: qs('#srcPersonWebsite').value.trim()
+                        BirthPlace: qs('#srcPersonBirthPlace').value.trim(), Website: qs('#srcPersonWebsite').value.trim(),
+                        Backdrops: qs('#srcPersonBackdrops').value.trim(),
+                        Networks: [].slice.call(document.querySelectorAll('#srcPersonNets .cm-pnet')).map(function(row) {
+                            return { NetworkId: row.querySelector('select').value, Path: row.querySelector('input').value.trim() };
+                        }).filter(function(n) { return n.NetworkId && n.Path; })
                     });
                     merged.EpisodeListEndpoint = '';
                 }
@@ -2940,7 +2955,36 @@
                 qs('#srcPersonDeathDate').value = pm.DeathDate || '';
                 qs('#srcPersonBirthPlace').value = pm.BirthPlace || '';
                 qs('#srcPersonWebsite').value = pm.Website || '';
+                qs('#srcPersonBackdrops').value = pm.Backdrops || '';
+                qs('#srcPersonNets').innerHTML = '';
+                personNets = null;
+                loadPersonNets().then(function() { (pm.Networks || []).forEach(function(n) { addPersonNetRow(n.NetworkId, n.Path); }); });
             }
+
+            // Networks of the people screen, to pick from in a people source's mapping
+            var personNets = null;
+            function loadPersonNets() {
+                if (personNets) { return Promise.resolve(personNets); }
+                return ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/Networks')).then(function(list) { personNets = list || []; return personNets; }, function() { personNets = []; return personNets; });
+            }
+            function addPersonNetRow(networkId, path) {
+                var row = document.createElement('div');
+                row.className = 'cm-pnet';
+                row.style.cssText = 'display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) auto;gap:10px;align-items:center;margin-bottom:8px;';
+                var known = (personNets || []).some(function(n) { return n.Id === networkId; });
+                row.innerHTML = '<select aria-label="Réseau">' + (personNets || []).map(function(n) { return '<option value="' + escapeHtml(n.Id) + '"' + (n.Id === networkId ? ' selected' : '') + '>' + escapeHtml((n.Icon ? n.Icon + ' ' : '') + n.Name) + '</option>'; }).join('')
+                    + (networkId && !known ? '<option value="' + escapeHtml(networkId) + '" selected>' + escapeHtml(networkId) + ' (supprimé)</option>' : '') + '</select>'
+                    + '<input type="text" aria-label="Chemin du pseudo ou de l\'adresse" placeholder="social.instagram" value="' + escapeHtml(path || '') + '" />'
+                    + '<button type="button" class="cm-linkbtn" aria-label="Retirer ce réseau">Retirer</button>';
+                row.querySelector('button').addEventListener('click', function() { row.remove(); });
+                qs('#srcPersonNets').appendChild(row);
+            }
+            qs('#srcPersonNetAdd').addEventListener('click', function() {
+                loadPersonNets().then(function(list) {
+                    if (!list.length) { Dashboard.alert('Aucun réseau défini : créez-les dans l\'écran Personnes.'); return; }
+                    addPersonNetRow(list[0].Id, '');
+                });
+            });
 
             function randomHex(len) {
                 var out = '';

@@ -102,10 +102,15 @@
         #CustomMetadataPeoplePage .pp-bd-url input, #CustomMetadataPeoplePage .pp-net-row input, #CustomMetadataPeoplePage .pp-net-row select { min-height: 40px; box-sizing: border-box; width: 100%; padding: 0 10px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; border: 1px solid transparent; border-radius: 4px; }
         #CustomMetadataPeoplePage .pp-net-row select option { color: #000; }
         #CustomMetadataPeoplePage .pp-net-row { display: grid; grid-template-columns: minmax(150px, 220px) minmax(120px, 1fr) auto; gap: 10px; align-items: center; margin-bottom: 8px; }
-        #CustomMetadataPeoplePage .pp-nm-row { display: grid; grid-template-columns: 70px minmax(110px, 1fr) minmax(180px, 2fr) auto; gap: 10px; align-items: center; margin-bottom: 8px; }
-        #CustomMetadataPeoplePage .pp-nm-row input { min-height: 40px; box-sizing: border-box; width: 100%; padding: 0 10px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; border: 1px solid transparent; border-radius: 4px; }
-        #CustomMetadataPeoplePage .pp-nm { padding: 14px 16px; border: 1px solid var(--pp-border); border-radius: 8px; background: rgba(255, 255, 255, 0.03); margin-top: 10px; }
-        @container (max-width: 640px) { #CustomMetadataPeoplePage .pp-net-row, #CustomMetadataPeoplePage .pp-nm-row { grid-template-columns: minmax(0, 1fr); } }
+        #CustomMetadataPeoplePage .pp-nets { display: flex; flex-direction: column; gap: 10px; }
+        #CustomMetadataPeoplePage .pp-net { padding: 12px 14px; border: 1px solid var(--pp-border); border-radius: 8px; background: rgba(255, 255, 255, 0.03); }
+        #CustomMetadataPeoplePage .pp-net-grid { display: grid; grid-template-columns: 72px minmax(120px, 1fr) minmax(200px, 2fr) 150px; gap: 10px; align-items: end; }
+        #CustomMetadataPeoplePage .pp-net-grid label { display: block; font-size: 12px; color: var(--pp-muted); margin-bottom: 4px; }
+        #CustomMetadataPeoplePage .pp-net-grid input { min-height: 40px; box-sizing: border-box; width: 100%; padding: 0 10px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; border: 1px solid transparent; border-radius: 4px; }
+        #CustomMetadataPeoplePage .pp-net-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; font-size: 13px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-net-preview { flex: 1 1 260px; min-width: 0; word-break: break-all; }
+        #CustomMetadataPeoplePage .pp-net-preview.bad { color: #f0a0a0; }
+        @container (max-width: 760px) { #CustomMetadataPeoplePage .pp-net-grid { grid-template-columns: minmax(0, 1fr); } }
         #CustomMetadataPeoplePage .pp-merge { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 14px 16px; border: 1px solid var(--pp-border); border-radius: 8px; background: rgba(255, 255, 255, 0.03); }
         #CustomMetadataPeoplePage .pp-merge > div { flex: 1 1 100%; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.45; }
         #CustomMetadataPeoplePage .pp-merge strong { font-size: 14px; }
@@ -223,6 +228,7 @@
                 <div class="pp-tabs" role="tablist" aria-label="Sections">
                     <button type="button" class="pp-tab" role="tab" id="ppTabBtnDir" data-pp-tab="directory" aria-selected="true">Annuaire</button>
                     <button type="button" class="pp-tab" role="tab" id="ppTabBtnEp" data-pp-tab="episodes" aria-selected="false">Distribution des épisodes d'API</button>
+                    <button type="button" class="pp-tab" role="tab" id="ppTabBtnNet" data-pp-tab="networks" aria-selected="false">Réseaux</button>
                 </div>
 
                 <div id="ppTabDirectory">
@@ -251,6 +257,16 @@
                     </div>
                     <div class="pp-detail" id="ppDetail" aria-live="polite"></div>
                 </div>
+                </div>
+
+                <div id="ppTabNetworks" hidden>
+                    <p class="pp-lead" style="margin-bottom: 16px;">Les réseaux que vous pouvez ajouter aux personnes (Instagram, IMDb…). Chacun devient un lien sur la page de la personne dans Jellyfin : le nom précédé de l'icône, vers l'adresse construite avec le pseudo. Une source de personnes peut aussi les renseigner (onglet « Personne » de la source).</p>
+                    <div class="pp-nets" id="ppNets"></div>
+                    <div class="pp-btns" style="margin-top: 12px;">
+                        <button is="emby-button" type="button" class="raised" id="ppNetAdd"><span>Ajouter un réseau</span></button>
+                        <button type="button" class="pp-linkbtn" id="ppNetReset">Remettre les réseaux par défaut</button>
+                    </div>
+                    <div class="pp-hint">Maximum 24 réseaux. Enregistrez ensuite avec la barre du bas : les liens sont à jour dans Jellyfin tout de suite, sans « Appliquer ».</div>
                 </div>
 
                 <div id="ppTabEpisodes" hidden>
@@ -296,7 +312,6 @@
             var dirty = false;
             var dirtyNet = false;     // list of networks changed
             var networks = [];        // networks a person can carry (name, icon, address template)
-            var netManage = false;    // network manager open
             var ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 
             // ---- In-page confirmation (same code in config.html, people.html and missing.html) ----
@@ -577,21 +592,74 @@
                 });
                 if (!list.length) { h += '<div class="pp-hint" style="margin:0 0 8px;">Aucun lien.</div>'; }
                 h += '<div class="pp-btns"><button is="emby-button" type="button" class="raised" data-net-add="1"' + (networks.length ? '' : ' disabled') + '><span>Ajouter un lien</span></button>'
-                    + '<button type="button" class="pp-linkbtn" data-net-manage="1">' + (netManage ? 'Fermer la liste des réseaux' : 'Gérer les réseaux…') + '</button></div>';
-                if (netManage) { h += networkManager(); }
+                    + '<button type="button" class="pp-linkbtn" data-net-manage="1">' + 'Gérer les réseaux…' + '</button></div>';
                 return h + '</div>';
             }
 
-            function networkManager() {
-                var h = '<div class="pp-nm"><strong>Réseaux disponibles</strong><div class="pp-hint">Valable pour toutes les personnes. L\'icône (un emoji) précède le nom du lien dans Jellyfin. Dans l\'adresse, <code>{value}</code> est remplacé par le pseudo. Maximum 24 réseaux.</div>';
-                networks.forEach(function(n, i) {
-                    h += '<div class="pp-nm-row"><input type="text" data-nm-icon="' + i + '" aria-label="Icône" maxlength="8" value="' + escapeHtml(n.Icon || '') + '" placeholder="Icône" />'
-                        + '<input type="text" data-nm-name="' + i + '" aria-label="Nom" value="' + escapeHtml(n.Name || '') + '" placeholder="Nom" />'
-                        + '<input type="text" data-nm-url="' + i + '" aria-label="Modèle d\'adresse" value="' + escapeHtml(n.UrlTemplate || '') + '" placeholder="https://exemple.com/{value}" />'
-                        + '<button type="button" class="pp-linkbtn" data-nm-remove="' + i + '">Supprimer</button></div>';
-                });
-                return h + '<div class="pp-btns"><button is="emby-button" type="button" class="raised" data-nm-add="1"' + (networks.length >= 24 ? ' disabled' : '') + '><span>Ajouter un réseau</span></button></div></div>';
+            // ---- "Réseaux" tab: the global list of networks ----
+            var NET_SAMPLE = 'exemple';
+            function netUrl(n, value) {
+                value = String(value || '').trim();
+                if (!value) { return ''; }
+                var url = /^https?:\/\//i.test(value) ? value : String(n.UrlTemplate || '{value}').replace('{value}', encodeURIComponent(value.replace(/^@/, '')).replace(/%2F/g, '/'));
+                return /^https?:\/\/\S+$/i.test(url) ? url : '';
             }
+            // A template that is only {value} expects a whole address
+            function netSample(n) { return /^\s*\{value\}\s*$/.test(n.UrlTemplate || '{value}') ? 'https://exemple.com/page' : NET_SAMPLE; }
+            function netPreview(n) {
+                var url = netUrl(n, netSample(n));
+                return url ? 'Aperçu avec « ' + netSample(n) + ' » : <strong>' + escapeHtml((n.Icon ? n.Icon + ' ' : '') + n.Name) + '</strong> → ' + escapeHtml(url)
+                    : 'L\'adresse n\'est pas valide : elle doit commencer par http:// ou https:// et contenir {value}.';
+            }
+            function netUsage(n) { return people.filter(function(p) { return (p.Networks || []).some(function(v) { return v.NetworkId === n.Id; }); }).length; }
+            function renderNets() {
+                qs('#ppNets').innerHTML = networks.length ? networks.map(function(n, i) {
+                    var used = netUsage(n);
+                    return '<div class="pp-net" data-net-i="' + i + '"><div class="pp-net-grid">'
+                        + '<div><label for="ppNi' + i + '">Icône</label><input type="text" id="ppNi' + i + '" data-nm-icon="' + i + '" maxlength="8" value="' + escapeHtml(n.Icon || '') + '" placeholder="🔗" /></div>'
+                        + '<div><label for="ppNn' + i + '">Nom affiché</label><input type="text" id="ppNn' + i + '" data-nm-name="' + i + '" value="' + escapeHtml(n.Name || '') + '" /></div>'
+                        + '<div><label for="ppNu' + i + '">Modèle d\'adresse</label><input type="text" id="ppNu' + i + '" data-nm-url="' + i + '" value="' + escapeHtml(n.UrlTemplate || '') + '" placeholder="https://exemple.com/{value}" /></div>'
+                        + '<div class="pp-btns"><button type="button" class="pp-linkbtn" data-nm-up="' + i + '"' + (i === 0 ? ' disabled' : '') + ' aria-label="Monter">▲</button><button type="button" class="pp-linkbtn" data-nm-down="' + i + '"' + (i === networks.length - 1 ? ' disabled' : '') + ' aria-label="Descendre">▼</button><button type="button" class="pp-linkbtn" data-nm-remove="' + i + '">Supprimer</button></div>'
+                        + '</div><div class="pp-net-meta"><span class="pp-net-preview" data-nm-preview="' + i + '">' + netPreview(n) + '</span><span>' + (used ? used + (used > 1 ? ' personnes' : ' personne') : 'Aucune personne') + '</span></div></div>';
+                }).join('') : '<div class="pp-empty">Aucun réseau : ajoutez-en un.</div>';
+                qs('#ppNetAdd').disabled = networks.length >= 24;
+            }
+            function netChanged() { dirtyNet = true; showDirty(); }
+            qs('#ppTabNetworks').addEventListener('input', function(e) {
+                var attr = ['data-nm-icon', 'data-nm-name', 'data-nm-url'].filter(function(a) { return e.target.hasAttribute(a); })[0];
+                if (!attr) { return; }
+                var i = parseInt(e.target.getAttribute(attr), 10);
+                networks[i][attr === 'data-nm-icon' ? 'Icon' : attr === 'data-nm-name' ? 'Name' : 'UrlTemplate'] = e.target.value;
+                var prev = qs('#ppNets [data-nm-preview="' + i + '"]');
+                prev.innerHTML = netPreview(networks[i]);
+                prev.classList.toggle('bad', !netUrl(networks[i], netSample(networks[i])));
+                netChanged();
+            });
+            qs('#ppTabNetworks').addEventListener('click', function(e) {
+                var t = e.target.closest('[data-nm-up],[data-nm-down],[data-nm-remove]');
+                if (!t) { return; }
+                var swap = function(a, b) { var x = networks[a]; networks[a] = networks[b]; networks[b] = x; netChanged(); renderNets(); };
+                if (t.hasAttribute('data-nm-up')) { var u = parseInt(t.getAttribute('data-nm-up'), 10); if (u > 0) { swap(u, u - 1); } return; }
+                if (t.hasAttribute('data-nm-down')) { var d = parseInt(t.getAttribute('data-nm-down'), 10); if (d < networks.length - 1) { swap(d, d + 1); } return; }
+                var idx = parseInt(t.getAttribute('data-nm-remove'), 10);
+                var gone = networks[idx];
+                var used = netUsage(gone);
+                if (used && needConfirm('nmdelete' + gone.Id, 'Supprimer le réseau « ' + gone.Name + ' » ?\n' + (used > 1 ? used + ' fiches ont' : 'Une fiche a') + ' un lien sur ce réseau : il ne s\'affichera plus dans Jellyfin.', { ok: 'Supprimer', danger: true }, function() { t.click(); })) { return; }
+                networks.splice(idx, 1);
+                netChanged();
+                renderNets();
+            });
+            qs('#ppNetAdd').addEventListener('click', function() {
+                networks.push({ Id: 'net' + Date.now().toString(36), Name: 'Nouveau réseau', Icon: '🔗', UrlTemplate: 'https://exemple.com/{value}' });
+                netChanged();
+                renderNets();
+                var inputs = qs('#ppNets').querySelectorAll('[data-nm-name]');
+                if (inputs.length) { inputs[inputs.length - 1].focus(); inputs[inputs.length - 1].select(); }
+            });
+            qs('#ppNetReset').addEventListener('click', function() {
+                if (needConfirm('nmreset', 'Remettre les réseaux par défaut ?\nVos réseaux et leurs réglages sont remplacés par la liste d\'origine à l\'enregistrement. Les liens des personnes dont le réseau disparaît ne s\'affichent plus.', { ok: 'Remettre', danger: true }, function() { qs('#ppNetReset').click(); })) { return; }
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/Networks/Defaults')).then(function(list) { networks = list || []; netChanged(); renderNets(); });
+            });
 
             function renderDetail() {
                 var person = selected ? byId(selected) : null;
@@ -679,7 +747,7 @@
             }
 
             function addFromResult(result) {
-                var person = { Id: newId(), Name: result.Name, Photo: result.Photo || '', Bio: result.Bio || '', BirthDate: result.BirthDate || '', DeathDate: result.DeathDate || '', BirthPlace: result.BirthPlace || '', Website: result.Website || '', Notes: '', Backdrops: [], Networks: [], Links: [{ Prefix: result.Prefix, ExternalId: result.ExternalId }] };
+                var person = { Id: newId(), Name: result.Name, Photo: result.Photo || '', Bio: result.Bio || '', BirthDate: result.BirthDate || '', DeathDate: result.DeathDate || '', BirthPlace: result.BirthPlace || '', Website: result.Website || '', Notes: '', Backdrops: (result.Backdrops || []).slice(), Networks: (result.Networks || []).map(function(n) { return { NetworkId: n.NetworkId, Value: n.Value }; }), Links: [{ Prefix: result.Prefix, ExternalId: result.ExternalId }] };
                 people.push(person);
                 markDirty();
                 qs('#ppFound').innerHTML = '';
@@ -694,6 +762,7 @@
                 match.Links.push({ Prefix: result.Prefix, ExternalId: result.ExternalId });
                 if (!match.Photo && result.Photo) { match.Photo = result.Photo; }
                 ['Bio', 'BirthDate', 'DeathDate', 'BirthPlace', 'Website'].forEach(function(k) { if (!match[k] && result[k]) { match[k] = result[k]; } });
+                applyExtras(match, result, false);
                 markDirty(match.Id);
                 qs('#ppFound').innerHTML = '';
                 qs('#ppAddId').value = '';
@@ -709,6 +778,24 @@
                         if (person[pair[0]] !== pair[1]) { person[pair[0]] = pair[1]; changed.push(labels[k]); }
                     }
                 });
+                applyExtras(person, result, overwrite).forEach(function(c) { changed.push(c); });
+                return changed;
+            }
+
+            // Backdrops and network links given by the source. "Compléter" adds what is missing; "Écraser" also replaces the backdrops
+            function applyExtras(person, result, overwrite) {
+                var changed = [];
+                var backs = result.Backdrops || [];
+                if (backs.length && (overwrite || !(person.Backdrops || []).length) && JSON.stringify(person.Backdrops || []) !== JSON.stringify(backs)) {
+                    person.Backdrops = backs.slice();
+                    changed.push('images de fond');
+                }
+                var added = 0;
+                person.Networks = person.Networks || [];
+                (result.Networks || []).forEach(function(n) {
+                    if (!person.Networks.some(function(v) { return v.NetworkId === n.NetworkId && v.Value === n.Value; })) { person.Networks.push({ NetworkId: n.NetworkId, Value: n.Value }); added++; }
+                });
+                if (added) { changed.push(added > 1 ? 'liens réseaux' : 'lien réseau'); }
                 return changed;
             }
 
@@ -1180,6 +1267,8 @@
                 Array.prototype.forEach.call(page.querySelectorAll('[data-pp-tab]'), function(b) { b.setAttribute('aria-selected', b.getAttribute('data-pp-tab') === name ? 'true' : 'false'); });
                 qs('#ppTabDirectory').hidden = name !== 'directory';
                 qs('#ppTabEpisodes').hidden = name !== 'episodes';
+                qs('#ppTabNetworks').hidden = name !== 'networks';
+                if (name === 'networks') { renderNets(); }
                 if (name === 'episodes') { loadEpisodesTab(); renderEpDetail(); }
             }
 
@@ -1273,13 +1362,6 @@
                     if (f === 'Name') { qs('#ppDetail h3').textContent = e.target.value || 'Nouvelle personne'; renderList(); }
                     return;
                 }
-                var nmIdx = ['data-nm-icon', 'data-nm-name', 'data-nm-url'].filter(function(a) { return e.target.hasAttribute(a); })[0];
-                if (nmIdx) {
-                    var net = networks[parseInt(e.target.getAttribute(nmIdx), 10)];
-                    net[nmIdx === 'data-nm-icon' ? 'Icon' : nmIdx === 'data-nm-name' ? 'Name' : 'UrlTemplate'] = e.target.value;
-                    dirtyNet = true; showDirty();
-                    return;
-                }
                 if (e.target.hasAttribute('data-net-value')) { person.Networks[parseInt(e.target.getAttribute('data-net-value'), 10)].Value = e.target.value; markDirty(); return; }
                 if (e.target.hasAttribute('data-link-id')) { person.Links[parseInt(e.target.getAttribute('data-link-id'), 10)].ExternalId = e.target.value.trim(); markDirty(); }
             });
@@ -1312,7 +1394,7 @@
 
             qs('#ppDetail').addEventListener('click', function(e) {
                 var person = selected ? byId(selected) : null;
-                var t = e.target.closest('button[data-upload],[data-adjust-photo],[data-clear-photo],[data-link-add],[data-link-fill],[data-link-overwrite],[data-link-remove],[data-delete],[data-merge],[data-bd-remove],[data-bd-upload],[data-bd-add-url],[data-net-add],[data-net-remove],[data-net-manage],[data-nm-add],[data-nm-remove]');
+                var t = e.target.closest('button[data-upload],[data-adjust-photo],[data-clear-photo],[data-link-add],[data-link-fill],[data-link-overwrite],[data-link-remove],[data-delete],[data-merge],[data-bd-remove],[data-bd-upload],[data-bd-add-url],[data-net-add],[data-net-remove],[data-net-manage]');
                 if (!t || !person) { return; }
                 if (t.hasAttribute('data-merge')) { mergeInto(person, t); return; }
                 if (t.hasAttribute('data-bd-upload')) { qs('#ppDetail [data-bd-file]').click(); return; }
@@ -1327,44 +1409,7 @@
                 }
                 if (t.hasAttribute('data-net-add')) { person.Networks = person.Networks || []; person.Networks.push({ NetworkId: networks[0].Id, Value: '' }); markDirty(); renderDetail(); var nv = qs('#ppDetail').querySelectorAll('[data-net-value]'); if (nv.length) { nv[nv.length - 1].focus(); } return; }
                 if (t.hasAttribute('data-net-remove')) { person.Networks.splice(parseInt(t.getAttribute('data-net-remove'), 10), 1); markDirty(); renderDetail(); return; }
-                if (t.hasAttribute('data-net-manage')) { netManage = !netManage; renderDetail(); return; }
-                if (t.hasAttribute('data-nm-add')) { networks.push({ Id: 'net' + Date.now().toString(36), Name: 'Nouveau réseau', Icon: '🔗', UrlTemplate: 'https://exemple.com/{value}' }); dirtyNet = true; showDirty(); renderDetail(); return; }
-                if (t.hasAttribute('data-nm-remove')) {
-                    var gone = networks[parseInt(t.getAttribute('data-nm-remove'), 10)];
-                    var used = people.filter(function(p) { return (p.Networks || []).some(function(v) { return v.NetworkId === gone.Id; }); }).length;
-                    if (used && needConfirm('nmdelete' + gone.Id, 'Supprimer le réseau « ' + gone.Name + ' » ?\n' + (used > 1 ? used + ' fiches ont' : 'Une fiche a') + ' un lien sur ce réseau : il ne s\'affichera plus dans Jellyfin.', { ok: 'Supprimer', danger: true }, function() { t.click(); })) { return; }
-                    networks.splice(parseInt(t.getAttribute('data-nm-remove'), 10), 1);
-                    dirtyNet = true; showDirty(); renderDetail();
-                    return;
-                }
-                if (t.hasAttribute('data-upload')) { qs('#ppDetail [data-file]').click(); return; }
-                if (t.hasAttribute('data-adjust-photo')) { adjustExistingPhoto(person); return; }
-                if (t.hasAttribute('data-clear-photo')) { person.Photo = ''; markDirty(); renderList(); renderDetail(); return; }
-                if (t.hasAttribute('data-link-add')) {
-                    person.Links = person.Links || [];
-                    person.Links.push({ Prefix: sources[0] ? sources[0].Prefix : '', ExternalId: '' });
-                    markDirty();
-                    renderDetail();
-                    var inputs = qs('#ppDetail').querySelectorAll('[data-link-id]');
-                    if (inputs.length) { inputs[inputs.length - 1].focus(); }
-                    return;
-                }
-                if (t.hasAttribute('data-link-remove')) { person.Links.splice(parseInt(t.getAttribute('data-link-remove'), 10), 1); markDirty(); renderList(); renderDetail(); return; }
-                if (t.hasAttribute('data-link-fill') || t.hasAttribute('data-link-overwrite')) {
-                    var overwrite = t.hasAttribute('data-link-overwrite');
-                    var index = parseInt(t.getAttribute(overwrite ? 'data-link-overwrite' : 'data-link-fill'), 10);
-                    var link = person.Links[index];
-                    if (!link.Prefix || !link.ExternalId) { linkMessage('Choisissez une source et saisissez un identifiant.', false); return; }
-                    if (overwrite && needConfirm('overwrite', 'Écraser cette fiche avec la source ?\nLe nom, la photo et la biographie saisis ici sont remplacés par ceux de la source.', { ok: 'Écraser', danger: true }, function() { t.click(); })) { return; }
-                    linkMessage('Interrogation de la source…', true);
-                    fetchPerson(link.Prefix, link.ExternalId).then(function(result) {
-                        if (result.Error) { linkMessage(result.Error, false); return; }
-                        var changed = applyFetched(person, result, overwrite);
-                        if (changed.length) { markDirty(); renderList(); renderDetail(); linkMessage('Mis à jour : ' + changed.join(', ') + '.', true); }
-                        else { linkMessage(overwrite ? 'Déjà identique à la source.' : 'Rien à compléter : les champs sont déjà remplis.', true); }
-                    }, function() { linkMessage('Le serveur Jellyfin n\'a pas pu interroger la source.', false); });
-                    return;
-                }
+                if (t.hasAttribute('data-net-manage')) { showTab('networks'); return; }
                 if (t.hasAttribute('data-delete')) {
                     if (needConfirm('delete', 'Supprimer « ' + (person.Name || 'sans nom') + ' » ?\nPris en compte à l\'enregistrement.', { ok: 'Supprimer', danger: true }, function() { t.click(); })) { return; }
                     people = people.filter(function(p) { return p.Id !== person.Id; });

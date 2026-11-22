@@ -66,6 +66,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         [ProducesResponseType(StatusCodes.Status200OK)]
         public ActionResult<System.Collections.Generic.List<PersonNetwork>> GetNetworks() => Ok(_networks.Load());
 
+        /// <summary>The original list of networks (to offer "reset")</summary>
+        [HttpGet("Networks/Defaults")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public ActionResult<System.Collections.Generic.List<PersonNetwork>> GetDefaultNetworks() => Ok(PersonNetworkStore.Defaults());
+
         [HttpPut("Networks")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -308,6 +313,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 DeathDate = person.DeathDate,
                 BirthPlace = person.BirthPlace,
                 Website = person.Website,
+                Backdrops = person.Backdrops,
+                Networks = person.Networks,
                 MatchPersonId = match?.Person.Id,
                 MatchReason = match?.Reason
             });
@@ -359,6 +366,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string BirthPlace { get; set; }
 
         public string Website { get; set; }
+
+        public System.Collections.Generic.List<string> Backdrops { get; set; }
+
+        public System.Collections.Generic.List<PersonNetworkValue> Networks { get; set; }
 
         /// <summary>Entry already in the directory: same identifier ("link") or same name ("name")</summary>
         public string MatchPersonId { get; set; }

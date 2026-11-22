@@ -139,6 +139,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var root = jsonDoc.RootElement;
             string Read(string path) => string.IsNullOrWhiteSpace(path) ? null : HtmlText.Decode(GetStringValue(root, path));
             var name = Read(mapping.Name)?.Trim();
+
+            // One value or an array of values at the path
+            List<string> ReadMany(string path)
+            {
+                if (string.IsNullOrWhiteSpace(path)) { return new List<string>(); }
+                var many = GetStringArrayValue(root, path);
+                if (many.Count == 0 && GetStringValue(root, path) is string single && !string.IsNullOrWhiteSpace(single)) { many.Add(single); }
+                return many.Select(v => v?.Trim()).Where(v => !string.IsNullOrEmpty(v)).Distinct().ToList();
+            }
+
+            var networks = new List<PersonNetworkValue>();
+            foreach (var network in mapping.Networks ?? new List<PersonNetworkMapping>())
+            {
+                foreach (var value in ReadMany(network?.Path))
+                {
+                    networks.Add(new PersonNetworkValue { NetworkId = network.NetworkId, Value = HtmlText.Decode(value) });
+                }
+            }
+
             return string.IsNullOrEmpty(name)
                 ? null
                 : new PersonData
@@ -149,7 +168,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     BirthDate = PeopleStore.NormalizeDate(Read(mapping.BirthDate)),
                     DeathDate = PeopleStore.NormalizeDate(Read(mapping.DeathDate)),
                     BirthPlace = Read(mapping.BirthPlace)?.Trim(),
-                    Website = PeopleStore.NormalizeWebsite(Read(mapping.Website))
+                    Website = PeopleStore.NormalizeWebsite(Read(mapping.Website)),
+                    Backdrops = ReadMany(mapping.Backdrops),
+                    Networks = networks
                 };
         }
 
