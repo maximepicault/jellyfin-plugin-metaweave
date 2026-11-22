@@ -3932,8 +3932,8 @@
 
             // Type of an image from its shape (used when no folder name and no explicit type decide).
             // Portrait -> Primary (poster); very wide -> Banner; wider than tall -> Backdrop (slideshow) from 1280 px wide (smaller would look pixelated), Thumb (miniature) below.
-            // An episode only has Thumb (landscape) and Primary (portrait). Resolves to null when the size cannot be read.
-            function detectGalleryType(file, allowed, isEpisode) {
+            // The same rule for every kind. Resolves to null when the size cannot be read.
+            function detectGalleryType(file, allowed) {
                 return new Promise(function(resolve) {
                     var url = null, img = new Image();
                     var finish = function(w, h) {
@@ -3941,7 +3941,6 @@
                         if (!w || !h) { resolve(null); return; }
                         var ratio = w / h, type;
                         if (ratio <= 1) { type = 'Primary'; }
-                        else if (isEpisode) { type = 'Thumb'; }
                         else if (ratio >= 3) { type = 'Banner'; }
                         else { type = w >= 1280 ? 'Backdrop' : 'Thumb'; }   // a small image stretched as a backdrop would be pixelated
                         resolve(allowed.indexOf(type) >= 0 ? type : null);
@@ -3976,7 +3975,7 @@
                     var folderType = hit.kind !== 'episode' && byFolder && allowed.indexOf(byFolder) >= 0 ? byFolder : null;
                     gallerySay('Envoi de ' + file.name + '…');
                     if (file.size > 8 * 1024 * 1024) { refused++; next(); return; }
-                    (folderType || chosen !== 'auto' ? Promise.resolve(folderType || chosen) : detectGalleryType(file, allowed, hit.kind === 'episode').then(function(t) { return t || allowed[0]; })).then(function(type) {
+                    (folderType || chosen !== 'auto' ? Promise.resolve(folderType || chosen) : detectGalleryType(file, allowed).then(function(t) { return t || allowed[0]; })).then(function(type) {
                     return fetch(ApiClient.getUrl('CustomMetadata/Local/' + localDataId + '/Image', { node: node.Id }), {
                         method: 'POST',
                         headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() },
