@@ -394,6 +394,11 @@
         }
         .me-copy:hover { border-color: var(--me-accent); background: rgba(0, 164, 220, 0.15); }
         .me-copy.me-copied { border-color: #2e8b57; background: rgba(46, 139, 87, 0.3); color: #b9f0cf; }
+        /* Tag of a series / season with its copy button (headers of levels 2 and 3) */
+        .me-tagrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+        .me-tagrow > span:first-child { min-width: 118px; }
+        .me-tagrow code { padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(0, 0, 0, 0.35); overflow-wrap: anywhere; }
+        .me-copy.me-copy-sm { height: 32px; padding: 0 10px; font-size: 13px; }
         .me-icon { width: 16px; height: 16px; flex-shrink: 0; }
         .me-copy-all .me-icon { width: 18px; height: 18px; }
 
@@ -953,6 +958,14 @@
                 return html + '</div>';
             }
 
+            // "{tag}" with a "Copier le tag" button, shown when the tag is known (nothing otherwise)
+            function tagCopyHtml(label, tag) {
+                if (!tag) { return ''; }
+                var text = '{' + tag + '}';
+                return '<div class="me-tagrow"><span class="me-muted">' + escapeHtml(label) + '</span><code>' + escapeHtml(text) + '</code>'
+                    + '<button type="button" class="me-copy me-copy-sm" data-copy-tag="' + escapeHtml(text) + '" aria-label="Copier le tag ' + escapeHtml(text) + '">' + ICON_COPY + '<span>Copier le tag</span></button></div>';
+            }
+
             // ---------- Level 2: sources (seasons) of a series ----------
             function renderSeasonGrid(group) {
                 var filter = filterText('season');
@@ -970,7 +983,8 @@
                     + '<span>' + presenceText(group.present, group.total, ticks) + '</span>'
                     + '<span>' + plural(group.seasons.length, 'source') + '</span>'
                     + '<a class="me-link" href="#/details?id=' + escapeHtml(group.id) + '">Ouvrir la série dans Jellyfin ↗</a>'
-                    + '</div>';
+                    + '</div>'
+                    + tagCopyHtml('Tag de la série', (group.seasons.filter(function (x) { return x.SeriesTag; })[0] || {}).SeriesTag);
                 var html = '';
 
                 if (shown.length === 0) {
@@ -1082,6 +1096,7 @@
                         + (ignored.length ? '<span class="me-muted">' + ignored.length + (ignored.length > 1 ? ' ignorés' : ' ignoré') + '</span>' : '')
                         + '</div>';
                 }
+                head += tagCopyHtml('Tag de la saison', season.SourceItemId) + tagCopyHtml('Tag de la série', season.SeriesTag);
                 head += '<div><a class="me-link" href="#/details?id=' + escapeHtml(season.SeasonId) + '">Ouvrir la saison dans Jellyfin ↗</a></div>'
                     + '</div>';
                 if (shown.length > 0) {
@@ -1451,6 +1466,25 @@
                 if (ignoreButton) {
                     var restoring = ignoreButton.hasAttribute('data-restore');
                     setIgnored(ignoreButton.getAttribute(restoring ? 'data-restore' : 'data-ignore'), !restoring);
+                    return;
+                }
+
+                var tagButton = e.target.closest('[data-copy-tag]');
+                if (tagButton) {
+                    var tagText = tagButton.getAttribute('data-copy-tag');
+                    copyText(tagText).then(function () {
+                        flashCopied(tagButton, 'Copié', 'Copier le tag');
+                        announce('Tag copié : ' + tagText);
+                    }, function () {
+                        // Copy refused by the browser: select the tag for a manual Ctrl+C
+                        var tagCode = tagButton.parentNode.querySelector('code');
+                        var tagRange = document.createRange();
+                        tagRange.selectNodeContents(tagCode);
+                        var tagSel = window.getSelection();
+                        tagSel.removeAllRanges();
+                        tagSel.addRange(tagRange);
+                        announce('Copie refusée par le navigateur : le tag est sélectionné, appuyez sur Ctrl+C.');
+                    });
                     return;
                 }
 

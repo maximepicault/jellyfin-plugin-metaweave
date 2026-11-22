@@ -270,6 +270,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 SeasonName = season.Name,
                 SourceName = source.Name,
                 SourceItemId = seasonTag,
+                SeriesTag = GetSeriesTag(season.Series),
                 EpisodePrefix = episodePrefix
             };
 
@@ -1154,6 +1155,28 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         /// <summary>
+        /// {PREFIX-ID} tag of the series: its folder name, otherwise ProviderIds["custom"]. Null when it has none (the screen then offers no copy)
+        /// </summary>
+        private static string GetSeriesTag(Series series)
+        {
+            if (series == null)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrEmpty(series.Path))
+            {
+                var tag = TagParser.Extract(TagParser.GetOwnName(series.Path));
+                if (tag != null)
+                {
+                    return tag;
+                }
+            }
+
+            return CustomId.Get(series.ProviderIds);
+        }
+
+        /// <summary>
         /// {PREFIX-ID} tag of the season: folder name, otherwise ProviderIds["custom"] set by CustomSeasonProvider
         /// </summary>
         private static string GetSeasonTag(Season season)
@@ -1329,6 +1352,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public string SeasonName { get; set; }
         public string SourceName { get; set; }
         public string SourceItemId { get; set; }
+
+        /// <summary>{PREFIX-ID} tag of the series (folder name or stored id), null when it has none: what the screen offers to copy</summary>
+        public string SeriesTag { get; set; }
 
         /// <summary>Prefix of the episodes' tags when it is not the season's (a local season replaces the API's list), else null</summary>
         public string EpisodePrefix { get; set; }
