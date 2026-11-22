@@ -32,12 +32,68 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         private readonly DumpStore _dump;
         private readonly ILibraryManager _libraryManager;
         private readonly CustomApiClient _api;
+        private readonly DumpCoverageCache _coverage;
 
-        public DumpController(DumpStore dump, ILibraryManager libraryManager, CustomApiClient api)
+        public DumpController(DumpStore dump, ILibraryManager libraryManager, CustomApiClient api, DumpCoverageCache coverage)
         {
             _dump = dump;
             _libraryManager = libraryManager;
             _api = api;
+            _coverage = coverage;
+        }
+
+        // ---- what the coverage screen computes is kept (DumpCoverageCache), shared and read-only ----
+
+        private static string SlotOf(SourceConfiguration source, string what) => (source.Prefix ?? string.Empty).Trim().ToLowerInvariant() + ":" + what;
+
+        /// <summary>What a kept result must still equal: the mapping, and every setting of the dump (the matching uses them)</summary>
+        private static string SettingsKey(SourceConfiguration source) => MappingKeyOf(source) + "|" + JsonSerializer.Serialize(source.Dump ?? new DumpSettings());
+
+        /// <summary>The entries of the dump linked to the library (owned, series, seasons). Shared: never modify them.</summary>
+        private List<DumpRow> LinkedRows(SourceConfiguration source, DumpCatalog catalog)
+        {
+            return _coverage.GetOrBuild(SlotOf(source, "rows"), catalog, SettingsKey(source), () =>
+            {
+                var rows = RowsOf(catalog, source);
+                LinkOwned(rows, OwnedIds(source), catalog, source);
+                LinkContainers(rows, source);
+                return rows;
+            });
+        }
+
+        private sealed class CoverageSummary
+        {
+            public int Total;
+            public int Owned;
+            public bool HasSeries;
+            public List<DumpGroupCoverage> GroupsByMissing;
+            public List<DumpGroupCoverage> GroupsByName;
+            public List<DumpTagCount> Tags;
+            public List<int> Years;
+            public List<KeyValuePair<string, List<DumpRow>>> SeriesGroups;
+        }
+
+        /// <summary>The totals, groups, tags, years and series groups of the whole dump (independent of the screen's filters)</summary>
+        private CoverageSummary SummaryOf(SourceConfiguration source, DumpCatalog catalog, List<DumpRow> rows)
+        {
+            return _coverage.GetOrBuild(SlotOf(source, "summary"), catalog, SettingsKey(source), () =>
+            {
+                var groups = rows.GroupBy(r => r.Group, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => new DumpGroupCoverage { Group = g.Key, Total = g.Count(), Owned = g.Count(r => r.Owned), Missing = g.Count(r => !r.Owned) }).ToList();
+                return new CoverageSummary
+                {
+                    Total = rows.Count,
+                    Owned = rows.Count(r => r.Owned),
+                    HasSeries = rows.Any(r => r.SeriesKey != null),
+                    GroupsByMissing = groups.OrderByDescending(g => g.Missing).ThenBy(g => g.Group, StringComparer.OrdinalIgnoreCase).ToList(),
+                    GroupsByName = groups.OrderBy(g => DumpStore.Normalize(g.Group), StringComparer.Ordinal).ToList(),
+                    Tags = rows.SelectMany(r => r.Tags).GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
+                        .Select(g => new DumpTagCount { Name = g.Key, Count = g.Count() })
+                        .OrderByDescending(t => t.Count).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase).Take(120).ToList(),
+                    Years = rows.Where(r => r.Year.HasValue).Select(r => r.Year.Value).Distinct().OrderByDescending(y => y).ToList(),
+                    SeriesGroups = rows.GroupBy(r => r.SeriesKey ?? AloneKey).Select(g => new KeyValuePair<string, List<DumpRow>>(g.Key, g.ToList())).ToList()
+                };
+            });
         }
 
         /// <summary>
@@ -54,7 +110,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 return NotFound();
             }
 
-            var url = RowsOf(catalog, source).FirstOrDefault(r => string.Equals(r.Id, id, StringComparison.OrdinalIgnoreCase))?.ImageUrl;
+            // One page asks for dozens of pictures: the entries are indexed once per copy of the dump (no library involved)
+            var index = _coverage.GetOrBuild(SlotOf(source, "index"), catalog, MappingKeyOf(source),
+                () => RowsOf(catalog, source).ToDictionary(r => r.Id, r => r.ImageUrl, StringComparer.OrdinalIgnoreCase), libraryDependent: false);
+            index.TryGetValue(id ?? string.Empty, out var url);
             if (string.IsNullOrWhiteSpace(url))
             {
                 return NotFound();
@@ -191,27 +250,22 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 return Ok(new DumpCoverage { Prefix = source.Prefix, SourceName = source.Name, Error = error });
             }
 
-            var rows = RowsOf(catalog, source);
-            LinkOwned(rows, OwnedIds(source), catalog, source);
-            LinkContainers(rows, source);
+            var rows = LinkedRows(source, catalog);
 
+            var summary = SummaryOf(source, catalog, rows);
             var coverage = new DumpCoverage
             {
                 Prefix = source.Prefix,
                 SourceName = source.Name,
                 LoadedAtUtc = catalog.LoadedAtUtc,
                 Error = error,
-                Total = rows.Count,
-                Owned = rows.Count(r => r.Owned),
+                Total = summary.Total,
+                Owned = summary.Owned,
+                Missing = summary.Total - summary.Owned,
+                Groups = summary.GroupsByMissing,
+                Tags = summary.Tags,
+                Years = summary.Years
             };
-            coverage.Missing = coverage.Total - coverage.Owned;
-            coverage.Groups = rows.GroupBy(r => r.Group, StringComparer.OrdinalIgnoreCase)
-                .Select(g => new DumpGroupCoverage { Group = g.Key, Total = g.Count(), Owned = g.Count(r => r.Owned), Missing = g.Count(r => !r.Owned) })
-                .OrderByDescending(g => g.Missing).ThenBy(g => g.Group, StringComparer.OrdinalIgnoreCase).ToList();
-            coverage.Tags = rows.SelectMany(r => r.Tags).GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
-                .Select(g => new DumpTagCount { Name = g.Key, Count = g.Count() })
-                .OrderByDescending(t => t.Count).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase).Take(120).ToList();
-            coverage.Years = rows.Where(r => r.Year.HasValue).Select(r => r.Year.Value).Distinct().OrderByDescending(y => y).ToList();
 
             coverage.PreviewRatio = PreviewRatioOf(source);
             if (!string.IsNullOrWhiteSpace(query.Series) && query.Series != AloneKey)
@@ -252,33 +306,31 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 return Ok(new DumpSeriesPage { Prefix = source.Prefix, SourceName = source.Name, Error = error });
             }
 
-            var rows = RowsOf(catalog, source);
-            LinkOwned(rows, OwnedIds(source), catalog, source);
-            LinkContainers(rows, source);
+            var rows = LinkedRows(source, catalog);
+            var summary = SummaryOf(source, catalog, rows);
             var page = new DumpSeriesPage
             {
                 Prefix = source.Prefix, SourceName = source.Name, LoadedAtUtc = catalog.LoadedAtUtc, Error = error,
-                Total = rows.Count, Owned = rows.Count(r => r.Owned)
+                Total = summary.Total, Owned = summary.Owned
             };
             page.Missing = page.Total - page.Owned;
-            page.Groups = rows.GroupBy(r => r.Group, StringComparer.OrdinalIgnoreCase)
-                .Select(g => new DumpGroupCoverage { Group = g.Key, Total = g.Count(), Owned = g.Count(r => r.Owned), Missing = g.Count(r => !r.Owned) })
-                .OrderBy(g => DumpStore.Normalize(g.Group), StringComparer.Ordinal).ToList();
-            page.HasSeries = rows.Any(r => r.SeriesKey != null);
-            page.Years = rows.Where(r => r.Year.HasValue).Select(r => r.Year.Value).Distinct().OrderByDescending(y => y).ToList();
+            page.Groups = summary.GroupsByName;
+            page.HasSeries = summary.HasSeries;
+            page.Years = summary.Years;
             page.PreviewRatio = PreviewRatioOf(source);
-
-            IEnumerable<DumpRow> scope = rows;
-            if (!string.IsNullOrWhiteSpace(query.Group))
-            {
-                scope = scope.Where(r => string.Equals(r.Group, query.Group.Trim(), StringComparison.OrdinalIgnoreCase));
-            }
 
             var words = DumpStore.Normalize(query.Q ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var cards = new List<DumpSeriesCard>();
-            foreach (var g in scope.GroupBy(r => r.SeriesKey ?? AloneKey))
+            foreach (var g in summary.SeriesGroups)
             {
-                var members = g.ToList();
+                var members = string.IsNullOrWhiteSpace(query.Group)
+                    ? g.Value
+                    : g.Value.Where(r => string.Equals(r.Group, query.Group.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+                if (members.Count == 0)
+                {
+                    continue;
+                }
+
                 if (words.Length > 0 && !members.Any(r => words.All(w => r.Search.Contains(w, StringComparison.Ordinal))))
                 {
                     continue;
@@ -361,9 +413,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 return StatusCode(StatusCodes.Status502BadGateway, error);
             }
 
-            var rows = RowsOf(catalog, source);
-            LinkOwned(rows, OwnedIds(source), catalog, source);
-            LinkContainers(rows, source);
+            var rows = LinkedRows(source, catalog);
 
             var sb = new StringBuilder("﻿tag;id;nom;groupe;date;tags;statut;fichier;score\r\n");
             foreach (var row in Filter(rows, query))
@@ -538,14 +588,22 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
         private static readonly JsonFieldMapper ListReader = new JsonFieldMapper(Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
 
+        /// <summary>What the light rows (and everything computed from them) depend on besides the downloaded copy: the mapping paths used and the series settings</summary>
+        private static string MappingKeyOf(SourceConfiguration source)
+        {
+            var mapping = source.VideoFieldMappings ?? new FieldMapping();
+            // The catalogue has its own date path, so the date can stay unmapped (kept out of Jellyfin) and still be used here
+            var datePath = string.IsNullOrWhiteSpace(source.Dump?.ReleaseDatePath) ? mapping.PremiereDate : source.Dump.ReleaseDatePath;
+            return string.Join("|", datePath, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, source.Dump?.PreviewImagePath, mapping.TagsItemField, source.Dump?.SeriesMinEntries, source.Dump?.SeriesIdPath, source.Dump?.SeriesNamePath, source.Prefix);
+        }
+
         private static List<DumpRow> RowsOf(DumpCatalog catalog, SourceConfiguration source)
         {
             var mapping = source.VideoFieldMappings ?? new FieldMapping();
             // The mapping can change without the dump changing: the cache is only valid for the same mapping
             var previewPath = source.Dump?.PreviewImagePath;
-            // The catalogue has its own date path, so the date can stay unmapped (kept out of Jellyfin) and still be used here
             var datePath = string.IsNullOrWhiteSpace(source.Dump?.ReleaseDatePath) ? mapping.PremiereDate : source.Dump.ReleaseDatePath;
-            var mappingKey = string.Join("|", datePath, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, previewPath, mapping.TagsItemField, source.Dump?.SeriesMinEntries, source.Dump?.SeriesIdPath, source.Dump?.SeriesNamePath, source.Prefix);
+            var mappingKey = MappingKeyOf(source);
             if (RowCache.TryGetValue(catalog, out var cached) && cached.Item1 == mappingKey)
             {
                 return cached.Item2.Select(r => r.Copy()).ToList();

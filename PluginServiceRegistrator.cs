@@ -83,6 +83,9 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddHostedService(sp => sp.GetRequiredService<TaxonomyService>());
             // Saves the chapters of episodes that have a file once their refresh is over
             serviceCollection.AddHostedService<ChapterService>();
+            // Keeps the dump coverage screen's results until the dump, its settings or the library change
+            serviceCollection.AddSingleton<DumpCoverageCache>();
+            serviceCollection.AddHostedService(sp => sp.GetRequiredService<DumpCoverageCache>());
             serviceCollection.AddSingleton<DiagnosticService>();
         }
     }
