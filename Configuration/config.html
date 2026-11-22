@@ -3405,7 +3405,8 @@
             var galSel = null;   // {key, i}: the gallery image selected in the editor
             var GALLERY_FIELD = { Primary: 'Poster', Backdrop: 'Backdrop', Logo: 'Logo', Banner: 'Banner', Thumb: 'Thumb' };
             var GALLERY_LABELS = { Primary: 'Affiche', Backdrop: 'Fond', Logo: 'Logo', Banner: 'Bannière', Thumb: 'Miniature' };
-            function galleryTypes(kind) { return kind === 'episode' ? ['Thumb', 'Primary'] : (kind === 'season' ? ['Primary', 'Backdrop', 'Thumb'] : ['Primary', 'Backdrop', 'Logo', 'Banner', 'Thumb']); }
+            // Every type is offered for every kind (the provider supports them all); the first one is the fallback type
+            function galleryTypes(kind) { return kind === 'episode' ? ['Thumb', 'Primary', 'Backdrop', 'Logo', 'Banner'] : ['Primary', 'Backdrop', 'Logo', 'Banner', 'Thumb']; }
 
             // Extra images of a node: all offered in Jellyfin's "Modifier les images", the fields above stay the default ones
             function galleryBlock(n, kind) {
@@ -3435,15 +3436,16 @@
                     var chosen = selected >= 0 ? list[selected] : null;
                     var chosenIsDefault = chosen && (firstOf[chosen.Type] === selected || (chosen.Type === 'Backdrop' && slideRank[selected] === 1));
                     html += '<div class="cm-gal-actions"><span class="cm-hint" style="margin:0;">' + (chosen ? 'Image sélectionnée : ' + escapeHtml(GALLERY_LABELS[chosen.Type]) : 'Cliquez sur une image pour la sélectionner.') + '</span>'
+                        + (chosen ? '<select data-gal-retype aria-label="Type de l\'image sélectionnée" title="Changer le type de l\'image sélectionnée">' + galleryTypes(kind).map(function(t) { return '<option value="' + t + '"' + (t === chosen.Type ? ' selected' : '') + '>' + GALLERY_LABELS[t] + '</option>'; }).join('') + '</select>' : '')
                         + '<button is="emby-button" type="button" class="raised" data-gal-act="default"' + (!chosen || chosenIsDefault ? ' disabled' : '') + '><span>' + (chosen && chosen.Type === 'Backdrop' ? 'Placer en tête du diaporama' : 'Utiliser comme image par défaut') + '</span></button>'
                         + '<button is="emby-button" type="button" class="raised" data-gal-act="remove"' + (chosen ? '' : ' disabled') + '><span>Retirer</span></button></div>';
                 }
                 html += '<div class="cm-gal-add"><select id="lfGalType" aria-label="Type de la nouvelle image">'
-                    + galleryTypes(kind).map(function(t) { return '<option value="' + t + '">' + GALLERY_LABELS[t] + '</option>'; }).join('') + '</select>'
+                    + '<option value="auto">Selon le format</option>' + galleryTypes(kind).map(function(t) { return '<option value="' + t + '">' + GALLERY_LABELS[t] + '</option>'; }).join('') + '</select>'
                     + '<input type="text" id="lfGalUrl" placeholder="Adresse web (https://…)" aria-label="Adresse de la nouvelle image" />'
                     + '<button is="emby-button" type="button" class="raised" data-gal-url><span>Ajouter l\'adresse</span></button>'
                     + '<button is="emby-button" type="button" class="raised" data-gal-pick><span>Envoyer des fichiers…</span></button>'
-                    + '<button is="emby-button" type="button" class="raised" data-gal-pickdir title="Envoie toutes les images d\'un dossier. Un sous-dossier nommé Primary, Backdrop, Logo, Banner ou Thumb (ou Affiche, Fond, Bannière, Miniature) fixe le type de ses images, les autres prennent le type choisi à gauche. Vous pouvez aussi glisser un dossier ici."><span>Envoyer un dossier…</span></button>'
+                    + '<button is="emby-button" type="button" class="raised" data-gal-pickdir title="' + (kind === 'episode' ? 'Envoie toutes les images d\'un dossier ; leur type est deviné d\'après leur format, ou pris dans le menu de gauche. Vous pouvez aussi glisser un dossier ici.' : 'Envoie toutes les images d\'un dossier. Un sous-dossier nommé Primary, Backdrop, Logo, Banner ou Thumb (ou Affiche, Fond, Bannière, Miniature) fixe le type de ses images, les autres prennent le type choisi à gauche (« Selon le format » : affiche si l\'image est en hauteur, bannière si très large, fond du diaporama si grande image en largeur, miniature sinon). Vous pouvez aussi glisser un dossier ici.') + '"><span>Envoyer un dossier…</span></button>'
                     + (kind === 'episode' ? '' : '<button is="emby-button" type="button" class="raised" data-gal-folders title="Copie dans la galerie les images des sous-dossiers Primary, Backdrop, Logo, Banner, Thumb du dossier ' + (kind === 'series' ? 'de la série' : 'de la saison') + '"><span>Importer depuis les dossiers</span></button>')
                     + '<input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" data-gal-file hidden />'
                     + '<input type="file" multiple webkitdirectory data-gal-dir hidden /></div>'
@@ -3822,6 +3824,11 @@
             qs('#localDetail').addEventListener('change', function(e) {
                 var t = e.target;
                 if (t.hasAttribute && t.hasAttribute('data-node-id')) { renameNode(t.value); return; }
+                if (t.hasAttribute && t.hasAttribute('data-gal-retype')) {
+                    var rh = localSel ? findNode(localSel) : null, rg = rh && rh.node.Gallery && galSel && galSel.key === localSel ? rh.node.Gallery[galSel.i] : null;
+                    if (rg && rg.Type !== t.value) { rg.Type = t.value; markDirty(); renderLocalDetail(); }
+                    return;
+                }
                 if (t.hasAttribute && t.hasAttribute('data-gal-file')) { uploadGallery(t.files); t.value = ''; return; }
                 if (t.hasAttribute && t.hasAttribute('data-gal-dir')) {
                     uploadGallery(Array.prototype.map.call(t.files || [], function(f) {
@@ -3908,7 +3915,8 @@
                 if (!hit || !input) { return; }
                 var url = input.value.trim();
                 if (!/^https?:\/\//i.test(url)) { gallerySay('Indiquez une adresse web commençant par http:// ou https://.', true); return; }
-                (hit.node.Gallery = hit.node.Gallery || []).push({ Type: qs('#lfGalType').value, Url: url });
+                var addType = qs('#lfGalType').value; if (addType === 'auto') { addType = galleryTypes(hit.kind)[0]; }
+                (hit.node.Gallery = hit.node.Gallery || []).push({ Type: addType, Url: url });
                 markDirty(); renderLocalDetail();
             }
 
@@ -3922,12 +3930,35 @@
             };
             var GALLERY_IMAGE_EXT = /\.(jpe?g|png|webp|gif)$/i;
 
+            // Type of an image from its shape (used when no folder name and no explicit type decide).
+            // Portrait -> Primary (poster); very wide -> Banner; landscape -> Backdrop (slideshow) when large, Thumb (miniature) when small.
+            // An episode only has Thumb (landscape) and Primary (portrait). Resolves to null when the size cannot be read.
+            function detectGalleryType(file, allowed, isEpisode) {
+                return new Promise(function(resolve) {
+                    var url = null, img = new Image();
+                    var finish = function(w, h) {
+                        if (url) { URL.revokeObjectURL(url); }
+                        if (!w || !h) { resolve(null); return; }
+                        var ratio = w / h, type;
+                        if (ratio < 0.95) { type = 'Primary'; }
+                        else if (isEpisode) { type = 'Thumb'; }
+                        else if (ratio >= 3) { type = 'Banner'; }
+                        else if (ratio >= 1.3) { type = w >= 1280 ? 'Backdrop' : 'Thumb'; }
+                        else { type = 'Primary'; }
+                        resolve(allowed.indexOf(type) >= 0 ? type : null);
+                    };
+                    img.onload = function() { finish(img.naturalWidth, img.naturalHeight); };
+                    img.onerror = function() { finish(0, 0); };
+                    try { url = URL.createObjectURL(file); img.src = url; } catch (e) { finish(0, 0); }
+                });
+            }
+
             // Several files at once, sent one after the other: each becomes an image of the chosen type.
             // An item is a File or { file, folder }: the name of its folder fixes the type when it is an image folder name.
             // Items that are not images (a folder holds other things) are skipped without counting as refused.
             function uploadGallery(items) {
                 var hit = localSel ? findNode(localSel) : null;
-                var chosen = qs('#lfGalType') ? qs('#lfGalType').value : 'Primary';
+                var chosen = qs('#lfGalType') ? qs('#lfGalType').value : 'auto';
                 var allowed = hit ? galleryTypes(hit.kind) : [];
                 items = Array.prototype.slice.call(items || []).map(function(i) { return i && i.file ? i : { file: i, folder: '' }; })
                     .filter(function(i) { return i.file && GALLERY_IMAGE_EXT.test(i.file.name || ''); })
@@ -3942,16 +3973,18 @@
                     }
                     var item = items.shift(), file = item.file;
                     var byFolder = GALLERY_FOLDER_TYPES[(item.folder || '').trim().toLowerCase()];
-                    var type = byFolder && allowed.indexOf(byFolder) >= 0 ? byFolder : chosen;
+                    // An episode is a file, not a folder: image-named sub-folders are for series and seasons only, so they never decide an episode's type
+                    var folderType = hit.kind !== 'episode' && byFolder && allowed.indexOf(byFolder) >= 0 ? byFolder : null;
                     gallerySay('Envoi de ' + file.name + '…');
                     if (file.size > 8 * 1024 * 1024) { refused++; next(); return; }
-                    fetch(ApiClient.getUrl('CustomMetadata/Local/' + localDataId + '/Image', { node: node.Id }), {
+                    (folderType || chosen !== 'auto' ? Promise.resolve(folderType || chosen) : detectGalleryType(file, allowed, hit.kind === 'episode').then(function(t) { return t || allowed[0]; })).then(function(type) {
+                    return fetch(ApiClient.getUrl('CustomMetadata/Local/' + localDataId + '/Image', { node: node.Id }), {
                         method: 'POST',
                         headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() },
                         body: file
                     }).then(function(r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); }).then(function(result) {
-                        (node.Gallery = node.Gallery || []).push({ Type: type, Url: result.Url }); done++; next();
-                    }, function() { refused++; next(); });
+                        (node.Gallery = node.Gallery || []).push({ Type: type, Url: result.Url }); done++;
+                    }); }).then(next, function() { refused++; next(); });
                 };
                 next();
             }
