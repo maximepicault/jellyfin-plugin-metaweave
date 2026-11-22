@@ -3445,7 +3445,7 @@
                     + '<input type="text" id="lfGalUrl" placeholder="Adresse web (https://…)" aria-label="Adresse de la nouvelle image" />'
                     + '<button is="emby-button" type="button" class="raised" data-gal-url><span>Ajouter l\'adresse</span></button>'
                     + '<button is="emby-button" type="button" class="raised" data-gal-pick><span>Envoyer des fichiers…</span></button>'
-                    + '<button is="emby-button" type="button" class="raised" data-gal-pickdir title="' + (kind === 'episode' ? 'Envoie toutes les images d\'un dossier ; leur type est deviné d\'après leur format, ou pris dans le menu de gauche. Vous pouvez aussi glisser un dossier ici.' : 'Envoie toutes les images d\'un dossier. Un sous-dossier nommé Primary, Backdrop, Logo, Banner ou Thumb (ou Affiche, Fond, Bannière, Miniature) fixe le type de ses images, les autres prennent le type choisi à gauche (« Selon le format » : affiche si l\'image est en hauteur, bannière si très large, fond du diaporama si grande image en largeur, miniature sinon). Vous pouvez aussi glisser un dossier ici.') + '"><span>Envoyer un dossier…</span></button>'
+                    + '<button is="emby-button" type="button" class="raised" data-gal-pickdir title="' + (kind === 'episode' ? 'Envoie toutes les images d\'un dossier ; leur type est deviné d\'après leur format, ou pris dans le menu de gauche. Vous pouvez aussi glisser un dossier ici.' : 'Envoie toutes les images d\'un dossier. Un sous-dossier nommé Primary, Backdrop, Logo, Banner ou Thumb (ou Affiche, Fond, Bannière, Miniature) fixe le type de ses images, les autres prennent le type choisi à gauche (« Selon le format » : affiche si l\'image est en hauteur, bannière si très large, fond du diaporama si image en largeur d\'au moins 1280 px, miniature sinon). Vous pouvez aussi glisser un dossier ici.') + '"><span>Envoyer un dossier…</span></button>'
                     + (kind === 'episode' ? '' : '<button is="emby-button" type="button" class="raised" data-gal-folders title="Copie dans la galerie les images des sous-dossiers Primary, Backdrop, Logo, Banner, Thumb du dossier ' + (kind === 'series' ? 'de la série' : 'de la saison') + '"><span>Importer depuis les dossiers</span></button>')
                     + '<input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" data-gal-file hidden />'
                     + '<input type="file" multiple webkitdirectory data-gal-dir hidden /></div>'
@@ -3931,7 +3931,7 @@
             var GALLERY_IMAGE_EXT = /\.(jpe?g|png|webp|gif)$/i;
 
             // Type of an image from its shape (used when no folder name and no explicit type decide).
-            // Portrait -> Primary (poster); very wide -> Banner; landscape -> Backdrop (slideshow) when large, Thumb (miniature) when small.
+            // Portrait -> Primary (poster); very wide -> Banner; wider than tall -> Backdrop (slideshow) from 1280 px wide (smaller would look pixelated), Thumb (miniature) below.
             // An episode only has Thumb (landscape) and Primary (portrait). Resolves to null when the size cannot be read.
             function detectGalleryType(file, allowed, isEpisode) {
                 return new Promise(function(resolve) {
@@ -3940,11 +3940,10 @@
                         if (url) { URL.revokeObjectURL(url); }
                         if (!w || !h) { resolve(null); return; }
                         var ratio = w / h, type;
-                        if (ratio < 0.95) { type = 'Primary'; }
+                        if (ratio <= 1) { type = 'Primary'; }
                         else if (isEpisode) { type = 'Thumb'; }
                         else if (ratio >= 3) { type = 'Banner'; }
-                        else if (ratio >= 1.3) { type = w >= 1280 ? 'Backdrop' : 'Thumb'; }
-                        else { type = 'Primary'; }
+                        else { type = w >= 1280 ? 'Backdrop' : 'Thumb'; }   // a small image stretched as a backdrop would be pixelated
                         resolve(allowed.indexOf(type) >= 0 ? type : null);
                     };
                     img.onload = function() { finish(img.naturalWidth, img.naturalHeight); };

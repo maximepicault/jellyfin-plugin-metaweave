@@ -198,6 +198,11 @@ try {
   await click('[data-gal-folders]'); await wait(500);
   check('folders: a second import adds nothing', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item').length`)) === 2 && (await ev(`document.querySelector('#lfGalMsg').textContent`)).includes('2 déjà présentes'));
   check('default: with no default field, the first image of each type carries the badge', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-badge').length`)) === 2);
+  // Detection by shape on a series (real decodable images): 1600x1067 and 1280x720 -> Fond, 800x450 -> Miniature, 800x1200 -> Affiche, 2400x600 -> Bannière
+  await ev(`document.querySelector('#lfGalType').value='auto'; true`);
+  await ev(`(async function(){var dt=new DataTransfer(); var sizes=[[1600,1067,'a.png'],[800,1200,'b.png'],[2400,600,'c.png'],[1280,720,'d.png'],[800,450,'e.png']]; for (var k=0;k<sizes.length;k++){var c=document.createElement('canvas'); c.width=sizes[k][0]; c.height=sizes[k][1]; var b=await new Promise(function(r){c.toBlob(r,'image/png');}); dt.items.add(new File([b],sizes[k][2],{type:'image/png'}));} var i=document.querySelector('[data-gal-file]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(1500);
+  check('detection: shapes give Fond, Affiche, Bannière, Fond, Miniature', (await ev(`Array.from(document.querySelectorAll('#lfGallery .cm-gal-pick .cm-gal-meta span:first-child')).slice(2).map(function(e){return e.textContent;}).join()`)) === 'Fond,Affiche,Bannière,Fond,Miniature', await ev(`Array.from(document.querySelectorAll('#lfGallery .cm-gal-pick .cm-gal-meta span:first-child')).map(function(e){return e.textContent;}).join()`));
+  for (let k = 0; k < 5; k++) { await click('#lfGallery [data-gal-sel="2"]'); await wait(150); await click('[data-gal-act="remove"]'); await wait(200); }
   await click('#lfGallery .cm-gal-pick'); await wait(200);
   check('default: the image that already is the default cannot be chosen again', (await ev(`document.querySelector('[data-gal-act="default"]').disabled`)) === true);
   // a second Primary image: select it and make it the default (no default field: it fills the field above and leaves the gallery)
