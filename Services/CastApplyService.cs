@@ -224,6 +224,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         dirty = true;
                     }
 
+                    // Jellyfin's "year" field of the person: the birth year
+                    if (birth != default && item.ProductionYear != birth.Year)
+                    {
+                        item.ProductionYear = birth.Year;
+                        dirty = true;
+                    }
+
                     if (DateTime.TryParseExact(person.DeathDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var death) && item.EndDate != death)
                     {
                         item.EndDate = death;
