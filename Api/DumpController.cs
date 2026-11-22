@@ -862,6 +862,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
         }
 
+        /// <summary>"prefix-seriesId" of a series grouped by the dump's series id (its entries' tags give the prefix); null otherwise</summary>
+        private static string SeriesTagOf(List<DumpRow> members)
+        {
+            var withId = members.FirstOrDefault(r => r.SeriesId != null);
+            var dash = withId?.Tag?.IndexOf('-') ?? -1;
+            return dash > 0 ? withId.Tag.Substring(0, dash) + "-" + withId.SeriesId : null;
+        }
+
         private static List<DumpSeriesCoverage> SeriesOf(List<DumpRow> rows)
         {
             return rows.Where(r => r.SeriesKey != null).GroupBy(r => r.SeriesKey).Select(g =>
@@ -875,7 +883,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     LibrarySeasons = linked.Where(r => r.LibrarySeason.HasValue).Select(r => r.LibrarySeason.Value).Distinct().OrderBy(x => x).ToList(),
                     Total = g.Count(),
                     Owned = g.Count(r => r.Owned),
-                    Missing = g.Count(r => !r.Owned)
+                    Missing = g.Count(r => !r.Owned),
+                    Tag = SeriesTagOf(g.ToList()),
+                    ImageId = g.FirstOrDefault(r => r.HasImage)?.Id
                 };
             }).OrderByDescending(x => x.Missing).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Take(300).ToList();
         }
@@ -1139,6 +1149,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public int Total { get; set; }
         public int Owned { get; set; }
         public int Missing { get; set; }
+
+        /// <summary>"prefix-seriesId" when the dump gives the series its own id (SeriesIdPath), else null: what the screen offers to copy</summary>
+        public string Tag { get; set; }
+
+        /// <summary>An entry whose picture stands for the series (null when none has one)</summary>
+        public string ImageId { get; set; }
     }
 
     public class DumpTagCount

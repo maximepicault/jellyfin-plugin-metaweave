@@ -241,6 +241,8 @@ try {
   const noImg = await fetch(`${J}/CustomMetadata/Dump/Image?prefix=dp&id=nope`, { headers: H });
   check('preview: an unknown entry is a 404', noImg.status === 404, String(noImg.status));
   // series inferred from the names, linked to the library: the first level of the screen
+  const plainSeries = pick((await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&series=' + encodeURIComponent('e:1001'))).json, 'SeriesInfo');
+  check('series without a dump series id: no series tag to copy', plainSeries && (plainSeries.Tag === null || plainSeries.Tag === undefined), JSON.stringify(plainSeries));
   const sp = (await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&pageSize=50')).json;
   const cards = pick(sp, 'Items') || [];
   const foret = cards.find(x => x.Name === 'Chroniques de la forêt');
@@ -318,6 +320,8 @@ try {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, withSeriesId);
   const sid = (pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&pageSize=50')).json, 'Items') || []);
   check('series id: the entries are grouped by it (4 brands, 40 entries) and named by the name path', sid.length === 4 && sid.reduce((n, c) => n + c.Total, 0) === 40 && sid.map(c => c.Name).sort().join('|') === 'Aurora Studio|Boréal Films|Cinéma Lumen|Delta Prod', JSON.stringify(sid.map(c => [c.Name, c.Total])));
+  const sinfo = pick((await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&series=' + encodeURIComponent('s:1'))).json, 'SeriesInfo');
+  check('series id: the series gives its tag (prefix-seriesId) for the copy button', pick(sinfo, 'Tag') === 'dp-1', JSON.stringify(sinfo));
   const withSeriesIdNoName = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, SeriesIdPath: 'brand_id', SeriesNamePath: '' } } : x) };
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, withSeriesIdNoName);
   const sidn = (pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&pageSize=50')).json, 'Items') || []);

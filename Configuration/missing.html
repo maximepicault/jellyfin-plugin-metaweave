@@ -279,6 +279,7 @@
             font-weight: bold;
             cursor: pointer;
         }
+        .me-copy-all[hidden] { display: none; }
         .me-copy-all:hover { background: #00668a; }
         .me-copy-all.me-copied { background: var(--me-ok); }
         .me-detail-action .me-muted { font-size: 13px; }
@@ -1839,8 +1840,32 @@
                 var sep = '<span class="me-sep" aria-hidden="true">›</span>';
                 $('#dcCrumbs').innerHTML = '<button type="button" data-nav="series">← Toutes les séries</button>' + sep + '<span class="me-crumb-current">' + esc(state.seriesName || 'Série') + '</span>';
                 var s = d.SeriesInfo;
-                $('#dcSeriesHead').innerHTML = s ? '<p class="dc-seriesline">' + (s.LibrarySeries ? '✓ Dans votre médiathèque : <strong>' + esc(s.LibrarySeries) + '</strong>' + (s.LibrarySeasons && s.LibrarySeasons.length ? ' · saison ' + esc(s.LibrarySeasons.join(', ')) : '') + ' · ' : '')
-                    + s.Owned + ' / ' + s.Total + ' entrées possédées</p>' : '';
+                if (!s) { $('#dcSeriesHead').innerHTML = ''; return; }
+                var title = s.LibrarySeries || state.seriesName || s.Name || 'Série';
+                var lib = s.LibrarySeries ? '<div class="me-muted">✓ Dans votre médiathèque : <strong>' + esc(s.LibrarySeries) + '</strong>' + (s.LibrarySeasons && s.LibrarySeasons.length ? ' · saison ' + esc(s.LibrarySeasons.join(', ')) : '') + '</div>' : '';
+                var tagRow = s.Tag
+                    ? '<div class="me-tagrow"><span class="me-muted">Tag de la série</span><code>{' + esc(s.Tag) + '}</code>'
+                        + '<button type="button" class="me-copy me-copy-sm" data-copy-tag="{' + esc(s.Tag) + '}" aria-label="Copier le tag {' + esc(s.Tag) + '}">' + ICON_COPY + '<span>Copier le tag</span></button></div>'
+                    : '';
+                $('#dcSeriesHead').innerHTML = '<div class="me-detail-head dc-seriesrecap">'
+                    + '<div class="me-poster">' + (s.ImageId ? '<img src="' + esc(imageSrc(s.ImageId)) + '" alt="" loading="lazy" />' : '<div class="me-placeholder">' + esc(title.trim().charAt(0).toUpperCase()) + '</div>') + '</div>'
+                    + '<div class="me-detail-info"><h3>' + esc(title) + '</h3>' + lib
+                    + '<div class="me-chips">' + (s.Missing > 0 ? '<span class="me-badge me-badge-missing">' + plural(s.Missing, 'manquant') + '</span>' : '<span class="me-badge me-badge-ok">✓ Complète</span>')
+                    + '<div class="me-progress" title="' + pct(s.Owned, s.Total) + ' % possédées"><div style="width:' + pct(s.Owned, s.Total) + '%"></div></div>'
+                    + '<span>' + s.Owned + ' / ' + s.Total + ' entrées possédées</span></div>'
+                    + tagRow + '</div>'
+                    + '<div class="me-detail-action"><button type="button" class="me-copy-all" id="dcCopyAll" data-copy-all hidden>' + ICON_COPY + '<span></span></button>'
+                    + '<span class="me-muted">Un nom par ligne, prêt à coller</span></div></div>';
+            }
+
+            // "Copier les N noms": the entries shown now (the page and the filters apply), one file name per line
+            function updateCopyAll() {
+                var btn = $('#dcCopyAll');
+                if (!btn) { return; }
+                var n = page.querySelectorAll('#dcResults .dc-entry[data-file]').length;
+                btn.hidden = n === 0;
+                btn.setAttribute('data-count', n);
+                btn.querySelector('span').textContent = n > 1 ? 'Copier les ' + n + ' noms' : 'Copier le nom';
             }
 
             function fillSelect(selector, first, options, value) {
@@ -1888,6 +1913,7 @@
                 $('#dcCount').textContent = d.Matching.toLocaleString('fr-FR') + ' ' + what + (hasFilters ? ' avec ces filtres' : '') + (d.Pages > 1 ? ' · page ' + d.Page + ' sur ' + d.Pages : '');
                 var box = $('#dcResults');
                 if (!d.Items.length) {
+                    updateCopyAll();
                     var filtered = state.group || state.tag || state.yearFrom || state.yearTo || state.q || scoreActive();
                     box.innerHTML = '<div class="dc-empty"><strong>' + (filtered ? 'Aucune entrée avec ces filtres.' : (state.status === 'missing' ? 'Rien ne manque ici.' : 'Aucune entrée.')) + '</strong>'
                         + (filtered ? 'Retirez un filtre (les pastilles ci-dessus) pour élargir la liste.' : (state.status === 'missing' ? 'Toutes les entrées sont dans votre médiathèque. « Afficher : Tout » les liste quand même.' : 'Le catalogue est vide ou les chemins de la source ne trouvent rien : testez-la dans son éditeur.')) + '</div>';
@@ -1915,6 +1941,7 @@
                         + '</div></div>';
                 });
                 box.innerHTML = html + '</div>';
+                updateCopyAll();
             }
 
             function renderPager(d) {
@@ -1983,6 +2010,21 @@
                 if (tag) { change({ tag: tag.getAttribute('data-tag') }); return; }
                 var pg = e.target.closest('[data-page]');
                 if (pg && !pg.disabled) { change({ page: parseInt(pg.getAttribute('data-page'), 10) }); window.scrollTo({ top: 0 }); return; }
+                var copyTag = e.target.closest('[data-copy-tag]');
+                if (copyTag) {
+                    var tagSpan = copyTag.querySelector('span');
+                    copyText(copyTag.getAttribute('data-copy-tag')).then(function () { copyTag.classList.add('me-copied'); tagSpan.textContent = 'Copié'; setTimeout(function () { copyTag.classList.remove('me-copied'); tagSpan.textContent = 'Copier le tag'; }, 1500); },
+                        function () { tagSpan.textContent = 'Sélectionnez le texte'; setTimeout(function () { tagSpan.textContent = 'Copier le tag'; }, 2500); });
+                    return;
+                }
+                var copyAllBtn = e.target.closest('[data-copy-all]');
+                if (copyAllBtn) {
+                    var names = Array.prototype.map.call(page.querySelectorAll('#dcResults .dc-entry[data-file]'), function (el) { return el.getAttribute('data-file'); });
+                    var allSpan = copyAllBtn.querySelector('span');
+                    copyText(names.join('\n')).then(function () { copyAllBtn.classList.add('me-copied'); allSpan.textContent = plural(names.length, 'nom copié', 'noms copiés'); setTimeout(function () { copyAllBtn.classList.remove('me-copied'); updateCopyAll(); }, 1800); },
+                        function () { allSpan.textContent = 'Copie refusée'; setTimeout(updateCopyAll, 2500); });
+                    return;
+                }
                 var copy = e.target.closest('[data-copy]');
                 if (copy) {
                     var span = copy.querySelector('span');
