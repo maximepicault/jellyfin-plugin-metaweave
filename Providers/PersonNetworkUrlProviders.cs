@@ -31,7 +31,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             get
             {
                 var network = Network();
-                return network == null ? "Custom" : (string.IsNullOrEmpty(network.Icon) ? network.Name : network.Icon + " " + network.Name);
+                // An image icon (put in front of the link by the plugin's style sheet) replaces the emoji
+                return network == null ? "Custom" : (string.IsNullOrEmpty(network.Icon) || network.IconFile != null ? network.Name : network.Icon + " " + network.Name);
             }
         }
 

@@ -1,4 +1,6 @@
 using System;
+using System.Net.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Linq;
 using System.Threading;
@@ -26,12 +28,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         private readonly CastCatalog _catalog;
         private readonly CastApplyService _apply;
         private readonly PersonNetworkStore _networks;
+        private readonly System.Net.Http.IHttpClientFactory _httpClientFactory;
         private readonly Microsoft.Extensions.Logging.ILogger<PeopleController> _logger;
 
-        public PeopleController(PersonNetworkStore networks, Microsoft.Extensions.Logging.ILogger<PeopleController> logger, PeopleStore people, CustomApiClient apiClient, LocalSourceStore images, CastOverlayStore overlay, CastCatalog catalog, CastApplyService apply)
+        public PeopleController(System.Net.Http.IHttpClientFactory httpClientFactory, PersonNetworkStore networks, Microsoft.Extensions.Logging.ILogger<PeopleController> logger, PeopleStore people, CustomApiClient apiClient, LocalSourceStore images, CastOverlayStore overlay, CastCatalog catalog, CastApplyService apply)
         {
             _apply = apply;
             _networks = networks;
+            _httpClientFactory = httpClientFactory;
             _logger = logger;
             _people = people;
             _apiClient = apiClient;
@@ -65,6 +69,69 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         [HttpGet("Networks")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public ActionResult<System.Collections.Generic.List<PersonNetwork>> GetNetworks() => Ok(_networks.Load());
+
+        /// <summary>Stores an image sent as the body (SVG, PNG, ICO, WebP, JPEG, GIF): returns its file name, to put in the network's IconFile</summary>
+        [HttpPost("Networks/Icon")]
+        [RequestSizeLimit(PersonNetworkStore.MaxIconBytes + 1024)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<NetworkIconResult>> UploadNetworkIcon(CancellationToken cancellationToken)
+        {
+            using var buffer = new System.IO.MemoryStream();
+            await Request.Body.CopyToAsync(buffer, cancellationToken);
+            var file = _networks.SaveIcon(buffer.ToArray(), out var error);
+            return file == null ? BadRequest(error) : Ok(new NetworkIconResult { File = file });
+        }
+
+        /// <summary>Fetches the favicon of the site the address template points to and stores it as an icon</summary>
+        [HttpPost("Networks/Favicon")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<ActionResult<NetworkIconResult>> FetchNetworkFavicon([FromBody] NetworkFaviconRequest request, CancellationToken cancellationToken)
+        {
+            var (data, error) = await PersonNetworkStore.FetchFaviconAsync(_httpClientFactory.CreateClient(), request?.UrlTemplate, cancellationToken);
+            if (data == null)
+            {
+                return Ok(new NetworkIconResult { Error = error });
+            }
+
+            var file = _networks.SaveIcon(data, out var saveError);
+            return Ok(file == null ? new NetworkIconResult { Error = saveError } : new NetworkIconResult { File = file });
+        }
+
+        /// <summary>
+        /// An icon image. ANONYMOUS: the browser loads it from the style sheet below, with no token. Only files of the icon folder,
+        /// under their generated names. Served with a CSP so that an SVG opened on its own cannot run anything.
+        /// </summary>
+        [HttpGet("Networks/IconFile/{file}")]
+        [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public IActionResult NetworkIconFile(string file)
+        {
+            if (!_networks.TryReadIcon(file, out var data, out var mime))
+            {
+                return NotFound();
+            }
+
+            Response.Headers["Cache-Control"] = "public, max-age=3600";
+            Response.Headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            return File(data, mime);
+        }
+
+        /// <summary>
+        /// Style sheet to import once in Jellyfin's custom CSS (Dashboard → General): it puts the networks' images in front
+        /// of the links of the person page. ANONYMOUS: the web client loads it without a token. It contains no personal data.
+        /// </summary>
+        [HttpGet("Networks/Icons.css")]
+        [AllowAnonymous]
+        [Produces("text/css")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult NetworkIconsCss()
+        {
+            Response.Headers["Cache-Control"] = "public, max-age=60";
+            return Content(_networks.BuildCss(), "text/css; charset=utf-8");
+        }
 
         /// <summary>The original list of networks (to offer "reset")</summary>
         [HttpGet("Networks/Defaults")]
@@ -338,6 +405,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             Response.Headers["Cache-Control"] = "private, max-age=3600";
             return File(data, mime);
         }
+    }
+
+    public class NetworkIconResult
+    {
+        public string File { get; set; }
+
+        public string Error { get; set; }
+    }
+
+    public class NetworkFaviconRequest
+    {
+        public string UrlTemplate { get; set; }
     }
 
     public class PersonFetchRequest

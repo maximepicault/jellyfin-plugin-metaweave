@@ -107,6 +107,11 @@
         #CustomMetadataPeoplePage .pp-net-grid { display: grid; grid-template-columns: 72px minmax(120px, 1fr) minmax(200px, 2fr) 150px; gap: 10px; align-items: end; }
         #CustomMetadataPeoplePage .pp-net-grid label { display: block; font-size: 12px; color: var(--pp-muted); margin-bottom: 4px; }
         #CustomMetadataPeoplePage .pp-net-grid input { min-height: 40px; box-sizing: border-box; width: 100%; padding: 0 10px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; border: 1px solid transparent; border-radius: 4px; }
+        #CustomMetadataPeoplePage .pp-nm-css { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; margin-bottom: 14px; border: 1px solid var(--pp-border); border-radius: 8px; background: rgba(255, 255, 255, 0.03); font-size: 13px; line-height: 1.45; }
+        #CustomMetadataPeoplePage .pp-nm-css-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+        #CustomMetadataPeoplePage .pp-nm-css-line code { flex: 1 1 320px; min-width: 0; padding: 8px 10px; border-radius: 4px; background: rgba(0, 0, 0, 0.35); word-break: break-all; }
+        #CustomMetadataPeoplePage .pp-net-img { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 10px; font-size: 13px; }
+        #CustomMetadataPeoplePage .pp-net-img img { width: 28px; height: 28px; object-fit: contain; padding: 3px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); }
         #CustomMetadataPeoplePage .pp-net-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; font-size: 13px; color: var(--pp-muted); }
         #CustomMetadataPeoplePage .pp-net-preview { flex: 1 1 260px; min-width: 0; word-break: break-all; }
         #CustomMetadataPeoplePage .pp-net-preview.bad { color: #f0a0a0; }
@@ -261,6 +266,12 @@
 
                 <div id="ppTabNetworks" hidden>
                     <p class="pp-lead" style="margin-bottom: 16px;">Les réseaux que vous pouvez ajouter aux personnes (Instagram, IMDb…). Chacun devient un lien sur la page de la personne dans Jellyfin : le nom précédé de l'icône, vers l'adresse construite avec le pseudo. Une source de personnes peut aussi les renseigner (onglet « Personne » de la source).</p>
+                    <div class="pp-nm-css" id="ppNetCss">
+                        <strong>Icônes en image dans Jellyfin</strong>
+                        <span>Une icône en image (SVG, PNG, favicon…) s'affiche devant le lien dans le client web de Jellyfin et ses applications qui reprennent le CSS personnalisé. Ajoutez cette ligne une seule fois dans <em>Tableau de bord → Général → CSS personnalisé</em> (ou dans votre thème) :</span>
+                        <span class="pp-nm-css-line"><code id="ppNetCssLine"></code><button type="button" class="pp-linkbtn" id="ppNetCssCopy">Copier</button></span>
+                        <span>Quand une image est choisie, l'emoji n'est plus ajouté au nom du lien. Sans le CSS, le lien s'affiche sans icône.</span>
+                    </div>
                     <div class="pp-nets" id="ppNets"></div>
                     <div class="pp-btns" style="margin-top: 12px;">
                         <button is="emby-button" type="button" class="raised" id="ppNetAdd"><span>Ajouter un réseau</span></button>
@@ -608,11 +619,13 @@
             function netSample(n) { return /^\s*\{value\}\s*$/.test(n.UrlTemplate || '{value}') ? 'https://exemple.com/page' : NET_SAMPLE; }
             function netPreview(n) {
                 var url = netUrl(n, netSample(n));
-                return url ? 'Aperçu avec « ' + netSample(n) + ' » : <strong>' + escapeHtml((n.Icon ? n.Icon + ' ' : '') + n.Name) + '</strong> → ' + escapeHtml(url)
+                return url ? 'Aperçu avec « ' + netSample(n) + ' » : <strong>' + escapeHtml((n.Icon && !n.IconFile ? n.Icon + ' ' : '') + n.Name) + '</strong> → ' + escapeHtml(url)
                     : 'L\'adresse n\'est pas valide : elle doit commencer par http:// ou https:// et contenir {value}.';
             }
             function netUsage(n) { return people.filter(function(p) { return (p.Networks || []).some(function(v) { return v.NetworkId === n.Id; }); }).length; }
             function renderNets() {
+                qs('#ppNetCssLine').textContent = '@import url("' + ApiClient.getUrl('CustomMetadata/People/Networks/Icons.css') + '");';
+                qs('#ppNetCssCopy').textContent = 'Copier';
                 qs('#ppNets').innerHTML = networks.length ? networks.map(function(n, i) {
                     var used = netUsage(n);
                     return '<div class="pp-net" data-net-i="' + i + '"><div class="pp-net-grid">'
@@ -620,7 +633,11 @@
                         + '<div><label for="ppNn' + i + '">Nom affiché</label><input type="text" id="ppNn' + i + '" data-nm-name="' + i + '" value="' + escapeHtml(n.Name || '') + '" /></div>'
                         + '<div><label for="ppNu' + i + '">Modèle d\'adresse</label><input type="text" id="ppNu' + i + '" data-nm-url="' + i + '" value="' + escapeHtml(n.UrlTemplate || '') + '" placeholder="https://exemple.com/{value}" /></div>'
                         + '<div class="pp-btns"><button type="button" class="pp-linkbtn" data-nm-up="' + i + '"' + (i === 0 ? ' disabled' : '') + ' aria-label="Monter">▲</button><button type="button" class="pp-linkbtn" data-nm-down="' + i + '"' + (i === networks.length - 1 ? ' disabled' : '') + ' aria-label="Descendre">▼</button><button type="button" class="pp-linkbtn" data-nm-remove="' + i + '">Supprimer</button></div>'
-                        + '</div><div class="pp-net-meta"><span class="pp-net-preview" data-nm-preview="' + i + '">' + netPreview(n) + '</span><span>' + (used ? used + (used > 1 ? ' personnes' : ' personne') : 'Aucune personne') + '</span></div></div>';
+                        + '</div><div class="pp-net-img">' + (n.IconFile ? '<img alt="" src="' + escapeHtml(ApiClient.getUrl('CustomMetadata/People/Networks/IconFile/' + n.IconFile)) + '" />' : '<span class="pp-hint" style="margin:0;">Pas d\'image : l\'emoji sert d\'icône.</span>')
+                        + '<button type="button" class="pp-linkbtn" data-nm-pick="' + i + '">Choisir une image…</button><button type="button" class="pp-linkbtn" data-nm-favicon="' + i + '">Récupérer le favicon du site</button>'
+                        + (n.IconFile ? '<button type="button" class="pp-linkbtn" data-nm-noimg="' + i + '">Retirer l\'image</button>' : '')
+                        + '<input type="file" accept="image/svg+xml,image/png,image/x-icon,image/vnd.microsoft.icon,image/webp,image/jpeg,image/gif,.svg,.ico" data-nm-file="' + i + '" hidden /><span class="pp-net-imgmsg" data-nm-imgmsg="' + i + '" role="status"></span></div>'
+                        + '<div class="pp-net-meta"><span class="pp-net-preview" data-nm-preview="' + i + '">' + netPreview(n) + '</span><span>' + (used ? used + (used > 1 ? ' personnes' : ' personne') : 'Aucune personne') + '</span></div></div>';
                 }).join('') : '<div class="pp-empty">Aucun réseau : ajoutez-en un.</div>';
                 qs('#ppNetAdd').disabled = networks.length >= 24;
             }
@@ -635,9 +652,42 @@
                 prev.classList.toggle('bad', !netUrl(networks[i], netSample(networks[i])));
                 netChanged();
             });
+            function netImgMsg(i, text) { var el = qs('#ppNets [data-nm-imgmsg="' + i + '"]'); if (el) { el.textContent = text || ''; } }
+            function putJsonPost(url, body) {
+                return ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl(url), data: JSON.stringify(body), contentType: 'application/json', dataType: 'json' });
+            }
+            qs('#ppTabNetworks').addEventListener('change', function(e) {
+                if (!e.target.hasAttribute('data-nm-file')) { return; }
+                var i = parseInt(e.target.getAttribute('data-nm-file'), 10);
+                var file = e.target.files && e.target.files[0];
+                e.target.value = '';
+                if (!file) { return; }
+                if (file.size > 256 * 1024) { netImgMsg(i, 'Image trop lourde : 256 Ko au maximum.'); return; }
+                netImgMsg(i, 'Envoi…');
+                fetch(ApiClient.getUrl('CustomMetadata/People/Networks/Icon'), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() }, body: file })
+                    .then(function(r) { return r.ok ? r.json() : r.text().then(function(t) { throw new Error(t.replace(/^"|"$/g, '') || 'Image refusée'); }); })
+                    .then(function(r) { networks[i].IconFile = r.File; netChanged(); renderNets(); }, function(err) { netImgMsg(i, err.message || 'Image refusée.'); });
+            });
+            qs('#ppNetCssCopy').addEventListener('click', function() {
+                var text = qs('#ppNetCssLine').textContent;
+                (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function() { qs('#ppNetCssCopy').textContent = 'Copié'; }, function() {
+                    var range = document.createRange(); range.selectNodeContents(qs('#ppNetCssLine')); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+                    qs('#ppNetCssCopy').textContent = 'Sélectionné : Ctrl+C';
+                });
+            });
             qs('#ppTabNetworks').addEventListener('click', function(e) {
-                var t = e.target.closest('[data-nm-up],[data-nm-down],[data-nm-remove]');
+                var t = e.target.closest('[data-nm-up],[data-nm-down],[data-nm-remove],[data-nm-pick],[data-nm-favicon],[data-nm-noimg]');
                 if (!t) { return; }
+                if (t.hasAttribute('data-nm-pick')) { qs('#ppNets [data-nm-file="' + t.getAttribute('data-nm-pick') + '"]').click(); return; }
+                if (t.hasAttribute('data-nm-noimg')) { networks[parseInt(t.getAttribute('data-nm-noimg'), 10)].IconFile = null; netChanged(); renderNets(); return; }
+                if (t.hasAttribute('data-nm-favicon')) {
+                    var fi = parseInt(t.getAttribute('data-nm-favicon'), 10);
+                    netImgMsg(fi, 'Recherche du favicon…');
+                    putJsonPost('CustomMetadata/People/Networks/Favicon', { UrlTemplate: networks[fi].UrlTemplate }).then(function(r) {
+                        if (r.File) { networks[fi].IconFile = r.File; netChanged(); renderNets(); } else { netImgMsg(fi, r.Error || 'Aucun favicon trouvé.'); }
+                    }, function() { netImgMsg(fi, 'Le serveur Jellyfin n\'a pas pu chercher le favicon.'); });
+                    return;
+                }
                 var swap = function(a, b) { var x = networks[a]; networks[a] = networks[b]; networks[b] = x; netChanged(); renderNets(); };
                 if (t.hasAttribute('data-nm-up')) { var u = parseInt(t.getAttribute('data-nm-up'), 10); if (u > 0) { swap(u, u - 1); } return; }
                 if (t.hasAttribute('data-nm-down')) { var d = parseInt(t.getAttribute('data-nm-down'), 10); if (d < networks.length - 1) { swap(d, d + 1); } return; }
