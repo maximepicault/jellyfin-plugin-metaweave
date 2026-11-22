@@ -313,6 +313,16 @@ try {
   const syNames = (pick(sy, 'Items') || []).map(c => c.Name);
   check('year interval on series: kept when one of their entries is in it (2023 = "Le Dernier Phare", the big series; not "Les Sentiers du Nord", 2019)', syNames.some(n => /Dernier Phare/.test(n)) && syNames.some(n => /Épisode démo/.test(n)) && !syNames.some(n => /Sentiers/.test(n)), JSON.stringify(syNames));
   check('year interval on series: the page gives the years of the dump for the filter', (pick(sy, 'Years') || []).length === 7 && pick(sy, 'Years')[0] === 2024, JSON.stringify(pick(sy, 'Years')));
+  // a series id in the dump decides the series (here the brand id), with its name from the dump or, when absent, from the titles
+  const withSeriesId = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, SeriesIdPath: 'brand_id', SeriesNamePath: 'brand' } } : x) };
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, withSeriesId);
+  const sid = (pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&pageSize=50')).json, 'Items') || []);
+  check('series id: the entries are grouped by it (4 brands, 40 entries) and named by the name path', sid.length === 4 && sid.reduce((n, c) => n + c.Total, 0) === 40 && sid.map(c => c.Name).sort().join('|') === 'Aurora Studio|Boréal Films|Cinéma Lumen|Delta Prod', JSON.stringify(sid.map(c => [c.Name, c.Total])));
+  const withSeriesIdNoName = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, SeriesIdPath: 'brand_id', SeriesNamePath: '' } } : x) };
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, withSeriesIdNoName);
+  const sidn = (pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&pageSize=50')).json, 'Items') || []);
+  check('series id: without a name path every series still has a name', sidn.length === 4 && sidn.every(c => c.Name && c.Name.length >= 3), JSON.stringify(sidn.map(c => [c.Name, c.Total])));
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
   // the date for the catalogue is its own path: the video mapping's date can stay EMPTY (kept out of Jellyfin) and the filters still work
   const unmapped = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, ReleaseDatePath: 'released_at' }, VideoFieldMappings: { ...x.VideoFieldMappings, PremiereDate: '' } } : x) };
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, unmapped);

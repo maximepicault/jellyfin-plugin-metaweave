@@ -696,6 +696,16 @@
                             <div class="cm-hint">Marque, studio, chaîne… L&#x27;écran « Épisodes manquants » regroupe les manquants par groupe. Vide = pas de groupe.</div>
                         </div>
                         <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpSeriesId">Série : identifiant</label>
+                            <input is="emby-input" type="text" id="srcDumpSeriesId" placeholder="seriesId" />
+                            <div class="cm-hint">Facultatif. Les entrées qui ont le même identifiant forment une série sur l&#x27;écran « Catalogues », au lieu de se deviner d&#x27;après les titres. Sans identifiant, le regroupement par titre s&#x27;applique.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpSeriesName">Série : nom</label>
+                            <input is="emby-input" type="text" id="srcDumpSeriesName" placeholder="series.name" />
+                            <div class="cm-hint">Facultatif. Le nom affiché pour la série. Vide = le titre commun de ses entrées.</div>
+                        </div>
+                        <div class="inputContainer">
                             <label class="inputLabel" for="srcDumpLikes">Mentions « j&#x27;aime »</label>
                             <input is="emby-input" type="text" id="srcDumpLikes" placeholder="likes" data-count="1" />
                         </div>
@@ -2803,6 +2813,8 @@
                 qs('#srcDumpSlug').value = d.SlugPath || '';
                 qs('#srcDumpSearch').value = d.SearchTitlesPath || '';
                 qs('#srcDumpGroup').value = d.GroupPath || '';
+                qs('#srcDumpSeriesId').value = d.SeriesIdPath || '';
+                qs('#srcDumpSeriesName').value = d.SeriesNamePath || '';
                 qs('#srcDumpLikes').value = d.LikesPath || '';
                 qs('#srcDumpDislikes').value = d.DislikesPath || '';
                 qs('#srcDumpCache').value = d.CacheMinutes || 60;
@@ -2826,7 +2838,7 @@
             function readDumpSettings() {
                 return {
                     ItemsPath: qs('#srcDumpItems').value.trim(), IdPath: qs('#srcDumpId').value.trim(), NamePath: qs('#srcDumpName').value.trim(),
-                    SlugPath: qs('#srcDumpSlug').value.trim(), SearchTitlesPath: qs('#srcDumpSearch').value.trim(), GroupPath: qs('#srcDumpGroup').value.trim(),
+                    SlugPath: qs('#srcDumpSlug').value.trim(), SearchTitlesPath: qs('#srcDumpSearch').value.trim(), GroupPath: qs('#srcDumpGroup').value.trim(), SeriesIdPath: qs('#srcDumpSeriesId').value.trim(), SeriesNamePath: qs('#srcDumpSeriesName').value.trim(),
                     LikesPath: qs('#srcDumpLikes').value.trim(), DislikesPath: qs('#srcDumpDislikes').value.trim(),
                     CacheMinutes: Math.max(1, readInt('#srcDumpCache', 60, 1)),
                     PageParameter: qs('#srcDumpPageParam').value.trim(), FirstPage: Math.max(0, readInt('#srcDumpFirstPage', 1, 0)), MaxPages: Math.max(1, readInt('#srcDumpMaxPages', 200, 1)),

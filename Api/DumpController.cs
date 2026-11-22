@@ -538,7 +538,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             var previewPath = source.Dump?.PreviewImagePath;
             // The catalogue has its own date path, so the date can stay unmapped (kept out of Jellyfin) and still be used here
             var datePath = string.IsNullOrWhiteSpace(source.Dump?.ReleaseDatePath) ? mapping.PremiereDate : source.Dump.ReleaseDatePath;
-            var mappingKey = string.Join("|", datePath, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, previewPath, source.Dump?.SeriesMinEntries, source.Prefix);
+            var mappingKey = string.Join("|", datePath, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, previewPath, source.Dump?.SeriesMinEntries, source.Dump?.SeriesIdPath, source.Dump?.SeriesNamePath, source.Prefix);
             if (RowCache.TryGetValue(catalog, out var cached) && cached.Item1 == mappingKey)
             {
                 return cached.Item2.Select(r => r.Copy()).ToList();
@@ -551,10 +551,22 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 DateTime? date = null;
                 var tags = new List<string>();
                 string image = null;
+                string seriesId = null;
+                string seriesName = null;
                 try
                 {
                     using var doc = JsonDocument.Parse(entry.Raw);
                     var root = doc.RootElement;
+                    if (!string.IsNullOrWhiteSpace(source.Dump?.SeriesIdPath))
+                    {
+                        seriesId = (JsonPathExtractor.GetString(root, source.Dump.SeriesIdPath) ?? string.Empty).Trim();
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(source.Dump?.SeriesNamePath))
+                    {
+                        seriesName = HtmlText.Decode((JsonPathExtractor.GetString(root, source.Dump.SeriesNamePath) ?? string.Empty).Trim());
+                    }
+
                     date = ReadDate(root, datePath);
                     tags = string.IsNullOrWhiteSpace(mapping.Tags) || mapping.Tags.Contains("[]") ? tags
                         : JsonPathExtractor.GetStringArray(root, mapping.Tags).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => HtmlText.Decode(t.Trim())).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -593,7 +605,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     SortName = DumpStore.Normalize(entry.Name ?? string.Empty),
                     SortGroup = DumpStore.Normalize(group),
                     Number = SplitNumber(entry.Name, out var seriesBase),
-                    Series = seriesBase
+                    Series = seriesBase,
+                    SeriesId = string.IsNullOrEmpty(seriesId) ? null : seriesId,
+                    SeriesNameValue = string.IsNullOrEmpty(seriesName) ? null : seriesName
                 });
             }
 
@@ -758,10 +772,59 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         }
 
         /// <summary>
+        /// Series of the entries: by the dump's series id when an entry has one (SeriesIdPath), else by name (see GroupSeriesByName).
+        /// </summary>
+        private static void GroupSeries(List<DumpRow> rows, int min)
+        {
+            // Entries that carry a series id are grouped by it first: reliable, whatever their titles look like
+            var byId = rows.Where(r => r.SeriesId != null).GroupBy(r => r.SeriesId, StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var group in byId)
+            {
+                var members = group.ToList();
+                var name = members.Select(r => r.SeriesNameValue).FirstOrDefault(n => n != null);
+                if (name == null)
+                {
+                    name = members.Count == 1 ? members[0].Name : CommonName(members, group.Key);
+                }
+
+                foreach (var r in members)
+                {
+                    r.SeriesKey = "s:" + group.Key;
+                    r.Series = name;
+                    r.Grouped = members.Count > 1;
+                }
+            }
+
+            GroupSeriesByName(rows.Where(r => r.SeriesId == null).ToList(), min);
+        }
+
+        /// <summary>Name of a series that gives none: the most common title without its number, else the words the titles share, else "Série {id}"</summary>
+        private static string CommonName(List<DumpRow> members, string id)
+        {
+            var common = members.Where(r => !string.IsNullOrWhiteSpace(r.Series)).GroupBy(r => r.Series, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(g => g.Count()).FirstOrDefault();
+            if (common != null && common.Count() >= 2)
+            {
+                return common.Key;
+            }
+
+            var words = (members[0].Name ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+            var shared = 0;
+            while (shared < words.Count && members.All(r => (r.Name ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > shared
+                && string.Equals((r.Name ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries)[shared], words[shared], StringComparison.OrdinalIgnoreCase)))
+            {
+                shared++;
+            }
+
+            var prefix = string.Join(' ', words.Take(shared)).Trim(' ', '-', '–', ':');
+            return prefix.Length >= 3 ? prefix : "Série " + id;
+        }
+
+        /// <summary>
         /// Entries that share a name once the trailing number is removed form a "series" when there are at least
         /// <paramref name="min"/> of them. The display name is the one of the unnumbered entry when there is one.
         /// </summary>
-        private static void GroupSeries(List<DumpRow> rows, int min)
+        private static void GroupSeriesByName(List<DumpRow> rows, int min)
         {
             // An entry that belongs to no group of several is a series of ONE episode: its own card, named after it
             static void Alone(DumpRow r)
@@ -936,6 +999,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// <summary>Inferred series (entries whose names only differ by a trailing number). An entry alone is a series of one episode.</summary>
         public string SeriesKey { get; set; }
         public string Series { get; set; }
+
+        /// <summary>The series id and name read from the dump (SeriesIdPath / SeriesNamePath): they decide the series when present</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string SeriesId { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string SeriesNameValue { get; set; }
 
         /// <summary>True when the series holds several entries (the trailing number of the title is then a hint)</summary>
         public bool Grouped { get; set; }

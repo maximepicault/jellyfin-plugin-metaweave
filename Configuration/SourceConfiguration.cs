@@ -252,6 +252,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         /// <summary>Group of an entry (brand, studio, channel…): the coverage screen groups the missing entries by it</summary>
         public string GroupPath { get; set; } = "brand";
 
+        /// <summary>
+        /// Series an entry belongs to ("seriesId", "series.id"): the coverage screen groups the entries that share it into one series, which is
+        /// reliable where the names only differ by a trailing number. Empty, or an entry without one = the grouping by name is used.
+        /// </summary>
+        public string SeriesIdPath { get; set; } = string.Empty;
+
+        /// <summary>Name of that series ("series.name"). Empty = the most common name without its trailing number among its entries</summary>
+        public string SeriesNamePath { get; set; } = string.Empty;
+
         /// <summary>Counters turned into a community rating: likes / (likes + dislikes) × 10. Both empty = no rating</summary>
         public string LikesPath { get; set; } = "likes";
         public string DislikesPath { get; set; } = "dislikes";

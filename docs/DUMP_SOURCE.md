@@ -60,7 +60,11 @@ Compares the catalogue with the library: an entry is **owned** when an episode o
 
 On the coverage screen every owned file says how it was recognised: by its tag, an identifier or its exact name (certain), or by a score. The "Reconnaissance des fichiers" filter is an interval (double slider and two typed fields, 0 to 100 %, both ends included; "Pas certains" = 0 to 99) that keeps the series, then the files, recognised within it; the file name of the library is shown so it can be renamed (adding the `{prefix-id}` tag makes it certain). The score of a file matched through the other titles is its score before the cap on an unconfirmed episode number. The date used by this screen has its own path in the Catalogue section ("Date de sortie (écran Catalogues)"), independent from the video mapping: leave the mapping's date empty to keep it out of Jellyfin and the filters still work. A release-date filter ("Sorti à partir de" / "Sorti jusqu'à", years taken from the dump) works on series and on entries. Series and entries can be sorted by release date, by recognition, by name… and a "Puis par" key chains a second sort that breaks the ties of the first.
 
-## Series inferred from the names
+## Series
+
+If the dump gives the series of each entry, set **« Série : identifiant »** (and optionally **« Série : nom »**) in the Catalogue section: the entries that share the id form one series on the coverage screen, whatever their titles look like. Without a name path, the series is named after the most common title without its number among its entries, or the words their titles share. An entry with no series id falls back to the grouping by name described below.
+
+### Inferred from the names
 
 The coverage screen opens on series cards, like the Séries tab; a click lists the entries of that series. Entries whose names only differ by a trailing number ("Title", "Title 2") form a series (minimum entries in the Catalogue section, 0 = off, then the entries are listed directly); an entry that belongs to no group is a series of one episode (its own card). The "Format de l'aperçu" setting (16:9 or 2:3) shapes the pictures. The number is a hint only: it may be a season or an episode, so it is never turned into `SxxExx`, and it stays in the copied name. When an entry of the series is already in the library as an episode of a series, the group shows that series and its seasons.
 
