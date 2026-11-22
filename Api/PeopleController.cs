@@ -1,4 +1,5 @@
 using System;
+using Microsoft.Extensions.Logging;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,10 +25,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         private readonly CastOverlayStore _overlay;
         private readonly CastCatalog _catalog;
         private readonly CastApplyService _apply;
+        private readonly PersonNetworkStore _networks;
+        private readonly Microsoft.Extensions.Logging.ILogger<PeopleController> _logger;
 
-        public PeopleController(PeopleStore people, CustomApiClient apiClient, LocalSourceStore images, CastOverlayStore overlay, CastCatalog catalog, CastApplyService apply)
+        public PeopleController(PersonNetworkStore networks, Microsoft.Extensions.Logging.ILogger<PeopleController> logger, PeopleStore people, CustomApiClient apiClient, LocalSourceStore images, CastOverlayStore overlay, CastCatalog catalog, CastApplyService apply)
         {
             _apply = apply;
+            _networks = networks;
+            _logger = logger;
             _people = people;
             _apiClient = apiClient;
             _images = images;
@@ -43,15 +48,78 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         [HttpPut]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public ActionResult<PeopleDirectory> Put([FromBody] PeopleDirectory directory)
+        public async Task<ActionResult<PeopleDirectory>> Put([FromBody] PeopleDirectory directory, CancellationToken cancellationToken)
         {
             if (directory == null)
             {
                 return BadRequest("Annuaire manquant");
             }
 
+            // A remote photo is copied into the plugin: its address may be signed and expire, and Jellyfin reads it much later
+            await ImportRemoteImagesAsync(directory, cancellationToken);
             var saved = _people.Save(directory);
             return Ok(saved);
+        }
+
+        /// <summary>Networks a person can carry (name, icon, address template)</summary>
+        [HttpGet("Networks")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public ActionResult<System.Collections.Generic.List<PersonNetwork>> GetNetworks() => Ok(_networks.Load());
+
+        [HttpPut("Networks")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public ActionResult<System.Collections.Generic.List<PersonNetwork>> PutNetworks([FromBody] System.Collections.Generic.List<PersonNetwork> networks)
+        {
+            if (networks == null)
+            {
+                return BadRequest("Liste de réseaux manquante");
+            }
+
+            return Ok(_networks.Save(networks));
+        }
+
+        /// <summary>
+        /// Downloads every http(s) photo and backdrop of the directory into the plugin's image folder and replaces the address
+        /// by the local one. An image that cannot be fetched keeps its address (logged), so nothing is lost.
+        /// </summary>
+        private async Task ImportRemoteImagesAsync(PeopleDirectory directory, CancellationToken cancellationToken)
+        {
+            var sources = Plugin.Instance?.Configuration?.Sources ?? new System.Collections.Generic.List<Configuration.SourceConfiguration>();
+            async Task<string> Import(string url, Person person)
+            {
+                if (string.IsNullOrWhiteSpace(url) || LocalSourceStore.IsLocalImageUrl(url) || PeopleStore.NormalizeWebsite(url) == null)
+                {
+                    return url;
+                }
+
+                var source = sources.FirstOrDefault(s => s.IsPeople && (person.Links ?? new System.Collections.Generic.List<PersonLink>()).Any(l => string.Equals(l.Prefix, s.Prefix, StringComparison.OrdinalIgnoreCase)));
+                var (data, _, error) = await _apiClient.DownloadImageAsync(url.Trim(), source, false, cancellationToken);
+                if (data == null)
+                {
+                    _logger.LogWarning("👥 [PEOPLE] ⚠️ Cannot import the image of '{Name}': {Error}", person.Name, error);
+                    return url;
+                }
+
+                var local = _images.SaveImage(PeopleStore.ImagesDataId, "p", data, out var saveError);
+                if (local == null)
+                {
+                    _logger.LogWarning("👥 [PEOPLE] ⚠️ Image of '{Name}' refused: {Error}", person.Name, saveError);
+                    return url;
+                }
+
+                return local;
+            }
+
+            foreach (var person in directory.People ?? new System.Collections.Generic.List<Person>())
+            {
+                if (person == null) { continue; }
+                person.Photo = await Import(person.Photo, person);
+                for (var i = 0; i < (person.Backdrops?.Count ?? 0); i++)
+                {
+                    person.Backdrops[i] = await Import(person.Backdrops[i], person);
+                }
+            }
         }
 
         /// <summary>Cast distribution of API-source episodes, by episode tag</summary>
@@ -103,6 +171,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             if (string.IsNullOrWhiteSpace(keep.DeathDate)) { keep.DeathDate = remove.DeathDate; }
             if (string.IsNullOrWhiteSpace(keep.BirthPlace)) { keep.BirthPlace = remove.BirthPlace; }
             if (string.IsNullOrWhiteSpace(keep.Website)) { keep.Website = remove.Website; }
+            keep.Backdrops = (keep.Backdrops ?? new System.Collections.Generic.List<string>()).Concat(remove.Backdrops ?? new System.Collections.Generic.List<string>()).ToList();
+            keep.Networks = (keep.Networks ?? new System.Collections.Generic.List<PersonNetworkValue>()).Concat(remove.Networks ?? new System.Collections.Generic.List<PersonNetworkValue>()).ToList();
             if (!string.IsNullOrWhiteSpace(remove.Notes))
             {
                 keep.Notes = string.IsNullOrWhiteSpace(keep.Notes) ? remove.Notes : keep.Notes + "\n" + remove.Notes;

@@ -34,6 +34,8 @@ namespace Jellyfin.Plugin.CustomMetadata
                 sp.GetRequiredService<LocalSourceStore>(),
                 () => sp.GetRequiredService<IServerApplicationHost>().GetLocalApiUrl("127.0.0.1")));
 
+            serviceCollection.AddSingleton<PersonNetworkStore>();
+
             // "Dump" sources: one catalogue downloaded once, served entry by entry and matched against file names
             serviceCollection.AddSingleton(sp => new DumpStore(
                 sp.GetRequiredService<IHttpClientFactory>(),

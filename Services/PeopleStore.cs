@@ -47,6 +47,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>Private notes, shown only in the directory (never sent to Jellyfin)</summary>
         public string Notes { get; set; }
 
+        /// <summary>Background images of the person's page in Jellyfin (uploaded files "local://img/people-directory/…", or http(s) until imported)</summary>
+        public List<string> Backdrops { get; set; } = new List<string>();
+
+        /// <summary>Links on the networks of <see cref="PersonNetworkStore"/> (several per network allowed)</summary>
+        public List<PersonNetworkValue> Networks { get; set; } = new List<PersonNetworkValue>();
+
         public List<PersonLink> Links { get; set; } = new List<PersonLink>();
     }
 
@@ -159,7 +165,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 _cached = (File.GetLastWriteTimeUtc(path), directory);
             }
 
-            _images?.PruneImages(ImagesDataId, directory.People.Select(p => p.Photo));
+            _images?.PruneImages(ImagesDataId, directory.People.SelectMany(p => new[] { p.Photo }.Concat(p.Backdrops ?? new List<string>())));
             _logger.LogInformation("👥 [PEOPLE] 💾 Saved {Count} people", directory.People.Count);
             return directory;
         }
@@ -313,6 +319,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 person.BirthPlace = Clean(HtmlText.Decode(person.BirthPlace));
                 person.Website = NormalizeWebsite(person.Website);
                 person.Notes = Clean(person.Notes);
+                person.Backdrops = (person.Backdrops ?? new List<string>()).Select(Clean).Where(b => b != null).Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToList();
+                person.Networks = (person.Networks ?? new List<PersonNetworkValue>())
+                    .Where(n => !string.IsNullOrWhiteSpace(n?.NetworkId) && !string.IsNullOrWhiteSpace(n.Value))
+                    .Select(n => new PersonNetworkValue { NetworkId = n.NetworkId.Trim().ToLowerInvariant(), Value = n.Value.Trim() })
+                    .GroupBy(n => n.NetworkId + "|" + n.Value, StringComparer.OrdinalIgnoreCase).Select(g => g.First())
+                    .ToList();
 
                 // An identifier (source + id) belongs to one person only: the first one that carries it keeps it
                 person.Links = (person.Links ?? new List<PersonLink>())

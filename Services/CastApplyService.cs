@@ -8,6 +8,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.IO;
 using Microsoft.Extensions.Logging;
 
@@ -61,8 +62,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly PeopleStore _people;
         private readonly SourceResolver _resolver;
         private readonly ILogger<CastApplyService> _logger;
+        private readonly IProviderManager _providerManager;
 
         public CastApplyService(
+            IProviderManager providerManager,
             ILibraryManager libraryManager,
             IFileSystem fileSystem,
             LocalSourceStore local,
@@ -72,6 +75,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             SourceResolver resolver,
             ILogger<CastApplyService> logger)
         {
+            _providerManager = providerManager;
             _people = people;
             _resolver = resolver;
             _inheritance = inheritance;
@@ -248,6 +252,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                         await _libraryManager.UpdateItemAsync(item, item, ItemUpdateType.MetadataEdit, cancellationToken);
                         changed++;
                     }
+
+                    if (await SyncBackdropsAsync(person, item, cancellationToken))
+                    {
+                        changed++;
+                    }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -257,6 +266,53 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             _logger.LogInformation("👥 [CAST APPLY] ✅ Details written on {Changed} Jellyfin person items", changed);
             return changed;
+        }
+
+        /// <summary>
+        /// Background images of the directory person → Jellyfin's person item (replaces the ones we wrote before). The signature
+        /// (file names) is remembered in cast-backdrops.json so an unchanged list is not downloaded again at every Apply.
+        /// </summary>
+        private async System.Threading.Tasks.Task<bool> SyncBackdropsAsync(Person person, BaseItem item, System.Threading.CancellationToken cancellationToken)
+        {
+            var urls = (person.Backdrops ?? new List<string>()).Where(LocalSourceStore.IsLocalImageUrl).ToList();
+            var signature = string.Join("|", urls.Select(u => u.Substring(u.LastIndexOf('/') + 1)));
+            var path = Path.Combine(Plugin.Instance?.DataFolderPath ?? Path.Combine(Path.GetTempPath(), "CustomMetadata"), "cast-backdrops.json");
+            Dictionary<string, string> record;
+            try { record = File.Exists(path) ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path)) ?? new() : new(); }
+            catch (Exception) { record = new Dictionary<string, string>(); }
+
+            var present = item.GetImages(ImageType.Backdrop).Count();
+            record.TryGetValue(person.Id, out var known);
+            if (known == signature && (urls.Count == 0 || present >= urls.Count))
+            {
+                return false;
+            }
+
+            // Nothing was ever written by us and nothing is wanted: leave Jellyfin's own backdrops alone
+            if (known == null && urls.Count == 0)
+            {
+                return false;
+            }
+
+            item.RemoveImages(item.GetImages(ImageType.Backdrop).ToList());
+            var index = 0;
+            foreach (var url in urls)
+            {
+                if (!_local.TryReadImage(url, out var data, out var mime))
+                {
+                    continue;
+                }
+
+                using var stream = new MemoryStream(data);
+                await _providerManager.SaveImage(item, stream, mime, ImageType.Backdrop, index++, cancellationToken);
+            }
+
+            await _libraryManager.UpdateItemAsync(item, item, ItemUpdateType.ImageUpdate, cancellationToken);
+            record[person.Id] = signature;
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            File.WriteAllText(path, JsonSerializer.Serialize(record));
+            _logger.LogInformation("👥 [CAST APPLY] 🖼️ {Count} backdrops written on '{Name}'", index, person.Name);
+            return true;
         }
 
         // ---- Children without an identifier: the cast is written straight into Jellyfin ----
