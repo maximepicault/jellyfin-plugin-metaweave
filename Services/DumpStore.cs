@@ -130,7 +130,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public static string SignatureOf(SourceConfiguration source)
         {
             var d = source.Dump ?? new DumpSettings();
-            return string.Join("|", source.BaseUrl?.Trim(), d.ItemsPath, d.IdPath, d.NamePath, d.SlugPath, d.SearchTitlesPath, d.GroupPath);
+            return string.Join("|", source.BaseUrl?.Trim(), d.ItemsPath, d.IdPath, d.NamePath, d.SlugPath, d.SearchTitlesPath, d.GroupPath,
+                d.PageParameter?.Trim(), d.FirstPage, d.MaxPages);
         }
 
         /// <summary>The catalogue currently in memory for this source (null when never loaded or loaded with other settings)</summary>
@@ -216,52 +217,102 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var client = _httpClientFactory.CreateClient();
             SourceHeaders.Apply(client, source, !string.IsNullOrEmpty(source.ApiKey) ? source.ApiKey : Plugin.Instance?.Configuration.ApiKey ?? string.Empty,
                 _logger, LogLevel.Debug, Tag);
-            var fetch = await _http.GetStringAsync(client, url, source, Tag, cancellationToken).ConfigureAwait(false);
-            if (!fetch.IsSuccess)
-            {
-                _logger.LogError("{Tag} ❌ Download of '{Source}' failed: {Error} ({Attempts} attempt(s))", Tag, source.Name, fetch.Error, fetch.Attempts);
-                return (null, fetch.Error ?? "Échec du téléchargement");
-            }
+            var paginated = !string.IsNullOrWhiteSpace(settings.PageParameter);
+            var maxPages = paginated ? Math.Max(1, settings.MaxPages) : 1;
+            var entries = new List<DumpEntry>();
+            var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var skippedNoId = 0;
+            var pagesRead = 0;
+            var ended = !paginated;
 
             try
             {
-                using var doc = JsonDocument.Parse(fetch.Content);
-                if (!JsonPathExtractor.TryGetArray(doc.RootElement, settings.ItemsPath, out var elements))
+                for (var i = 0; i < maxPages; i++)
                 {
-                    var where = string.IsNullOrWhiteSpace(settings.ItemsPath) ? "à la racine" : $"au chemin « {settings.ItemsPath} »";
-                    return (null, $"Aucune liste d'entrées {where} dans la réponse");
-                }
-
-                var entries = new List<DumpEntry>(elements.Count);
-                var skippedNoId = 0;
-                foreach (var element in elements)
-                {
-                    var id = (JsonPathExtractor.GetString(element, settings.IdPath) ?? string.Empty).Trim();
-                    if (id.Length == 0)
+                    var pageUrl = url;
+                    if (paginated)
                     {
-                        skippedNoId++;
-                        continue;
+                        pageUrl = $"{url}{(url.Contains('?') ? "&" : "?")}{Uri.EscapeDataString(settings.PageParameter.Trim())}={settings.FirstPage + i}";
+                        _logger.LogInformation("{Tag} Page {Page} of '{Source}': {Url}", Tag, settings.FirstPage + i, source.Name, pageUrl);
                     }
 
-                    var name = HtmlText.Decode(Read(element, settings.NamePath));
-                    var slug = Read(element, settings.SlugPath);
-                    var normName = Normalize(name);
-                    entries.Add(new DumpEntry
+                    var fetch = await _http.GetStringAsync(client, pageUrl, source, Tag, cancellationToken).ConfigureAwait(false);
+                    if (!fetch.IsSuccess)
                     {
-                        Id = id,
-                        Name = name,
-                        Slug = slug,
-                        SearchTitles = Read(element, settings.SearchTitlesPath),
-                        Group = HtmlText.Decode(Read(element, settings.GroupPath)),
-                        Raw = element.GetRawText(),
-                        NormName = normName,
-                        SpacelessName = normName.Replace(" ", string.Empty, StringComparison.Ordinal),
-                        // The other titles are glued together without a separator: only usable as a substring, never as an equality
-                        SpacelessSearch = Normalize(Read(element, settings.SearchTitlesPath)).Replace(" ", string.Empty, StringComparison.Ordinal),
-                        NameTokens = normName.Length > 0
-                            ? normName.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal)
-                            : new HashSet<string>(StringComparer.Ordinal)
-                    });
+                        if (i > 0 && fetch.StatusCode == 404)
+                        {
+                            // Many paginated APIs answer 404 after the last page
+                            ended = true;
+                            break;
+                        }
+
+                        _logger.LogError("{Tag} ❌ Download of '{Source}' failed: {Error} ({Attempts} attempt(s))", Tag, source.Name, fetch.Error, fetch.Attempts);
+                        return (null, (paginated ? $"Page {settings.FirstPage + i} : " : string.Empty) + (fetch.Error ?? "Échec du téléchargement"));
+                    }
+
+                    using var doc = JsonDocument.Parse(fetch.Content);
+                    if (!JsonPathExtractor.TryGetArray(doc.RootElement, settings.ItemsPath, out var elements))
+                    {
+                        if (i > 0)
+                        {
+                            ended = true;
+                            break;
+                        }
+
+                        var where = string.IsNullOrWhiteSpace(settings.ItemsPath) ? "à la racine" : $"au chemin « {settings.ItemsPath} »";
+                        return (null, $"Aucune liste d'entrées {where} dans la réponse");
+                    }
+
+                    pagesRead++;
+                    var added = 0;
+                    foreach (var element in elements)
+                    {
+                        var id = (JsonPathExtractor.GetString(element, settings.IdPath) ?? string.Empty).Trim();
+                        if (id.Length == 0)
+                        {
+                            skippedNoId++;
+                            continue;
+                        }
+
+                        // An API that ignores the page parameter returns the same page again: nothing new = end
+                        if (!seenIds.Add(id))
+                        {
+                            continue;
+                        }
+
+                        added++;
+                        var name = HtmlText.Decode(Read(element, settings.NamePath));
+                        var slug = Read(element, settings.SlugPath);
+                        var normName = Normalize(name);
+                        entries.Add(new DumpEntry
+                        {
+                            Id = id,
+                            Name = name,
+                            Slug = slug,
+                            SearchTitles = Read(element, settings.SearchTitlesPath),
+                            Group = HtmlText.Decode(Read(element, settings.GroupPath)),
+                            Raw = element.GetRawText(),
+                            NormName = normName,
+                            SpacelessName = normName.Replace(" ", string.Empty, StringComparison.Ordinal),
+                            // The other titles are glued together without a separator: only usable as a substring, never as an equality
+                            SpacelessSearch = Normalize(Read(element, settings.SearchTitlesPath)).Replace(" ", string.Empty, StringComparison.Ordinal),
+                            NameTokens = normName.Length > 0
+                                ? normName.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal)
+                                : new HashSet<string>(StringComparer.Ordinal)
+                        });
+                    }
+
+                    if (paginated && added == 0)
+                    {
+                        ended = true;
+                        break;
+                    }
+                }
+
+                if (!ended)
+                {
+                    _logger.LogError("{Tag} ❌ Dump of '{Source}': still not finished after {Max} pages - not kept (raise the page limit)", Tag, source.Name, maxPages);
+                    return (null, $"Le dump n'est pas fini après {maxPages} pages : augmentez la limite de pages");
                 }
 
                 var byId = new Dictionary<string, DumpEntry>(StringComparer.OrdinalIgnoreCase);
@@ -286,8 +337,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     }
                 }
 
-                _logger.LogInformation("{Tag} ✅ Dump of '{Source}' loaded: {Count} entries{Skipped}, valid {Minutes} min",
-                    Tag, source.Name, entries.Count, skippedNoId > 0 ? $" ({skippedNoId} ignored: no id)" : string.Empty, settings.CacheMinutes);
+                _logger.LogInformation("{Tag} ✅ Dump of '{Source}' loaded: {Count} entries{Pages}{Skipped}, valid {Minutes} min",
+                    Tag, source.Name, entries.Count, paginated ? $" in {pagesRead} page(s)" : string.Empty,
+                    skippedNoId > 0 ? $" ({skippedNoId} ignored: no id)" : string.Empty, settings.CacheMinutes);
 
                 return (new DumpCatalog
                 {

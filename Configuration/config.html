@@ -692,6 +692,19 @@
                         </div>
                         <div class="cm-hint cm-span" style="margin-top: -6px;">La note est calculée : j&#x27;aime ÷ (j&#x27;aime + je n&#x27;aime pas) × 10. Les deux vides = pas de note calculée. Elle est servie dans le champ <code>communityRating</code> ; une entrée qui en a déjà une la garde.</div>
                         <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpPageParam">Paramètre de pagination</label>
+                            <input is="emby-input" type="text" id="srcDumpPageParam" placeholder="page" />
+                            <div class="cm-hint">Vide = une seule requête. Sinon <code>?page=1</code>, <code>?page=2</code>… sont lues jusqu&#x27;à une page vide, répétée, ou un 404 après la première. Si la limite est atteinte avant la fin, le téléchargement est refusé (un dump incomplet n&#x27;est jamais gardé).</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpFirstPage">Première page</label>
+                            <input is="emby-input" type="number" id="srcDumpFirstPage" min="0" max="1000" step="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcDumpMaxPages">Limite de pages</label>
+                            <input is="emby-input" type="number" id="srcDumpMaxPages" min="1" max="10000" step="1" />
+                        </div>
+                        <div class="inputContainer">
                             <label class="inputLabel" for="srcDumpCache">Durée du cache (minutes)</label>
                             <input is="emby-input" type="number" id="srcDumpCache" min="1" max="10080" step="1" />
                             <div class="cm-hint">Le dump n&#x27;est téléchargé qu&#x27;une fois par période, même pour des milliers de fichiers. Si un téléchargement échoue, l&#x27;ancienne copie continue de servir.</div>
@@ -2791,6 +2804,9 @@
                 qs('#srcDumpLikes').value = d.LikesPath || '';
                 qs('#srcDumpDislikes').value = d.DislikesPath || '';
                 qs('#srcDumpCache').value = d.CacheMinutes || 60;
+                qs('#srcDumpPageParam').value = d.PageParameter || '';
+                qs('#srcDumpFirstPage').value = d.FirstPage === 0 || d.FirstPage ? d.FirstPage : 1;
+                qs('#srcDumpMaxPages').value = d.MaxPages || 200;
                 qs('#srcDumpUseImages').checked = d.UseImages !== false;
                 qs('#srcDumpRatio').value = d.PreviewRatio === '2:3' ? '2:3' : '16:9';
                 qs('#srcDumpSeriesMin').value = d.SeriesMinEntries === 0 || d.SeriesMinEntries ? d.SeriesMinEntries : 2;
@@ -2811,6 +2827,7 @@
                     SlugPath: qs('#srcDumpSlug').value.trim(), SearchTitlesPath: qs('#srcDumpSearch').value.trim(), GroupPath: qs('#srcDumpGroup').value.trim(),
                     LikesPath: qs('#srcDumpLikes').value.trim(), DislikesPath: qs('#srcDumpDislikes').value.trim(),
                     CacheMinutes: Math.max(1, readInt('#srcDumpCache', 60, 1)),
+                    PageParameter: qs('#srcDumpPageParam').value.trim(), FirstPage: Math.max(0, readInt('#srcDumpFirstPage', 1, 0)), MaxPages: Math.max(1, readInt('#srcDumpMaxPages', 200, 1)),
                     SeriesMinEntries: Math.max(0, readInt('#srcDumpSeriesMin', 2, 0)), ReleaseDatePath: qs('#srcDumpDate').value.trim(), PreviewRatio: qs('#srcDumpRatio').value === '2:3' ? '2:3' : '16:9', UseImages: qs('#srcDumpUseImages').checked, PreviewImagePath: qs('#srcDumpPreview').value.trim(),
                     MatchWithoutTag: qs('#srcDumpNoTag').checked, MatchBySlug: qs('#srcDumpBySlug').checked, MatchByName: qs('#srcDumpByName').checked,
                     MinScore: parseInt(qs('#srcDumpMinScore').value, 10) || 70, NoiseWords: qs('#srcDumpNoise').value

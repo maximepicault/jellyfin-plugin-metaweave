@@ -285,6 +285,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         /// <summary>Shape of the preview pictures on the coverage screen: "16:9" (landscape, the default) or "2:3" (poster)</summary>
         public string PreviewRatio { get; set; } = "16:9";
 
+        /// <summary>
+        /// Pagination parameter added to the dump URL (e.g. "page" → ?page=1, ?page=2...). Empty = one call only.
+        /// Pages are read until one is empty, repeats the previous one, or answers 404 after the first.
+        /// </summary>
+        public string PageParameter { get; set; } = string.Empty;
+
+        /// <summary>Number of the first page (often 1, sometimes 0)</summary>
+        public int FirstPage { get; set; } = 1;
+
+        /// <summary>Safety net: maximum number of pages read. Reaching it fails the download (an incomplete dump is never kept)</summary>
+        public int MaxPages { get; set; } = 200;
+
         /// <summary>How long the downloaded dump is reused, in minutes</summary>
         public int CacheMinutes { get; set; } = 60;
 

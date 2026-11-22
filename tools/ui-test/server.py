@@ -88,6 +88,12 @@ class H(BaseHTTPRequestHandler):
             flat = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("flat", ["0"])[0] == "1"
             names = ["La traversee", "Le col gele", "Le grand froid"] if flat else ["Chemins hiver nordique grand final", "La traversee", "Le col gele"]
             return self.send(200, {"data": [{"id": 2001 + i, "name": n, "slug": "c%d" % i, "search_titles": "cheminshivernordique" + re.sub(r"[^a-z]", "", n.lower().replace("chemins hiver nordique", "")), "brand": "S"} for i, n in enumerate(names)]})
+        if p == "/dump-paged":
+            # The dump split into pages of 3 (?page=1...): an empty page after the last one; &mode=404 answers 404 instead
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            n = int(q.get("page", ["1"])[0]); items = dump_json()[(n - 1) * 3:n * 3]
+            if not items and q.get("mode", [""])[0] == "404": return self.send(404, {})
+            return self.send(200, {"data": items})
         if p == "/dump-bare": return self.send(200, dump_json())
         if p.startswith("/img/"):
             f = os.path.join(IMG_DIR, os.path.basename(p))

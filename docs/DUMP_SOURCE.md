@@ -27,6 +27,10 @@ The editor's test panel shows the candidates and the score of any file name, so 
 
 > Use the name matching with care in a library that mixes other content: a file the plugin should leave alone could be related to a similar entry. It is switched off per source.
 
+## Paginated dumps
+
+If the API returns the catalogue in pages, set the **pagination parameter** (for example `page`) in the Catalogue section. The plugin reads `?page=1`, `?page=2`… (the first page number and a page limit are editable) and merges all pages into one catalogue. Reading stops at an empty page, at a page that brings no new id (an API that ignores the parameter), or at a 404 after the first page. If a page fails, or the limit is reached before the end, the download is refused and the previous copy, if any, keeps serving. Leave the parameter empty for a single request.
+
 ## Mappings
 
 What Jellyfin shows comes from the source's **Vidéo / épisode** mapping, applied to each entry, like for an API source. A new dump starts with the usual paths:
