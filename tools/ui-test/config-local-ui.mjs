@@ -206,7 +206,22 @@ try {
   await ev(`document.querySelector('#lfGalType').value='auto'; true`);
   await ev(`(async function(){var dt=new DataTransfer(); var sizes=[[1600,1067,'a.png'],[800,1200,'b.png'],[2400,600,'c.png'],[1280,720,'d.png'],[800,450,'e.png']]; for (var k=0;k<sizes.length;k++){var c=document.createElement('canvas'); c.width=sizes[k][0]; c.height=sizes[k][1]; var b=await new Promise(function(r){c.toBlob(r,'image/png');}); dt.items.add(new File([b],sizes[k][2],{type:'image/png'}));} var i=document.querySelector('[data-gal-file]'); i.files=dt.files; i.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`); await wait(1500);
   check('detection: shapes give Fond, Affiche, Bannière, Fond, Miniature', (await ev(`Array.from(document.querySelectorAll('#lfGallery .cm-gal-pick .cm-gal-meta span:first-child')).slice(2).map(function(e){return e.textContent;}).join()`)) === 'Fond,Affiche,Bannière,Fond,Miniature', await ev(`Array.from(document.querySelectorAll('#lfGallery .cm-gal-pick .cm-gal-meta span:first-child')).map(function(e){return e.textContent;}).join()`));
-  for (let k = 0; k < 5; k++) { await click('#lfGallery [data-gal-sel="2"]'); await wait(150); await click('[data-gal-act="remove"]'); await wait(200); }
+  // Multi-selection: click, Ctrl+click, Shift+click range -> retype all, demote all, remove all
+  const mclick = async (idx, mods) => { await ev(`document.querySelector('#lfGallery [data-gal-sel="${idx}"]').dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:${!!mods.ctrl},shiftKey:${!!mods.shift}})); true`); await wait(200); };
+  const baseCount = await ev(`document.querySelectorAll('#lfGallery .cm-gal-pick').length`);
+  await click('#lfGallery [data-gal-sel="2"]'); await wait(200);
+  await mclick(4, { ctrl: true }); await mclick(6, { shift: true });
+  check('multi: click + Ctrl+click + Shift+click range select 4 images', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-selected').length`)) === 4 && (await ev(`document.querySelector('#lfGallery .cm-gal-actions .cm-hint').textContent`)).includes('4 images sélectionnées'));
+  await ev(`var r=document.querySelector('[data-gal-retype]'); r.value='Banner'; r.dispatchEvent(new Event('change',{bubbles:true})); true`); await wait(250);
+  check('multi: the type menu retypes all of them', (await ev(`Array.from(document.querySelectorAll('#lfGallery .cm-gal-selected .cm-gal-meta span:first-child')).map(function(e){return e.textContent;}).join()`)) === 'Bannière,Bannière,Bannière,Bannière');
+  await click('[data-gal-act="mflag"]'); await wait(250);
+  check('multi: "Ne plus utiliser par défaut" flags all of them', (await ev(`Array.from(document.querySelectorAll('#lfGallery .cm-gal-badge')).filter(function(e){return e.textContent==='Hors défaut';}).length`)) === 4);
+  await click('[data-gal-act="mremove"]'); await wait(250);
+  check('multi: "Retirer la sélection" removes them all at once', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-pick').length`)) === baseCount - 4);
+  await click('[data-gal-act="all"]'); await wait(200);
+  check('multi: "Tout sélectionner" selects every gallery image', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-selected').length`)) === baseCount - 4);
+  await click('[data-gal-act="none"]'); await wait(200);
+  await click('#lfGallery [data-gal-sel="2"]'); await wait(150); await click('[data-gal-act="remove"]'); await wait(200);
   await click('#lfGallery .cm-gal-pick'); await wait(200);
   check('default: the image that already is the default offers to stop being it (not to be chosen again)', (await ev(`document.querySelector('[data-gal-act="default"]').textContent.trim()`)) === 'Ne plus utiliser par défaut');
   // a second Primary image: select it and make it the default (no default field: it fills the field above and leaves the gallery)

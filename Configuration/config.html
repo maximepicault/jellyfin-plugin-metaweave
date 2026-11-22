@@ -3403,6 +3403,7 @@
             }
 
             var galSel = null;   // {key, i}: the gallery image selected in the editor
+            var galMulti = null; // {key, idx[]}: several gallery images selected at once (Ctrl/Shift+click, "Tout sélectionner")
             var GALLERY_FIELD = { Primary: 'Poster', Backdrop: 'Backdrop', Logo: 'Logo', Banner: 'Banner', Thumb: 'Thumb' };
             var GALLERY_LABELS = { Primary: 'Affiche', Backdrop: 'Fond', Logo: 'Logo', Banner: 'Bannière', Thumb: 'Miniature' };
             // Every type is offered for every kind (the provider supports them all); the first one is the fallback type
@@ -3420,7 +3421,11 @@
                 var slideRank = {}, rank = n.Backdrop ? 1 : 0;
                 list.forEach(function(g, i) { if (g.Type === 'Backdrop') { rank++; slideRank[i] = rank; } });
                 var selected = galSel && galSel.key === localSel && !galSel.field && list[galSel.i] ? galSel.i : -1;
-                var selectedField = galSel && galSel.key === localSel && galSel.field && n[GALLERY_FIELD[galSel.field]] ? galSel.field : null;   // a default image (single field) can be selected too
+                var multiIdx = galMulti && galMulti.key === localSel ? galMulti.idx.filter(function(i) { return list[i]; }) : [], multiSet = {};
+                multiIdx.forEach(function(i) { multiSet[i] = true; });
+                var isMulti = multiIdx.length >= 2;
+                if (isMulti) { selected = -1; }
+                var selectedField = !isMulti && galSel && galSel.key === localSel && galSel.field && n[GALLERY_FIELD[galSel.field]] ? galSel.field : null;   // a default image (single field) can be selected too
                 var defaults = types.filter(function(t) { return n[GALLERY_FIELD[t]]; }).map(function(t) {
                     var src = imagePreviewUrl(n[GALLERY_FIELD[t]]);
                     return '<div class="cm-gal-item cm-gal-default cm-gal-fieldpick' + (t === selectedField ? ' cm-gal-selected' : '') + '" data-gal-field="' + t + '" role="button" tabindex="0" aria-pressed="' + (t === selectedField) + '"><div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
@@ -3430,7 +3435,7 @@
                     html += '<div class="cm-gal-list">' + defaults.join('') + list.map(function(g, i) {
                         var src = imagePreviewUrl(g.Url);
                         var isDefault = firstOf[g.Type] === i;
-                        return '<div class="cm-gal-item cm-gal-pick' + (i === selected ? ' cm-gal-selected' : '') + (isDefault ? ' cm-gal-default' : '') + '" data-gal-sel="' + i + '" role="button" tabindex="0" aria-pressed="' + (i === selected) + '">'
+                        return '<div class="cm-gal-item cm-gal-pick' + ((i === selected || multiSet[i]) ? ' cm-gal-selected' : '') + (isDefault ? ' cm-gal-default' : '') + '" data-gal-sel="' + i + '" role="button" tabindex="0" aria-pressed="' + (i === selected || !!multiSet[i]) + '">'
                             + '<div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
                             + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[g.Type] || g.Type) + '</span>' + (isDefault ? '<span class="cm-gal-badge">Par défaut</span>' : (g.NoDefault ? '<span class="cm-gal-badge cm-gal-badge-soft">Hors défaut</span>' : g.Type === 'Backdrop' ? '<span class="cm-gal-badge cm-gal-badge-soft">Diaporama · ' + slideRank[i] + '</span>' : '')) + '</div></div>';
                     }).join('') + '</div>';
@@ -3438,10 +3443,23 @@
                     var chosenIsDefault = chosen && (firstOf[chosen.Type] === selected || (chosen.Type === 'Backdrop' && slideRank[selected] === 1));
                     // A default image (field above, or first of its type) can be demoted to a normal gallery image: kept and offered, never applied by default
                     var canDemote = !!chosen && (!!selectedField || (selected >= 0 && chosen.Type !== 'Backdrop' && firstOf[chosen.Type] === selected));
-                    html += '<div class="cm-gal-actions"><span class="cm-hint" style="margin:0;">' + (chosen ? 'Image sélectionnée : ' + escapeHtml(GALLERY_LABELS[chosen.Type]) : 'Cliquez sur une image pour la sélectionner.') + '</span>'
+                    var typeOptions = galleryTypes(kind).map(function(t) { return '<option value="' + t + '"' + (!isMulti && chosen && t === chosen.Type ? ' selected' : '') + '>' + GALLERY_LABELS[t] + '</option>'; }).join('');
+                    var selButtons = '<button is="emby-button" type="button" class="raised" data-gal-act="all"><span>Tout sélectionner</span></button>'
+                        + '<button is="emby-button" type="button" class="raised" data-gal-act="sametype"' + (selected >= 0 ? '' : ' disabled') + ' title="Sélectionne toutes les images du même type que l\'image sélectionnée"><span>Tout le même type</span></button>';
+                    if (isMulti) {
+                        var flaggable = multiIdx.filter(function(k) { return list[k].Type !== 'Backdrop'; });
+                        var allFlagged = flaggable.length > 0 && flaggable.every(function(k) { return list[k].NoDefault; });
+                        html += '<div class="cm-gal-actions"><span class="cm-hint" style="margin:0;">' + plural(multiIdx.length, 'image sélectionnée', 'images sélectionnées') + '. Ctrl+clic ajoute ou retire une image, Maj+clic sélectionne une plage.</span>'
+                            + '<select data-gal-retype aria-label="Changer le type des images sélectionnées" title="Change le type de toutes les images sélectionnées"><option value="">Changer le type…</option>' + typeOptions + '</select>'
+                            + '<button is="emby-button" type="button" class="raised" data-gal-act="mflag"' + (flaggable.length ? '' : ' disabled') + ' title="Les images restent dans la galerie, mais ne sont plus appliquées comme image par défaut de leur type"><span>' + (allFlagged ? 'Rétablir comme images par défaut' : 'Ne plus utiliser par défaut') + '</span></button>'
+                            + '<button is="emby-button" type="button" class="raised" data-gal-act="mremove"><span>Retirer la sélection</span></button>'
+                            + selButtons + '<button is="emby-button" type="button" class="raised" data-gal-act="none"><span>Désélectionner</span></button></div>';
+                    } else {
+                        html += '<div class="cm-gal-actions"><span class="cm-hint" style="margin:0;">' + (chosen ? 'Image sélectionnée : ' + escapeHtml(GALLERY_LABELS[chosen.Type]) : 'Cliquez sur une image pour la sélectionner.') + '</span>'
                         + (chosen ? '<select data-gal-retype aria-label="Type de l\'image sélectionnée" title="Changer le type de l\'image sélectionnée">' + galleryTypes(kind).map(function(t) { return '<option value="' + t + '"' + (t === chosen.Type ? ' selected' : '') + '>' + GALLERY_LABELS[t] + '</option>'; }).join('') + '</select>' : '')
                         + '<button is="emby-button" type="button" class="raised" data-gal-act="default"' + (!chosen || (chosenIsDefault && !canDemote && !selectedField) ? ' disabled' : '') + '><span>' + (canDemote ? 'Ne plus utiliser par défaut' : (chosen && chosen.Type === 'Backdrop' ? 'Placer en tête du diaporama' : 'Utiliser comme image par défaut')) + '</span></button>'
-                        + '<button is="emby-button" type="button" class="raised" data-gal-act="remove"' + (chosen ? '' : ' disabled') + '><span>Retirer</span></button></div>';
+                        + '<button is="emby-button" type="button" class="raised" data-gal-act="remove"' + (chosen ? '' : ' disabled') + '><span>Retirer</span></button>' + selButtons + '</div>';
+                    }
                 }
                 html += '<div class="cm-gal-add"><select id="lfGalType" aria-label="Type de la nouvelle image">'
                     + '<option value="auto">Selon le format</option>' + galleryTypes(kind).map(function(t) { return '<option value="' + t + '">' + GALLERY_LABELS[t] + '</option>'; }).join('') + '</select>'
@@ -3829,6 +3847,11 @@
                 if (t.hasAttribute && t.hasAttribute('data-node-id')) { renameNode(t.value); return; }
                 if (t.hasAttribute && t.hasAttribute('data-gal-retype')) {
                     var fh = localSel ? findNode(localSel) : null;
+                    if (fh && galMulti && galMulti.key === localSel && galMulti.idx.length >= 2) {
+                        // Several images selected: the new type applies to all of them
+                        if (t.value) { galMulti.idx.forEach(function(k) { if (fh.node.Gallery && fh.node.Gallery[k]) { fh.node.Gallery[k].Type = t.value; } }); markDirty(); renderLocalDetail(); }
+                        return;
+                    }
                     if (fh && galSel && galSel.key === localSel && galSel.field) {
                         // Retyping a default image: it leaves its field and goes to the FRONT of the gallery under its new type (so it is that type's default when the field is empty)
                         var oldField = GALLERY_FIELD[galSel.field], url = fh.node[oldField];
@@ -4295,12 +4318,27 @@
                     return;
                 }
                 if (target.hasAttribute('data-gal-field')) {
+                    galMulti = null;
                     var gf = target.getAttribute('data-gal-field');
                     galSel = galSel && galSel.key === localSel && galSel.field === gf ? null : { key: localSel, field: gf };
                     renderLocalDetail();
                     return;
                 }
+                if (target.hasAttribute('data-gal-sel') && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+                    // Multi-selection: Ctrl/Cmd+click adds or removes one image, Shift+click selects the range from the last one clicked
+                    var mi = parseInt(target.getAttribute('data-gal-sel'), 10);
+                    var current = galMulti && galMulti.key === localSel ? galMulti.idx.slice() : (galSel && galSel.key === localSel && !galSel.field && galSel.i !== undefined ? [galSel.i] : []);
+                    if (e.shiftKey && galSel && galSel.key === localSel && galSel.i !== undefined && !galSel.field) {
+                        for (var r = Math.min(galSel.i, mi); r <= Math.max(galSel.i, mi); r++) { if (current.indexOf(r) < 0) { current.push(r); } }
+                    } else if (current.indexOf(mi) >= 0) { current.splice(current.indexOf(mi), 1); } else { current.push(mi); }
+                    current.sort(function(a, b) { return a - b; });
+                    galMulti = current.length >= 2 ? { key: localSel, idx: current } : null;
+                    galSel = current.length ? { key: localSel, i: current.indexOf(mi) >= 0 ? mi : current[current.length - 1] } : null;
+                    renderLocalDetail();
+                    return;
+                }
                 if (target.hasAttribute('data-gal-sel')) {
+                    galMulti = null;
                     var si = parseInt(target.getAttribute('data-gal-sel'), 10);
                     galSel = galSel && galSel.key === localSel && galSel.i === si ? null : { key: localSel, i: si };
                     renderLocalDetail();
@@ -4308,6 +4346,26 @@
                 }
                 if (target.hasAttribute('data-gal-act')) {
                     var gh = localSel ? findNode(localSel) : null;
+                    var act = target.getAttribute('data-gal-act');
+                    if (gh && ['all', 'sametype', 'none', 'mflag', 'mremove'].indexOf(act) >= 0) {
+                        var glist = gh.node.Gallery || [], midx = galMulti && galMulti.key === localSel ? galMulti.idx.filter(function(k) { return glist[k]; }) : [];
+                        if (act === 'none') { galMulti = null; galSel = null; }
+                        else if (act === 'all') { galMulti = glist.length >= 2 ? { key: localSel, idx: glist.map(function(g, k) { return k; }) } : null; galSel = glist.length ? { key: localSel, i: 0 } : null; }
+                        else if (act === 'sametype') {
+                            var ref = galSel && galSel.key === localSel && !galSel.field ? glist[galSel.i] : null;
+                            if (ref) { var same = []; glist.forEach(function(g, k) { if (g.Type === ref.Type) { same.push(k); } }); galMulti = same.length >= 2 ? { key: localSel, idx: same } : null; }
+                        } else if (act === 'mflag') {
+                            var flag = midx.filter(function(k) { return glist[k].Type !== 'Backdrop'; });
+                            var restore = flag.length > 0 && flag.every(function(k) { return glist[k].NoDefault; });
+                            flag.forEach(function(k) { if (restore) { delete glist[k].NoDefault; } else { glist[k].NoDefault = true; } });
+                            markDirty();
+                        } else if (act === 'mremove') {
+                            midx.slice().sort(function(a, b) { return b - a; }).forEach(function(k) { glist.splice(k, 1); });
+                            galMulti = null; galSel = null; markDirty();
+                        }
+                        renderLocalDetail();
+                        return;
+                    }
                     if (gh && galSel && galSel.key === localSel && galSel.field) {
                         // A default image (single field): "Retirer" empties the field, the next gallery image of the type becomes the default
                         var fieldName = GALLERY_FIELD[galSel.field];

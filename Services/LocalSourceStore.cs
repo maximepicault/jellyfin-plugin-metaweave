@@ -605,7 +605,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         public static readonly string[] GalleryTypes = { "Primary", "Backdrop", "Logo", "Banner", "Thumb" };
 
-        /// <summary>Known type (any case), non-empty address, no duplicate pair, at most 60 images per node</summary>
+        /// <summary>Known type (any case), non-empty address, no duplicate pair, at most 1000 images per node</summary>
         private static List<LocalImage> CleanGallery(List<LocalImage> gallery)
         {
             var result = new List<LocalImage>();
@@ -614,7 +614,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 var url = Clean(image?.Url);
                 var type = GalleryTypes.FirstOrDefault(t => string.Equals(t, Clean(image?.Type), StringComparison.OrdinalIgnoreCase));
-                if (url != null && type != null && seen.Add(type + "|" + url) && result.Count < 60)
+                if (url != null && type != null && seen.Add(type + "|" + url) && result.Count < 1000)
                 {
                     result.Add(new LocalImage { Type = type, Url = url, Name = Clean(image.Name), NoDefault = image.NoDefault });
                 }
