@@ -540,10 +540,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     // Candidates in order: the API and the local source, then (episode without a poster) its thumbnail like the image
                     // provider does, then the matching sub-folder (Primary/, Logo/…) of a series or season folder. The first one that
                     // can be read wins: an image that no longer exists must not leave the item without any image.
-                    var urls = images.Where(i => IsType(i, name)).Select(i => i.Url).ToList();
+                    var urls = images.Where(i => IsType(i, name) && !i.NoDefault).Select(i => i.Url).ToList();
                     if (urls.Count == 0 && item is Episode && name == "Primary")
                     {
-                        urls = images.Where(i => IsType(i, "Thumb")).Select(i => i.Url).ToList();
+                        urls = images.Where(i => IsType(i, "Thumb") && !i.NoDefault).Select(i => i.Url).ToList();
                     }
 
                     byte[] data = null;
@@ -587,7 +587,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     }
                 }
 
-                if (item is Series || item is Season)
+                // Episodes too: Jellyfin's default library options fetch no backdrop for an episode, so a Backdrop of the gallery would never show up
+                if (item is Series || item is Season || item is Episode)
                 {
                     var backdrops = new List<(byte[] Data, string Mime)>();
                     var seen = new HashSet<string>();

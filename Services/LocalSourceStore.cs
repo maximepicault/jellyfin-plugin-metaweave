@@ -52,6 +52,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         /// <summary>Set when the image was imported from a sub-folder of the library ("Principal/poster.jpg"): an import does not add it twice</summary>
         public string Name { get; set; }
+
+        /// <summary>Kept in the gallery (and offered in Jellyfin's image picker) but never applied as the default image of its type</summary>
+        public bool NoDefault { get; set; }
     }
 
     public class LocalSeries : LocalNode
@@ -613,7 +616,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var type = GalleryTypes.FirstOrDefault(t => string.Equals(t, Clean(image?.Type), StringComparison.OrdinalIgnoreCase));
                 if (url != null && type != null && seen.Add(type + "|" + url) && result.Count < 60)
                 {
-                    result.Add(new LocalImage { Type = type, Url = url, Name = Clean(image.Name) });
+                    result.Add(new LocalImage { Type = type, Url = url, Name = Clean(image.Name), NoDefault = image.NoDefault });
                 }
             }
 
@@ -829,7 +832,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             Put(json, "thumb", node.Thumb);
             if (node.Gallery?.Count > 0)
             {
-                json["images"] = node.Gallery.Select(g => new Dictionary<string, object> { ["type"] = g.Type, ["url"] = g.Url }).ToList();
+                json["images"] = node.Gallery.Select(g =>
+                {
+                    var entry = new Dictionary<string, object> { ["type"] = g.Type, ["url"] = g.Url };
+                    if (g.NoDefault) { entry["noDefault"] = true; }
+                    return entry;
+                }).ToList();
             }
 
             return json;

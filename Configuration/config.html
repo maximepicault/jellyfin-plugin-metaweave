@@ -3416,7 +3416,7 @@
                     + '</div></div>';
                 // Default image of a type: the single field above when it is filled, otherwise the FIRST gallery image of that type
                 var types = galleryTypes(kind), firstOf = {};
-                types.forEach(function(t) { if (t !== 'Backdrop' && !n[GALLERY_FIELD[t]]) { for (var k = 0; k < list.length; k++) { if (list[k].Type === t) { firstOf[t] = k; break; } } } });
+                types.forEach(function(t) { if (t !== 'Backdrop' && !n[GALLERY_FIELD[t]]) { for (var k = 0; k < list.length; k++) { if (list[k].Type === t && !list[k].NoDefault) { firstOf[t] = k; break; } } } });
                 var slideRank = {}, rank = n.Backdrop ? 1 : 0;
                 list.forEach(function(g, i) { if (g.Type === 'Backdrop') { rank++; slideRank[i] = rank; } });
                 var selected = galSel && galSel.key === localSel && !galSel.field && list[galSel.i] ? galSel.i : -1;
@@ -3432,13 +3432,15 @@
                         var isDefault = firstOf[g.Type] === i;
                         return '<div class="cm-gal-item cm-gal-pick' + (i === selected ? ' cm-gal-selected' : '') + (isDefault ? ' cm-gal-default' : '') + '" data-gal-sel="' + i + '" role="button" tabindex="0" aria-pressed="' + (i === selected) + '">'
                             + '<div class="cm-imgprev">' + (src ? '<img alt="" src="' + escapeHtml(src) + '" />' : 'Aucune image') + '</div>'
-                            + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[g.Type] || g.Type) + '</span>' + (isDefault ? '<span class="cm-gal-badge">Par défaut</span>' : (g.Type === 'Backdrop' ? '<span class="cm-gal-badge cm-gal-badge-soft">Diaporama · ' + slideRank[i] + '</span>' : '')) + '</div></div>';
+                            + '<div class="cm-gal-meta"><span>' + escapeHtml(GALLERY_LABELS[g.Type] || g.Type) + '</span>' + (isDefault ? '<span class="cm-gal-badge">Par défaut</span>' : (g.NoDefault ? '<span class="cm-gal-badge cm-gal-badge-soft">Hors défaut</span>' : g.Type === 'Backdrop' ? '<span class="cm-gal-badge cm-gal-badge-soft">Diaporama · ' + slideRank[i] + '</span>' : '')) + '</div></div>';
                     }).join('') + '</div>';
                     var chosen = selected >= 0 ? list[selected] : (selectedField ? { Type: selectedField, Url: n[GALLERY_FIELD[selectedField]] } : null);
-                    var chosenIsDefault = chosen && (selectedField || firstOf[chosen.Type] === selected || (chosen.Type === 'Backdrop' && slideRank[selected] === 1));
+                    var chosenIsDefault = chosen && (firstOf[chosen.Type] === selected || (chosen.Type === 'Backdrop' && slideRank[selected] === 1));
+                    // A default image (field above, or first of its type) can be demoted to a normal gallery image: kept and offered, never applied by default
+                    var canDemote = !!chosen && (!!selectedField || (selected >= 0 && chosen.Type !== 'Backdrop' && firstOf[chosen.Type] === selected));
                     html += '<div class="cm-gal-actions"><span class="cm-hint" style="margin:0;">' + (chosen ? 'Image sélectionnée : ' + escapeHtml(GALLERY_LABELS[chosen.Type]) : 'Cliquez sur une image pour la sélectionner.') + '</span>'
                         + (chosen ? '<select data-gal-retype aria-label="Type de l\'image sélectionnée" title="Changer le type de l\'image sélectionnée">' + galleryTypes(kind).map(function(t) { return '<option value="' + t + '"' + (t === chosen.Type ? ' selected' : '') + '>' + GALLERY_LABELS[t] + '</option>'; }).join('') + '</select>' : '')
-                        + '<button is="emby-button" type="button" class="raised" data-gal-act="default"' + (!chosen || chosenIsDefault ? ' disabled' : '') + '><span>' + (chosen && chosen.Type === 'Backdrop' ? 'Placer en tête du diaporama' : 'Utiliser comme image par défaut') + '</span></button>'
+                        + '<button is="emby-button" type="button" class="raised" data-gal-act="default"' + (!chosen || (chosenIsDefault && !canDemote && !selectedField) ? ' disabled' : '') + '><span>' + (canDemote ? 'Ne plus utiliser par défaut' : (chosen && chosen.Type === 'Backdrop' ? 'Placer en tête du diaporama' : 'Utiliser comme image par défaut')) + '</span></button>'
                         + '<button is="emby-button" type="button" class="raised" data-gal-act="remove"' + (chosen ? '' : ' disabled') + '><span>Retirer</span></button></div>';
                 }
                 html += '<div class="cm-gal-add"><select id="lfGalType" aria-label="Type de la nouvelle image">'
@@ -4308,7 +4310,16 @@
                     var gh = localSel ? findNode(localSel) : null;
                     if (gh && galSel && galSel.key === localSel && galSel.field) {
                         // A default image (single field): "Retirer" empties the field, the next gallery image of the type becomes the default
-                        if (target.getAttribute('data-gal-act') === 'remove') { gh.node[GALLERY_FIELD[galSel.field]] = ''; galSel = null; markDirty(); renderLocalDetail(); }
+                        var fieldName = GALLERY_FIELD[galSel.field];
+                        if (target.getAttribute('data-gal-act') === 'remove') { gh.node[fieldName] = ''; galSel = null; markDirty(); renderLocalDetail(); }
+                        else if (gh.node[fieldName]) {
+                            // "Ne plus utiliser par défaut": the image goes to the gallery as a normal image (flagged so that it is not applied by default either)
+                            var kept = { Type: galSel.field, Url: gh.node[fieldName] };
+                            if (galSel.field !== 'Backdrop') { kept.NoDefault = true; }
+                            gh.node[fieldName] = ''; (gh.node.Gallery = gh.node.Gallery || []).push(kept);
+                            galSel = { key: localSel, i: gh.node.Gallery.length - 1 };
+                            markDirty(); renderLocalDetail();
+                        }
                         return;
                     }
                     var gi = galSel && galSel.key === localSel ? galSel.i : -1;
@@ -4320,7 +4331,16 @@
                     } else {
                         // Default = the single field of its type when it is filled (swap), otherwise the first gallery image of that type
                         var field = GALLERY_FIELD[chosen.Type], previous = gh.node[field];
-                        if (previous) {
+                        var firstNormal = -1;
+                        if (!previous && chosen.Type !== 'Backdrop') { for (var q = 0; q < gal.length; q++) { if (gal[q].Type === chosen.Type && !gal[q].NoDefault) { firstNormal = q; break; } } }
+                        if (!chosen.NoDefault && firstNormal === gi) {
+                            // First image of its type, no field: demote it (kept in the gallery, never applied by default)
+                            chosen.NoDefault = true;
+                        } else if (chosen.NoDefault && previous) {
+                            delete chosen.NoDefault; gh.node[field] = chosen.Url; gal[gi] = { Type: chosen.Type, Url: previous };
+                        } else if (chosen.NoDefault) {
+                            delete chosen.NoDefault; gh.node[field] = chosen.Url; gal.splice(gi, 1); galSel = null;
+                        } else if (previous) {
                             gh.node[field] = chosen.Url; gal[gi] = { Type: chosen.Type, Url: previous };
                         } else if (chosen.Type !== 'Backdrop') {
                             // Empty field: the image fills it (shown above as the default) and leaves the gallery

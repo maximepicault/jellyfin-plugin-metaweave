@@ -208,7 +208,7 @@ try {
   check('detection: shapes give Fond, Affiche, Bannière, Fond, Miniature', (await ev(`Array.from(document.querySelectorAll('#lfGallery .cm-gal-pick .cm-gal-meta span:first-child')).slice(2).map(function(e){return e.textContent;}).join()`)) === 'Fond,Affiche,Bannière,Fond,Miniature', await ev(`Array.from(document.querySelectorAll('#lfGallery .cm-gal-pick .cm-gal-meta span:first-child')).map(function(e){return e.textContent;}).join()`));
   for (let k = 0; k < 5; k++) { await click('#lfGallery [data-gal-sel="2"]'); await wait(150); await click('[data-gal-act="remove"]'); await wait(200); }
   await click('#lfGallery .cm-gal-pick'); await wait(200);
-  check('default: the image that already is the default cannot be chosen again', (await ev(`document.querySelector('[data-gal-act="default"]').disabled`)) === true);
+  check('default: the image that already is the default offers to stop being it (not to be chosen again)', (await ev(`document.querySelector('[data-gal-act="default"]').textContent.trim()`)) === 'Ne plus utiliser par défaut');
   // a second Primary image: select it and make it the default (no default field: it fills the field above and leaves the gallery)
   await ev(`document.querySelector('#lfGalType').value='Primary'; true`);
   await type('#lfGalUrl', 'https://img.test/second.jpg'); await click('[data-gal-url]'); await wait(250);
@@ -221,6 +221,14 @@ try {
   const defBefore = await ev(`document.querySelectorAll('#lfGallery [data-gal-field]').length`);
   await click('#lfGallery [data-gal-field]'); await wait(250);
   check('default image: selecting it enables the retype menu and "Retirer"', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-selected').length`)) === 1 && (await ev(`!!document.querySelector('[data-gal-retype]') && document.querySelector('[data-gal-act="remove"]').disabled`)) === false);
+  check('default image: the button offers to stop using it by default', (await ev(`document.querySelector('[data-gal-act="default"]').textContent.trim()`)) === 'Ne plus utiliser par défaut' && (await ev(`document.querySelector('[data-gal-act="default"]').disabled`)) === false);
+  const galBefore = await ev(`document.querySelectorAll('#lfGallery .cm-gal-pick').length`);
+  await click('[data-gal-act="default"]'); await wait(250);
+  check('default image: demoted, it moves to the gallery flagged (not deleted)', (await ev(`document.querySelectorAll('#lfGallery [data-gal-field]').length`)) === defBefore - 1 && (await ev(`document.querySelectorAll('#lfGallery .cm-gal-pick').length`)) === galBefore + 1 && (await ev(`document.querySelector('#lfGallery .cm-gal-selected .cm-gal-badge').textContent`)) === 'Hors défaut');
+  check('demoted image: the button offers to use it as default again', (await ev(`document.querySelector('[data-gal-act="default"]').textContent.trim()`)) === 'Utiliser comme image par défaut');
+  await click('[data-gal-act="default"]'); await wait(250);
+  check('demoted image: used as default again, back in its field', (await ev(`document.querySelectorAll('#lfGallery [data-gal-field]').length`)) === defBefore && (await ev(`document.querySelectorAll('#lfGallery .cm-gal-pick').length`)) === galBefore);
+  await click('#lfGallery [data-gal-field]'); await wait(250);
   await click('[data-gal-act="remove"]'); await wait(250);
   check('default image: "Retirer" empties its field', (await ev(`document.querySelectorAll('#lfGallery [data-gal-field]').length`)) === defBefore - 1);
   // backdrops are a slideshow: no single default, each one shows its rank, any can be put first

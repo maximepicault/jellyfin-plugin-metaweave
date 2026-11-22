@@ -325,7 +325,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                                     Url = GetStringValue(item, config.ImageUrl),
                                     Type = GetStringValue(item, config.ImageType),
                                     Width = GetIntValue(item, config.ImageWidth),
-                                    Height = GetIntValue(item, config.ImageHeight)
+                                    Height = GetIntValue(item, config.ImageHeight),
+                                    NoDefault = item.ValueKind == JsonValueKind.Object && item.TryGetProperty("noDefault", out var noDefault) && noDefault.ValueKind == JsonValueKind.True
                                 };
 
                                 if (!string.IsNullOrEmpty(image.Url))

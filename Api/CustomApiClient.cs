@@ -1085,6 +1085,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string Type { get; set; } // "Primary", "Backdrop", "Banner", etc.
         public int? Width { get; set; }
         public int? Height { get; set; }
+
+        /// <summary>A local gallery image kept but never applied as the default of its type (set from the optional "noDefault" field of an images array item)</summary>
+        public bool NoDefault { get; set; }
     }
 
     /// <summary>

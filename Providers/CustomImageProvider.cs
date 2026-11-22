@@ -167,6 +167,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     images = new List<ImageInfo>();
                 }
 
+                // Gallery images flagged "no default" are offered last, so Jellyfin never picks one as the default of its type when another exists
+                images = images.OrderBy(i => i.NoDefault).ToList();
+
                 // Option LandscapePosterCrop: the source of the tag, or the local source that overrides this series / season
                 // (its uploaded poster is the one served, so its own setting counts too). Read again when the image is downloaded.
                 var isPosterItem = item is Series || item is Season;
