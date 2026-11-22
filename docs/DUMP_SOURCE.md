@@ -45,6 +45,8 @@ What Jellyfin shows comes from the source's **Vidéo / épisode** mapping, appli
 | Rating | `communityRating`, computed as likes / (likes + dislikes) × 10 from the Catalogue paths |
 | Primary / Backdrop / Thumb | `poster_url` / `cover_url` / `cover_url` |
 
+The tags of the coverage screen are read with the video mapping's « Tags » path and « Champ de chaque tag » (so `tags`, `tags[].name` or a list of objects all work). In the editor, after « Tester » on an entry, a click on a value of the result fills the Catalogue field you are in.
+
 The Catalogue section tells where the entries are (`data`, empty = the response is the list), their id, name, slug, other titles, group and likes/dislikes paths.
 
 ## Where it applies

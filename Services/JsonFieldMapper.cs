@@ -28,6 +28,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         /// <summary>
+        /// A list of texts read the way the mapping reads tags and genres ("a", "a[].x", "a[].x || b", comma-separated text, and
+        /// the item field of a list of objects), without any logging. The dump's coverage screen reads its tags through it.
+        /// </summary>
+        public List<string> ReadStringList(JsonElement element, string path, string itemField)
+        {
+            return GetStringArrayValue(element, path, itemField, null);
+        }
+
+        /// <summary>
         /// Maps a JSON response to CustomMetadataResponse
         /// </summary>
         /// <param name="jsonDoc">JSON document to map</param>

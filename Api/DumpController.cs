@@ -531,6 +531,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         // The light view of each entry (computed once per downloaded copy: parsing thousands of entries at every click would be slow)
         private static readonly ConditionalWeakTable<DumpCatalog, Tuple<string, List<DumpRow>>> RowCache = new ConditionalWeakTable<DumpCatalog, Tuple<string, List<DumpRow>>>();
 
+        private static readonly JsonFieldMapper ListReader = new JsonFieldMapper(Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+
         private static List<DumpRow> RowsOf(DumpCatalog catalog, SourceConfiguration source)
         {
             var mapping = source.VideoFieldMappings ?? new FieldMapping();
@@ -538,7 +540,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             var previewPath = source.Dump?.PreviewImagePath;
             // The catalogue has its own date path, so the date can stay unmapped (kept out of Jellyfin) and still be used here
             var datePath = string.IsNullOrWhiteSpace(source.Dump?.ReleaseDatePath) ? mapping.PremiereDate : source.Dump.ReleaseDatePath;
-            var mappingKey = string.Join("|", datePath, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, previewPath, source.Dump?.SeriesMinEntries, source.Dump?.SeriesIdPath, source.Dump?.SeriesNamePath, source.Prefix);
+            var mappingKey = string.Join("|", datePath, mapping.Tags, mapping.PosterUrl, mapping.ThumbUrl, mapping.BackdropUrl, previewPath, mapping.TagsItemField, source.Dump?.SeriesMinEntries, source.Dump?.SeriesIdPath, source.Dump?.SeriesNamePath, source.Prefix);
             if (RowCache.TryGetValue(catalog, out var cached) && cached.Item1 == mappingKey)
             {
                 return cached.Item2.Select(r => r.Copy()).ToList();
@@ -568,8 +570,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     }
 
                     date = ReadDate(root, datePath);
-                    tags = string.IsNullOrWhiteSpace(mapping.Tags) || mapping.Tags.Contains("[]") ? tags
-                        : JsonPathExtractor.GetStringArray(root, mapping.Tags).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => HtmlText.Decode(t.Trim())).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                    // Read like the video mapping reads its tags: "tags", "tags[].name", the "Champ de chaque tag" of a list of objects, "a || b"
+                    tags = ListReader.ReadStringList(root, mapping.Tags, mapping.TagsItemField)
+                        .Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => HtmlText.Decode(t.Trim())).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                     foreach (var path in new[] { previewPath, mapping.ThumbUrl, mapping.PosterUrl, mapping.BackdropUrl })
                     {
                         if (string.IsNullOrWhiteSpace(path))

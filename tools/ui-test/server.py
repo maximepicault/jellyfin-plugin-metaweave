@@ -101,6 +101,10 @@ class H(BaseHTTPRequestHandler):
             except Exception: return self.send(400, {"error": "options?"})
             n, size = int(pg["page"]), int(pg["pageSize"])
             return self.send(200, {"data": dump_json()[(n - 1) * size:n * size]})
+        if p == "/dump-tags":
+            # Tags as a list of objects (the shape many APIs use): [{"id": 1, "label": "aventure"}]
+            return self.send(200, {"data": [{"id": 6001 + i, "name": "Tagué %d" % i, "slug": "tg%d" % i, "brand": "T",
+                                             "tags": [{"id": 1, "label": "aventure"}, {"id": 2, "label": "nuit" if i % 2 else "jour"}]} for i in range(4)]})
         if p == "/dump-bare": return self.send(200, dump_json())
         if p.startswith("/img/"):
             f = os.path.join(IMG_DIR, os.path.basename(p))

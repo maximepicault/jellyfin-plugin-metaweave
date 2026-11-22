@@ -323,6 +323,18 @@ try {
   const sidn = (pick((await api('GET', '/CustomMetadata/Dump/Series?prefix=dp&pageSize=50')).json, 'Items') || []);
   check('series id: without a name path every series still has a name', sidn.length === 4 && sidn.every(c => c.Name && c.Name.length >= 3), JSON.stringify(sidn.map(c => [c.Name, c.Total])));
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
+  // tags that are a list of objects: read like the mapping reads them ("tags[].label", or "tags" + the item field), not dropped
+  for (const [tagsPath, itemField] of [['tags[].label', ''], ['tags', 'label']]) {
+    const objTags = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, BaseUrl: `${API}/dump-tags`, VideoFieldMappings: { ...x.VideoFieldMappings, Tags: tagsPath, TagsItemField: itemField } } : x) };
+    await api('POST', `/Plugins/${PLUGIN}/Configuration`, objTags);
+    const tc = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&refresh=true&pageSize=5')).json;
+    const names = (pick(tc, 'Tags') || []).map(t => t.Name + ':' + t.Count).sort().join();
+    check(`tags: a list of objects (${tagsPath}${itemField ? ' + ' + itemField : ''}) gives the catalogue its tag list`, names === 'aventure:4,jour:2,nuit:2', names);
+    const byTag = (await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&status=all&tag=nuit')).json;
+    check('tags: filtering on one of them keeps its entries', pick(byTag, 'Matching') === 2, String(pick(byTag, 'Matching')));
+  }
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
+  await api('GET', '/CustomMetadata/Dump/Coverage?prefix=dp&refresh=true&pageSize=1');
   // the date for the catalogue is its own path: the video mapping's date can stay EMPTY (kept out of Jellyfin) and the filters still work
   const unmapped = { ...config, Sources: config.Sources.map(x => x.Prefix === 'dp' ? { ...x, Dump: { ...x.Dump, ReleaseDatePath: 'released_at' }, VideoFieldMappings: { ...x.VideoFieldMappings, PremiereDate: '' } } : x) };
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, unmapped);

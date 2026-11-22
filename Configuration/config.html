@@ -1912,10 +1912,10 @@
             var lastRawText = '';   // the raw answer as shown, for "Copier la réponse brute"
             var activeMapField = null;
             var pickCounts = {};   // real length of the lists the server cut to their first element, by path
-            var MAP_SECTIONS = ['video', 'season', 'series', 'episodes', 'person'];
+            var MAP_SECTIONS = ['video', 'season', 'series', 'episodes', 'person', 'dump'];
 
             function isPathField(el) {
-                if (!el || el.tagName !== 'INPUT' || el.type !== 'text' || /PageParam|PhotoBase/.test(el.id)) { return false; }
+                if (!el || el.tagName !== 'INPUT' || el.type !== 'text' || /PageParam|PhotoBase|^srcDumpItems$/.test(el.id)) { return false; }
                 var pane = el.closest('.cm-pane');
                 return !!pane && MAP_SECTIONS.indexOf(pane.getAttribute('data-section')) >= 0;
             }
