@@ -141,7 +141,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         private readonly ConcurrentDictionary<string, string> _lastResponses = new ConcurrentDictionary<string, string>();
-        private const int PreviewChars = 3000;
+        private const int PreviewChars = 6000;
 
         /// <summary>The start of the last response received for this source (or of its error body): what the editor shows when the dump cannot be read</summary>
         public string LastResponsePreview(SourceConfiguration source)
@@ -151,12 +151,70 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         private void RememberResponse(SourceConfiguration source, string text)
         {
-            if (text != null && text.Length > PreviewChars)
+            _lastResponses[Key(source)] = Readable(text);
+        }
+
+        /// <summary>
+        /// A JSON response is shown indented, with long lists cut to their first two elements (the structure is what matters when
+        /// a path is wrong); anything else (an HTML page, an error text) is shown as it is, truncated.
+        /// </summary>
+        internal static string Readable(string text)
+        {
+            if (string.IsNullOrEmpty(text))
             {
-                text = text.Substring(0, PreviewChars) + "\n… (suite tronquée)";
+                return text;
             }
 
-            _lastResponses[Key(source)] = text;
+            try
+            {
+                var node = JsonNode.Parse(text);
+                if (node != null)
+                {
+                    Shorten(node);
+                    text = node.ToJsonString(new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+                }
+            }
+            catch (JsonException)
+            {
+                // Not JSON: kept as it is
+            }
+
+            return text.Length > PreviewChars ? text.Substring(0, PreviewChars) + "\n… (suite tronquée)" : text;
+        }
+
+        private static void Shorten(JsonNode node)
+        {
+            if (node is JsonArray array)
+            {
+                var extra = array.Count - 2;
+                if (extra > 0)
+                {
+                    for (var i = array.Count - 1; i >= 2; i--)
+                    {
+                        array.RemoveAt(i);
+                    }
+
+                    array.Add(JsonValue.Create($"… {extra} autre(s) élément(s) non affiché(s)"));
+                }
+
+                foreach (var child in array.ToList())
+                {
+                    if (child != null)
+                    {
+                        Shorten(child);
+                    }
+                }
+            }
+            else if (node is JsonObject obj)
+            {
+                foreach (var child in obj.Select(p => p.Value).ToList())
+                {
+                    if (child != null)
+                    {
+                        Shorten(child);
+                    }
+                }
+            }
         }
 
         private static string Key(SourceConfiguration source) => (source.Prefix ?? string.Empty).Trim().ToLowerInvariant();
@@ -498,6 +556,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 result.StatusCode = 502;
                 result.Error = "Dump indisponible : " + error;
+                result.ErrorBody = LastResponsePreview(source);
                 return result;
             }
 

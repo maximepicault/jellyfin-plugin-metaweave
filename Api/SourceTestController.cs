@@ -41,9 +41,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             {
                 // A dump test needs no id: the first entry of the catalogue is read (the one the editor test already downloaded, or a fresh copy)
                 var (catalog, error) = await _dump.GetCatalogAsync(request.Source, false, cancellationToken);
-                if (catalog == null || catalog.Entries.Count == 0)
+                if (catalog == null || error != null || catalog.Entries.Count == 0)
                 {
-                    return Ok(new SourceTestResult { ItemType = request.ItemType ?? "video", Error = catalog == null ? error : "Le dump ne contient aucune entrée" });
+                    return Ok(new SourceTestResult
+                    {
+                        ItemType = request.ItemType ?? "video",
+                        Error = catalog == null || error != null ? error : "Le dump ne contient aucune entrée",
+                        ErrorBody = _dump.LastResponsePreview(request.Source)
+                    });
                 }
 
                 id = catalog.Entries[0].Id;

@@ -119,6 +119,12 @@ try {
   const t5 = await test('x', { ...dumpSource, Dump: { ...dumpSource.Dump, ItemsPath: 'nope' } });
   check('test: a wrong list path says so', pick(t5, 'Ok') === false && /nope/.test(pick(t5, 'Error') || ''), JSON.stringify(t5));
   check('test: a wrong list path says where the lists are and gives the raw response', /Listes trouvées : « data »/.test(pick(t5, 'Error') || '') && /"data"/.test(pick(t5, 'ResponsePreview') || ''), JSON.stringify(t5)?.slice(0, 300));
+  check('test: the raw response is indented JSON with long lists cut to two elements', /\n  "data": \[/.test(pick(t5, 'ResponsePreview') || '') && /38 autre/.test(pick(t5, 'ResponsePreview') || ''), (pick(t5, 'ResponsePreview') || '').slice(0, 200));
+  const badSource = { ...dumpSource, Dump: { ...dumpSource.Dump, ItemsPath: 'nope' } };
+  for (const id of ['', '1002']) {
+    const r = (await api('POST', '/CustomMetadata/TestSource', { Source: badSource, ItemType: 'video', Id: id })).json;
+    check(`source test: an unreadable dump (id "${id}") says why and shows the raw response`, pick(r, 'Success') === false && /Listes trouvées/.test(pick(r, 'Error') || '') && /"data"/.test(pick(r, 'ErrorBody') || ''), JSON.stringify(r)?.slice(0, 300));
+  }
   const t6 = await test('x', { ...dumpSource, BaseUrl: `${API}/dump-bare`, Dump: { ...dumpSource.Dump, ItemsPath: '' } });
   check('test: an empty list path reads a response that IS the list', pick(t6, 'Ok') === true && pick(t6, 'Count') === 40, JSON.stringify(t6)?.slice(0, 200));
   // pagination: the dump split into pages of 3, read through the page parameter until an empty page (or a 404)
