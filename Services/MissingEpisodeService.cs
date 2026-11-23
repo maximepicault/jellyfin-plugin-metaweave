@@ -377,6 +377,34 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// An existing virtual episode whose fingerprint (JSON + mapping) is identical to the cache is skipped.
         /// NEVER deletes a physical episode nor a virtual episode without a "custom" ProviderId.
         /// </summary>
+        /// <summary>Number chosen for each virtual episode ("prefix-id" key): the metadata provider gives it back on a refresh</summary>
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> AssignedNumbers = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Number the analysis gave to the virtual episode of this key, if it has run since the server started</summary>
+        public static bool TryGetAssignedNumber(string key, out int number)
+        {
+            number = 0;
+            return !string.IsNullOrEmpty(key) && AssignedNumbers.TryGetValue(key, out number);
+        }
+
+        /// <summary>
+        /// Makes the episode carry the number chosen for it, read back from the library: whatever a refresh (ours or another
+        /// provider's) wrote in the meantime is overwritten. A number is never left to chance on a virtual episode.
+        /// </summary>
+        private async Task EnforceIndexNumberAsync(Episode episode, string key, int number, CancellationToken cancellationToken)
+        {
+            var current = _libraryManager.GetItemById(episode.Id) as Episode ?? episode;
+            if (current.IndexNumber == number && current.IndexNumberEnd == null)
+            {
+                return;
+            }
+
+            _logger.LogWarning("🔎 [MISSING] ⚠️ '{Name}' ({Key}) had number {Found} after its refresh: set back to {Number}", current.Name, key, current.IndexNumber?.ToString() ?? "none", number);
+            current.IndexNumber = number;
+            current.IndexNumberEnd = null;
+            await current.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken);
+        }
+
         private async Task<SyncStats> SyncVirtualEpisodesAsync(
             Season season,
             SourceConfiguration source,
@@ -405,6 +433,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             var seasonInherited = _inheritance.ForSeasonItem(season);
             var indexNumbers = AssignIndexNumbers(season, wantedByKey, cache);
+            foreach (var (assignedKey, assignedNumber) in indexNumbers)
+            {
+                AssignedNumbers[assignedKey] = assignedNumber;
+            }
+
             var (existing, orphans) = FindExistingVirtualEpisodes(season, existingVirtual, virtualFromLibrary, wantedByKey.Keys.Concat(cache.Keys));
 
             foreach (var orphan in orphans)
@@ -431,12 +464,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 if (cached != null && cached.Hash == hash)
                 {
                     // JSON unchanged, but a real episode may have taken this number since: only the number is revisited
-                    if (episode.IndexNumber != indexNumber)
-                    {
-                        episode.IndexNumber = indexNumber;
-                        await episode.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken);
-                        cached.IndexNumber = indexNumber;
-                    }
+                    await EnforceIndexNumberAsync(episode, key, indexNumber, cancellationToken);
+                    cached.IndexNumber = indexNumber;
 
                     stats.Unchanged++;
                     continue;
@@ -445,6 +474,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 _logger.LogDebug("🔎 [MISSING] Updating virtual episode '{Name}' ({Key})", episode.Name, key);
                 await UpdateVirtualEpisodeAsync(episode, item, source, indexNumber, cancellationToken);
                 await RefreshPeopleAsync(episode, key, cancellationToken);
+                await EnforceIndexNumberAsync(episode, key, indexNumber, cancellationToken);
                 var thumb = await EnsureThumbAsync(episode, item, source, cached, true, cancellationToken);
                 await SyncPreviewAsync(episode, item, source, cancellationToken);
                 cache[key] = CreateCacheEntry(item, source, hash, thumb, indexNumber);
@@ -496,6 +526,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     _logger.LogWarning(ex, "🔎 [MISSING] Metadata refresh failed for virtual episode {Key}", key);
                 }
 
+                await EnforceIndexNumberAsync(episode, key, indexNumbers[key], cancellationToken);
                 await SyncPreviewAsync(episode, item, source, cancellationToken);
                 cache[key] = CreateCacheEntry(item, source, MissingEpisodeCache.ComputeHash(item, source, CastFingerprint(key, seasonInherited)), thumb, indexNumbers[key]);
                 stats.Created++;
