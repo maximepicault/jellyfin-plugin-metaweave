@@ -1140,7 +1140,7 @@
                         + (e.Tag ? '<button type="button" class="me-linkbtn" data-ignore="' + escapeHtml(e.Tag) + '" title="Je n\'aurai jamais cet épisode : ne plus le compter comme manquant">Ignorer</button>' : '')
                         + '</div>'
                         + (meta.length ? '<div class="me-episode-meta">' + meta.join(' · ') + '</div>' : '')
-                        + numberWarning(e)
+                        + numberWarning(e, season)
                         + (e.Overview
                             ? '<div class="me-episode-overview">' + escapeHtml(e.Overview) + '</div>'
                             : '<div class="me-episode-overview me-empty">Pas de résumé dans l\'API</div>')
@@ -1155,13 +1155,19 @@
             }
 
             // The list number is held by a real episode: Jellyfin would delete a missing one sharing it, so it shows another number
-            function numberWarning(e) {
+            function numberWarning(e, season) {
                 if (e.AssignedNumber === null || e.AssignedNumber === undefined) { return ''; }
-                var why = e.NumberHeldBy
-                    ? 'le numéro ' + escapeHtml(e.IndexNumber) + ' est déjà pris par le fichier « ' + escapeHtml(e.NumberHeldBy) + ' »'
-                    : 'son numéro est déjà pris par un autre épisode';
-                return '<div class="me-episode-warn">⚠ Dans Jellyfin, épisode ' + escapeHtml(e.AssignedNumber) + ' : ' + why
-                    + '. Renommez ce fichier ou corrigez son numéro pour libérer le ' + escapeHtml(e.IndexNumber) + '.</div>';
+                var n = escapeHtml(e.IndexNumber);
+                var text = '⚠ Dans Jellyfin, épisode ' + escapeHtml(e.AssignedNumber) + ' : le numéro ' + n + ' est déjà pris par '
+                    + (e.NumberHeldBy ? 'le fichier « ' + escapeHtml(e.NumberHeldBy) + ' »' : 'un autre épisode');
+                if (e.NumberHeldInSeason !== null && e.NumberHeldInSeason !== undefined) {
+                    // Jellyfin groups episodes by season NUMBER: seasons without one share their episode numbers
+                    text += ', dans la saison « ' + escapeHtml(e.NumberHeldInSeason) + ' ». Jellyfin range ensemble les épisodes des saisons sans numéro. '
+                        + 'Mettez un numéro dans le nom du dossier de cette saison (par exemple « Saison 2 ' + escapeHtml(season && season.SourceItemId ? '{' + season.SourceItemId + '}' : '{…}') + ' ») pour qu\'elle garde ses propres numéros.';
+                } else {
+                    text += '. Renommez ce fichier ou corrigez son numéro pour libérer le ' + n + '.';
+                }
+                return '<div class="me-episode-warn">' + text + '</div>';
             }
 
             function renderCrumbs(group, season) {

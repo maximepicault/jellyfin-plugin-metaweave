@@ -13,7 +13,7 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Recent work (2026-11-20/21): CLAUDE.md split into docs/architecture/, project skills and memory agents, folder upload to a gallery, photo cropper for people, test bench fast mode.
 
 ## Déployé
-- Last successful deployment: b296b42, develop, 2026-11-23
+- Last successful deployment: 9d7d312, develop, 2026-11-23
 
 ## En cours
 - Uncommitted: docs/memoire reorganisation (D005, D006, D008, this file) and the new `.claude/hooks/memoire-stale.sh`. Nothing else in flight on `develop`.

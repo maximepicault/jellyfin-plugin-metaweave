@@ -368,6 +368,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     entry.AssignedNumber = shownNumber;
                     entry.NumberHeldBy = stats.NumberHolders.TryGetValue(entry.Tag, out var heldBy) ? heldBy : null;
+                    entry.NumberHeldInSeason = stats.NumberHolderSeasons.TryGetValue(entry.Tag, out var heldIn) ? heldIn : null;
+                    entry.SeasonHasNoNumber = !season.IndexNumber.HasValue;
                 }
             }
 
@@ -441,7 +443,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             var seasonInherited = _inheritance.ForSeasonItem(season);
-            var indexNumbers = AssignIndexNumbers(season, wantedByKey, cache, stats.NumberHolders);
+            var indexNumbers = AssignIndexNumbers(season, wantedByKey, cache, stats.NumberHolders, stats.NumberHolderSeasons);
             stats.Numbers = indexNumbers;
             foreach (var (assignedKey, assignedNumber) in indexNumbers)
             {
@@ -810,7 +812,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             Season season,
             Dictionary<string, EpisodeListItem> wantedByKey,
             Dictionary<string, CachedMissingEpisode> cache,
-            Dictionary<string, string> holders)
+            Dictionary<string, string> holders,
+            Dictionary<string, string> holderSeasons)
         {
             var physical = (season.Series?.GetEpisodes(null, new DtoOptions(), true) ?? season.GetEpisodes())
                 .OfType<Episode>()
@@ -825,6 +828,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     var holder = physical.FirstOrDefault(e => e.ContainsEpisodeNumber(wanted));
                     var holderName = holder == null ? null : (holder.Path != null ? System.IO.Path.GetFileName(holder.Path) : holder.Name);
                     holders[key] = holderName;
+                    // Seasons without a number share one group in Jellyfin: the holder may sit in another season of the series
+                    if (holder != null && holder.SeasonId != season.Id)
+                    {
+                        holderSeasons[key] = holder.SeasonName ?? holder.Season?.Name ?? string.Empty;
+                    }
                     _logger.LogWarning(
                         "🔎 [MISSING] ⚠️ '{Title}' ({Key}) is episode {Wanted} in the list, but a real episode already holds that number ({Holder}, from its file name or its metadata): it gets {Assigned} instead (Jellyfin removes a virtual episode that shares a number with a real one)",
                         item.Title, key, wanted, holderName, assigned);
@@ -1247,6 +1255,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             /// <summary>Episodes whose list number is held by a real one: key → file name of that real episode</summary>
             public Dictionary<string, string> NumberHolders { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            /// <summary>Same keys, when the holder is in ANOTHER season (seasons without a number share their episode numbers)</summary>
+            public Dictionary<string, string> NumberHolderSeasons { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -1476,6 +1487,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         /// <summary>File name of the real episode that holds IndexNumber, when AssignedNumber is set for that reason</summary>
         public string NumberHeldBy { get; set; }
+
+        /// <summary>Season of that real episode when it is another season of the series (null when it is the same season)</summary>
+        public string NumberHeldInSeason { get; set; }
+
+        /// <summary>This season has no number: in Jellyfin it shares episode numbers with every other season without one</summary>
+        public bool SeasonHasNoNumber { get; set; }
 
         public DateTime? PremiereDate { get; set; }
         public long? RunTimeTicks { get; set; }
