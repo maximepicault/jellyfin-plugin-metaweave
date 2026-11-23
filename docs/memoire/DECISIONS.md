@@ -1,4 +1,5 @@
 # Index
+D009 | active | A missing episode keeps its own number; a clash with a real episode moves it to season number -1 | motivée par P003, P004
 D008 | active | Dump source type replaces the separate DumpMetadata plugin | dépend de D002
 D007 | active | Local sources and people directory live in the plugin, not in Jellyfin items | dépend de D002
 D006 | active | Applied images are persisted explicitly in Jellyfin's database | —
@@ -9,6 +10,18 @@ D002 | active | Multi-source configuration keyed by tag prefix; legacy single-so
 D001 | active | Build against Jellyfin 10.11.6 exactly (net9.0, ExcludeAssets=runtime) | —
 
 # Détail
+
+## D009 — A missing episode keeps its own number (season number -1 on a clash)
+- Date : 2026-11-23
+- Contexte : Jellyfin 10.11.6 `SeriesMetadataService.RemoveObsoleteEpisodes` (every series refresh) groups the series' episodes by `ParentIndexNumber` and deletes a virtual episode with no number or whose number a real episode of the same group holds. All seasons without a season number share the null group, so a real `Clip 09.mkv` in another unnumbered season deleted missing episode 9. Earlier plugin versions renumbered the virtual episode, then told the user to number the season folder (P003); the maintainer rejected both: the number typed in the list must win, with no workaround on their side.
+- Décision : a missing episode always keeps its number from the list (local source or API). When a real episode of its group holds that number, the virtual episode gets `ParentIndexNumber = -1` (`SeparateGroupSeasonNumber`), and goes back to the season's number once the number is free. Only a number given twice by the list still moves the second episode to the next free number.
+- Pourquoi -1 : no real episode ever has a negative season number (own group, never deleted); `AiredEpisodeOrderComparer` counts null as -1, so it sorts exactly like the other episodes of an unnumbered season; `Series.FilterEpisodesBySeason` also matches on the parent season, so it stays listed in its own season only; jellyfin-web shows "Saison locale - 9. Neuf".
+- Alternatives écartées : renumbering (huge numbers, then behind the other unnumbered seasons) + asking for a season number in the folder name → P003; a positive unused season number → P004; renaming the user's season folders, or a season-number field in the plugin → both touch the user's seasons.
+- Conséquences : `CustomEpisodeProvider` returns the assigned episode AND season numbers for a virtual episode, so a Jellyfin refresh keeps them ([vérifié] in the 10.11.6 source: `MetadataService.MergeData` copies the provider's `ParentIndexNumber` when replacing all metadata, so a null there would put the episode back in the null group, where it gets deleted).
+- Liens : motivée par P003, P004
+- Code : Services/MissingEpisodeService.cs (`SeparateGroupSeasonNumber`, `AssignIndexNumbers`, `ComputeIndexNumbers`, `EnforceNumbersAsync`, `TryGetAssignedNumber`); Providers/CustomEpisodeProvider.cs; tools/ui-test/missing-number-real.mjs; docs/architecture/missing-episodes.md. Uncommitted on develop as of 2026-11-23; replaces the renumbering of commits 4ba6180, 9d7d312, f3e7c13 [supposé, from the commit titles].
+- À réévaluer si : a Jellyfin upgrade changes the `RemoveObsoleteEpisodes` grouping, the episode sort comparer or `FilterEpisodesBySeason`, or jellyfin-web starts showing the negative season number.
+- Fiabilité : [vérifié] missing-number-real.mjs (two unnumbered seasons, full series refresh with replace-all metadata) ALL PASS; display checked on the bench. [vérifié] the Jellyfin internals above, read in the 10.11.6 source (`SeriesMetadataService.RemoveObsoleteEpisodes`, `AiredEpisodeOrderComparer`, `Series.FilterEpisodesBySeason`, `LibraryManager.FillMissingEpisodeNumbersFromPath`).
 
 ## D008 — Dump source type replaces the separate DumpMetadata plugin
 - Date : 2026-11-16

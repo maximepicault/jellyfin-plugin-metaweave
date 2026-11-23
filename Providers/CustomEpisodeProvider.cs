@@ -239,11 +239,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     _logger.LogInformation("🎬 [EPISODE PROVIDER] Episode number from API: {IndexNumber}", metadata.IndexNumber);
                 }
 
-                // A virtual episode keeps the number the missing-episodes analysis chose for it, whatever the refresh was given
-                if (string.IsNullOrEmpty(info.Path) && Services.MissingEpisodeService.TryGetAssignedNumber(idWithPrefix, out var assignedNumber))
+                // A virtual episode keeps the numbers the missing-episodes analysis chose for it, whatever the refresh was given
+                // (its season number may be MissingEpisodeService.SeparateGroupSeasonNumber, so that Jellyfin does not delete it)
+                if (string.IsNullOrEmpty(info.Path) && Services.MissingEpisodeService.TryGetAssignedNumber(idWithPrefix, out var assignedNumber, out var assignedSeason))
                 {
                     episode.IndexNumber = assignedNumber;
                     episode.IndexNumberEnd = null;
+                    episode.ParentIndexNumber = assignedSeason;
                 }
 
                 // Still no number (none in the file name, none from the API): the position in the season's list sorted by release date,

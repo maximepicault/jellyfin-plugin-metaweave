@@ -367,9 +367,6 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 if (entry.Tag != null && stats.Numbers.TryGetValue(entry.Tag, out var shownNumber) && shownNumber != entry.IndexNumber)
                 {
                     entry.AssignedNumber = shownNumber;
-                    entry.NumberHeldBy = stats.NumberHolders.TryGetValue(entry.Tag, out var heldBy) ? heldBy : null;
-                    entry.NumberHeldInSeason = stats.NumberHolderSeasons.TryGetValue(entry.Tag, out var heldIn) ? heldIn : null;
-                    entry.SeasonHasNoNumber = !season.IndexNumber.HasValue;
                 }
             }
 
@@ -389,30 +386,40 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// NEVER deletes a physical episode nor a virtual episode without a "custom" ProviderId.
         /// </summary>
         /// <summary>Number chosen for each virtual episode ("prefix-id" key): the metadata provider gives it back on a refresh</summary>
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> AssignedNumbers = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (int Number, int? SeasonNumber)> AssignedNumbers = new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Number the analysis gave to the virtual episode of this key, if it has run since the server started</summary>
-        public static bool TryGetAssignedNumber(string key, out int number)
+        /// <summary>Episode and season numbers the analysis gave to the virtual episode of this key, if it has run since the server started</summary>
+        public static bool TryGetAssignedNumber(string key, out int number, out int? seasonNumber)
         {
             number = 0;
-            return !string.IsNullOrEmpty(key) && AssignedNumbers.TryGetValue(key, out number);
+            seasonNumber = null;
+            if (string.IsNullOrEmpty(key) || !AssignedNumbers.TryGetValue(key, out var assigned))
+            {
+                return false;
+            }
+
+            (number, seasonNumber) = assigned;
+            return true;
         }
 
         /// <summary>
-        /// Makes the episode carry the number chosen for it, read back from the library: whatever a refresh (ours or another
+        /// Makes the episode carry the numbers chosen for it, read back from the library: whatever a refresh (ours or another
         /// provider's) wrote in the meantime is overwritten. A number is never left to chance on a virtual episode.
         /// </summary>
-        private async Task EnforceIndexNumberAsync(Episode episode, string key, int number, CancellationToken cancellationToken)
+        private async Task EnforceNumbersAsync(Episode episode, string key, int number, int? seasonNumber, CancellationToken cancellationToken)
         {
             var current = _libraryManager.GetItemById(episode.Id) as Episode ?? episode;
-            if (current.IndexNumber == number && current.IndexNumberEnd == null)
+            if (current.IndexNumber == number && current.IndexNumberEnd == null && current.ParentIndexNumber == seasonNumber)
             {
                 return;
             }
 
-            _logger.LogWarning("🔎 [MISSING] ⚠️ '{Name}' ({Key}) carried number {Found} in Jellyfin: set to {Number}", current.Name, key, current.IndexNumber?.ToString() ?? "none", number);
+            _logger.LogInformation(
+                "🔎 [MISSING] '{Name}' ({Key}) carried S{FoundSeason}E{Found} in Jellyfin: set to S{SeasonNumber}E{Number}",
+                current.Name, key, current.ParentIndexNumber?.ToString() ?? "-", current.IndexNumber?.ToString() ?? "-", seasonNumber?.ToString() ?? "-", number);
             current.IndexNumber = number;
             current.IndexNumberEnd = null;
+            current.ParentIndexNumber = seasonNumber;
             await current.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken);
         }
 
@@ -443,11 +450,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             var seasonInherited = _inheritance.ForSeasonItem(season);
-            var indexNumbers = AssignIndexNumbers(season, wantedByKey, cache, stats.NumberHolders, stats.NumberHolderSeasons);
+            var seasonNumbers = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+            var indexNumbers = AssignIndexNumbers(season, wantedByKey, cache, seasonNumbers);
             stats.Numbers = indexNumbers;
             foreach (var (assignedKey, assignedNumber) in indexNumbers)
             {
-                AssignedNumbers[assignedKey] = assignedNumber;
+                AssignedNumbers[assignedKey] = (assignedNumber, seasonNumbers[assignedKey]);
             }
 
             var (existing, orphans) = FindExistingVirtualEpisodes(season, existingVirtual, virtualFromLibrary, wantedByKey.Keys.Concat(cache.Keys));
@@ -476,7 +484,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 if (cached != null && cached.Hash == hash)
                 {
                     // JSON unchanged, but a real episode may have taken this number since: only the number is revisited
-                    await EnforceIndexNumberAsync(episode, key, indexNumber, cancellationToken);
+                    await EnforceNumbersAsync(episode, key, indexNumber, seasonNumbers[key], cancellationToken);
                     cached.IndexNumber = indexNumber;
 
                     stats.Unchanged++;
@@ -486,7 +494,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 _logger.LogDebug("🔎 [MISSING] Updating virtual episode '{Name}' ({Key})", episode.Name, key);
                 await UpdateVirtualEpisodeAsync(episode, item, source, indexNumber, cancellationToken);
                 await RefreshPeopleAsync(episode, key, cancellationToken);
-                await EnforceIndexNumberAsync(episode, key, indexNumber, cancellationToken);
+                await EnforceNumbersAsync(episode, key, indexNumber, seasonNumbers[key], cancellationToken);
                 var thumb = await EnsureThumbAsync(episode, item, source, cached, true, cancellationToken);
                 await SyncPreviewAsync(episode, item, source, cancellationToken);
                 cache[key] = CreateCacheEntry(item, source, hash, thumb, indexNumber);
@@ -508,7 +516,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     ProductionYear = item.PremiereDate?.Year,
                     RunTimeTicks = item.RunTimeTicks,
                     IndexNumber = indexNumbers[key],
-                    ParentIndexNumber = season.IndexNumber,
+                    ParentIndexNumber = seasonNumbers[key],
                     Id = GetVirtualEpisodeId(season, key),
                     IsVirtualItem = true,
                     SeasonId = season.Id,
@@ -538,7 +546,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     _logger.LogWarning(ex, "🔎 [MISSING] Metadata refresh failed for virtual episode {Key}", key);
                 }
 
-                await EnforceIndexNumberAsync(episode, key, indexNumbers[key], cancellationToken);
+                await EnforceNumbersAsync(episode, key, indexNumbers[key], seasonNumbers[key], cancellationToken);
                 await SyncPreviewAsync(episode, item, source, cancellationToken);
                 cache[key] = CreateCacheEntry(item, source, MissingEpisodeCache.ComputeHash(item, source, CastFingerprint(key, seasonInherited)), thumb, indexNumbers[key]);
                 stats.Created++;
@@ -802,40 +810,44 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         /// <summary>
-        /// Episode number of each virtual episode. ESSENTIAL: on every series refresh,
-        /// Jellyfin (SeriesMetadataService.RemoveObsoleteEpisodes) deletes virtual episodes WITHOUT a number,
-        /// or whose number is held by a real episode of the same ParentIndexNumber group (the whole series).
-        /// Order of preference: the API number if free, the number assigned during a previous analysis
-        /// (cache) if free, otherwise the next free number after the highest real/assigned number.
+        /// Season number (ParentIndexNumber) of a virtual episode whose own number is held by a real episode.
+        /// On every series refresh Jellyfin (SeriesMetadataService.RemoveObsoleteEpisodes) groups the episodes by
+        /// ParentIndexNumber and deletes a virtual episode whose number a real episode of its group holds. Every season
+        /// without a number shares the null group, so a real "Clip 09.mkv" of ANY such season of the series would delete
+        /// the missing episode 9. -1 puts the virtual episode in a group of its own (no real episode ever gets a negative
+        /// season number) and sorts exactly like null (AiredEpisodeOrderComparer counts null as -1), so the episode keeps its
+        /// number and its place. It stays in its season: Jellyfin lists a season's episodes by their parent season too.
+        /// </summary>
+        internal const int SeparateGroupSeasonNumber = -1;
+
+        /// <summary>
+        /// Episode number of each virtual episode: always its own number from the list. ESSENTIAL: Jellyfin deletes a virtual
+        /// episode WITHOUT a number, so an episode the list gives no number gets the number of a previous analysis (cache)
+        /// or the next free one. A number held by a real episode is KEPT: that episode goes to its own group instead
+        /// (seasonNumbers, see SeparateGroupSeasonNumber). Only a number given twice by the list moves the second one.
         /// </summary>
         private Dictionary<string, int> AssignIndexNumbers(
             Season season,
             Dictionary<string, EpisodeListItem> wantedByKey,
             Dictionary<string, CachedMissingEpisode> cache,
-            Dictionary<string, string> holders,
-            Dictionary<string, string> holderSeasons)
+            Dictionary<string, int?> seasonNumbers)
         {
             var physical = (season.Series?.GetEpisodes(null, new DtoOptions(), true) ?? season.GetEpisodes())
                 .OfType<Episode>()
                 .Where(e => !e.IsVirtualItem && !e.IsMissingEpisode && e.ParentIndexNumber == season.IndexNumber)
                 .ToList();
 
-            var numbers = ComputeIndexNumbers(physical, wantedByKey, cache);
-            foreach (var (key, item) in wantedByKey)
+            var separate = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var numbers = ComputeIndexNumbers(physical, wantedByKey, cache, separate);
+            foreach (var key in wantedByKey.Keys)
             {
-                if (item.IndexNumber is int wanted && wanted > 0 && numbers.TryGetValue(key, out var assigned) && assigned != wanted)
+                seasonNumbers[key] = separate.Contains(key) ? SeparateGroupSeasonNumber : season.IndexNumber;
+                if (separate.Contains(key))
                 {
-                    var holder = physical.FirstOrDefault(e => e.ContainsEpisodeNumber(wanted));
-                    var holderName = holder == null ? null : (holder.Path != null ? System.IO.Path.GetFileName(holder.Path) : holder.Name);
-                    holders[key] = holderName;
-                    // Seasons without a number share one group in Jellyfin: the holder may sit in another season of the series
-                    if (holder != null && holder.SeasonId != season.Id)
-                    {
-                        holderSeasons[key] = holder.SeasonName ?? holder.Season?.Name ?? string.Empty;
-                    }
-                    _logger.LogWarning(
-                        "🔎 [MISSING] ⚠️ '{Title}' ({Key}) is episode {Wanted} in the list, but a real episode already holds that number ({Holder}, from its file name or its metadata): it gets {Assigned} instead (Jellyfin removes a virtual episode that shares a number with a real one)",
-                        item.Title, key, wanted, holderName, assigned);
+                    var holder = physical.FirstOrDefault(e => e.ContainsEpisodeNumber(numbers[key]));
+                    _logger.LogInformation(
+                        "🔎 [MISSING] '{Title}' ({Key}) keeps number {Number}, also held by the real episode '{Holder}' of the same Jellyfin group: season number {SeasonNumber} so that Jellyfin does not delete it",
+                        wantedByKey[key].Title, key, numbers[key], holder?.Path != null ? System.IO.Path.GetFileName(holder.Path) : holder?.Name, SeparateGroupSeasonNumber);
                 }
             }
 
@@ -851,24 +863,30 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         internal static Dictionary<string, int> ComputeIndexNumbers(
             IReadOnlyList<Episode> physical,
             Dictionary<string, EpisodeListItem> wantedByKey,
-            Dictionary<string, CachedMissingEpisode> cache)
+            Dictionary<string, CachedMissingEpisode> cache,
+            HashSet<string> separate)
         {
             bool IsTakenByPhysical(int number) => physical.Any(e => e.ContainsEpisodeNumber(number));
 
             var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var used = new HashSet<int>();
 
-            // 1. Number supplied by the API
+            // 1. The list's own number, always, even when a real episode holds it: that virtual episode is then put in a
+            // group of its own (separate → SeparateGroupSeasonNumber) instead of being renumbered
             foreach (var (key, item) in wantedByKey)
             {
-                if (item.IndexNumber is int apiNumber && apiNumber > 0 && !IsTakenByPhysical(apiNumber) && used.Add(apiNumber))
+                if (item.IndexNumber is int apiNumber && apiNumber > 0 && used.Add(apiNumber))
                 {
                     result[key] = apiNumber;
+                    if (IsTakenByPhysical(apiNumber))
+                    {
+                        separate.Add(key);
+                    }
                 }
             }
 
             // 2. Number already assigned (stable from one analysis to the next), only for an episode WITHOUT a number of its own:
-            // one with a number takes the first free one after it (step 3), which is stable too. Older versions could store
+            // one whose number the list gives twice takes the first free one after it (step 3), which is stable too. Older versions could store
             // an absurd number here (millions, after a real episode whose file name gave a long id as its number): never reused
             foreach (var key in wantedByKey.Keys.Where(k => !result.ContainsKey(k)))
             {
@@ -884,8 +902,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
             }
 
-            // 3. A free number. An episode whose list number is taken goes to the next free number AFTER its own, so it stays
-            // next to where it belongs; without any number it takes the next after the highest real/assigned one. A real episode
+            // 3. A free number. An episode whose list number is given twice goes to the next free number AFTER its own, so it
+            // stays next to where it belongs; without any number it takes the next after the highest real/assigned one. A real episode
             // with an absurd number (a long id read from its file name) must not drag every virtual episode up to millions
             var next = Math.Max(
                 physical.Select(e => e.IndexNumberEnd ?? e.IndexNumber ?? 0).Where(n => n < AbsurdNumber).DefaultIfEmpty(0).Max(),
@@ -1253,11 +1271,6 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             /// <summary>Number given to each virtual episode, by key</summary>
             public Dictionary<string, int> Numbers { get; set; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-            /// <summary>Episodes whose list number is held by a real one: key → file name of that real episode</summary>
-            public Dictionary<string, string> NumberHolders { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            /// <summary>Same keys, when the holder is in ANOTHER season (seasons without a number share their episode numbers)</summary>
-            public Dictionary<string, string> NumberHolderSeasons { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -1482,17 +1495,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public string Title { get; set; }
         public int? IndexNumber { get; set; }
 
-        /// <summary>Number of the virtual episode in Jellyfin when it differs from IndexNumber (that one is held by a real episode)</summary>
+        /// <summary>Number of the virtual episode in Jellyfin when it differs from IndexNumber: only when the list gives that
+        /// same number to another episode of the season (a number held by a real file is kept, see ComputeIndexNumbers)</summary>
         public int? AssignedNumber { get; set; }
-
-        /// <summary>File name of the real episode that holds IndexNumber, when AssignedNumber is set for that reason</summary>
-        public string NumberHeldBy { get; set; }
-
-        /// <summary>Season of that real episode when it is another season of the series (null when it is the same season)</summary>
-        public string NumberHeldInSeason { get; set; }
-
-        /// <summary>This season has no number: in Jellyfin it shares episode numbers with every other season without one</summary>
-        public bool SeasonHasNoNumber { get; set; }
 
         public DateTime? PremiereDate { get; set; }
         public long? RunTimeTicks { get; set; }

@@ -1,3 +1,5 @@
 # Pistes écartées
 P001 — 2026-11-14 — Plugin-side repair of Jellyfin UserData clashes (placeholder rows): built, then disproved by experiments (Jellyfin already handles it); discarded. See D005.
 P002 — 2026-11-11 — Dense list layout for missing.html: the maintainer chose cards with a 16:9 thumbnail (variant A) instead.
+P003 — 2026-11-23 — Renumber a missing episode whose number a real episode of another unnumbered season holds (first huge numbers like 6149543… from tag-parsed file names, then 44, 45, 46 behind the other seasons' episodes), and tell the user to put a number in the season folder name: rejected by the maintainer, the typed number must win and no workaround on their side (renumbering and its explanation in commits 4ba6180, 9d7d312, f3e7c13 [supposé, from the commit titles]). See D009.
+P004 — 2026-11-23 — Move a clashing missing episode to a positive unused season number: it sorts after every real episode of the season and would match a numbered season with that number. See D009.

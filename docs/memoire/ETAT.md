@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-22 (memory reorganised: bug investigations moved into D005/D006, personal notes trimmed)
+Dernière mise à jour : 2026-11-23 (memory reorganised: bug investigations moved into D005/D006, personal notes trimmed)
 
 ## Objectif
 Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -13,10 +13,10 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Recent work (2026-11-20/21): CLAUDE.md split into docs/architecture/, project skills and memory agents, folder upload to a gallery, photo cropper for people, test bench fast mode.
 
 ## Déployé
-- Last successful deployment: 9d7d312, develop, 2026-11-23
+- Last successful deployment: f3e7c13, develop, 2026-11-23
 
 ## En cours
-- Uncommitted: docs/memoire reorganisation (D005, D006, D008, this file) and the new `.claude/hooks/memoire-stale.sh`. Nothing else in flight on `develop`.
+- Uncommitted on `develop`: a clashing missing episode keeps its number with season number -1 (D009): MissingEpisodeService.cs, CustomEpisodeProvider.cs, missing.html, missing-episodes.md, CHANGELOG.md, missing-number-real.mjs (ALL PASS). Also untracked `.claude/hooks/`.
 
 ## Prochaines étapes
 - Not recorded. Ask the maintainer before assuming a next task.
@@ -27,6 +27,7 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - A forced "replace all images" series refresh wipes virtual episodes' thumbnails until a reprocess.
 - Test container on port 8096 belongs to another project; use 8097 only.
 - The `UNIQUE constraint … UserData` scan error is not a plugin bug: see D005 before suggesting causes.
+- Jellyfin's series refresh deletes a virtual episode whose number a real episode of the same season-number group holds; all unnumbered seasons share one group (D009).
 - Cast changes and renames do not reach already-enriched episodes by themselves: "Analyser" and "Appliquer aux épisodes" (background task, not QueueRefresh) propagate them (D007).
 
 ## Questions ouvertes

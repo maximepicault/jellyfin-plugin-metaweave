@@ -2,9 +2,12 @@
 // Usage: node missing-number-real.mjs <base_url> <media_dir> [user] [password]
 //   e.g. node missing-number-real.mjs http://localhost:8097 ~/.cache/cm-ui-test/media
 // Jellyfin reads episode numbers from file names, tags included ("Bonus {ab-1-6149542}.mkv" is episode 6149542, "Clip 09.mkv"
-// is 9). Missing episodes 9-11 of a local source whose numbers are held by real files used to get 6149543, 6149544… and kept them
-// (cached). Checks: they get the next free numbers, the report names the file holding each number, and once the files are
-// renamed the virtual episodes take 9-11 back. Removes its source, data and files at the end. Prints PASS / FAIL.
+// is 9), and groups episodes by SEASON NUMBER: every season without one shares a single group, and a series refresh deletes a
+// virtual episode whose number a real episode of its group holds. Setup: a series with two seasons without a number, the local
+// season "Saison locale {nb-k3m9xw}" (missing episodes 9, 10, 11; real "Clip 09.mkv" and "Bonus {ab-1-6149542}.mkv") and
+// "Autre source" (real "Clip 10.mkv", "Clip 11.mkv"). Checks: the virtual episodes keep 9, 10, 11 (never 12+, never millions),
+// survive a full series refresh, stay listed in their own season in order, and get their normal season number back once the
+// files are renamed. Removes its source, data and files at the end. Prints PASS / FAIL.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -29,10 +32,10 @@ const api = async (method, url, body) => {
   const text = await r.text();
   try { return JSON.parse(text); } catch { return null; }
 };
-const scan = async () => {
-  await api('POST', '/Library/Refresh');
+const idle = async () => {
   for (let i = 0; i < 120; i++) { await wait(1000); if (i > 5 && !((await api('GET', '/ScheduledTasks?isHidden=false')) || []).some(t => t.State === 'Running')) return; }
 };
+const scan = async () => { await api('POST', '/Library/Refresh'); await idle(); };
 const analyze = async () => {
   const at = async () => pick(pick(await api('GET', '/CustomMetadata/MissingEpisodes'), 'Report'), 'GeneratedAt');
   const before = await at();
@@ -40,15 +43,30 @@ const analyze = async () => {
   for (let i = 0; i < 120; i++) { await wait(1000); if ((await at()) !== before) return; }
   console.log('⚠️ the analysis did not finish in time');
 };
-const missing = async () => {
-  const seasons = pick(pick(await api('GET', '/CustomMetadata/MissingEpisodes'), 'Report'), 'Seasons') || [];
-  const season = seasons.find(s => pick(s, 'SourceItemId') === 'nb-k3m9xw');
+const reportSeason = async () => (pick(pick(await api('GET', '/CustomMetadata/MissingEpisodes'), 'Report'), 'Seasons') || [])
+  .find(s => pick(s, 'SourceItemId') === 'nb-k3m9xw');
+// The virtual episodes as Jellyfin stores them, looked up by id (an episode Jellyfin deleted comes back as null)
+const missing = async ids => {
   const rows = [];
-  for (const m of pick(season, 'Missing') || []) {
-    const e = await api('GET', `/Users/${auth.User.Id}/Items/${pick(m, 'EpisodeId')}`);
-    rows.push({ tag: pick(m, 'Tag'), list: pick(m, 'IndexNumber'), assigned: pick(m, 'AssignedNumber'), heldBy: pick(m, 'NumberHeldBy'), jellyfin: e?.IndexNumber });
+  for (const [tag, id, list, assigned] of ids) {
+    const e = await api('GET', `/Users/${auth.User.Id}/Items/${id}`);
+    rows.push({ tag, list, assigned, jellyfin: e?.IndexNumber, season: e?.ParentIndexNumber ?? null, exists: !!e?.Id });
   }
   return rows;
+};
+const reportIds = async () => (pick(await reportSeason(), 'Missing') || []).map(m => [pick(m, 'Tag'), pick(m, 'EpisodeId'), pick(m, 'IndexNumber'), pick(m, 'AssignedNumber')]);
+// Episodes Jellyfin lists in the local season, in its own order. Missing episodes are listed only for a user who displays
+// them: the option is switched on for the call, then restored
+const seasonList = async seasonId => {
+  const season = await api('GET', `/Users/${auth.User.Id}/Items/${seasonId}`);
+  const userConfig = (await api('GET', `/Users/${auth.User.Id}`)).Configuration;
+  await api('POST', `/Users/${auth.User.Id}/Configuration`, { ...userConfig, DisplayMissingEpisodes: true });
+  try {
+    const list = await api('GET', `/Shows/${season.SeriesId}/Episodes?seasonId=${seasonId}&userId=${auth.User.Id}`);
+    return { seriesId: season.SeriesId, numbers: (pick(list, 'Items') || []).map(e => e.IndexNumber) };
+  } finally {
+    await api('POST', `/Users/${auth.User.Id}/Configuration`, userConfig);
+  }
 };
 
 // Any bench video will do as a file: the content does not matter, only the name
@@ -60,33 +78,49 @@ const sample = (function find(dir) {
   return null;
 })(path.join(mediaDir, 'series'));
 const seriesDir = path.join(mediaDir, 'series', 'Numéros {nb-t4p8nw}');
-const seasonDir = path.join(seriesDir, 'Saison 1 {nb-k3m9xw}');
+const seasonDir = path.join(seriesDir, 'Saison locale {nb-k3m9xw}');
+const otherDir = path.join(seriesDir, 'Autre source');
 const original = await api('GET', `/Plugins/${PLUGIN}/Configuration`);
 try {
   check('a bench video to copy', !!sample);
   fs.mkdirSync(seasonDir, { recursive: true });
-  for (const name of ['Clip 09', 'Clip 10', 'Clip 11', 'Bonus {ab-1-6149542}']) fs.copyFileSync(sample, path.join(seasonDir, name + '.mkv'));
+  fs.mkdirSync(otherDir, { recursive: true });
+  for (const name of ['Clip 09', 'Bonus {ab-1-6149542}']) fs.copyFileSync(sample, path.join(seasonDir, name + '.mkv'));
+  for (const name of ['Clip 10', 'Clip 11']) fs.copyFileSync(sample, path.join(otherDir, name + '.mkv'));
   const config = JSON.parse(JSON.stringify(original));
   config.Sources = config.Sources.filter(s => s.Prefix !== 'nb');
   config.Sources.push({ Name: 'Numéros', Prefix: 'nb', Enabled: true, SourceType: 'Local', LocalDataId: DATA, BaseUrl: 'local://local',
     VideoEndpoint: '/videos/{id}', SourceEndpoint: '/sources/{id}', SeriesEndpoint: '/series/{id}', EpisodeListEndpoint: '/sources/{id}/videos' });
-  await api('PUT', `/CustomMetadata/Local/${DATA}`, { Version: 1, Series: [{ Id: 't4p8nw', Title: 'Numéros', Seasons: [{ Id: 'k3m9xw', Title: 'Saison 1',
+  await api('PUT', `/CustomMetadata/Local/${DATA}`, { Version: 1, Series: [{ Id: 't4p8nw', Title: 'Numéros', Seasons: [{ Id: 'k3m9xw', Title: 'Saison locale',
     Episodes: [{ Id: 'ab23cd', Title: 'Neuf', IndexNumber: 9 }, { Id: 'pq5r7t', Title: 'Dix', IndexNumber: 10 }, { Id: 'xw9y2z', Title: 'Onze', IndexNumber: 11 }] }] }] });
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
   await scan();
   await analyze();
 
-  const held = await missing();
+  const ids = await reportIds();
+  const held = await missing(ids);
   check('three missing episodes', held.length === 3, JSON.stringify(held));
-  check('held numbers: the next free ones, never millions', held.every(r => r.jellyfin >= 12 && r.jellyfin < 100), JSON.stringify(held));
-  check('the report gives the number Jellyfin shows', held.every(r => r.assigned === r.jellyfin), JSON.stringify(held));
-  check('the report names the real file holding each number', held.every(r => r.heldBy === `Clip ${String(r.list).padStart(2, '0')}.mkv`), JSON.stringify(held));
+  check('each keeps its own number although real files hold 9, 10, 11', held.every(r => r.jellyfin === r.list), JSON.stringify(held));
+  check('the report shows no other number', held.every(r => r.assigned == null), JSON.stringify(held));
+  check('held numbers: in a group of their own (season number -1)', held.every(r => r.season === -1), JSON.stringify(held));
 
-  for (const [from, to] of [['Clip 09', 'Clip neuf'], ['Clip 10', 'Clip dix'], ['Clip 11', 'Clip onze']]) fs.renameSync(path.join(seasonDir, from + '.mkv'), path.join(seasonDir, to + '.mkv'));
+  const seasonId = pick(await reportSeason(), 'SeasonId');
+  const { seriesId, numbers } = await seasonList(seasonId);
+  check('listed in their own season, in order', JSON.stringify(numbers.filter(n => n < 100)) === '[9,9,10,11]', JSON.stringify(numbers));
+
+  // A full series refresh is when Jellyfin deletes a virtual episode that shares a number with a real one
+  await api('POST', `/Items/${seriesId}/Refresh?Recursive=true&MetadataRefreshMode=FullRefresh&ImageRefreshMode=None&ReplaceAllMetadata=true&ReplaceAllImages=false`);
+  await wait(3000);
+  await idle();
+  const afterRefresh = await missing(ids);
+  check('they survive a full series refresh (replace all metadata) with their numbers', afterRefresh.every(r => r.exists && r.jellyfin === r.list && r.season === -1), JSON.stringify(afterRefresh));
+
+  fs.renameSync(path.join(seasonDir, 'Clip 09.mkv'), path.join(seasonDir, 'Clip neuf.mkv'));
+  for (const [from, to] of [['Clip 10', 'Clip dix'], ['Clip 11', 'Clip onze']]) fs.renameSync(path.join(otherDir, from + '.mkv'), path.join(otherDir, to + '.mkv'));
   await scan();
   await analyze();
-  const freed = await missing();
-  check('numbers freed: the virtual episodes take their own numbers back', freed.length === 3 && freed.every(r => r.jellyfin === r.list && r.assigned == null), JSON.stringify(freed));
+  const freed = await missing(await reportIds());
+  check('numbers freed: same numbers, normal season number again', freed.length === 3 && freed.every(r => r.jellyfin === r.list && r.season === null && r.assigned == null), JSON.stringify(freed));
 } finally {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, original);
   await api('DELETE', `/CustomMetadata/Local/${DATA}`);
