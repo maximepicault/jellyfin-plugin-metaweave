@@ -343,6 +343,8 @@
         .me-episode-title a { color: inherit; text-decoration: none; }
         .me-episode-title a:hover { text-decoration: underline; }
         .me-episode-meta { color: var(--me-muted); font-size: 13px; }
+        .me-episode-warn { margin-top: 4px; padding: 4px 8px; border-left: 3px solid #e6a23c; background: rgba(230, 162, 60, .1); border-radius: 4px; font-size: 13px; line-height: 1.4; }
+        .me-list .me-episode-warn { flex: 1 1 100%; order: 9; }
         .me-episode-overview {
             font-size: 14px;
             line-height: 1.45;
@@ -1138,6 +1140,7 @@
                         + (e.Tag ? '<button type="button" class="me-linkbtn" data-ignore="' + escapeHtml(e.Tag) + '" title="Je n\'aurai jamais cet épisode : ne plus le compter comme manquant">Ignorer</button>' : '')
                         + '</div>'
                         + (meta.length ? '<div class="me-episode-meta">' + meta.join(' · ') + '</div>' : '')
+                        + numberWarning(e)
                         + (e.Overview
                             ? '<div class="me-episode-overview">' + escapeHtml(e.Overview) + '</div>'
                             : '<div class="me-episode-overview me-empty">Pas de résumé dans l\'API</div>')
@@ -1149,6 +1152,16 @@
                         + '</div></div>';
                 });
                 return { head: head, body: html + '</div>' + ignoredHtml };
+            }
+
+            // The list number is held by a real episode: Jellyfin would delete a missing one sharing it, so it shows another number
+            function numberWarning(e) {
+                if (e.AssignedNumber === null || e.AssignedNumber === undefined) { return ''; }
+                var why = e.NumberHeldBy
+                    ? 'le numéro ' + escapeHtml(e.IndexNumber) + ' est déjà pris par le fichier « ' + escapeHtml(e.NumberHeldBy) + ' »'
+                    : 'son numéro est déjà pris par un autre épisode';
+                return '<div class="me-episode-warn">⚠ Dans Jellyfin, épisode ' + escapeHtml(e.AssignedNumber) + ' : ' + why
+                    + '. Renommez ce fichier ou corrigez son numéro pour libérer le ' + escapeHtml(e.IndexNumber) + '.</div>';
             }
 
             function renderCrumbs(group, season) {

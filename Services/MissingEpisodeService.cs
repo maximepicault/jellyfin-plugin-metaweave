@@ -362,6 +362,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             var stats = await SyncVirtualEpisodesAsync(season, source, createVirtual ? missing : new List<EpisodeListItem>(), episodes.Where(e => e.IsVirtualItem).ToList(), virtualFromLibrary, ignoreCache, cancellationToken);
             QueueVideoDownloads(season, source, missing);
+            foreach (var entry in seasonReport.Missing)
+            {
+                if (entry.Tag != null && stats.Numbers.TryGetValue(entry.Tag, out var shownNumber) && shownNumber != entry.IndexNumber)
+                {
+                    entry.AssignedNumber = shownNumber;
+                    entry.NumberHeldBy = stats.NumberHolders.TryGetValue(entry.Tag, out var heldBy) ? heldBy : null;
+                }
+            }
+
             totals.Created += stats.Created;
             totals.Updated += stats.Updated;
             totals.Unchanged += stats.Unchanged;
@@ -399,7 +408,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 return;
             }
 
-            _logger.LogWarning("🔎 [MISSING] ⚠️ '{Name}' ({Key}) had number {Found} after its refresh: set back to {Number}", current.Name, key, current.IndexNumber?.ToString() ?? "none", number);
+            _logger.LogWarning("🔎 [MISSING] ⚠️ '{Name}' ({Key}) carried number {Found} in Jellyfin: set to {Number}", current.Name, key, current.IndexNumber?.ToString() ?? "none", number);
             current.IndexNumber = number;
             current.IndexNumberEnd = null;
             await current.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken);
@@ -432,7 +441,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             var seasonInherited = _inheritance.ForSeasonItem(season);
-            var indexNumbers = AssignIndexNumbers(season, wantedByKey, cache);
+            var indexNumbers = AssignIndexNumbers(season, wantedByKey, cache, stats.NumberHolders);
+            stats.Numbers = indexNumbers;
             foreach (var (assignedKey, assignedNumber) in indexNumbers)
             {
                 AssignedNumbers[assignedKey] = assignedNumber;
@@ -799,7 +809,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private Dictionary<string, int> AssignIndexNumbers(
             Season season,
             Dictionary<string, EpisodeListItem> wantedByKey,
-            Dictionary<string, CachedMissingEpisode> cache)
+            Dictionary<string, CachedMissingEpisode> cache,
+            Dictionary<string, string> holders)
         {
             var physical = (season.Series?.GetEpisodes(null, new DtoOptions(), true) ?? season.GetEpisodes())
                 .OfType<Episode>()
@@ -812,9 +823,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 if (item.IndexNumber is int wanted && wanted > 0 && numbers.TryGetValue(key, out var assigned) && assigned != wanted)
                 {
                     var holder = physical.FirstOrDefault(e => e.ContainsEpisodeNumber(wanted));
+                    var holderName = holder == null ? null : (holder.Path != null ? System.IO.Path.GetFileName(holder.Path) : holder.Name);
+                    holders[key] = holderName;
                     _logger.LogWarning(
                         "🔎 [MISSING] ⚠️ '{Title}' ({Key}) is episode {Wanted} in the list, but a real episode already holds that number ({Holder}, from its file name or its metadata): it gets {Assigned} instead (Jellyfin removes a virtual episode that shares a number with a real one)",
-                        item.Title, key, wanted, holder?.Path != null ? System.IO.Path.GetFileName(holder.Path) : holder?.Name, assigned);
+                        item.Title, key, wanted, holderName, assigned);
                 }
             }
 
@@ -824,6 +837,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>
         /// Pure part of AssignIndexNumbers (testable without a Jellyfin library)
         /// </summary>
+        /// <summary>No real season has this many episodes: a number at or above it was read from an id (file name), not counted</summary>
+        internal const int AbsurdNumber = 10000;
+
         internal static Dictionary<string, int> ComputeIndexNumbers(
             IReadOnlyList<Episode> physical,
             Dictionary<string, EpisodeListItem> wantedByKey,
@@ -843,12 +859,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
             }
 
-            // 2. Number already assigned (stable from one analysis to the next)
+            // 2. Number already assigned (stable from one analysis to the next), only for an episode WITHOUT a number of its own:
+            // one with a number takes the first free one after it (step 3), which is stable too. Older versions could store
+            // an absurd number here (millions, after a real episode whose file name gave a long id as its number): never reused
             foreach (var key in wantedByKey.Keys.Where(k => !result.ContainsKey(k)))
             {
-                if (cache.TryGetValue(key, out var cached)
+                if (!(wantedByKey[key].IndexNumber is int own && own > 0)
+                    && cache.TryGetValue(key, out var cached)
                     && cached.IndexNumber is int previous
                     && previous > 0
+                    && previous < AbsurdNumber
                     && !IsTakenByPhysical(previous)
                     && used.Add(previous))
                 {
@@ -860,8 +880,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             // next to where it belongs; without any number it takes the next after the highest real/assigned one. A real episode
             // with an absurd number (a long id read from its file name) must not drag every virtual episode up to millions
             var next = Math.Max(
-                physical.Select(e => e.IndexNumberEnd ?? e.IndexNumber ?? 0).Where(n => n < 10000).DefaultIfEmpty(0).Max(),
-                used.DefaultIfEmpty(0).Max()) + 1;
+                physical.Select(e => e.IndexNumberEnd ?? e.IndexNumber ?? 0).Where(n => n < AbsurdNumber).DefaultIfEmpty(0).Max(),
+                used.Where(n => n < AbsurdNumber).DefaultIfEmpty(0).Max()) + 1;
             foreach (var key in wantedByKey.Keys.Where(k => !result.ContainsKey(k)))
             {
                 var own = wantedByKey[key].IndexNumber is int w && w > 0 ? w : 0;
@@ -1221,6 +1241,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             public int Unchanged { get; set; }
             public int Removed { get; set; }
             public int Failed { get; set; }
+
+            /// <summary>Number given to each virtual episode, by key</summary>
+            public Dictionary<string, int> Numbers { get; set; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            /// <summary>Episodes whose list number is held by a real one: key → file name of that real episode</summary>
+            public Dictionary<string, string> NumberHolders { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -1444,6 +1470,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public string Tag { get; set; }
         public string Title { get; set; }
         public int? IndexNumber { get; set; }
+
+        /// <summary>Number of the virtual episode in Jellyfin when it differs from IndexNumber (that one is held by a real episode)</summary>
+        public int? AssignedNumber { get; set; }
+
+        /// <summary>File name of the real episode that holds IndexNumber, when AssignedNumber is set for that reason</summary>
+        public string NumberHeldBy { get; set; }
+
         public DateTime? PremiereDate { get; set; }
         public long? RunTimeTicks { get; set; }
 
