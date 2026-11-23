@@ -775,7 +775,19 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 .Where(e => !e.IsVirtualItem && !e.IsMissingEpisode && e.ParentIndexNumber == season.IndexNumber)
                 .ToList();
 
-            return ComputeIndexNumbers(physical, wantedByKey, cache);
+            var numbers = ComputeIndexNumbers(physical, wantedByKey, cache);
+            foreach (var (key, item) in wantedByKey)
+            {
+                if (item.IndexNumber is int wanted && wanted > 0 && numbers.TryGetValue(key, out var assigned) && assigned != wanted)
+                {
+                    var holder = physical.FirstOrDefault(e => e.ContainsEpisodeNumber(wanted));
+                    _logger.LogWarning(
+                        "🔎 [MISSING] ⚠️ '{Title}' ({Key}) is episode {Wanted} in the list, but a real episode already holds that number ({Holder}, from its file name or its metadata): it gets {Assigned} instead (Jellyfin removes a virtual episode that shares a number with a real one)",
+                        item.Title, key, wanted, holder?.Path != null ? System.IO.Path.GetFileName(holder.Path) : holder?.Name, assigned);
+                }
+            }
+
+            return numbers;
         }
 
         /// <summary>
@@ -813,20 +825,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
             }
 
-            // 3. Next free number, in the order of the API list
+            // 3. A free number. An episode whose list number is taken goes to the next free number AFTER its own, so it stays
+            // next to where it belongs; without any number it takes the next after the highest real/assigned one. A real episode
+            // with an absurd number (a long id read from its file name) must not drag every virtual episode up to millions
             var next = Math.Max(
-                physical.Select(e => e.IndexNumberEnd ?? e.IndexNumber ?? 0).DefaultIfEmpty(0).Max(),
+                physical.Select(e => e.IndexNumberEnd ?? e.IndexNumber ?? 0).Where(n => n < 10000).DefaultIfEmpty(0).Max(),
                 used.DefaultIfEmpty(0).Max()) + 1;
             foreach (var key in wantedByKey.Keys.Where(k => !result.ContainsKey(k)))
             {
-                while (IsTakenByPhysical(next) || used.Contains(next))
+                var own = wantedByKey[key].IndexNumber is int w && w > 0 ? w : 0;
+                var candidate = own > 0 ? own + 1 : next;
+                while (IsTakenByPhysical(candidate) || used.Contains(candidate))
                 {
-                    next++;
+                    candidate++;
                 }
 
-                result[key] = next;
-                used.Add(next);
-                next++;
+                result[key] = candidate;
+                used.Add(candidate);
+                if (own == 0)
+                {
+                    next = candidate + 1;
+                }
             }
 
             return result;
