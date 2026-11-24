@@ -16,7 +16,7 @@
 | `ScheduledTasks/` | `MissingEpisodesTask` (daily, key `CustomMetadataMissingEpisodes`) |
 | `tools/ui-test/` | Test bench (Docker Jellyfin 10.11.6 on 8097, mock API `server.py`, demo data `data.py`/`gen.py`, CDP/Playwright scripts) |
 | `deploy/` | Server-side updater (systemd timer) and its sandbox test |
-| `theme/projection.css` | Optional jellyfin-web theme, independent of the plugin |
+| `theme/projection.css` | Optional jellyfin-web theme, independent of the plugin (D013) |
 
 ## 2. Wiring
 
@@ -44,13 +44,13 @@
 | `DumpStore` | `IHttpClientFactory` | `CustomApiClient`, `ResilientHttp`, episode/movie/image providers, `SourceRefreshService`, Dump/SourceTest controllers |
 | `CustomApiClient` (owns its `JsonFieldMapper` and `ResilientHttp`) | cache, `LocalSourceStore`, `DumpStore` | every provider and most services |
 | `SourceResolver` | — | providers, `MissingEpisodeService`, `SourceRefreshService`, `CastApplyService`, `EpisodePositionService` |
-| `TaxonomyStore` (hosted) | — | static `TaxonomyStore.Tags/Genres` called by series/season/episode providers and `MissingEpisodeService` |
+| `TaxonomyStore` (hosted, D012) | — | static `TaxonomyStore.Tags/Genres` called by series/season/episode providers and `MissingEpisodeService` |
 | `TaxonomyService` (hosted) | `ILibraryManager`, `TaxonomyStore` | Taxonomy controller; hooks `ItemAdded/ItemUpdated` |
 | `CastOverlayStore` | — | providers, `CastInheritance`, `CastApplyService`, `MissingEpisodeService` |
 | `CastCatalog`, `CastInheritance`, `CastApplyService` | library, stores | People controller, providers, `MissingEpisodesTask` |
 | `SourceRefreshService` | library, `CustomApiClient`, `SourceResolver`, `IProviderManager`, `DumpStore` | SourceRefresh controller |
-| `EpisodePositionService` | `CustomApiClient`, `SourceResolver` | `CustomEpisodeProvider` (number of an unnumbered real episode) |
-| `VideoDownloadService` (hosted, `BackgroundService`) | `IMediaEncoder` (ffmpeg), library, `ITaskManager` | `MissingEpisodeService` (queues), Downloads controller |
+| `EpisodePositionService` | `CustomApiClient`, `SourceResolver` | `CustomEpisodeProvider` (number of an unnumbered real episode, D014) |
+| `VideoDownloadService` (hosted, `BackgroundService`, D015) | `IMediaEncoder` (ffmpeg), library, `ITaskManager` | `MissingEpisodeService` (queues), Downloads controller |
 | `MissingEpisodeService` | library, providers manager, API client, stores, `VideoDownloadService`, `DumpCoverageService` | task, MissingEpisodes/Diagnostic controllers, `CustomEpisodeProvider` (static `TryGetAssignedNumber`) |
 | `ChapterService` (hosted) | `IChapterManager` | fed by `CustomEpisodeProvider` through static `ChapterService.Remember` |
 | `DumpCoverageCache` (hosted), `DumpCoverageService` | library, `DumpStore` | Dump controller, `MissingEpisodeService` (dump seasons) |
@@ -91,14 +91,14 @@ Each provider keeps its own small wrapper around `TagParser` (`ExtractSeriesIdFr
 
 ### 3.2 Images
 
-`CustomImageProvider.GetImages` → `CustomApiClient.GetImagesAsync` (API answer, then the local source's images) for the first id, then the other ids of a multi-tag episode, then the image sub-folders (`FolderImages`, listed last); demoted images (`NoDefault`) go last → `RemoteImageInfo` with picker URLs (`ToPickerUrl`). The origin of each URL is remembered in the static `ImageSourcePrefixes` (lives until restart) so that `GetImageResponse` knows the source: downloads go through `SourceHeaders`, `local://img/…` is read from disk, and the converters run there (`PortraitThumbConverter` for episode thumbs, `LandscapePosterConverter` for series/season posters). Detail: `images.md`.
+`CustomImageProvider.GetImages` → `CustomApiClient.GetImagesAsync` (API answer, then the local source's images) for the first id, then the other ids of a multi-tag episode, then the image sub-folders (`FolderImages`, listed last); demoted images (`NoDefault`) go last → `RemoteImageInfo` with picker URLs (`ToPickerUrl`). The origin of each URL is remembered in the static `ImageSourcePrefixes` (lives until restart) so that `GetImageResponse` knows the source: downloads go through `SourceHeaders`, `local://img/…` is read from disk, and the converters run there (`PortraitThumbConverter` for episode thumbs, `LandscapePosterConverter` for series/season posters, D011). Local gallery typing and demoted defaults: D010. Detail: `images.md`.
 
 ## 4. Background work and locks
 
 | Job | Trigger | Concurrency guard | Detail |
 |---|---|---|---|
 | Missing-episode analysis (`MissingEpisodeService.AnalyzeAsync`) | daily task, `POST MissingEpisodes/Analyze` (queues the task), end of downloads | static `_runLock` | `missing-episodes.md` |
-| Targeted refresh (`SourceRefreshService.Start` / `StartDump`) | `POST Refresh` | static `RunLock`, one run at a time | `local-sources.md`, `dump-sources.md` |
+| Targeted refresh (`SourceRefreshService.Start` / `StartDump`; a dump is written directly, D016) | `POST Refresh` | static `RunLock`, one run at a time | `local-sources.md`, `dump-sources.md` |
 | Cast propagation (`CastApplyService`) | `POST People/Apply`; `SyncUntaggedAsync` from the daily task | static `RunLock` | `people-cast.md` |
 | Taxonomy apply (`TaxonomyService`) | `POST Taxonomy/Apply`; every `ItemAdded/ItemUpdated` of a managed item | static `RunLock` | `taxonomy.md` |
 | Video downloads (`VideoDownloadService`) | queued by the analysis | `MaxParallelDownloads`; queue then `QueueLibraryScan` then `MissingEpisodesTask` | `missing-episodes.md` |
