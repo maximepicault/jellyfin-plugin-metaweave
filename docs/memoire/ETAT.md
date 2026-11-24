@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-23 (memory reorganised: bug investigations moved into D005/D006, personal notes trimmed)
+Dernière mise à jour : 2026-11-24 (memory audit on a copy + maintainer's answers: D009 committed, stale "not built" items fixed, D003 rewritten and fixed in 4e9c4bc, d8ec62d deployed; new decisions from the audit to come)
 
 ## Objectif
 Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -11,15 +11,18 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Dump source type (D008), genres/tags taxonomy screen with pill editor.
 - Image persistence fix (D006); repo published with CI, updater, docs and changelog.
 - Recent work (2026-11-20/21): CLAUDE.md split into docs/architecture/, project skills and memory agents, folder upload to a gallery, photo cropper for people, test bench fast mode.
+- Recent work (2026-11-21/23): missing-episode video downloads, landscape poster crop, Projection web theme (`theme/projection.css`), gallery typed by shape + multi-selection, people networks/backdrops, paginated dump APIs and dump seasons analysed like API seasons, missing-episode numbering (D009, committed in 41544ee).
 
 ## Déployé
-- Last successful deployment: 41544ee, develop, 2026-11-23
+- Last successful deployment: d8ec62d, develop, 2026-11-24
 
 ## En cours
-- Uncommitted on `develop`: a clashing missing episode keeps its number with season number -1 (D009): MissingEpisodeService.cs, CustomEpisodeProvider.cs, missing.html, missing-episodes.md, CHANGELOG.md, missing-number-real.mjs (ALL PASS). Also untracked `.claude/hooks/`.
+- Nothing uncommitted in the code. Last commits on `develop`: 4e9c4bc (series read their folder tag first, D003; container test passed) and d8ec62d (deployment line), pushed and deployed on 2026-11-24; `develop` = `origin/develop`.
+- Untracked: `theme/aurora.css`, `theme/projection-v1.css` (proofs of concept, to delete), `theme/previews/` (PNG screenshots: never commit).
 
 ## Prochaines étapes
-- Not recorded. Ask the maintainer before assuming a next task.
+- Delete the proof-of-concept themes `theme/aurora.css` and `theme/projection-v1.css` (maintainer, 2026-11-24); `theme/projection.css` is the only theme in use.
+- Nothing else recorded: ask the maintainer before assuming a next task.
 
 ## Pièges découverts
 - Library image fetchers must include the plugin, or the provider is silently never called (warned in the Sources tab).
@@ -31,6 +34,6 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Cast changes and renames do not reach already-enriched episodes by themselves: "Analyser" and "Appliquer aux épisodes" (background task, not QueueRefresh) propagate them (D007).
 
 ## Questions ouvertes
-- Deployment status of recent work on the maintainer's server is unknown: ask before building on top (as of 2026-11-16, local sources and dump source were not deployed).
-- Not built: series/season cast, real merge of two people, series/season ordering, Diagnostic replay of a dump name match, movie targeted refresh.
+- Not built: cast on local-source series/seasons (API series/seasons get the cast overlay), real merge of two people, series/season ordering, Diagnostic replay of a dump name match, targeted refresh of API-source movies (dump movies are covered since 3bcfb36).
+- `theme/projection.css` is not on `main` yet: the public `@main` import (README, file header) works only after the release pull request; the maintainer's server may import `@develop` meanwhile.
 - `config.html` is hand-maintained (no generator); long header lists and many sources unchecked.
