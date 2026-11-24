@@ -189,8 +189,6 @@ The tab bar and the in-page confirmation are copied in several pages (no shared 
 
 ## 11. Known drift and debt (audit of 2026-11-24)
 
-- French comments left in code: `// Validation de l'URL` (`CustomApiClient`, two places) and `// Retourne "PREFIX-ID"` (one per provider wrapper); the csproj comments on SkiaSharp and ASP.NET Core; the first line of `tools/ui-test/data.py`.
-- `CustomExternalId`'s summary still says the prefix is configurable; `Key` is fixed to `"custom"`.
 - The movie provider keeps the legacy path and a case-sensitive `TryGetValue("custom")` (left on purpose, D004).
-- `docs/architecture/people-cast.md` contradicts itself on series/season cast (built for API sources, not for local ones).
 - Five near-identical tag wrappers across the providers (§3.1): behaviour differs only by the lookup order.
+- Fixed since the audit: French comments in the code, the csproj and `data.py`; `CustomExternalId`'s summary; the series/season cast contradiction in `people-cast.md`.
