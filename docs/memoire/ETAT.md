@@ -13,7 +13,7 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Recent work (2026-11-20/21): CLAUDE.md split into docs/architecture/, project skills and memory agents, folder upload to a gallery, photo cropper for people, test bench fast mode.
 
 ## Déployé
-- Last successful deployment: f3e7c13, develop, 2026-11-23
+- Last successful deployment: 41544ee, develop, 2026-11-23
 
 ## En cours
 - Uncommitted on `develop`: a clashing missing episode keeps its number with season number -1 (D009): MissingEpisodeService.cs, CustomEpisodeProvider.cs, missing.html, missing-episodes.md, CHANGELOG.md, missing-number-real.mjs (ALL PASS). Also untracked `.claude/hooks/`.
