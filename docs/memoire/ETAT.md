@@ -17,12 +17,11 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Last successful deployment: d8ec62d, develop, 2026-11-24
 
 ## En cours
-- Nothing uncommitted in the code. Last commits on `develop`: 4e9c4bc (series read their folder tag first, D003; container test passed) and d8ec62d (deployment line), pushed and deployed on 2026-11-24; `develop` = `origin/develop`.
-- Untracked: `theme/aurora.css`, `theme/projection-v1.css` (proofs of concept, to delete: D013), `theme/previews/` (PNG screenshots: never commit).
+- Nothing in progress. `develop` = `origin/develop` at fb1c8cd; everything after the deployed d8ec62d is docs and comments only (memory audit, code map, translated comments): no redeploy needed.
+- Untracked: `theme/previews/` (PNG screenshots: never commit).
 
 ## Prochaines étapes
-- Delete the proof-of-concept themes `theme/aurora.css` and `theme/projection-v1.css` (maintainer, 2026-11-24); `theme/projection.css` is the only theme in use.
-- Nothing else recorded: ask the maintainer before assuming a next task.
+- Nothing recorded: ask the maintainer before assuming a next task.
 
 ## Pièges découverts
 - Library image fetchers must include the plugin, or the provider is silently never called (warned in the Sources tab).
