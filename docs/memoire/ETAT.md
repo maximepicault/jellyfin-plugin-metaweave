@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-24 (memory audit on a copy + maintainer's answers: D009 committed, stale "not built" items fixed, D003 rewritten and fixed in 4e9c4bc, d8ec62d deployed; new decisions from the audit to come)
+Dernière mise à jour : 2026-11-24 (memory audit merged: proven corrections, D003 rewritten and fixed in 4e9c4bc, new decisions D010–D016; d8ec62d deployed; code map added in docs/architecture/code-map.md)
 
 ## Objectif
 Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -18,7 +18,7 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 
 ## En cours
 - Nothing uncommitted in the code. Last commits on `develop`: 4e9c4bc (series read their folder tag first, D003; container test passed) and d8ec62d (deployment line), pushed and deployed on 2026-11-24; `develop` = `origin/develop`.
-- Untracked: `theme/aurora.css`, `theme/projection-v1.css` (proofs of concept, to delete), `theme/previews/` (PNG screenshots: never commit).
+- Untracked: `theme/aurora.css`, `theme/projection-v1.css` (proofs of concept, to delete: D013), `theme/previews/` (PNG screenshots: never commit).
 
 ## Prochaines étapes
 - Delete the proof-of-concept themes `theme/aurora.css` and `theme/projection-v1.css` (maintainer, 2026-11-24); `theme/projection.css` is the only theme in use.
@@ -35,5 +35,5 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 
 ## Questions ouvertes
 - Not built: cast on local-source series/seasons (API series/seasons get the cast overlay), real merge of two people, series/season ordering, Diagnostic replay of a dump name match, targeted refresh of API-source movies (dump movies are covered since 3bcfb36).
-- `theme/projection.css` is not on `main` yet: the public `@main` import (README, file header) works only after the release pull request; the maintainer's server may import `@develop` meanwhile.
+- `theme/projection.css` is not on `main` yet: the public `@main` import (README, file header) works only after the release pull request; the maintainer's server may import `@develop` meanwhile (D013).
 - `config.html` is hand-maintained (no generator); long header lists and many sources unchecked.
