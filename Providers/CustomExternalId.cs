@@ -8,9 +8,8 @@ using MediaBrowser.Model.Providers;
 namespace Jellyfin.Plugin.CustomMetadata.Providers
 {
     /// <summary>
-    /// Lets Jellyfin recognise the {PREFIX-ID} pattern in file names
-    /// The prefix is configurable (default "custom")
-    /// Example: "Matrix {custom-123}.mkv" or "Matrix {myapp-123}.mkv"
+    /// Declares the plugin's "custom" provider id, so that the stored {prefix}-{id} (e.g. "dm-123") shows under
+    /// "External IDs" in the metadata editor. It does not read file names: the providers extract the tag (TagParser).
     /// </summary>
     public class CustomExternalId : IExternalId
     {
