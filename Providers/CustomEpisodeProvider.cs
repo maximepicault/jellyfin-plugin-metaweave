@@ -469,7 +469,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 _logger.LogInformation("🎬 [EPISODE PROVIDER] ✅ 📝 REGEX MATCHED! Extracted ID '{FullId}' (with prefix) from filename '{ActualFilename}'", 
                     fullId, actualFilename);
                 
-                return fullId;  // Retourne "PREFIX-ID" (ex: "mv1-123", "yt-456")
+                return fullId;  // Returns "PREFIX-ID" (ex: "mv1-123", "yt-456")
             }
             
             _logger.LogDebug("🎬 [EPISODE PROVIDER] ❌ No match found for pattern '{Pattern}' in filename '{ActualFilename}'", 

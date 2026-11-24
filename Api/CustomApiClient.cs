@@ -313,7 +313,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     return null;
                 }
                 
-                // Validation de l'URL
+                // URL validation
                 if (IsPlaceholderUrl(source.BaseUrl))
                 {
                     _logger.LogWarning("📡 [API CALL] ⚠️ No valid API URL configured for source '{SourceName}'!", source.Name ?? "(unnamed)");
@@ -457,7 +457,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     return new List<ImageInfo>();
                 }
                 
-                // Validation de l'URL
+                // URL validation
                 if (IsPlaceholderUrl(source.BaseUrl))
                 {
                     _logger.LogWarning("🖼️ [IMAGE FETCH] ⚠️ No valid API URL configured for source '{SourceName}'!", source.Name ?? "(unnamed)");

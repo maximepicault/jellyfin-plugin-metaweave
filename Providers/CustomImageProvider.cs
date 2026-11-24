@@ -343,12 +343,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         {
             return new[]
             {
-                ImageType.Primary,      // Poster principal
-                ImageType.Backdrop,     // Image de fond
+                ImageType.Primary,      // Main poster
+                ImageType.Backdrop,     // Background
                 ImageType.Banner,       // Banner
                 ImageType.Logo,         // Logo
-                ImageType.Thumb,        // Miniature
-                ImageType.Art           // Art alternatif
+                ImageType.Thumb,        // Thumbnail
+                ImageType.Art           // Alternative art
             };
         }
 
@@ -720,7 +720,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 _logger.LogInformation("🖼️ [IMAGE PROVIDER] ✅ 📝 REGEX MATCHED! Extracted ID '{FullId}' (with prefix) from filename '{Filename}'", 
                     fullId, filename);
                 
-                return fullId;  // Retourne "PREFIX-ID" (ex: "mv-123", "yt-456")
+                return fullId;  // Returns "PREFIX-ID" (ex: "mv-123", "yt-456")
             }
 
             _logger.LogDebug("🖼️ [IMAGE PROVIDER] ❌ No match found for pattern '{Pattern}' in filename '{Filename}'", 
@@ -766,7 +766,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 _logger.LogInformation("🖼️ [IMAGE PROVIDER] ✅ 📝 REGEX MATCHED! Extracted ID '{FullId}' (with prefix) from folder '{FolderName}'", 
                     fullId, folderName);
                 
-                return fullId;  // Retourne "PREFIX-ID" (ex: "mv-123", "yt-456")
+                return fullId;  // Returns "PREFIX-ID" (ex: "mv-123", "yt-456")
             }
 
             _logger.LogDebug("🖼️ [IMAGE PROVIDER] ❌ No match found for pattern '{Pattern}' in folder '{FolderName}'", 

@@ -214,16 +214,16 @@ namespace Jellyfin.Plugin.CustomMetadata
         public string CastOrder { get; set; } = "order";
         public string CastImage { get; set; } = "image";   // Person's photo (URL)
         
-        // Images - URLs directes
-        public string PosterUrl { get; set; } = "poster";           // Image principale (poster)
-        public string BackdropUrl { get; set; } = "backdrop";       // Image de fond
-        public string ThumbUrl { get; set; } = "thumb";             // Miniature (épisodes)
+        // Images - direct URLs
+        public string PosterUrl { get; set; } = "poster";           // Main image (poster)
+        public string BackdropUrl { get; set; } = "backdrop";       // Background image
+        public string ThumbUrl { get; set; } = "thumb";             // Thumbnail (episodes)
         public string LogoUrl { get; set; } = "logo";               // Logo
-        public string BannerUrl { get; set; } = "banner";           // Bannière        
+        public string BannerUrl { get; set; } = "banner";           // Banner
         // Images - array structure (if the API returns an array of images)
         public string ImagesArray { get; set; } = "images";         // Path to the images array
         public string ImageUrl { get; set; } = "url";               // URL inside each image object
-        public string ImageType { get; set; } = "type";             // Type d'image (Primary, Backdrop, etc.)
+        public string ImageType { get; set; } = "type";             // Image type (Primary, Backdrop, etc.)
         public string ImageWidth { get; set; } = "width";           // Largeur
         public string ImageHeight { get; set; } = "height";         // Hauteur
     }

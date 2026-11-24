@@ -240,7 +240,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             {
                 _logger.LogDebug("📁 [SEASON PROVIDER] ✅ Extracted ID '{FullId}' (with prefix) from folder name '{FolderName}' using pattern '{Pattern}'", 
                     fullId, folderName, TagParser.Pattern);
-                return fullId;  // Retourne "PREFIX-ID" (ex: "mv1-sourceA", "yt-youtube")
+                return fullId;  // Returns "PREFIX-ID" (ex: "mv1-sourceA", "yt-youtube")
             }
 
             _logger.LogDebug("📁 [SEASON PROVIDER] ❌ No {{PREFIX-ID}} pattern found in folder name '{FolderName}'", folderName);

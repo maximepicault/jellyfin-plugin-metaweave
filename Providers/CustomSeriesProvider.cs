@@ -267,7 +267,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             {
                 _logger.LogDebug("📺 [SERIES PROVIDER] ✅ Extracted ID '{FullId}' (with prefix) from folder name '{FolderName}'", 
                     fullId, folderName);
-                return fullId;  // Retourne "PREFIX-ID" (ex: "mv1-bb", "yt-series123")
+                return fullId;  // Returns "PREFIX-ID" (ex: "mv1-bb", "yt-series123")
             }
 
             _logger.LogDebug("📺 [SERIES PROVIDER] ❌ No {{PREFIX-ID}} pattern found in folder name '{FolderName}'", folderName);

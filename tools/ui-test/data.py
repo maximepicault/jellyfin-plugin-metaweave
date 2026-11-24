@@ -1,4 +1,4 @@
-# Catalogue de la fausse API : séries → saisons(sources) → vidéos ; present = fichiers créés sur disque
+# Catalogue of the fake API: series → seasons (sources) → videos; present = files created on disk
 OV = "Dans cet épisode, l'équipe part en reportage au cœur des Alpes pour suivre une expédition hivernale qui tourne mal."
 SERIES = {
   "aventuriers": {"title": "Les Aventuriers", "color": (41,128,185), "seasons": {
@@ -13,7 +13,7 @@ SERIES = {
       "e1": {"title": "Océans", "present": 1, "broken": True, "videos": [("Les abysses","2025-02-02","52:00"),("Les récifs","2025-02-09","51:00")]}}},
 }
 
-# Personnes de la fausse API (source de personnes, préfixe "pe") : p3 = même nom que p1 (déduplication par nom)
+# People of the fake API (people source, prefix "pe"): p3 has the same name as p1 (deduplication by name)
 PEOPLE = {"p1": ("Camille Durand", "Comédienne et animatrice, à l'antenne depuis 2015."),
           "p2": ("Émile Lefèvre", "Réalisateur &amp; scénariste."),
           "p3": ("camille  DURAND", "Même personne, autre API.")}
