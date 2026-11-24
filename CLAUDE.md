@@ -44,7 +44,7 @@ dotnet build --configuration Release      # output: bin/Release/net9.0/Jellyfin.
 - Jellyfin discovers the providers in `Providers/` by reflection.
 
 - `CustomMetadataProvider` (Movie), `CustomSeriesProvider`, `CustomSeasonProvider` and `CustomEpisodeProvider` implement `IRemoteMetadataProvider<T, TInfo>`. `CustomImageProvider` implements `IRemoteImageProvider`, and `CustomExternalId` implements `IExternalId`.
-- `PluginServiceRegistrator` (`IPluginServiceRegistrator`) registers **singletons** for `MetadataCacheService`, `CustomApiClient` (which owns its `JsonFieldMapper`), `SourceResolver` and `MissingEpisodeService`. Providers, `MissingEpisodesTask` and `MissingEpisodesController` get them by constructor injection. Don't `new` them up again.
+- `PluginServiceRegistrator` (`IPluginServiceRegistrator`) registers **every service as a singleton** (stores, `CustomApiClient` which owns its `JsonFieldMapper`, `SourceResolver`, `MissingEpisodeService`…; some also as hosted services). Providers, the scheduled task and the controllers get them by constructor injection. Don't `new` them up again. The full list, with who uses what, is in `docs/architecture/code-map.md`.
 - The helper classes take a non-generic `ILogger`. The registrator passes each one its own `ILogger<T>`, so `📡 [API CLIENT]`/`💾 [CACHE]` lines are logged under the `CustomApiClient`/`MetadataCacheService` category, not the calling provider's.
 
 **Request flow (same in each provider):**
@@ -89,6 +89,7 @@ The per-feature detail lives in `docs/architecture/`. **Read the matching file b
 
 | File | Read when working on |
 |---|---|
+| `docs/architecture/code-map.md` | **start here** to find where something lives: wiring (DI, discovered types), metadata pipeline, background jobs and locks, stored files, REST routes → pages, change recipes, test scripts |
 | `docs/architecture/config-ui.md` | `config.html`: list/editor views, save models, library check |
 | `docs/architecture/images.md` | image provider, downloads, portrait→16:9 thumbnails |
 | `docs/architecture/json-mapping.md` | `JsonFieldMapper` / `JsonPathExtractor`, mapping fields, entities, overview as tags |
