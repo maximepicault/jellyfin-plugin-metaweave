@@ -204,18 +204,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
         /// <summary>
         /// Extracts the series identifier for the API
-        /// Priority: 1. Custom API ID, 2. Manual extraction, 3. IMDb ID, 4. Series name
+        /// Priority: 1. Tag of the series' own folder name (info.Path), 2. Stored custom ID, 3. Tag in info.Name, 4. IMDb ID, 5. Series name
         /// </summary>
         private string GetItemIdentifier(SeriesInfo info)
         {
-            // Option 1: use the custom ID if present in the {PREFIX-ID} pattern (via CustomExternalId)
+            // Option 1: the {PREFIX-ID} tag of the series' OWN folder name, like the season provider. Once enriched, info.Name is the
+            // API title (no tag), so without this a series whose stored custom ID was cleared could never be identified again.
+            var folderId = ExtractSeriesIdFromName(info.Path);
+            if (!string.IsNullOrEmpty(folderId))
+            {
+                _logger.LogDebug("📺 [SERIES PROVIDER] 🎯 Using ID from the series folder name: {FolderId}", folderId);
+                return folderId;
+            }
+
+            // Option 2: the stored custom ID (a series matched without a tag in its folder name)
             if (CustomId.Get(info.ProviderIds) is string customId)
             {
                 _logger.LogDebug("📺 [SERIES PROVIDER] 🎯 Using CustomAPI ID from ProviderIds: {CustomId}", customId);
                 return customId;
             }
 
-            // Option 2: manual extraction from the series folder name
+            // Option 3: a tag left in the name (no path available)
             var extractedId = ExtractSeriesIdFromName(info.Name);
             if (!string.IsNullOrEmpty(extractedId))
             {
@@ -223,14 +232,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 return extractedId;
             }
 
-            // Option 3: use the IMDb ID if available
+            // Option 4: use the IMDb ID if available
             if (info.ProviderIds.TryGetValue("Imdb", out var imdbId))
             {
                 _logger.LogDebug("📺 [SERIES PROVIDER] 🎯 Using IMDb ID: {ImdbId}", imdbId);
                 return imdbId;
             }
 
-            // Option 4: use the series name
+            // Option 5: use the series name
             _logger.LogDebug("📺 [SERIES PROVIDER] 🎯 Using series name: {SeriesName}", info.Name);
             return info.Name;
         }
