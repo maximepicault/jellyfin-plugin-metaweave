@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-25 (D017 amended: header adapted to the backdrop, P009/P010; D018 theme served by the plugin; D017 Projection theme direction C; before: memory audit merged: proven corrections, D003 rewritten and fixed in 4e9c4bc, new decisions D010–D016; d8ec62d deployed; code map added in docs/architecture/code-map.md)
+Dernière mise à jour : 2026-11-25 (D019 optional theme script + backdrop at its own ratio; D018 theme served by the plugin; D017 Projection theme direction C, header adapted to the backdrop; earlier: memory audit, D010–D016, code map in docs/architecture/code-map.md)
 
 ## Objectif
 Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -14,12 +14,12 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Recent work (2026-11-21/23): missing-episode video downloads, landscape poster crop, Projection web theme (`theme/projection.css`), gallery typed by shape + multi-selection, people networks/backdrops, paginated dump APIs and dump seasons analysed like API seasons, missing-episode numbering (D009, committed in 41544ee).
 
 ## Déployé
-- Last successful deployment: e32a748, develop, 2026-11-25
+- Last successful deployment: 505e251, develop, 2026-11-25
 
 ## En cours
-- Projection theme moved to the compact sheet + wall of season posters (D017), committed on develop (19f6bfd) on 2026-11-25 with the `tools/ui-test/theme-*.mjs` seed and audit (a33c721); not on `main` yet. Amended the same day (uncommitted, `theme/projection.css`): header adapted to whether the item has a backdrop (large clear band with one, compact lit header without), at the maintainer's request.
-- Committed state: `develop` = `origin/develop` at e32a748, which is deployed.
-- Served theme route (D018) committed (54f7764) and deployed (e32a748) on 2026-11-25: the maintainer's Custom CSS can use `@import url("../CustomMetadata/Theme/projection.css")`.
+- Projection theme moved to the compact sheet + wall of season posters (D017), committed on develop (19f6bfd) on 2026-11-25 with the `tools/ui-test/theme-*.mjs` seed and audit (a33c721); not on `main` yet. Header adapted to the backdrop committed in 164e57b.
+- Committed and deployed: `develop` = `origin/develop` at 505e251 (includes the served theme route D018: Custom CSS `@import url("../CustomMetadata/Theme/projection.css")`).
+- Theme script (D019) + backdrop at its own ratio: uncommitted as of 2026-11-25 (`Services/ThemeScriptMiddleware.cs`, `theme/projection.js`, `EnableThemeScript`, CSS 9c). Plugin code changed: commit, deploy, then turn on « Améliorations du thème Projection » (Settings tab) and reload with Ctrl+F5. Untested: trailer hover preview, real base URL.
 - Untracked: `theme/previews/` (PNG screenshots: never commit).
 
 ## Prochaines étapes
