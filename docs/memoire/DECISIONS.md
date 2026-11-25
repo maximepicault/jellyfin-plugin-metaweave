@@ -1,9 +1,10 @@
 # Index
+D018 | active | The plugin also serves the Projection theme (embedded CSS, anonymous route); jsDelivr kept for users without the plugin | dépend de D013
 D017 | active | Projection theme detail pages use direction C "Fiche": compact header and a CSS-only wall of season posters | dépend de D013 ; motivée par P005, P006, P007, P008
 D016 | active | Dump targeted refresh writes the plugin's data directly, without a Jellyfin refresh | dépend de D008
 D015 | active | Missing episodes' videos are downloaded by the plugin (opt-in), streams remuxed by Jellyfin's ffmpeg | —
 D014 | active | Episodes without a number take their release-date position; absurd cached numbers are never reused | —
-D013 | active | The Projection web theme lives in this repository, independent of the plugin, imported through jsDelivr | —
+D013 | active | The Projection web theme lives in this repository, independent of the plugin, imported through jsDelivr (amended by D018: also served by the plugin) | —
 D012 | active | Genres/tags rules are applied by the plugin to the items it manages, on every save | dépend de D005
 D011 | active | Landscape series/season posters are cropped to the centre 2:3 by the plugin (opt-in per source) | —
 D010 | active | Local gallery images are typed by their shape on upload; a default image can be demoted | dépend de D007
@@ -18,6 +19,17 @@ D002 | active | Multi-source configuration keyed by tag prefix; legacy single-so
 D001 | active | Build against Jellyfin 10.11.6 exactly (net9.0, ExcludeAssets=runtime) | —
 
 # Détail
+
+## D018 — The plugin also serves the Projection theme (embedded CSS, anonymous route); jsDelivr kept for users without the plugin
+- Date : 2026-11-25 (maintainer: "you made a local route for the people icons, can't we do the same for the Projection theme?"; uncommitted at the time of writing)
+- Contexte : with the jsDelivr `@main` import (D013), a theme change reaches the server only after the develop → main release, then up to 12 h of jsDelivr cache. The people photos already have a local anonymous route (`PeopleController.Photo`).
+- Décision : `theme/projection.css` is embedded in the DLL (`EmbeddedResource`, LogicalName `Jellyfin.Plugin.CustomMetadata.theme.projection.css`) and served by `ThemeController` at `GET CustomMetadata/Theme/projection.css`: `[AllowAnonymous]` (the browser fetches an `@import` without Jellyfin's token, same reasoning as `PeopleController.Photo`), `text/css`, ETag = first 16 hex chars of the SHA-256, `Cache-Control: public, max-age=300`, 304 on `If-None-Match`. Recommended Custom CSS line with the plugin installed: `@import url("../CustomMetadata/Theme/projection.css");`, relative so it works under a Jellyfin base URL (it resolves the same from /web/ and from /Branding/Css.css).
+- Alternatives écartées : jsDelivr only → 12 h cache and wait for the release to `main`; it stays documented for users without the plugin (README "Web theme", theme/projection.css header). An absolute `/CustomMetadata/...` path → breaks under a base URL [supposé, inferred from the stated reason for the relative path].
+- Conséquences : the theme follows the plugin version deployed on the server (Semaphore deploys of develop). With the served import, a theme change reaches the maintainer's server only with a plugin deployment. The DLL grows by ~65 KB. D013's "the theme is independent of the plugin" becomes "usable with or without the plugin".
+- Liens : dépend de D013
+- Code : Api/ThemeController.cs (route :21, `[HttpGet("projection.css")]` + `[AllowAnonymous]` :50-51, Cache-Control :66); Jellyfin.Plugin.CustomMetadata.csproj:45-46; README.md:89; theme/projection.css:9; docs/architecture/code-map.md:138; tools/ui-test/theme-probe.mjs `--served`.
+- À réévaluer si : the theme must change faster than plugin releases, or anonymous routes become a concern.
+- Fiabilité : [vérifié] code anchors read in the working tree on 2026-11-25; [supposé] the test results reported by the main agent, not re-run: in cm-uitest the served file is byte-identical to the repo file, revalidation returns 304, and a browser with only the `@import` line in Custom CSS gets the theme (theme-probe.mjs --served).
 
 ## D017 — Projection theme detail pages use direction C "Fiche": compact header and a CSS-only wall of season posters
 - Date : 2026-11-25 (maintainer's choice; uncommitted at the time of writing)
@@ -63,7 +75,8 @@ D001 | active | Build against Jellyfin 10.11.6 exactly (net9.0, ExcludeAssets=ru
 - À réévaluer si : a source gives a reliable order (position in its list) better than the release date (maintainer, 2026-11-24).
 - Fiabilité : [vérifié] commit bodies and code lines; docs/architecture/missing-episodes.md:23 says the same.
 
-## D013 — The Projection web theme lives in this repository, independent of the plugin, imported through jsDelivr
+## D013 — The Projection web theme lives in this repository, independent of the plugin, imported through jsDelivr (amended by D018)
+- Amendement (2026-11-25) : the plugin now also serves the theme (D018); the jsDelivr import stays for users without the plugin, and "independent of the plugin" now reads "usable with or without the plugin".
 - Date : 2026-11-21 (commit 612618d)
 - Contexte : an optional custom CSS for jellyfin-web 10.11, kept in the repository "so it can be imported through jsDelivr and follow updates" (612618d).
 - Décision : `theme/projection.css` is the only theme in use, imported in Dashboard → General → Custom CSS code with an `@import` from jsDelivr. The public documentation keeps `@main` (README.md:84-90, theme/projection.css:8); until the release, the maintainer's own server may import from `@develop`, since the file does not exist on `main` before it (maintainer, 2026-11-24).
