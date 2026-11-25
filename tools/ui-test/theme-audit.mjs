@@ -6,7 +6,9 @@
 // Checks on every screen (the page is scrolled one screen at a time, to its end):
 //   veiled     light text darkened by a layer drawn over it (a pseudo-element veil or fade): the text is compared in two
 //              screenshots, with and without the pseudo-elements' backgrounds. The bug class of the tags under the fade.
-//   contrast   axe-core's color-contrast rule (light text on a light picture, dim text on ink)
+//   contrast   axe-core's color-contrast rule (dim text on ink)
+//   lowcontrast  the same measured on the screenshot (text pixels against their ground), on every screen: catches light
+//              text over a bright picture, which axe-core skips
 //   collide    two lines of text in one place, line box by line box (rules borrowed from taste-skill's consistency.mjs)
 //   overflow   the page scrolls sideways, and what runs past the right edge
 //   cut        text clipped by its box without an ellipsis or a line clamp
@@ -169,7 +171,9 @@ const SCREEN_CHECKS = ({ mobile }) => {
   }
   // candidates for the veil check: light text inside the page
   const lum = c => { const m = c.match(/[\d.]+/g); if (!m) return 0; const [r, g, b] = m.map(Number); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
-  const veil = texts.filter(t => t.inPage && !t.fixed && lum(CS(t.e).color) > 0.45).slice(0, 500).map(t => ({ el: sel(t.e), text: label(t.e), boxes: t.ls.slice(0, 6).map(l => [Math.max(0, l.left), Math.max(0, l.top), Math.min(vw, l.right), Math.min(vh, l.bottom)]) }));
+  // what the fixed header bar covers is not seen: cut the text boxes below it
+  const barBottom = Math.max(0, ...[...document.querySelectorAll('.skinHeader, .MuiAppBar-root')].filter(b => shown(b) && CS(b).position === 'fixed').map(b => b.getBoundingClientRect()).filter(q => q.height > 20 && q.height < vh / 3 && q.top <= 0).map(q => q.bottom));
+  const veil = texts.filter(t => t.inPage && !t.fixed && lum(CS(t.e).color) > 0.45).slice(0, 500).map(t => ({ el: sel(t.e), text: label(t.e), boxes: t.ls.slice(0, 6).filter(l => Math.min(vh, l.bottom) - Math.max(barBottom, l.top) > 0.6 * (l.bottom - l.top)).map(l => [Math.max(0, l.left), Math.max(barBottom, l.top), Math.min(vw, l.right), Math.min(vh, l.bottom)]) }));   // a line mostly under the bar is not read
   return { out, veil };
 };
 
@@ -180,8 +184,15 @@ const VEIL_COMPARE = async ({ a, b, cands }) => {
   const ctx = img => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0); return x; };
   const ca = ctx(ia), cb = ctx(ib);
   const top = (x, [l, t, r, b]) => { const w = Math.max(1, Math.round(r - l)), h = Math.max(1, Math.round(b - t)); const d = x.getImageData(Math.round(l), Math.round(t), w, h).data; const v = []; for (let i = 0; i < d.length; i += 4) v.push(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]); v.sort((p, q) => q - p); return v[Math.floor(v.length * 0.04)] || 0; };
+  // contrast read from the pixels: the text's brightest pixels against the box's median (its ground). axe-core gives
+  // up on text over a picture ("incomplete"), which is exactly where a theme with a backdrop fails
+  const lin = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const stats = (x, [l, t, r, b]) => { const w = Math.max(1, Math.round(r - l)), h = Math.max(1, Math.round(b - t)); const d = x.getImageData(Math.round(l), Math.round(t), w, h).data; const v = []; for (let i = 0; i < d.length; i += 4) v.push(0.2126 * lin(d[i]) + 0.7152 * lin(d[i + 1]) + 0.0722 * lin(d[i + 2])); v.sort((p, q) => p - q); return { hi: v[Math.floor(v.length * 0.97)] || 0, mid: v[Math.floor(v.length * 0.5)] || 0 }; };
   const res = [];
   for (const c of cands) {
+    let low = null;
+    for (const bx of c.boxes) { if (bx[2] - bx[0] < 6 || bx[3] - bx[1] < 6) continue; const st = stats(ca, bx); const ratio = (st.hi + 0.05) / (st.mid + 0.05); if (ratio < 3 && (!low || ratio < low)) low = ratio; }
+    if (low) res.push({ check: 'lowcontrast', sev: 'FAIL', el: c.el, text: c.text, detail: `about ${low.toFixed(1)}:1 against what is behind it (pixels; 3:1 needed at least)` });
     let worst = null;
     for (const bx of c.boxes) { if (bx[2] - bx[0] < 3 || bx[3] - bx[1] < 3) continue; const la = top(ca, bx), lb = top(cb, bx); if (lb > 60 && lb - la > 28 && la / lb < 0.82 && (!worst || la / lb < worst.ratio)) worst = { la: Math.round(la), lb: Math.round(lb), ratio: la / lb }; }
     if (worst) res.push({ check: 'veiled', sev: 'FAIL', el: c.el, text: c.text, detail: `text brightness ${worst.lb} → ${worst.la} under a layer (${Math.round((1 - worst.ratio) * 100)}% darker)` });
