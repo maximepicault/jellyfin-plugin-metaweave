@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-24 (memory audit merged: proven corrections, D003 rewritten and fixed in 4e9c4bc, new decisions D010–D016; d8ec62d deployed; code map added in docs/architecture/code-map.md)
+Dernière mise à jour : 2026-11-25 (D017 Projection theme direction C; before: memory audit merged: proven corrections, D003 rewritten and fixed in 4e9c4bc, new decisions D010–D016; d8ec62d deployed; code map added in docs/architecture/code-map.md)
 
 ## Objectif
 Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -17,7 +17,8 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Last successful deployment: d8ec62d, develop, 2026-11-24
 
 ## En cours
-- Nothing in progress. `develop` = `origin/develop` at fb1c8cd; everything after the deployed d8ec62d is docs and comments only (memory audit, code map, translated comments): no redeploy needed.
+- Projection theme moved to the compact sheet + wall of season posters (D017), committed on develop (19f6bfd) on 2026-11-25 with the `tools/ui-test/theme-*.mjs` seed and audit (a33c721); not on `main` yet.
+- Committed state: everything on `develop` after the deployed d8ec62d is docs, comments, the web theme and test tools: no plugin code changed, no redeploy needed (the theme reaches the server through jsDelivr).
 - Untracked: `theme/previews/` (PNG screenshots: never commit).
 
 ## Prochaines étapes

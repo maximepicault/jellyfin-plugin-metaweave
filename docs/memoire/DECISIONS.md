@@ -1,4 +1,5 @@
 # Index
+D017 | active | Projection theme detail pages use direction C "Fiche": compact header and a CSS-only wall of season posters | dépend de D013 ; motivée par P005, P006, P007, P008
 D016 | active | Dump targeted refresh writes the plugin's data directly, without a Jellyfin refresh | dépend de D008
 D015 | active | Missing episodes' videos are downloaded by the plugin (opt-in), streams remuxed by Jellyfin's ffmpeg | —
 D014 | active | Episodes without a number take their release-date position; absurd cached numbers are never reused | —
@@ -17,6 +18,17 @@ D002 | active | Multi-source configuration keyed by tag prefix; legacy single-so
 D001 | active | Build against Jellyfin 10.11.6 exactly (net9.0, ExcludeAssets=runtime) | —
 
 # Détail
+
+## D017 — Projection theme detail pages use direction C "Fiche": compact header and a CSS-only wall of season posters
+- Date : 2026-11-25 (maintainer's choice; uncommitted at the time of writing)
+- Contexte : the maintainer's library has series with many seasons (reference case: One Piece split into ~30 arcs); they want season images to stay large, and the season to resume must come up the page without JS. Three directions were compared on a clickable mockup (https://claude.ai/artifact/LChgPeMiBmeZDdC1BmEoMW): A Affiche (the previous panoramic band), B Cinéma (full-bleed backdrop, text left, season tabs), C Fiche (compact sheet).
+- Décision : direction C for jellyfin-web detail pages (series, season, episode, movie; desktop layout). Compact header: `--pj-hero-h` is 14rem on every detail page (was `min(60vh, 36vw)`), the poster starts just under the header, the backdrop is blurred and the fixed layer fades to ink about 26rem under the band (section 8). Series seasons (section 9b): a flex wall of 2:3 posters (`--sw-big`, 3 per row on phones), a state chip on the poster, the first season to watch ringed amber with "À suivre"; watched seasons shrink in place to small posters (`--sw-small`). The wall clears the poster and spans the page gutter.
+- Alternatives écartées : A Affiche → the panoramic band pushed the seasons down the page [supposé, inferred from the stated reason]; B Cinéma → P005; "folded watched seasons" → P006; rows of small thumbnails → P007; the previous "sleeve" wide season cards → P008; "all large" seasons → not the maintainer's pick, reason not recorded [supposé: watched seasons would keep the season to resume low on the page].
+- Conséquences : no JS anywhere in the theme. A mixed row (small watched posters next to large ones) leaves empty space under the small ones: accepted, it keeps the season order. Counts like "625 / 1076 seen" and per-season progress bars are not available, only Jellyfin's unplayed count.
+- Liens : dépend de D013 ; motivée par P005, P006, P007, P008
+- Code : theme/projection.css section 8 (:326, `--pj-hero-h: 14rem` :342, poster `top: calc(4.75rem - var(--pj-hero-h))` :345, `blur(22px)` :349) and section 9b (:698, `--sw-big`/`--sw-small` :713-714, "À suivre" :768, phones :799); verification tools tools/ui-test/theme-seed.mjs (varied data incl. a 32-arc "One Piece (démo)" series in the "Séries (thème)" library of the cm-uitest container), theme-audit.mjs (19+ screens × 6 configs: veiled text, contrast, collisions, overflow, cut text, header, tap size, focus), theme-shots.mjs, theme-probe.mjs (all untracked on 2026-11-25).
+- À réévaluer si : the maintainer wants JS features (folding, counts) and accepts a script-injection mechanism; or jellyfin-web changes the season card DOM (`.card[data-type="Season"]`, `.countIndicator`, `.playedIndicator`).
+- Fiabilité : [vérifié] CSS values and line numbers read in the working tree on 2026-11-25; [vérifié] the tool files exist; [supposé] the audit results (reported by the main agent, not re-run).
 
 ## D016 — Dump targeted refresh writes the plugin's data directly, without a Jellyfin refresh
 - Date : 2026-11-17 (commit 4494492)
