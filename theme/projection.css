@@ -16,9 +16,12 @@
  * - Ink and paper, one accent (projector-lamp amber) kept for what you act on
  *   or what you did: the play button, focus, selection, progress, "watched".
  *   Counts, links and labels stay neutral so the amber keeps its meaning.
- * - Detail pages put the content first: smaller poster, title and a labelled
- *   play button together, episodes as a grid of 16:9 cards (rows on phones).
- * - The backdrop is a mood, not a wall: it fades as you scroll.
+ * - Detail pages are a compact sheet: poster, title, a labelled play button,
+ *   synopsis and tags together under the header, so the content (seasons,
+ *   episodes) starts on the first screen; episodes as a grid of 16:9 cards.
+ * - Seasons are a wall of large posters; watched ones shrink in place, so the
+ *   season to resume comes up even on a series with 30+ seasons.
+ * - The backdrop is a mood, not a picture: blurred behind the sheet, then ink.
  * Offline or blocked Google Fonts? The serif falls back to Georgia.
  * The labels in sections 9b ("à voir", "Vue", "À suivre") and 13 ("Manquant"...)
  * are French: edit them for your language.
@@ -157,7 +160,21 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
 /* --- experimental layout (Settings > Display > Layout): its header is a MUI app bar
    with the libraries as links. Same rules as the classic header: the current
    library in paper with an amber underline, no Jellyfin blue. --- */
-.MuiAppBar-root { background: linear-gradient(to bottom, rgba(var(--pj-veil), .85), rgba(var(--pj-veil), 0)) !important; box-shadow: none !important; }
+/* At the top of a page the bar is a scrim over the picture; once the page scrolls it
+   turns to solid ink, or scrolled titles ghosted through its translucent lower half.
+   The colour is left to the scroll-driven animation (an !important colour would beat
+   it); browsers without scroll timelines (Firefox) get a solid bar at once. */
+.MuiAppBar-root {
+  background-image: linear-gradient(to bottom, rgba(var(--pj-veil), .85), rgba(var(--pj-veil), 0)) !important;
+  box-shadow: none !important;
+}
+@keyframes pj-bar-solid { to { background-color: var(--pj-bg); box-shadow: inset 0 -1px 0 var(--pj-line); } }
+@supports (animation-timeline: scroll()) {
+  .MuiAppBar-root { animation: pj-bar-solid linear both; animation-timeline: scroll(root block); animation-range: 0 5rem; }
+}
+@supports not (animation-timeline: scroll()) {
+  .MuiAppBar-root { background-color: var(--pj-bg) !important; border-bottom: 1px solid var(--pj-line); }
+}
 /* the tabs of a library page (Séries, Suggestions, Genres...) */
 .MuiTabs-indicator { background-color: var(--pj-amber) !important; }
 .MuiTab-root { color: var(--pj-dim) !important; text-transform: none !important; }
@@ -221,6 +238,12 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
 .cardOverlayFab-primary, .cardOverlayButton-br .cardOverlayFab-primary {
   background: var(--pj-amber) !important; color: var(--pj-amber-ink) !important;
 }
+/* phones show a small play button on every card: the same ink chip as the episode
+   frames, not stock's black disc */
+.cardOverlayButton-br .cardOverlayButtonIcon {
+  background: rgba(var(--pj-veil), .78) !important; color: var(--pj-text) !important;
+  box-shadow: inset 0 0 0 1px rgba(235, 230, 217, .18);
+}
 
 /* placeholder art (no image): quiet tints, not Jellyfin cyan */
 [class*="defaultCardBackground"] { background-color: var(--pj-raise-2) !important; color: var(--pj-dim); }
@@ -241,7 +264,10 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
 
 /* phones: a title may take two lines rather than being cut after a dozen characters */
 @media (max-width: 600px) {
-  .cardText-first { white-space: normal !important; overflow-wrap: normal; -webkit-hyphens: auto; hyphens: auto; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.3; min-height: 2.6em; }
+  .cardText-first { white-space: normal !important; overflow-wrap: normal; -webkit-hyphens: auto; hyphens: auto; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.3; }
+  /* rows of posters keep their second lines aligned; a wide card (Continuer de regarder)
+     has no neighbour to align with, and the reserved line split its two texts apart */
+  :is(.portraitCard, .squareCard) .cardText-first { min-height: 2.6em; }
 }
 
 /* ============================================================
@@ -259,6 +285,11 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
 .itemProgressBar { height: 3px; background: rgba(235, 230, 217, .2); border-radius: 0; }
 .itemProgressBarForeground { background: var(--pj-amber) !important; }
 
+/* rows scrolled by their arrows (data-scroll-mode-x="custom": the cards slide by a transform)
+   are never clipped in stock jellyfin-web, so as soon as a row is wider than the screen
+   (home at 1024, search) the whole page scrolled sideways. clip, not hidden: no new scroll
+   box, and the vertical room the focused card's lift needs stays. */
+.emby-scroller[data-scroll-mode-x="custom"] { overflow-x: clip; }
 /* horizontal row arrows: quiet, and on pointer devices only when the row is pointed at */
 .emby-scrollbuttons .paper-icon-button-light { background: transparent !important; color: var(--pj-dim); font-size: .85em; }
 .emby-scrollbuttons .paper-icon-button-light:hover:not(:disabled) { background: var(--pj-raise-2) !important; color: var(--pj-text); }
@@ -303,17 +334,28 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
    - the content block continues from the same value, and is at least as tall as
      the rest of the screen, so a short season does not let the picture back in
      at the bottom. --pj-hero-h mirrors the band height for that. */
-/* a panoramic band (about 2.8:1, capped by the screen height) so the picture is seen,
-   not cut in half; defined on <html> so the fixed layer can use it too */
-html.layout-desktop:has(.itemDetailPage:not(.hide)) { --pj-hero-h: min(60vh, 36vw); }
-@media (max-height: 31.25em) { html.layout-desktop:has(.itemDetailPage:not(.hide)) { --pj-hero-h: 52vh; } }
+/* "Fiche" (direction C, chosen 2026-11-25): a compact header. The band is only the room
+   the header bar and the top of the poster need; the poster, title, actions, synopsis
+   and tags then sit together on the blurred backdrop, and the content (seasons,
+   episodes) starts within the first screen. Defined on <html> so the fixed layer can
+   use it too. */
+html.layout-desktop:has(.itemDetailPage:not(.hide)) { --pj-hero-h: 14rem; }
+/* stock hangs the poster 12em above the band's bottom edge: from a short band it went
+   under the header, so it starts just below the header instead */
+html.layout-desktop .itemDetailPage .detailImageContainer .card { top: calc(4.75rem - var(--pj-hero-h)); }
+/* the backdrop is a mood behind the header, not a picture to look at: blurred and a
+   little dimmed, so any image (a busy one, a bright one) gives the same calm ground */
+html.layout-desktop:has(.itemDetailPage:not(.hide)) .backdropImage {
+  filter: blur(22px) saturate(1.15) brightness(.85); transform: scale(1.08);
+}
 .layout-desktop .itemDetailPage .itemBackdrop { height: var(--pj-hero-h); }
 /* the fixed picture layer itself turns to ink under the band: below the content
    (a one-episode season, a series without seasons) the picture cannot come back,
    whatever the height of the content */
 html.layout-desktop:has(.itemDetailPage:not(.hide)) .backgroundContainer.withBackdrop {
-  background-image: linear-gradient(to bottom, rgba(var(--pj-veil), .2) 0,
-    rgba(var(--pj-veil), .35) calc(var(--pj-hero-h) - 8vh), var(--pj-bg) calc(var(--pj-hero-h) + 22vh)) !important;
+  /* the picture lights the whole header block (about 26rem under the band), then ink */
+  background-image: linear-gradient(to bottom, rgba(var(--pj-veil), .35) 0,
+    rgba(var(--pj-veil), .5) var(--pj-hero-h), var(--pj-bg) calc(var(--pj-hero-h) + 26rem)) !important;
 }
 /* on desktop the band holds no picture (the fixed layer does), only its share of the
    veil: stock still fades it in from opacity 0 over .8s, which left the band less veiled
@@ -431,6 +473,10 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
 /* the title and its facts sit on the picture too: a soft shadow keeps them readable */
 .detailRibbon .itemName, .detailRibbon .itemMiscInfo { text-shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 2px 16px rgba(0, 0, 0, .45); }
 .itemMiscInfo { color: var(--pj-dim); font-size: .9rem; }
+/* under the title the facts (year, runtime, rating) are read at a glance: the body tone,
+   not the dim one, which faded into the blurred backdrop */
+.detailRibbon .itemMiscInfo, .detailRibbon .itemMiscInfo .mediaInfoItem { color: var(--pj-text-2) !important; }
+.layout-desktop .detailRibbon .itemMiscInfo { margin-top: .3rem; }
 
 /* the main action: a labelled amber button ("Lire", "Reprendre": the label is the
    button's own localised title), the other actions stay quiet icons */
@@ -453,6 +499,33 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
 .layout-mobile .detailRibbon h3.itemName, .layout-mobile .detailRibbon h1.itemName { font-size: 1.55rem; }
 .layout-mobile [dir=ltr] .mainDetailButtons { padding-left: 0 !important; justify-content: flex-start; margin-top: 1.1rem; }
 .layout-mobile .detailPagePrimaryContent { padding-top: .5em; }
+/* the synopsis follows the actions: stock stacked the content's top padding and two
+   paragraph margins, about 60px of nothing between the buttons and the text */
+.layout-desktop .detailPagePrimaryContent { padding-top: .6rem; }
+.detailSectionContent > .overview:first-child, .overview > bdi > p:first-child { margin-top: 0; }
+.overview > bdi > p:last-child { margin-bottom: 0; }
+/* "Voir plus" under a clamped synopsis: stock pushed it to the far right of the page,
+   away from the text it opens; it now follows the last line, as a link */
+.itemDetailPage .overview-controls { display: flex; justify-content: flex-start !important; margin: .35rem 0 .9rem !important; }
+.itemDetailPage .overview-expand {
+  padding: .2em 0 !important; margin: 0 !important; background: none !important; min-height: 0;
+  color: var(--pj-amber) !important; font-weight: 600; font-size: .9rem;
+}
+.itemDetailPage .overview-expand:hover { text-decoration: underline; text-underline-offset: .2em; }
+@media (max-width: 600px), (pointer: coarse) { .itemDetailPage .overview-expand { min-height: 36px; display: inline-flex !important; align-items: center; } }
+/* phones: a long synopsis took the whole first screen and pushed the seasons down; four
+   lines, then "Voir plus" (stock shows the button whenever the text is clamped) */
+.layout-mobile .itemDetailPage .overview.detail-clamp-text { -webkit-line-clamp: 4; }
+/* the synopsis is read, not skimmed: stock's .93em was small next to the large title */
+.layout-desktop .detailPagePrimaryContent .overview { font-size: 1rem; }
+/* a desktop browser in a narrow window (a phone in desktop mode, a split screen) keeps
+   the desktop layout: there the poster left the text a column a few words wide. Below
+   40em the poster goes and the content takes the whole width. */
+@media (max-width: 40em) {
+  :root { --pj-indent: var(--pj-gutter); }
+  .layout-desktop .detailImageContainer { display: none; }
+  .layout-desktop .detailPagePrimaryContainer { padding-top: 0; }
+}
 /* empty stock blocks leave dead space above the content */
 .detailSectionContent > p:empty, .overview-controls:not(:has(> :not(.hide))),
 .itemDetailsGroup:not(:has(> .detailsGroupItem:not(.hide))) { display: none; }
@@ -461,8 +534,47 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
   border: 1px solid var(--pj-line-2) !important; background: transparent; padding: 0 .5em; border-radius: 3px; color: var(--pj-text);
 }
 .starRatingContainer .material-icons, .starIcon { color: var(--pj-amber) !important; }
-.itemGenres a, .itemTags a, .genreList a, .itemExternalLinks a { color: var(--pj-text) !important; border-bottom: 1px solid var(--pj-line-2); }
-.itemGenres a:hover, .itemTags a:hover, .itemExternalLinks a:hover { border-color: var(--pj-amber); color: var(--pj-amber) !important; }
+.itemGenres a, .genreList a, .itemExternalLinks a { color: var(--pj-text) !important; border-bottom: 1px solid var(--pj-line-2); }
+.itemGenres a:hover, .itemExternalLinks a:hover { border-color: var(--pj-amber); color: var(--pj-amber) !important; }
+
+/* The end of the text block (tags, genres, studios...) sits right above the next
+   section, whose fade to ink is painted over everything before it: the last lines
+   went dark, almost invisible on a backdrop. They are lifted above that fade. */
+.itemDetailPage .detailPagePrimaryContent .detailSection > :not(.verticalSection):not(#listChildrenCollapsible),
+.itemDetailPage .detailPagePrimaryContent .itemDetailsGroup { position: relative; z-index: 1; }
+
+/* tags and genres as chips on their own dark ground: readable on any picture, and the
+   commas and "Étiquettes :" text between them go (font-size 0, label redrawn) */
+.itemDetailPage .itemTags:not(.hide),
+.itemDetailPage :is(.genresGroup, .studiosGroup) .content {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: 0 !important;
+}
+.itemDetailPage .itemTags:not(.hide)::before {
+  content: "Étiquettes"; font-size: .78rem !important; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--pj-dim); margin-right: .35rem;
+}
+.itemDetailPage :is(.itemTags, .genresGroup, .studiosGroup) a {
+  font-size: .82rem !important; font-weight: 500; line-height: 1.2; margin: 0 !important;
+  padding: .3em .75em !important; border-radius: 99px; border: 0 !important;
+  color: var(--pj-text) !important; background: rgba(var(--pj-veil), .72) !important;
+  box-shadow: inset 0 0 0 1px rgba(235, 230, 217, .16);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.itemDetailPage :is(.itemTags, .genresGroup, .studiosGroup) a:hover {
+  color: var(--pj-amber) !important; box-shadow: inset 0 0 0 1px rgba(242, 180, 65, .55);
+}
+.itemDetailPage .genresGroup { align-items: center; }
+/* phones: a chip is a thumb target, at least 32px tall with 8px between chips */
+@media (max-width: 600px), (pointer: coarse) {
+  .itemDetailPage .itemTags:not(.hide), .itemDetailPage :is(.genresGroup, .studiosGroup) .content { gap: .5rem; }
+  .itemDetailPage :is(.itemTags, .genresGroup, .studiosGroup) a { min-height: 32px; display: inline-flex !important; align-items: center; padding: .35em .9em !important; }
+}
+/* every info row (genres, studio, director, writers...) gets the same small label as
+   the tags, so the rows read as one block */
+.itemDetailPage .itemDetailsGroup .detailsGroupItem { align-items: baseline; }
+.itemDetailPage .itemDetailsGroup .detailsGroupItem .label {
+  font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--pj-dim);
+}
 
 /* ============================================================
    9. Episodes
@@ -511,14 +623,32 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
   opacity: .35; filter: grayscale(1); outline: 1px dashed var(--pj-line-2); outline-offset: -1px;
 }
 .listItem-largeImage:has(.missingIndicator) .listItemBodyText:first-child { color: var(--pj-dim); }
-.listItem-largeImage:has(.missingIndicator) .listItemImageButton { display: none; }
+.listItem-largeImage:has(.missingIndicator) .listItemImageButton { display: none !important; }
+/* nothing to play, so no "ends at" time; same for an episode not aired yet */
+.listItem:has(.missingIndicator, .unairedIndicator) .endsAt { display: none; }
+.listItem-largeImage:has(.missingIndicator) .listViewUserDataButtons { opacity: .6; }
+@media (hover: hover) { .listItem-largeImage:has(.missingIndicator):hover .listViewUserDataButtons { opacity: 1; } }
+/* season page cards: the state goes on the frame itself, top left, where the eye
+   reads the episode's picture (stock puts it after the runtime). The text blocks are
+   layout containers in stock (contain: layout), which would hold the chip inside them. */
+#listChildrenCollapsible .listItem-largeImage .listItem-content { position: relative; }
+#listChildrenCollapsible .listItem-largeImage:has(.missingIndicator, .unairedIndicator) :is(.listItemBody, .listItemMediaInfo) { contain: none; }
+#listChildrenCollapsible .listItem-largeImage :is(.missingIndicator, .unairedIndicator) {
+  position: absolute; top: .55rem; left: .55rem; z-index: 1; margin: 0 !important;
+  background: rgba(var(--pj-veil), .85) !important; border-color: rgba(235, 230, 217, .3) !important;
+  color: var(--pj-text) !important; padding: .2rem .65rem !important;
+}
+@media (max-width: 600px) {
+  #listChildrenCollapsible .listItem-largeImage :is(.missingIndicator, .unairedIndicator) { top: .35rem; left: .35rem; padding: .1rem .45rem !important; }
+  #listChildrenCollapsible .listItem-largeImage :is(.missingIndicator, .unairedIndicator)::before { font-size: .66rem; }
+}
 
 /* --- season page: a grid of 16:9 cards (2 per row at 1440, 3 at 1920) --- */
 #listChildrenCollapsible .itemsContainer.vertical-list {
   display: grid !important; grid-template-columns: repeat(auto-fill, minmax(min(100%, 25rem), 1fr));
   gap: 2rem 1.25rem; max-width: 100rem; padding-right: 0 !important;
 }
-#listChildrenCollapsible .listItem-largeImage { overflow: visible; contain: none; display: block; }
+#listChildrenCollapsible .listItem-largeImage { overflow: visible; contain: none; display: block; max-width: 38rem; }  /* alone on a row: no 740px card */
 #listChildrenCollapsible .listItem-largeImage .listItem-content {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 1fr;
   gap: .75rem .25rem; padding: 0; width: 100%; height: 100%;
@@ -558,187 +688,129 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
     margin: .65rem 0 0; font-size: .88rem; line-height: 1.5; color: var(--pj-dim);
   }
   /* the whole frame plays; the chip stays the visible cue */
-  .layout-mobile .listItemImage-large .listItemImageButton { inset: 0; background: transparent !important; border-radius: 0; align-items: flex-end; justify-content: flex-start; padding: .4rem; }
+  /* display:flex, or stock's centring won and the chip covered the middle of the picture */
+  .layout-mobile .listItemImage-large .listItemImageButton { inset: 0; width: auto; height: auto; place-self: stretch; display: flex; background: transparent !important; border-radius: 0; align-items: flex-end; justify-content: flex-start; padding: .4rem; }
   .layout-mobile .listItemImage-large .listItemImageButton-icon { background: rgba(var(--pj-veil), .78); border-radius: 50%; font-size: 1.5rem; padding: .15em; color: var(--pj-text); }
   .layout-mobile .listItem[data-positionticks] .listItemImageButton-icon { background: var(--pj-amber); color: var(--pj-amber-ink); }
 }
 
 /* ============================================================
-   9b. Seasons: wide "sleeves" on the series page
-   Each season becomes a wide card (about 2.4:1): the WHOLE poster,
-   uncropped, stands at the left edge at the full height of the card,
-   and the rest of the card is lit by the poster's own colours (the
-   blurhash canvas jellyfin-web already draws under every image,
-   stretched and darkened). On that halo: the season name, large, in
-   the serif, and its state as a chip ("6 à voir", "Vue").
-   - 3 cards per row at 1920, 2 at 1440 (like the episode cards), 1 on
-     phones; auto-fill keeps empty tracks, so 1-3 seasons never stretch.
-   - the first season still to watch gets an amber chip "À suivre".
-   - watched seasons recede: veiled poster, dim name; hover restores.
-   Scoped to season cards of a detail page; the episode list
-   (.listItem-largeImage) and every other card are untouched.
+   9b. Seasons: a wall of posters on the series page ("Fiche", direction C)
+   Each season is its poster, large (2:3, 7-8 a row at 1920, 3 on a phone),
+   its name under it in the serif, its state as a chip on the poster
+   ("6 à voir", "Vue"). Built for long-running series (One Piece's 30+
+   arcs is the reference case):
+   - watched seasons shrink to small posters, in place: the season to
+     resume and the ones after stay large and come up the page, the order
+     is kept, nothing is hidden;
+   - the first season still to watch gets an amber ring and "À suivre".
+   The wall takes the whole width under the header (it clears the poster).
+   Scoped to season cards of a detail page; every other card is untouched.
    ============================================================ */
 
-/* --- geometry: one place to tune the card shape --- */
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] {
-  --sf-ratio: 41.6667%;        /* card height / width: 2.4:1 */
-  --sf-poster: 27.7778%;       /* poster width / card width: 2:3 poster at full card height */
-  --sf-pad: clamp(.9rem, 1.1vw, 1.35rem);
+/* --- one place to tune the sizes --- */
+.itemDetailPage #listChildrenCollapsible {
+  --sw-big: clamp(9rem, 12vw, 14rem);        /* a season to watch */
+  --sw-small: clamp(4.6rem, 5.6vw, 6.5rem);   /* a watched season */
+  --sw-gap: clamp(.8rem, 1.1vw, 1.25rem);
 }
 
-/* --- the grid (desktop vertical-wrap and phone scrollX alike) --- */
+/* --- the wall, left-aligned on the page gutter, under the poster --- */
+.layout-desktop .itemDetailPage #listChildrenCollapsible:has(.card[data-type="Season"]) {
+  clear: both; margin-left: calc(var(--pj-gutter) - var(--pj-indent));
+}
 .itemDetailPage #listChildrenCollapsible #childrenContent > .itemsContainer:has(> .card[data-type="Season"]) {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 27rem), 1fr));
-  gap: 1.1rem 1.25rem;
-  max-width: 100rem;
-  padding-right: 0 !important;
-  white-space: normal !important;
-  overflow: visible !important;
+  display: flex !important; flex-wrap: wrap; align-items: flex-start;
+  gap: calc(var(--sw-gap) * 1.4) var(--sw-gap);
+  padding: 0 !important; white-space: normal !important; overflow: visible !important; transform: none !important;
   text-align: left;
 }
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] {
-  width: auto !important; max-width: none !important; min-width: 0;
+  width: var(--sw-big) !important; max-width: none !important; min-width: 0; flex: none;
   margin: 0 !important; padding: 0 !important; display: block !important;
 }
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardBox {
-  position: relative; margin: 0 !important; padding: 0 !important;
-}
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardBox { margin: 0 !important; padding: 0 !important; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardScalable { box-shadow: 0 0 0 1px var(--pj-line); }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardPadder { padding-bottom: 150% !important; }
 
-/* --- the frame: wide, with a quiet fallback when there is no blurhash --- */
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardScalable {
-  position: relative;
-  background: linear-gradient(110deg, var(--pj-raise-2), var(--pj-raise));
-  box-shadow: 0 0 0 1px var(--pj-line);
-}
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardPadder {
-  padding-bottom: var(--sf-ratio) !important;
-}
-/* the halo: the poster's blurhash, stretched over the whole card. Stock fades it
-   out once the image has loaded (.lazy-hidden); here it is kept on purpose. */
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .blurhash-canvas {
-  position: absolute; inset: 0; width: 100% !important; height: 100% !important;
-  opacity: 1 !important; z-index: 0;
-  filter: saturate(1.25) brightness(.62);
-}
-/* a veil on the text side, darker towards the right, and a soft shadow where the
-   poster ends, so the name reads on any colour */
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardScalable::after {
-  content: ""; position: absolute; top: 0; bottom: 0; right: 0; left: var(--sf-poster);
-  z-index: 0; pointer-events: none;
-  background:
-    linear-gradient(to right, rgba(0, 0, 0, .5), rgba(0, 0, 0, 0) 1.1rem),
-    linear-gradient(to right, rgba(var(--pj-veil), .25), rgba(var(--pj-veil), .78));
-}
-
-/* --- the poster: its own 2:3 slot at the left edge, whatever the image's shape
-   (a landscape season image used to spread under the name and the chips) --- */
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] a.cardImageContainer {
-  position: absolute; top: 0; bottom: 0; left: 0; right: auto !important; width: var(--sf-poster) !important; z-index: 1;
-  background-size: cover !important;
-  background-position: center top !important;
-  background-repeat: no-repeat !important;
-  border-radius: var(--pj-r) 0 0 var(--pj-r) !important;
-  /* stock clips it (overflow:hidden, contain:strict): the state chips inside it sit
-     past its right edge, so they must be allowed out */
-  overflow: visible !important; contain: none !important;
-}
-
-/* --- the name: large, serif, on the halo --- */
+/* --- the name under the poster --- */
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText-first {
-  position: absolute; z-index: 4;
-  top: 0; left: calc(var(--sf-poster) + var(--sf-pad)); right: var(--sf-pad);
-  margin: 0 !important; padding: var(--sf-pad) 0 0 !important; min-height: 0 !important;
-  text-align: left !important;
-  font-family: var(--pj-serif); font-weight: 700; letter-spacing: .005em;
-  font-size: clamp(1.25rem, .95rem + .75vw, 1.95rem); line-height: 1.12;
-  color: var(--pj-text);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .55), 0 2px 18px rgba(0, 0, 0, .35);
-  white-space: normal !important; overflow: hidden;
+  font-family: var(--pj-serif); font-weight: 700; font-size: clamp(.98rem, .85rem + .3vw, 1.15rem); line-height: 1.2;
+  text-align: left !important; padding: .55em 0 0 !important; margin: 0 !important;
+  white-space: normal !important; overflow: hidden; min-height: 0 !important;
   display: -webkit-box !important; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-  pointer-events: none;           /* the card's own link and overlay take the clicks */
 }
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText-first a {
-  color: inherit !important; pointer-events: auto; text-decoration: none;
-}
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText-first a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .18em; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText-first a { color: inherit !important; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText:not(.cardText-first) { text-align: left !important; padding-left: 0 !important; }
 
-/* --- the state: a chip at the bottom of the text side --- */
+/* --- the state: a chip at the bottom left of the poster --- */
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardIndicators {
-  /* the chips live inside the poster's link, so they are placed from the poster
-     slot: just past its right edge */
-  position: absolute; top: auto; right: auto;
-  left: calc(100% + var(--sf-pad)); bottom: var(--sf-pad); white-space: nowrap;
-  margin: 0; display: flex; gap: .4rem;
+  position: absolute; top: auto; right: auto; left: .5rem; bottom: .6rem; margin: 0; display: flex; gap: .3rem; max-width: calc(100% - 1rem);
 }
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .countIndicator,
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .playedIndicator {
-  width: auto !important; height: auto !important; min-width: 0;
-  padding: .32em .8em; border-radius: 99px;
-  font-size: .8rem; font-weight: 600; line-height: 1.2; letter-spacing: .01em;
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] :is(.countIndicator, .playedIndicator) {
+  width: auto !important; height: auto !important; min-width: 0; white-space: nowrap;
+  padding: .3em .7em; border-radius: 99px; font-size: .74rem; font-weight: 600; line-height: 1.2;
   display: inline-flex; align-items: center; gap: .3em;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
 }
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .countIndicator::after { content: "\00a0à voir"; font-weight: 500; color: var(--pj-text-2); }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .countIndicator::after { content: "\00a0à voir"; font-weight: 500; }
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .playedIndicator .material-icons,
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .playedIndicator .indicatorIcon { font-size: 1.05em; width: auto; height: auto; }
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .playedIndicator::after { content: "Vue"; }
 
-/* the first season still to watch: the amber chip says where to resume */
+/* --- the first season still to watch: amber ring and "À suivre" --- */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.countIndicator):not(.card[data-type="Season"]:has(.countIndicator) ~ .card) .cardScalable {
+  box-shadow: 0 0 0 2px var(--pj-amber);
+}
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.countIndicator):not(.card[data-type="Season"]:has(.countIndicator) ~ .card) .countIndicator {
   background: var(--pj-amber) !important; color: var(--pj-amber-ink) !important; box-shadow: none !important;
 }
 .itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.countIndicator):not(.card[data-type="Season"]:has(.countIndicator) ~ .card) .countIndicator::before { content: "À suivre ·\00a0"; font-weight: 700; }
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.countIndicator):not(.card[data-type="Season"]:has(.countIndicator) ~ .card) .countIndicator::after { color: inherit; }
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.countIndicator):not(.card[data-type="Season"]:has(.countIndicator) ~ .card) .cardScalable {
-  box-shadow: 0 0 0 1px rgba(242, 180, 65, .55);
-}
 
-/* --- watched seasons recede (the chip, on the text side, stays readable) --- */
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .cardScalable::before {
-  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: var(--sf-poster);
-  z-index: 2; pointer-events: none; background: rgba(var(--pj-veil), .5);
-  transition: opacity var(--pj-fast);
+/* --- watched seasons: small posters, in place; a veil and a dim name. The tick stays,
+   without its word (no room for it) --- */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) { width: var(--sw-small) !important; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .cardText-first {
+  font-family: inherit; font-weight: 600; font-size: .76rem; line-height: 1.25; color: var(--pj-dim); padding-top: .4em !important;
 }
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .blurhash-canvas { filter: saturate(.5) brightness(.45); }
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .cardText-first { color: var(--pj-dim); }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .cardIndicators { left: .3rem; bottom: .35rem; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .playedIndicator { padding: .25em; font-size: .7rem; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .playedIndicator::after { content: none; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .cardImageContainer::after {
+  content: ""; position: absolute; inset: 0; background: rgba(var(--pj-veil), .35); pointer-events: none; transition: opacity var(--pj-fast);
+}
 @media (hover: hover) {
-  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator):hover .cardScalable::before { opacity: 0; }
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator):hover .cardImageContainer::after { opacity: 0; }
   .itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator):hover .cardText-first { color: var(--pj-text); }
 }
+/* the overlay's play button is too big for a small poster: only its tint shows there */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) :is(.cardOverlayFab-primary, .cardOverlayButton-br) { display: none; }
 
-/* --- hover overlay: darken the poster only, play button centred on it --- */
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardOverlayContainer {
-  z-index: 3;
-  background: linear-gradient(to right, rgba(8, 12, 13, .5) var(--sf-poster), rgba(8, 12, 13, 0) var(--sf-poster)) !important;
+/* a season without an image: stock writes its name across the placeholder in a size made
+   for a wide card, which ran out of a small poster; a quiet name in the middle instead */
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardDefaultText {
+  font-size: clamp(.7rem, .6rem + .4vw, 1rem) !important; line-height: 1.2; padding: 0 .5em; text-align: center;
+  white-space: normal; overflow-wrap: break-word; color: var(--pj-dim);
 }
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardOverlayFab-primary {
-  position: absolute; margin: 0 !important;
-  top: 50%; left: calc(var(--sf-poster) / 2); transform: translate(-50%, -50%);
-}
-.itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardOverlayButton-br { z-index: 5; }
+.itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .cardDefaultText { font-size: .62rem !important; }
 
-/* --- phones: one card per row, a little taller so the poster stays a real image --- */
+/* --- phones: three posters a row, watched ones six a row --- */
 @media (max-width: 600px) {
-  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] {
-    --sf-ratio: 45.4545%;      /* 2.2:1 */
-    --sf-poster: 30.303%;
-    --sf-pad: .85rem;
-  }
-  .itemDetailPage #listChildrenCollapsible #childrenContent > .itemsContainer:has(> .card[data-type="Season"]) {
-    grid-template-columns: 1fr; gap: .75rem;
-  }
-  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText-first { font-size: 1.2rem; min-height: 0 !important; }
+  .itemDetailPage #listChildrenCollapsible { --sw-gap: .7rem; --sw-big: calc((100% - 2 * var(--sw-gap)) / 3); --sw-small: calc((100% - 5 * var(--sw-gap)) / 6); }
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardText-first { font-size: .9rem; }
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"]:has(.playedIndicator) .cardText-first { font-size: .68rem; }
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] :is(.countIndicator, .playedIndicator) { font-size: .64rem; padding: .25em .5em; }
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardIndicators { left: .3rem; bottom: .4rem; }
+  /* the ring says "à suivre" on a poster this narrow; the chip keeps the count */
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .countIndicator::before { content: none !important; }
+  /* tapping the poster opens the season: the round play button only covered the chip */
+  .itemDetailPage #listChildrenCollapsible .card[data-type="Season"] .cardOverlayButton-br { display: none !important; }
 }
-.layout-mobile .itemDetailPage #listChildrenCollapsible #childrenContent > .itemsContainer:has(> .card[data-type="Season"]) {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
-  padding-left: 0 !important; transform: none !important;
-}
-.layout-mobile .itemDetailPage #listChildrenCollapsible .emby-scrollbuttons:has(~ * .card[data-type="Season"]),
+/* percentages of a flex item resolve against the row: the variables above need the
+   row's width, which the cards get from their container */
+.layout-mobile .itemDetailPage #listChildrenCollapsible #childrenContent > .itemsContainer:has(> .card[data-type="Season"]) { padding-left: 0 !important; }
 .layout-mobile .itemDetailPage #listChildrenCollapsible:has(.card[data-type="Season"]) .emby-scrollbuttons { display: none !important; }
-.layout-mobile .itemDetailPage #listChildrenCollapsible:has(.card[data-type="Season"]) .emby-scroller {
-  overflow: visible !important; margin-left: 0; margin-right: 0;
-}
+.layout-mobile .itemDetailPage #listChildrenCollapsible:has(.card[data-type="Season"]) .emby-scroller { overflow: visible !important; margin-left: 0; margin-right: 0; }
 
 /* ============================================================
    10. Other lists
@@ -747,6 +819,16 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
 @media (hover: hover) { .listItem:not(.listItem-largeImage):hover { background: var(--pj-raise-2) !important; } }
 .listItemImage, .listItemImageContainer { border-radius: var(--pj-r); overflow: hidden; }
 .paperList { background: var(--pj-raise); border: 1px solid var(--pj-line); border-radius: var(--pj-r); }
+
+/* the A-Z index on the right of a library: stock's letters need about 890px, so on a
+   phone (or a short window) the column ran under the header and the avatar. Tighter
+   letters fit 27 of them in about 450px. */
+.alphaPicker-fixed-right .alphaPickerButton { color: var(--pj-dim); }
+.alphaPicker-fixed-right .alphaPickerButton:hover { color: var(--pj-text); }
+.alphaPicker-fixed-right .alphaPickerButton-selected { color: var(--pj-amber) !important; background: transparent !important; }
+@media (max-height: 62em) {
+  .alphaPicker-fixed-right .alphaPickerButton { padding-top: .1em !important; padding-bottom: .1em !important; font-size: .72rem; line-height: 1.3; }
+}
 
 /* ============================================================
    11. Forms
@@ -779,6 +861,8 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
 .actionSheetMenuItem:hover, .actionSheetMenuItem:focus { background: var(--pj-raise-2); }
 .actionSheetMenuItem:focus { box-shadow: inset 3px 0 0 var(--pj-amber); }
 .actionSheetItemAsideText { color: var(--pj-dim) !important; font-size: .9em; }
+/* deleting stands apart from the harmless entries next to it */
+.actionSheetMenuItem[data-id="delete"], .actionSheetMenuItem[data-id="delete"] .actionsheetMenuItemIcon { color: var(--pj-danger) !important; }
 .actionsheetMenuItemIcon.check, .actionSheetMenuItem .check { color: var(--pj-amber) !important; }
 .actionSheetTitle { padding-bottom: .4em; }
 .itemSelectionPanel { border-color: var(--pj-amber); }
@@ -795,6 +879,17 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
 }
 .missingIndicator::before { content: "Manquant"; font-size: .75rem; }
 .unairedIndicator::before { content: "Pas encore diffusé"; font-size: .75rem; }
+
+/* Favourites with nothing in them: stock shows a blank page. A sentence says what the
+   page is for and how to fill it (it shows for a moment while the rows load, too). */
+#favoritesTab .sections:not(:has(> .verticalSection:not(.hide)))::before {
+  content: "Aucun favori pour l’instant"; display: block; margin: 18vh auto 0; max-width: 30rem; padding: 0 1.25rem;
+  text-align: center; font-family: var(--pj-serif); font-weight: 700; font-size: 1.6rem; color: var(--pj-text);
+}
+#favoritesTab .sections:not(:has(> .verticalSection:not(.hide)))::after {
+  content: "Touchez le cœur d’un film, d’une série, d’un épisode ou d’une personne pour le retrouver ici.";
+  display: block; margin: .6rem auto 0; max-width: 30rem; padding: 0 1.25rem; text-align: center; color: var(--pj-dim); line-height: 1.6;
+}
 
 /* ============================================================
    14. Login

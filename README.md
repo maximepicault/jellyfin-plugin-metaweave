@@ -81,7 +81,7 @@ Include these files in your backups: local sources and the people directory exis
 
 ## Web theme (optional)
 
-`theme/projection.css` is a dark theme for jellyfin-web 10.11, unrelated to the plugin itself: smaller poster and a labelled play button on detail pages, episodes as a grid of 16:9 cards (rows on phones), missing episodes shown as empty frames, a backdrop that fades as you scroll. To use it, put this line in Dashboard → General → Custom CSS code:
+`theme/projection.css` is a dark theme for jellyfin-web 10.11, unrelated to the plugin itself: detail pages as a compact sheet (poster, title, labelled play button, synopsis and tags together on a blurred backdrop), a series' seasons as a wall of large posters where watched seasons shrink in place (made for series with dozens of seasons), episodes as a grid of 16:9 cards (rows on phones), missing episodes shown as empty frames. To use it, put this line in Dashboard → General → Custom CSS code:
 
 ```css
 @import url("https://cdn.jsdelivr.net/gh/maximepicault/jellyfin-plugin-metaweave@main/theme/projection.css");
