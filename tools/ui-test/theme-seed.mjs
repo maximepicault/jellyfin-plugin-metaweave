@@ -1,7 +1,7 @@
 // Gives the test Jellyfin the variety a theme must survive: long synopses with and without tags, taglines, many tags,
 // genres, studios, ratings, an episode in progress, a watched one, missing episodes shown, a movie library (movies without
 // any image, one with a very long title), a series with a long title and no artwork at all, and a 32-arc series
-// (One Piece-like) for season layouts.
+// (One Piece-like) for season layouts, and a 60 s episode with trickplay thumbnails for the hover preview.
 // Usage: node theme-seed.mjs <base_url>     (idempotent: run it before theme-audit.mjs; nothing is locked, so a plugin
 // refresh may overwrite the texts, and the next run puts them back)
 import fs from 'node:fs';
@@ -138,6 +138,24 @@ for i, n in enumerate(names):
     const watched = i < 26 ? eps : i === 26 ? eps.slice(0, 1) : [];
     for (const e of watched) { if (!e.UserData?.Played) { await api('POST', `/UserPlayedItems/${e.Id}?userId=${U}`); } }
   }
+}
+
+// 5. an episode long enough for trickplay thumbnails (the hover preview of projection.js): 60 s of moving test
+// pattern, trickplay turned on for the theme library, and Jellyfin's trickplay task run once
+const tpFile = path.join(WORK, 'media/theme-series/Aperçu au survol (démo)/Season 1/S01E01.mkv');
+if (!fs.existsSync(tpFile)) {
+  fs.mkdirSync(path.dirname(tpFile), { recursive: true });
+  const { execFileSync } = await import('node:child_process');
+  execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=640x360:d=60:r=10', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', tpFile]);
+  const lib = (await api('GET', '/Library/VirtualFolders')).find(l => l.Name === 'Séries (thème)');
+  if (lib) {
+    await api('POST', '/Library/VirtualFolders/LibraryOptions', { Id: lib.ItemId, LibraryOptions: { ...lib.LibraryOptions, EnableTrickplayImageExtraction: true, ExtractTrickplayImagesDuringLibraryScan: true } });
+  }
+  await api('POST', '/Library/Refresh');
+  await wait(15000);
+  const task = (await api('GET', '/ScheduledTasks')).find(t => t.Key === 'RefreshTrickplayImages');
+  if (task) { await fetch(`${J}/ScheduledTasks/Running/${task.Id}`, { method: 'POST', headers: H }); }
+  for (let i = 0; i < 60; i++) { await wait(3000); const t = (await api('GET', '/ScheduledTasks')).find(x => x.Key === 'RefreshTrickplayImages'); if (t && t.State === 'Idle') { break; } }
 }
 
 console.log('🌱 seeded:', { series: series.length, movies: movies.map(m => m.Name), libraries: (await api('GET', '/Library/VirtualFolders')).map(f => f.Name) });

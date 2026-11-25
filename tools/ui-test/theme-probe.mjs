@@ -1,5 +1,5 @@
 // Opens one jellyfin-web page with the Projection theme and evaluates expressions in it (theme debugging aid).
-// Usage: node theme-probe.mjs <base_url> <hash> <width> '<js expression>' ['<js expression>' ...] [--layout=experimental] [--shot=/path.png] [--served: import the theme from the plugin's route instead of pasting it]
+// Usage: node theme-probe.mjs <base_url> <hash> <width> '<js expression>' ['<js expression>' ...] [--layout=experimental] [--shot=/path.png] [--served: import the theme from the plugin's route instead of pasting it] [--hover=<selector> [--hoverwait=ms], then 'after:<expr>' expressions]
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -58,7 +58,12 @@ try {
   }
   await send('Page.navigate', { url: `${J}/web/${h}` });
   await wait(4500);
-  for (const e of exprs) console.log('▶', e.slice(0, 80), '\n ', JSON.stringify(await evalJs(e), null, 1));
+  for (const e of exprs.filter(x => !x.startsWith('after:'))) console.log('▶', e.slice(0, 80), '\n ', JSON.stringify(await evalJs(e), null, 1));
+  const hover = opt('hover');   // --hover=<selector>: a real mouse move onto its centre, then a pause
+  if (hover) {
+    const pos = await evalJs(`(function(){var e=document.querySelector(${JSON.stringify(hover)}); if(!e) return null; e.scrollIntoView({block:'center'}); var r=e.getBoundingClientRect(); return {x:r.x+r.width/2, y:r.y+r.height/2};})()`);
+    if (pos) { await wait(300); await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pos.x, y: pos.y }); await wait(Number(opt('hoverwait') || 2200)); for (const e of exprs) { if (e.startsWith('after:')) console.log('▶', e, '\n ', JSON.stringify(await evalJs(e.slice(6)), null, 1)); } } else { console.log('⚠️ hover target not found:', hover); }
+  }
   const shotPath = opt('shot');
   if (shotPath) { const r = await send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(shotPath, Buffer.from(r.result.data, 'base64')); console.log('📸', shotPath); }
 } finally {
