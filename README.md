@@ -81,13 +81,21 @@ Include these files in your backups: local sources and the people directory exis
 
 ## Web theme (optional)
 
-`theme/projection.css` is a dark theme for jellyfin-web 10.11, unrelated to the plugin itself: detail pages as a compact sheet (poster, title, labelled play button, synopsis and tags together on a blurred backdrop), a series' seasons as a wall of large posters where watched seasons shrink in place (made for series with dozens of seasons), episodes as a grid of 16:9 cards (rows on phones), missing episodes shown as empty frames. To use it, put this line in Dashboard → General → Custom CSS code:
+`theme/projection.css` is a dark theme for jellyfin-web 10.11, usable with or without the plugin: detail pages as a compact sheet (poster, title, labelled play button, synopsis and tags together on a blurred backdrop), a series' seasons as a wall of large posters where watched seasons shrink in place (made for series with dozens of seasons), episodes as a grid of 16:9 cards (rows on phones), missing episodes shown as empty frames. Put one of these lines in Dashboard → General → Custom CSS code:
 
-```css
-@import url("https://cdn.jsdelivr.net/gh/maximepicault/jellyfin-plugin-metaweave@main/theme/projection.css");
-```
+- **With the plugin installed** (recommended): the plugin serves the theme it was built with, so it changes when the plugin is updated, with no cache to wait for. The relative path also works when Jellyfin runs under a base URL.
 
-The French labels it adds (for example "Manquant" on missing episodes, a label jellyfin-web leaves in English) are in section 13 of the file. jsDelivr caches the file for up to 12 hours after a change.
+  ```css
+  @import url("../CustomMetadata/Theme/projection.css");
+  ```
+
+- **Without the plugin**: from the repository through jsDelivr, which caches the file for up to 12 hours after a change.
+
+  ```css
+  @import url("https://cdn.jsdelivr.net/gh/maximepicault/jellyfin-plugin-metaweave@main/theme/projection.css");
+  ```
+
+The French labels it adds (for example "Manquant" on missing episodes, a label jellyfin-web leaves in English) are in sections 9b and 13 of the file.
 
 ## Troubleshooting
 

@@ -1,5 +1,5 @@
 // Opens one jellyfin-web page with the Projection theme and evaluates expressions in it (theme debugging aid).
-// Usage: node theme-probe.mjs <base_url> <hash> <width> '<js expression>' ['<js expression>' ...] [--layout=experimental] [--shot=/path.png]
+// Usage: node theme-probe.mjs <base_url> <hash> <width> '<js expression>' ['<js expression>' ...] [--layout=experimental] [--shot=/path.png] [--served: import the theme from the plugin's route instead of pasting it]
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -35,7 +35,7 @@ const until = async (expr, ms = 20000) => { const t = Date.now(); while (Date.no
 const auth = await (await fetch(`${J}/Users/AuthenticateByName`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Emby-Authorization': 'MediaBrowser Client="theme-probe", Device="cli", DeviceId="theme-probe", Version="1"' }, body: JSON.stringify({ Username: 'admin', Pw: 'admin' }) })).json();
 const H = { 'Content-Type': 'application/json', 'X-Emby-Token': auth.AccessToken };
 const before = await (await fetch(`${J}/System/Configuration/branding`, { headers: H })).json();
-await fetch(`${J}/System/Configuration/branding`, { method: 'POST', headers: H, body: JSON.stringify({ ...before, CustomCss: args.includes('--no-css') ? '' : css }) });
+await fetch(`${J}/System/Configuration/branding`, { method: 'POST', headers: H, body: JSON.stringify({ ...before, CustomCss: args.includes('--no-css') ? '' : args.includes('--served') ? '@import url("../CustomMetadata/Theme/projection.css");' : css }) });
 try {
   await send('Page.enable'); await send('Runtime.enable');
   const w = Number(width); const mobile = w < 600;

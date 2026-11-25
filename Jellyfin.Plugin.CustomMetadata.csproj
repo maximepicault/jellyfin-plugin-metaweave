@@ -42,6 +42,8 @@
   <ItemGroup>
     <!-- Configuration web page -->
     <EmbeddedResource Include="Configuration\*.html" />
+    <!-- Projection web theme, served by Api/ThemeController (CustomMetadata/Theme/projection.css) -->
+    <EmbeddedResource Include="theme\projection.css" LogicalName="Jellyfin.Plugin.CustomMetadata.theme.projection.css" />
   </ItemGroup>
 
 </Project>

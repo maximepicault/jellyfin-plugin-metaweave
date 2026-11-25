@@ -16,7 +16,7 @@
 | `ScheduledTasks/` | `MissingEpisodesTask` (daily, key `CustomMetadataMissingEpisodes`) |
 | `tools/ui-test/` | Test bench (Docker Jellyfin 10.11.6 on 8097, mock API `server.py`, demo data `data.py`/`gen.py`, CDP/Playwright scripts) |
 | `deploy/` | Server-side updater (systemd timer) and its sandbox test |
-| `theme/projection.css` | Optional jellyfin-web theme, independent of the plugin (D013) |
+| `theme/projection.css` | Optional jellyfin-web theme (D013), also embedded in the DLL and served by `ThemeController` |
 
 ## 2. Wiring
 
@@ -135,6 +135,7 @@ All under the plugin's `DataFolderPath` unless noted (a temp-folder fallback exi
 | `Refresh`, `Refresh/Status` | `SourceRefreshController` → `SourceRefreshService` | `config.html` |
 | `Local/{dataId}`, `/Image`, `/Video`, `/Public/{file}`, `ImportEpisodes` | `LocalSourceController` → `LocalSourceStore` | `config.html`, `people.html` (photo upload) |
 | `FolderImages/{itemId}/{folder}/{file}` (anonymous GET), `FolderImages/Import` | `FolderImagesController` → `FolderImages`, `LocalSourceStore` | Jellyfin image picker, `config.html` |
+| `Theme/projection.css` (anonymous GET, ETag, 5 min cache) | `ThemeController` → `theme/projection.css` embedded in the DLL | the server's Custom CSS (`@import url("../CustomMetadata/Theme/projection.css")`) |
 | `MissingEpisodes`, `/Analyze`, `/Ignore` | `MissingEpisodesController` → `MissingEpisodeService`, task manager | `missing.html`, `config.html` |
 | `Dump/Test`, `Reload`, `Sources`, `Coverage`, `Series`, `Export`, `Image` | `DumpController` → `DumpStore`, `DumpCoverageService` | `config.html`, `missing.html` (Catalogues) |
 | `People`, `Networks/*`, `EpisodeCast`, `Merge`, `Apply`, `Children`, `Library`, `Fetch`, `Photo/{file}` | `PeopleController` → `PeopleStore`, `PersonNetworkStore`, `CastOverlayStore`, `CastCatalog`, `CastApplyService` | `people.html`, `config.html` |

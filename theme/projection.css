@@ -3,11 +3,15 @@
 /*
  * Projection 2 - a flat, cinema-minded dark theme for jellyfin-web 10.11.
  *
- * Install: Dashboard > General > Custom CSS code, then either paste this whole
- * file, or import it so it follows the updates of the repository:
- *   @import url("https://cdn.jsdelivr.net/gh/maximepicault/jellyfin-plugin-metaweave@main/theme/projection.css");
- * (jsDelivr serves it as text/css; a raw.githubusercontent.com link is refused
- * by browsers because it is served as text/plain.)
+ * Install: Dashboard > General > Custom CSS code, then one of:
+ * - with the Custom Metadata plugin installed, import the copy it serves (it
+ *   follows the plugin's updates, no CDN cache, works under a base URL):
+ *     @import url("../CustomMetadata/Theme/projection.css");
+ * - without it, import it from the repository through jsDelivr:
+ *     @import url("https://cdn.jsdelivr.net/gh/maximepicault/jellyfin-plugin-metaweave@main/theme/projection.css");
+ *   (jsDelivr serves it as text/css; a raw.githubusercontent.com link is refused
+ *   by browsers because it is served as text/plain.)
+ * - or paste this whole file.
  * Scope: pages rendered by jellyfin-web itself (home, libraries, details,
  * search, player, login). The 10.11 admin dashboard is a separate React app
  * that does not receive custom CSS, so it keeps the stock look.
