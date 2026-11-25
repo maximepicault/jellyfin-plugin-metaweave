@@ -20,12 +20,12 @@
  * - Ink and paper, one accent (projector-lamp amber) kept for what you act on
  *   or what you did: the play button, focus, selection, progress, "watched".
  *   Counts, links and labels stay neutral so the amber keeps its meaning.
- * - Detail pages are a compact sheet: poster, title, a labelled play button,
- *   synopsis and tags together under the header, so the content (seasons,
- *   episodes) starts on the first screen; episodes as a grid of 16:9 cards.
+ * - Detail pages adapt their header: with a backdrop the picture is put forward
+ *   (half a screen, veiled only under the text); without one, a compact header
+ *   with no empty band. Poster, title, labelled play button, synopsis and tags
+ *   stay together; episodes as a grid of 16:9 cards.
  * - Seasons are a wall of large posters; watched ones shrink in place, so the
  *   season to resume comes up even on a series with 30+ seasons.
- * - The backdrop is a mood, not a picture: blurred behind the sheet, then ink.
  * Offline or blocked Google Fonts? The serif falls back to Georgia.
  * The labels in sections 9b ("à voir", "Vue", "À suivre") and 13 ("Manquant"...)
  * are French: edit them for your language.
@@ -338,41 +338,65 @@ html { scrollbar-width: thin; scrollbar-color: var(--pj-line-strong) transparent
    - the content block continues from the same value, and is at least as tall as
      the rest of the screen, so a short season does not let the picture back in
      at the bottom. --pj-hero-h mirrors the band height for that. */
-/* "Fiche" (direction C, chosen 2026-11-25): a compact header. The band is only the room
-   the header bar and the top of the poster need; the poster, title, actions, synopsis
-   and tags then sit together on the blurred backdrop, and the content (seasons,
-   episodes) starts within the first screen. Defined on <html> so the fixed layer can
-   use it too. */
-html.layout-desktop:has(.itemDetailPage:not(.hide)) { --pj-hero-h: 14rem; }
-/* stock hangs the poster 12em above the band's bottom edge: from a short band it went
-   under the header, so it starts just below the header instead */
-html.layout-desktop .itemDetailPage .detailImageContainer .card { top: calc(4.75rem - var(--pj-hero-h)); }
-/* the backdrop is a mood behind the header, not a picture to look at: blurred and a
-   little dimmed, so any image (a busy one, a bright one) gives the same calm ground */
-html.layout-desktop:has(.itemDetailPage:not(.hide)) .backdropImage {
-  filter: blur(22px) saturate(1.15) brightness(.85); transform: scale(1.08);
-}
+/* "Fiche" (direction C, chosen 2026-11-25), adapted to what the item has:
+   - with a backdrop, the picture is put forward: a band of about half a screen shows it
+     clear, the poster and the title hang over its lower edge, and a veil darkens only
+     the area under the text (an ellipse at the bottom left), so the right side and the
+     top keep the picture as it is;
+   - without one, no empty band: a compact header (the room the header bar and the top
+     of the poster need), on a soft light from the top left (below).
+   Defined on <html> so the fixed layer can use it too. */
+html.layout-desktop:has(.itemDetailPage:not(.hide)) { --pj-hero-h: min(48vh, 30vw); }
+@media (max-height: 31.25em) { html.layout-desktop:has(.itemDetailPage:not(.hide)) { --pj-hero-h: 40vh; } }
+html.layout-desktop:has(.itemDetailPage:not(.hide)):not(:has(.backgroundContainer.withBackdrop)) { --pj-hero-h: 14rem; }
+/* stock hangs the poster 12em above the band's bottom edge: from the short band it went
+   under the header, so there it starts just below the header instead */
+html.layout-desktop:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage .detailImageContainer .card { top: calc(4.75rem - var(--pj-hero-h)); }
 .layout-desktop .itemDetailPage .itemBackdrop { height: var(--pj-hero-h); }
-/* the fixed picture layer itself turns to ink under the band: below the content
-   (a one-episode season, a series without seasons) the picture cannot come back,
-   whatever the height of the content */
+/* the fixed picture layer keeps the picture clear at the top and on the right, and turns
+   to ink below the header, so under a short content (a one-episode season, a series
+   without seasons) the picture cannot come back. The veil under the text is NOT here:
+   a fixed veil stays on the screen while the text scrolls up onto the bright top of the
+   picture (it did: a synopsis grey on grey). It is carried by the band and the content
+   block below, which scroll with the text. */
 html.layout-desktop:has(.itemDetailPage:not(.hide)) .backgroundContainer.withBackdrop {
-  /* the picture lights the whole header block (about 26rem under the band), then ink */
-  background-image: linear-gradient(to bottom, rgba(var(--pj-veil), .35) 0,
-    rgba(var(--pj-veil), .5) var(--pj-hero-h), var(--pj-bg) calc(var(--pj-hero-h) + 26rem)) !important;
+  background-image:
+    linear-gradient(to bottom, rgba(var(--pj-veil), 0) 0, rgba(var(--pj-veil), .05) calc(var(--pj-hero-h) - 12rem),
+      rgba(var(--pj-veil), .55) calc(var(--pj-hero-h) + 6rem), var(--pj-bg) calc(var(--pj-hero-h) + 22rem)) !important;
+}
+/* the text's veil, part 1: in the band, the same left-hand veil as the content block
+   below (part 2), faded in from the middle of the band to its lower edge, where the two
+   meet exactly (any difference drew a line across the picture) */
+html.layout-desktop:has(.backgroundContainer.withBackdrop) .itemDetailPage .itemBackdrop::after {
+  background: linear-gradient(to right, rgba(var(--pj-veil), .84) 0, rgba(var(--pj-veil), .72) 42%, rgba(var(--pj-veil), 0) 70%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 35%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 35%, #000 100%);
+}
+/* no backdrop: no picture to show, but no flat black either: a soft light from the top
+   left, behind the poster and the title, gives the header its own ground */
+html.layout-desktop:has(.itemDetailPage:not(.hide)) .backgroundContainer:not(.withBackdrop):not(.backgroundContainer-transparent) {
+  background-image: radial-gradient(ellipse 75% 34rem at 22% 0, #1d2e31 0, rgba(var(--pj-veil), 0) 100%) !important;
 }
 /* on desktop the band holds no picture (the fixed layer does), only its share of the
    veil: stock still fades it in from opacity 0 over .8s, which left the band less veiled
    than the content under it, a visible edge while the page loads */
 .layout-desktop .itemBackdrop { animation: none !important; opacity: 1 !important; }
+/* stock also paints the picture itself in the band (background-attachment: fixed): it showed
+   unveiled above the band's edge, a hard line across the header. The fixed layer alone
+   shows the picture, with its veils */
+.layout-desktop .itemDetailPage .itemBackdrop { background-image: none !important; }
 .layout-desktop .itemBackdrop::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 55%, rgba(var(--pj-veil), .4));
+  background: none;
 }
 .layout-desktop .detailPageWrapperContainer {
   min-height: calc(100vh - var(--pj-hero-h));
-  background: linear-gradient(to bottom, rgba(var(--pj-veil), .4) 0, rgba(var(--pj-veil), .62) 30vh,
-    rgba(var(--pj-veil), .8) 55vh) !important;
+  /* the text's veil, part 2: from the band's edge down, a veil on the left along the whole
+     text column (however tall the synopsis and tags are), the picture clear on the right;
+     then the scroll veil thickens to ink. Both scroll with the text. */
+  background:
+    linear-gradient(to right, rgba(var(--pj-veil), .84) 0, rgba(var(--pj-veil), .72) 42%, rgba(var(--pj-veil), 0) 70%),
+    linear-gradient(to bottom, rgba(var(--pj-veil), 0) 0, rgba(var(--pj-veil), .2) 10rem, rgba(var(--pj-veil), .9) 30rem) !important;
   overflow-x: clip; /* the full-bleed layers below reach past the column */
 }
 /* The hero ends where the content begins: the season list (episodes on a season
@@ -444,6 +468,14 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
 
 /* desktop: a smaller poster, the content column moves with it */
 .layout-desktop .detailImageContainer .card { width: var(--pj-poster-w); max-width: none; left: var(--pj-gutter); }
+/* an episode (or a movie without a poster) has a 16:9 picture: at poster width it was a
+   small frame floating in the sky above the title. Larger, the episode's own picture,
+   and its top on the series pill's line, so it reads with the title block */
+.layout-desktop .itemDetailPage:has(.detailImageContainer.hide-mobile .backdropCard) {
+  --pj-poster-w: clamp(17rem, 23vw, 27rem);
+  --pj-indent: calc(var(--pj-gutter) + var(--pj-poster-w) + clamp(1.5rem, 2.6vw, 3rem));
+}
+html.layout-desktop:has(.backgroundContainer.withBackdrop) .itemDetailPage .detailImageContainer.hide-mobile .backdropCard { top: var(--pj-thumb-top, -7.4em); }
 .detailImageContainer .cardScalable { box-shadow: var(--pj-shadow-lift); }
 .layout-desktop [dir=ltr] .detailRibbon { padding-left: var(--pj-indent); padding-right: var(--pj-gutter); }
 .layout-desktop [dir=ltr] .detailPagePrimaryContent { padding-left: var(--pj-indent); padding-right: var(--pj-gutter); }
@@ -495,6 +527,25 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
 .mainDetailButtons .detailButton:not(.btnPlay):not(.btnResume) { color: var(--pj-text-2); }
 @media (hover: hover) { .mainDetailButtons .detailButton:not(.btnPlay):not(.btnResume):hover { color: var(--pj-text); background: var(--pj-raise-2); } }
 
+/* phones, an episode (a 16:9 picture): its own picture was a 117px stamp next to the title,
+   under a band showing the series' backdrop (the same on every episode). The episode's
+   picture takes the band's place instead: full width under the header bar, the title
+   under it. */
+.layout-mobile .itemDetailPage:has(.detailImageContainer.hide-desktop .backdropCard) .itemBackdrop { height: 3.6rem !important; }
+.layout-mobile .itemDetailPage:has(.detailImageContainer.hide-desktop .backdropCard) .itemBackdrop::after { display: none; }
+.layout-mobile .itemDetailPage .detailRibbon .infoWrapper:has(.backdropCard) { padding-left: 0 !important; }
+.layout-mobile .itemDetailPage .detailRibbon:has(.infoWrapper .backdropCard) { margin-top: 0 !important; padding-top: .25rem; display: block !important; height: auto !important; }
+.layout-mobile .itemDetailPage .detailRibbon .infoWrapper:has(.backdropCard) { display: block !important; }
+.layout-mobile .itemDetailPage .detailImageContainer.hide-desktop:has(.backdropCard) {
+  position: static !important; width: auto !important; height: auto !important; float: none !important; margin: 0 !important;
+  display: flow-root;   /* holds the floated card: the title and actions start under it */
+}
+.layout-mobile .itemDetailPage .detailImageContainer.hide-desktop .backdropCard { float: none !important; }
+.layout-mobile .itemDetailPage .detailRibbon:has(.infoWrapper .backdropCard) :is(.nameContainer, .mainDetailButtons) { clear: both; }
+.layout-mobile .itemDetailPage .detailImageContainer.hide-desktop .backdropCard {
+  position: relative !important; top: 0 !important; left: 0 !important; width: 100% !important; max-width: none !important; margin: 0 0 1rem !important;
+}
+.layout-mobile .itemDetailPage .detailImageContainer.hide-desktop .backdropCard .cardScalable { box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
 /* phones: one left-aligned column next to the poster, actions on the page edge */
 .layout-mobile .detailRibbon .nameContainer, .layout-mobile .detailRibbon .parentName,
 .layout-mobile .detailRibbon .itemName, .layout-mobile .detailRibbon .itemMiscInfo {
@@ -520,6 +571,15 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
 /* phones: a long synopsis took the whole first screen and pushed the seasons down; four
    lines, then "Voir plus" (stock shows the button whenever the text is clamped) */
 .layout-mobile .itemDetailPage .overview.detail-clamp-text { -webkit-line-clamp: 4; }
+/* the file's tracks ("Vidéo 240p H264 SDR", audio and subtitle choices) are for whoever
+   checks a file, not for choosing what to watch: they move from between the actions and
+   the synopsis to under the tags, smaller. Only where the block holds no list of
+   children (an episode, a movie): the season wall relies on normal flow (clear). */
+.itemDetailPage .detailPagePrimaryContent .detailSection:not(:has(#listChildrenCollapsible:not(.hide))):has(> .trackSelections) {
+  display: flex; flex-direction: column;
+}
+.itemDetailPage .detailPagePrimaryContent .detailSection:has(> .trackSelections) > .trackSelections { order: 1; margin-top: 1rem; font-size: .85rem; opacity: .85; }
+.itemDetailPage .detailPagePrimaryContent .detailSection:has(> .trackSelections) > .verticalSection { order: 2; }
 /* the synopsis is read, not skimmed: stock's .93em was small next to the large title */
 .layout-desktop .detailPagePrimaryContent .overview { font-size: 1rem; }
 /* a desktop browser in a narrow window (a phone in desktop mode, a split screen) keeps
@@ -696,6 +756,16 @@ html.layout-mobile:has(.itemDetailPage:not(.hide)) .backdropContainer { opacity:
   .layout-mobile .listItemImage-large .listItemImageButton { inset: 0; width: auto; height: auto; place-self: stretch; display: flex; background: transparent !important; border-radius: 0; align-items: flex-end; justify-content: flex-start; padding: .4rem; }
   .layout-mobile .listItemImage-large .listItemImageButton-icon { background: rgba(var(--pj-veil), .78); border-radius: 50%; font-size: 1.5rem; padding: .15em; color: var(--pj-text); }
   .layout-mobile .listItem[data-positionticks] .listItemImageButton-icon { background: var(--pj-amber); color: var(--pj-amber-ink); }
+}
+
+/* --- an episode page's "Plus de Saison N" row: watched episodes recede, as on the season
+   page, so the ones left to watch stand out; hover restores them. (jellyfin-web gives
+   the row no mark for the episode being shown, nor the episode numbers: CSS cannot
+   point at the current one.) --- */
+.itemDetailPage .moreFromSeasonSection .card:has(.playedIndicator) .cardScalable { opacity: .55; transition: opacity var(--pj-fast); }
+.itemDetailPage .moreFromSeasonSection .card:has(.playedIndicator) .cardText { color: var(--pj-dim); }
+@media (hover: hover) {
+  .itemDetailPage .moreFromSeasonSection .card:has(.playedIndicator):hover .cardScalable { opacity: 1; }
 }
 
 /* ============================================================
