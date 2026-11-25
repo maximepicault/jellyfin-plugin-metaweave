@@ -7,3 +7,5 @@ P005 — 2026-11-25 — Projection theme direction B "Cinéma" (full-bleed backd
 P006 — 2026-11-25 — Fold watched seasons on the series page: needs JS; jellyfin custom CSS cannot run scripts, the plugin would have to inject into index.html. See D017.
 P007 — 2026-11-25 — Seasons as rows of small thumbnails: the maintainer wants large season images. See D017.
 P008 — 2026-11-25 — The previous "sleeve" wide season cards of the Projection theme: replaced by the wall of 2:3 posters. See D017.
+P009 — 2026-11-25 — Blurred backdrop (`blur(22px)`) behind the detail header of the Projection theme: the maintainer wants to see the picture itself. See D017.
+P010 — 2026-11-25 — Glow from the poster for items without backdrop (`background-image: inherit` on a pseudo-element of the poster): stock's `contain: content` clipped it and its `z-index: 3` on the detail card made it paint over the poster and title. See D017.
