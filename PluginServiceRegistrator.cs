@@ -34,6 +34,9 @@ namespace Jellyfin.Plugin.CustomMetadata
                 sp.GetRequiredService<LocalSourceStore>(),
                 () => sp.GetRequiredService<IServerApplicationHost>().GetLocalApiUrl("127.0.0.1")));
 
+            // Projection theme: adds its script to jellyfin-web's page when EnableThemeScript is on (ThemeScriptMiddleware)
+            serviceCollection.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, ThemeScriptStartupFilter>();
+
             serviceCollection.AddSingleton<PersonNetworkStore>();
             // Lets the person-network link providers answer their real names once Jellyfin has sorted them (see PersonNetworkUrlProvider.Ready)
             serviceCollection.AddHostedService<Providers.PersonNetworkReadyService>();

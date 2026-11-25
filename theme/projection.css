@@ -26,6 +26,9 @@
  *   stay together; episodes as a grid of 16:9 cards.
  * - Seasons are a wall of large posters; watched ones shrink in place, so the
  *   season to resume comes up even on a series with 30+ seasons.
+ * Optional script: theme/projection.js (plugin setting « Améliorations du thème
+ *   Projection ») adds hover previews, episode numbers, previous / next and
+ *   progress; what it adds is styled in section 9c. The CSS works without it.
  * Offline or blocked Google Fonts? The serif falls back to Georgia.
  * The labels in sections 9b ("à voir", "Vue", "À suivre") and 13 ("Manquant"...)
  * are French: edit them for your language.
@@ -361,8 +364,22 @@ html.layout-desktop:not(:has(.backgroundContainer.withBackdrop)) .itemDetailPage
    block below, which scroll with the text. */
 html.layout-desktop:has(.itemDetailPage:not(.hide)) .backgroundContainer.withBackdrop {
   background-image:
-    linear-gradient(to bottom, rgba(var(--pj-veil), 0) 0, rgba(var(--pj-veil), .05) calc(var(--pj-hero-h) - 12rem),
-      rgba(var(--pj-veil), .55) calc(var(--pj-hero-h) + 6rem), var(--pj-bg) calc(var(--pj-hero-h) + 22rem)) !important;
+    linear-gradient(to bottom, rgba(var(--pj-veil), 0) 0, rgba(var(--pj-veil), 0) calc(var(--pj-hero-h) - 4rem),
+      rgba(var(--pj-veil), .5) calc(var(--pj-hero-h) + 8rem), var(--pj-bg) calc(var(--pj-hero-h) + 24rem)) !important;
+}
+/* the picture WHOLE, at its own shape: stock stretches the backdrop over the whole screen
+   (cover on the viewport), and the band only showed its top half, the rest under ink: a
+   picture cut in two. On detail pages it now sits at 72% of the width on the right, at
+   its own ratio (3:2, 16:9, whatever the file is: the theme's script measures it and sets
+   --pj-bd-ratio; 3:2 until then), never cropped nor stretched (contain), and melts into
+   the ink on its left and bottom edges; the title and synopsis sit on the ink to its left. */
+html.layout-desktop:has(.itemDetailPage:not(.hide)) .backdropContainer .backdropImage {
+  inset: 0 0 auto auto; width: 72vw; height: calc(72vw / var(--pj-bd-ratio, 1.5)); max-height: 92vh;
+  background-size: contain; background-position: right top;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, rgba(0, 0, 0, .12) 12%, rgba(0, 0, 0, .4) 26%, rgba(0, 0, 0, .75) 40%, rgba(0, 0, 0, .95) 52%, #000 60%), linear-gradient(to bottom, #000 55%, rgba(0, 0, 0, .5) 78%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, rgba(0, 0, 0, .12) 12%, rgba(0, 0, 0, .4) 26%, rgba(0, 0, 0, .75) 40%, rgba(0, 0, 0, .95) 52%, #000 60%), linear-gradient(to bottom, #000 55%, rgba(0, 0, 0, .5) 78%, transparent 100%);
+  mask-composite: intersect;
 }
 /* the text's veil, part 1: in the band, the same left-hand veil as the content block
    below (part 2), faded in from the middle of the band to its lower edge, where the two
@@ -395,9 +412,15 @@ html.layout-desktop:has(.itemDetailPage:not(.hide)) .backgroundContainer:not(.wi
      text column (however tall the synopsis and tags are), the picture clear on the right;
      then the scroll veil thickens to ink. Both scroll with the text. */
   background:
-    linear-gradient(to right, rgba(var(--pj-veil), .84) 0, rgba(var(--pj-veil), .72) 42%, rgba(var(--pj-veil), 0) 70%),
     linear-gradient(to bottom, rgba(var(--pj-veil), 0) 0, rgba(var(--pj-veil), .2) 10rem, rgba(var(--pj-veil), .9) 30rem) !important;
   overflow-x: clip; /* the full-bleed layers below reach past the column */
+}
+/* with a backdrop only: the left-hand veil under the text column (without one, it drew an
+   edge across the soft light at the band's bottom) */
+html.layout-desktop:has(.backgroundContainer.withBackdrop) .detailPageWrapperContainer {
+  background:
+    linear-gradient(to right, rgba(var(--pj-veil), .84) 0, rgba(var(--pj-veil), .72) 42%, rgba(var(--pj-veil), 0) 70%),
+    linear-gradient(to bottom, rgba(var(--pj-veil), 0) 0, rgba(var(--pj-veil), .2) 10rem, rgba(var(--pj-veil), .9) 30rem) !important;
 }
 /* The hero ends where the content begins: the season list (episodes on a season
    page, seasons on a series page) and everything under it sit on solid ink, with a
@@ -552,7 +575,10 @@ html.layout-desktop:has(.backgroundContainer.withBackdrop) .itemDetailPage .deta
   text-align: left; align-items: flex-start; justify-content: flex-start;
 }
 .layout-mobile .detailRibbon h3.itemName, .layout-mobile .detailRibbon h1.itemName { font-size: 1.55rem; }
-.layout-mobile [dir=ltr] .mainDetailButtons { padding-left: 0 !important; justify-content: flex-start; margin-top: 1.1rem; }
+.layout-mobile [dir=ltr] .mainDetailButtons { padding-left: 0 !important; justify-content: flex-start; margin-top: 1.1rem; flex-wrap: wrap; row-gap: .4rem; }
+/* the icon buttons share the row with a labelled play button ("Reprendre · S27 É2"): tighter, so they stay on it */
+.layout-mobile .mainDetailButtons .detailButton:not(.btnPlay):not(.btnResume) { margin: 0 !important; padding-left: .35em !important; padding-right: .35em !important; }
+.layout-mobile .mainDetailButtons .btnPlay:not(.hide), .layout-mobile .mainDetailButtons .btnResume:not(.hide) { margin-right: .25em !important; padding-left: .85em !important; padding-right: 1em !important; }
 .layout-mobile .detailPagePrimaryContent { padding-top: .5em; }
 /* the synopsis follows the actions: stock stacked the content's top padding and two
    paragraph margins, about 60px of nothing between the buttons and the text */
@@ -885,6 +911,55 @@ html.layout-desktop:has(.backgroundContainer.withBackdrop) .itemDetailPage .deta
 .layout-mobile .itemDetailPage #listChildrenCollapsible #childrenContent > .itemsContainer:has(> .card[data-type="Season"]) { padding-left: 0 !important; }
 .layout-mobile .itemDetailPage #listChildrenCollapsible:has(.card[data-type="Season"]) .emby-scrollbuttons { display: none !important; }
 .layout-mobile .itemDetailPage #listChildrenCollapsible:has(.card[data-type="Season"]) .emby-scroller { overflow: visible !important; margin-left: 0; margin-right: 0; }
+
+/* ============================================================
+   9c. What the theme's script adds (theme/projection.js, optional: the plugin's
+   "Améliorations du thème Projection" setting). Every element is prefixed pj-.
+   ============================================================ */
+/* "S1 · É3" above an episode's title */
+.pj-epcode {
+  font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--pj-amber);
+  margin: 0 0 .15rem; text-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+}
+/* previous / next episode, under the actions */
+.pj-epnav { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0 .25rem; }
+.pj-epnav a {
+  display: flex; flex-direction: column; gap: .1rem; min-width: 0; max-width: min(22rem, 48%); padding: .55rem .85rem; border-radius: var(--pj-r-ui);
+  background: rgba(var(--pj-veil), .55); box-shadow: inset 0 0 0 1px var(--pj-line); color: var(--pj-text); text-decoration: none;
+  transition: box-shadow var(--pj-fast), background var(--pj-fast);
+}
+.pj-epnav a:hover { box-shadow: inset 0 0 0 1px rgba(242, 180, 65, .6); background: rgba(var(--pj-veil), .8); }
+.pj-epnav .pj-epnav-next { text-align: right; align-items: flex-end; }
+.pj-epnav-dir { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--pj-dim); }
+.pj-epnav-title { font-size: .9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.pj-epnav a.pj-played .pj-epnav-title { color: var(--pj-text-2); }
+.pj-epnav a.pj-missing .pj-epnav-title { color: var(--pj-dim); font-style: italic; }
+@media (max-width: 600px) { .pj-epnav a { max-width: calc(50% - .3rem); padding: .5rem .65rem; } }
+/* the episode being shown, in its season's row */
+.itemDetailPage .moreFromSeasonSection .card.pj-current .cardScalable { opacity: 1 !important; box-shadow: 0 0 0 2px var(--pj-amber); }
+.itemDetailPage .moreFromSeasonSection .card.pj-current .cardText-first::before { content: "En cours · "; color: var(--pj-amber); font-weight: 700; }
+/* a series' progress: bar and counts, under its facts */
+.pj-progress { display: flex; align-items: center; gap: .75rem; margin: .45rem 0 .2rem; font-size: .85rem; color: var(--pj-text-2); }
+.pj-progress .pj-bar { width: clamp(6rem, 12vw, 11rem); height: 4px; border-radius: 2px; background: rgba(235, 230, 217, .18); overflow: hidden; flex: none; }
+.pj-progress .pj-bar i, .pj-seasonbar i { display: block; height: 100%; background: var(--pj-amber); }
+.pj-progress-text { text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+/* a season started but not finished: its progress along the bottom of the poster */
+.pj-seasonbar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(5, 9, 10, .7); z-index: 3; pointer-events: none; }
+/* the episode number before its title on a season page */
+.pj-num { color: var(--pj-dim); font-weight: 700; margin-right: .45em; font-variant-numeric: tabular-nums; }
+.pj-num::after { content: "."; }
+/* the episode's own picture, put in place of the series' backdrop (same layout as it) */
+html.pj-has-own-backdrop .backdropContainer .backdropImage:not(.pj-ownbackdrop) { opacity: 0 !important; }
+/* hover preview: over the episode's frame, trickplay thumbnails or its preview video */
+.pj-preview {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none; border-radius: inherit; overflow: hidden;
+  background-color: #000; background-repeat: no-repeat; opacity: 0; transition: opacity .25s;
+}
+.pj-preview.pj-preview-on { opacity: 1; }
+.pj-preview-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pj-preview-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--pj-amber); transition: width .35s linear; }
+.listItemImage { position: relative; }
+@media (prefers-reduced-motion: reduce) { .pj-preview { transition: none; } }
 
 /* ============================================================
    10. Other lists

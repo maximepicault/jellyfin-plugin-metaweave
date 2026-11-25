@@ -95,6 +95,8 @@ Include these files in your backups: local sources and the people directory exis
   @import url("https://cdn.jsdelivr.net/gh/maximepicault/jellyfin-plugin-metaweave@main/theme/projection.css");
   ```
 
+**Theme script (optional, plugin only).** In the plugin's settings, « Améliorations du thème Projection » adds the theme's script (`theme/projection.js`) to jellyfin-web's pages: a hover preview of episodes (their trickplay thumbnails, or the preview video of a missing episode), « S1 · É3 » and previous / next links on episode pages, the episode's own picture as the backdrop when it is large enough, a series' progress (« 625 / 1 076 vus »), « Reprendre · S27 É2 » on its play button and a bar on each season started, episode numbers on season pages, and the backdrop shown at its own ratio. The plugin inserts the script tag into the page as it is served (nothing is written to Jellyfin's files); turning the setting off restores the stock page at the next load (Ctrl+F5).
+
 The French labels it adds (for example "Manquant" on missing episodes, a label jellyfin-web leaves in English) are in sections 9b and 13 of the file.
 
 ## Troubleshooting

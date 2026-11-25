@@ -1,32 +1,31 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Security.Cryptography;
+using Jellyfin.Plugin.CustomMetadata.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.CustomMetadata.Api
+namespace Jellyfin.Plugin.CustomMetadata.Services
 {
-    /// <summary>
-    /// Serves the Projection web theme (theme/projection.css, embedded in the DLL) from the server itself, so the
-    /// Custom CSS can import it with <c>@import url("../CustomMetadata/Theme/projection.css");</c>: the theme then
-    /// follows the plugin version installed on the server, without a CDN cache or a Git branch to follow.
-    /// ANONYMOUS, like the people photos: the browser fetches an @import without Jellyfin's token. The file is public
-    /// in the repository anyway.
-    /// </summary>
-    [ApiController]
-    [Route("CustomMetadata/Theme")]
-    public class ThemeController : ControllerBase
+    /// <summary>The Projection theme's files, embedded in the DLL (theme/projection.css, theme/projection.js).</summary>
+    public static class ThemeAssets
     {
-        private const string ResourceName = "Jellyfin.Plugin.CustomMetadata.theme.projection.css";
+        private static readonly Lazy<(byte[] Data, string ETag)> CssFile = new(() => Load("projection.css"));
+        private static readonly Lazy<(byte[] Data, string ETag)> JsFile = new(() => Load("projection.js"));
 
-        // read once: the file only changes with the DLL
-        private static readonly Lazy<(byte[] Data, string ETag)> Css = new(() =>
+        public static (byte[] Data, string ETag) Css => CssFile.Value;
+
+        public static (byte[] Data, string ETag) Js => JsFile.Value;
+
+        /// <summary>Changes with the script's content: the injected tag carries it, so browsers fetch a new script at once.</summary>
+        public static string ScriptVersion => (JsFile.Value.ETag ?? "0").Trim('"');
+
+        private static (byte[] Data, string ETag) Load(string file)
         {
-            using var stream = typeof(ThemeController).Assembly.GetManifestResourceStream(ResourceName);
+            using var stream = typeof(ThemeAssets).Assembly.GetManifestResourceStream("Jellyfin.Plugin.CustomMetadata.theme." + file);
             if (stream == null)
             {
                 return (null, null);
@@ -37,8 +36,24 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             var data = copy.ToArray();
             var hash = Convert.ToHexString(SHA256.HashData(data)).Substring(0, 16).ToLowerInvariant();
             return (data, "\"" + hash + "\"");
-        });
+        }
+    }
+}
 
+namespace Jellyfin.Plugin.CustomMetadata.Api
+{
+    /// <summary>
+    /// Serves the Projection web theme from the server itself:
+    /// - projection.css, for the Custom CSS: <c>@import url("../CustomMetadata/Theme/projection.css");</c> (the theme then
+    ///   follows the plugin version installed, without a CDN cache or a Git branch to follow);
+    /// - projection.js, added to jellyfin-web's page by ThemeScriptMiddleware when "EnableThemeScript" is on.
+    /// ANONYMOUS, like the people photos: the browser fetches an @import or a script tag without Jellyfin's token. Both
+    /// files are public in the repository anyway.
+    /// </summary>
+    [ApiController]
+    [Route("CustomMetadata/Theme")]
+    public class ThemeController : ControllerBase
+    {
         private readonly ILogger<ThemeController> _logger;
 
         public ThemeController(ILogger<ThemeController> logger)
@@ -52,25 +67,34 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status304NotModified)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public IActionResult Projection()
+        public IActionResult Projection() => Serve(ThemeAssets.Css, "text/css; charset=utf-8", "projection.css");
+
+        /// <summary>The theme's script (text/javascript). 304 when the browser already has this version.</summary>
+        [HttpGet("projection.js")]
+        [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status304NotModified)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public IActionResult Script() => Serve(ThemeAssets.Js, "text/javascript; charset=utf-8", "projection.js");
+
+        private IActionResult Serve((byte[] Data, string ETag) file, string contentType, string name)
         {
-            var (data, etag) = Css.Value;
-            if (data == null)
+            if (file.Data == null)
             {
-                _logger.LogWarning("🎨 [THEME] {Resource} is not embedded in the DLL", ResourceName);
+                _logger.LogWarning("🎨 [THEME] {File} is not embedded in the DLL", name);
                 return NotFound();
             }
 
             // a short cache and a validator: a plugin update reaches the browsers within minutes, and in between
             // a reload costs a 304
             Response.Headers["Cache-Control"] = "public, max-age=300";
-            Response.Headers["ETag"] = etag;
-            if (Request.Headers.TryGetValue("If-None-Match", out var sent) && sent.Any(v => v != null && v.Split(',').Any(t => t.Trim() == etag)))
+            Response.Headers["ETag"] = file.ETag;
+            if (Request.Headers.TryGetValue("If-None-Match", out var sent) && sent.Any(v => v != null && v.Split(',').Any(t => t.Trim() == file.ETag)))
             {
                 return StatusCode(StatusCodes.Status304NotModified);
             }
 
-            return File(data, "text/css; charset=utf-8");
+            return File(file.Data, contentType);
         }
     }
 }
