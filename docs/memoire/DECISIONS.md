@@ -1,4 +1,5 @@
 # Index
+D020 | active | The theme's hover preview of a real episode prefers its source's preview video, proxied by the plugin, over its own file | dépend de D019
 D019 | active | The Projection theme gets an optional script, inserted into jellyfin-web's page by a plugin middleware (setting off by default) | dépend de D017 ; dépend de D018
 D018 | active | The plugin also serves the Projection theme (embedded CSS, anonymous route); jsDelivr kept for users without the plugin | dépend de D013
 D017 | active | Projection theme detail pages use direction C "Fiche": header adapted to the backdrop and a CSS-only wall of season posters (amended by D019: optional script, backdrop at its own ratio) | dépend de D013 ; motivée par P005, P006, P007, P008, P009, P010
@@ -20,6 +21,17 @@ D002 | active | Multi-source configuration keyed by tag prefix; legacy single-so
 D001 | active | Build against Jellyfin 10.11.6 exactly (net9.0, ExcludeAssets=runtime) | —
 
 # Détail
+
+## D020 — The theme's hover preview of a real episode prefers its source's preview video, proxied by the plugin, over its own file
+- Date : 2026-11-26 (maintainer decision; uncommitted at the time of writing)
+- Contexte : with D019 only missing episodes had a real video preview (their preview trailer); an episode that has its file got trickplay tiles at best, while the source often provides a short preview video for it.
+- Décision : on hover, a missing episode plays its trailer; a real episode plays its source's preview, else its own file only if its bitrate is ≤ 12 Mb/s, else trickplay (sharpest set, stepped progress). The source preview comes from `EpisodePreviewService`: season = tag of the file's folder, entry key = the file's first tag, URL from the season's episode list via `PreviewMapper.ResolveUrl`, list cached 30 min per season (local sources included). `PreviewController` `GET CustomMetadata/Preview/{itemId}` (`[Authorize]`, `api_key` in the URL because a `<video>` tag sends no token header) streams it with the source's headers (`SourceHeaders.Apply`) and forwards `Range`; 404 when there is none. Previews keep their aspect (contain) and drop the missing/watched dimming while playing.
+- Alternatives écartées : attaching the preview as a Jellyfin trailer on real episodes too → `RefreshExtras` rebuilds `ExtraIds` from disk, and `-trailer` files attach to every episode of a shared folder (docs/architecture/missing-episodes.md); always playing the episode's own file → a Blu-ray/4K file costs tens to hundreds of MB per hover, hence the 12 Mb/s cap; the browser fetching the source URL directly → [supposé] the source's headers/API key would have to reach the browser, and a local source's loopback URL would not be reachable from it.
+- Conséquences : every source preview is proxied through the Jellyfin server (bandwidth, one upstream request per hover). A preview URL needing cookies or redirects the proxy does not handle simply falls back to the file/trickplay. The route needs a signed-in user.
+- Liens : dépend de D019
+- Code : Services/EpisodePreviewService.cs (`Lifetime` 30 min :24, `GetAsync` :40, tags :49-51, `ResolveUrl` :74); Api/PreviewController.cs (route :25, `[Authorize]` :26, `SourceHeaders.Apply` :58, Range :61-63, 404 :53/:70); PluginServiceRegistrator.cs:84-88; theme/projection.js (`startPreview` :552-558, `sourcePreviewUrl` :603, `MAX_PREVIEW_BITRATE` :605-609, `trailerPreview` :613, `trickplayPreview` :623); docs/architecture/missing-episodes.md:11; docs/architecture/code-map.md:140; tools/ui-test/server.py (`/previews/` with Range :118-128, a3v1 preview :30); tools/ui-test/gen.py:97-98 (a3v1.mp4).
+- À réévaluer si : sources' preview URLs need cookies/redirects the proxy does not handle, or many users hover at once (each preview is proxied through the server).
+- Fiabilité : [vérifié] code anchors read in the working tree on 2026-11-26 (uncommitted); [supposé] test results reported by the main agent, not re-run: in cm-uitest 206 with Range, 404 without preview, 401 without token; browser hover plays the a3v1 source preview and falls back to the file. "Local sources included" is reported, not re-read in `GetEpisodeListAsync`.
 
 ## D019 — The Projection theme gets an optional script, inserted into jellyfin-web's page by a plugin middleware (setting off by default)
 - Date : 2026-11-25 (maintainer: "ajoute ce qu'il faut pour le JS, inject tout ce que tu as besoin pour bien modifier mon affichage"; "ne te limite pas... preview lors d'un hover"; uncommitted at the time of writing)
