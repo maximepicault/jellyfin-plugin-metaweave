@@ -1121,6 +1121,10 @@ html.pj-affiche-on { transition: --pj-amb-l1 1.6s ease, --pj-amb-l2 1.6s ease, -
   width: var(--pj-aff-pw); height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--pj-r);
   box-shadow: 0 28px 60px rgba(0, 0, 0, .55), 0 0 0 1px rgba(235, 230, 217, .1);
 }
+/* an episode's still in the poster's place (the header shows the series' backdrop): landscape, as wide as the poster is
+   tall, so it reads as the episode's own picture */
+.pj-aff-billing.pj-has-still { --pj-aff-pw: clamp(13rem, 19vw, 20rem); }
+.pj-aff-mode-a .pj-aff-poster.pj-aff-still { aspect-ratio: 16 / 9; top: calc(var(--pj-aff-pw) * -.42); }
 /* b: no backdrop, the poster IS the affiche, large, on a band lit by its own colours;
    the logo or title and the billing beside it, then the actions and the synopsis under
    them in the same column */
@@ -1180,6 +1184,7 @@ html.pj-aff-b .itemDetailPage .pj-epnav { justify-content: flex-start; margin-le
 .layout-mobile .pj-aff-logo { max-width: 70%; }
 .layout-mobile .pj-aff-billing { padding-top: 1rem; }
 .layout-mobile .pj-aff-mode-a .pj-aff-poster { display: none; }
+.layout-mobile .pj-aff-mode-a .pj-aff-poster.pj-aff-still { display: block; position: static; width: min(72%, 18rem); margin: 0 auto; }
 .layout-mobile .pj-aff-billing.pj-has-poster { padding-left: var(--pj-gutter); padding-right: var(--pj-gutter); min-height: 0; }
 .layout-mobile .pj-aff-mode-b { grid-template-columns: 1fr; justify-items: center; text-align: center; padding-top: 4rem; }
 .layout-mobile .pj-aff-mode-b .pj-aff-poster { height: auto; width: min(62%, 15rem); }

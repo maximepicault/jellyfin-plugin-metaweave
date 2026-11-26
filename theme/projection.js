@@ -172,12 +172,13 @@
     }
     function candidates(item) {
         var c = client(), out = [];
-        var add = function (id, type, tag, index) { if (id && tag) { var u = new String(c.getImageUrl(id, { type: type, tag: tag, index: index, maxWidth: 2400, quality: 90 })); u.backdrop = type === 'Backdrop'; out.push(u); } };
-        // the backdrops first (all of them: they take turns, like jellyfin-web's backdrop slideshow): the item's own,
-        // else its parent's (a season's or an episode's series); then an episode's still; then the thumbnails
+        var add = function (id, type, tag, index) { if (id && tag) { var u = new String(c.getImageUrl(id, { type: type, tag: tag, index: index, maxWidth: 2400, quality: 90 })); u.backdrop = type === 'Backdrop'; u.still = item.Type === 'Episode' && type === 'Primary' && id === item.Id; out.push(u); } };
+        // an episode's own still first: it is what tells one episode from the next (the series' backdrop is the same on
+        // all of them); then the backdrops (all of them: they take turns, like jellyfin-web's backdrop slideshow): the
+        // item's own, else its parent's (a season's or an episode's series); then the thumbnails
+        if (item.Type === 'Episode' && item.ImageTags && item.ImageTags.Primary) { add(item.Id, 'Primary', item.ImageTags.Primary); }
         (item.BackdropImageTags || []).forEach(function (tag, i) { add(item.Id, 'Backdrop', tag, i); });
         if (!(item.BackdropImageTags || []).length) { (item.ParentBackdropImageTags || []).forEach(function (tag, i) { add(item.ParentBackdropItemId, 'Backdrop', tag, i); }); }
-        if (item.Type === 'Episode' && item.ImageTags && item.ImageTags.Primary) { add(item.Id, 'Primary', item.ImageTags.Primary); }
         if (item.ImageTags && item.ImageTags.Thumb) { add(item.Id, 'Thumb', item.ImageTags.Thumb); }
         if (item.ParentThumbItemId && item.ParentThumbImageTag) { add(item.ParentThumbItemId, 'Thumb', item.ParentThumbImageTag); }
         return out;
@@ -214,7 +215,7 @@
             return loadImage(list[i]).then(function (img) {
                 if (headerFor !== item.Id) { return null; }
                 if (!usable(img)) { return tryNext(i + 1); }
-                setCanvas(img, String(list[i]), page, item);
+                setCanvas(img, String(list[i]), page, item, !!list[i].still);
                 // the other backdrops join a slideshow once they have loaded (and are landscape and large enough)
                 if (list[i].backdrop) { slideshow(item, list.slice(i + 1).filter(function (u) { return u.backdrop; })); }
                 return null;
@@ -226,7 +227,7 @@
         clearCanvas();
         document.documentElement.classList.add(NS + 'noimage');
     }
-    function setCanvas(img, url, page, item) {
+    function setCanvas(img, url, page, item, isStill) {
         var root = document.documentElement;
         clearCanvas();
         paintColours(img);
@@ -235,7 +236,7 @@
         // layer it stayed while the synopsis scrolled up onto its bright sky)
         // a series or a movie: the poster ("Affiche"); a season or an episode: the picture behind the header
         if (page && item && (item.Type === 'Series' || item.Type === 'Movie' || item.Type === 'Season' || item.Type === 'Episode')) {
-            page.insertBefore(affiche(item, url), page.querySelector('.detailPageWrapperContainer') || page.firstChild);
+            page.insertBefore(affiche(item, url, isStill), page.querySelector('.detailPageWrapperContainer') || page.firstChild);
             root.classList.add(NS + 'affiche-on', NS + 'aff-a');
         } else if (page) {
             var layer = mark(el('div', NS + 'canvas-layer'));
@@ -358,7 +359,7 @@
         if (item.Type === 'Episode') { var code = epCode(item); if (code) { box.appendChild(el('span', NS + 'aff-code', code)); } }
         box.appendChild(el('h1', NS + 'aff-title ' + NS + 'aff-subtitle' + (item.Name.length > 30 ? ' ' + NS + 'aff-long' : ''), item.Name));
     }
-    function affiche(item, url) {
+    function affiche(item, url, isStill) {
         var box = mark(el('section', NS + 'affiche ' + NS + 'aff-mode-a'));
         box.setAttribute('aria-label', item.Name);
         var stage = box.appendChild(el('div', NS + 'aff-stage'));
@@ -369,12 +370,16 @@
         pic.alt = ''; pic.src = url;
         brand(item, frame);
         var bill = box.appendChild(billing(item));
-        // the series' poster, standing on the picture's lower edge like a sleeve set before the screen
-        var purl = posterUrl(item, 700);
+        // the series' poster, standing on the picture's lower edge like a sleeve set before the screen; on an episode whose
+        // still is too small to be the header (the series' backdrop is), the still itself, so the episode is recognised
+        var still = item.Type === 'Episode' && !isStill && item.ImageTags && item.ImageTags.Primary
+            ? client().getImageUrl(item.Id, { type: 'Primary', tag: item.ImageTags.Primary, maxWidth: 800, quality: 92 }) : null;
+        var purl = still || posterUrl(item, 700);
         if (purl) {
-            var poster = bill.insertBefore(el('img', NS + 'aff-poster'), bill.firstChild);
+            var poster = bill.insertBefore(el('img', NS + 'aff-poster' + (still ? ' ' + NS + 'aff-still' : '')), bill.firstChild);
             poster.alt = ''; poster.src = purl;
             bill.classList.add(NS + 'has-poster');
+            if (still) { bill.classList.add(NS + 'has-still'); }
         }
         return box;
     }
