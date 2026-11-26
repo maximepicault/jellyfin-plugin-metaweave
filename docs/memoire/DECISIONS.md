@@ -1,4 +1,5 @@
 # Index
+D021 | active | The theme's « Aperçu » viewer is variant A « Salle »: video in an ambient light of its own colours, theme controls under it, episode title and play button; bar cut into moments only for plugin clips | dépend de D019 ; dépend de D020 ; motivée par P013 ; motivée par P014
 D020 | active | The theme's hover preview of a real episode prefers its source's preview video, proxied by the plugin, over its own file (amended 2026-11-26: ffmpeg-built clips as second choice, ambient light around portrait previews; 2nd amendment: no 4 s give-up, wider lookup, colour-cloud light) | dépend de D019 ; motivée par P011 ; motivée par P012
 D019 | active | The Projection theme gets an optional script, inserted into jellyfin-web's page by a plugin middleware (setting off by default) | dépend de D017 ; dépend de D018
 D018 | active | The plugin also serves the Projection theme (embedded CSS, anonymous route); jsDelivr kept for users without the plugin | dépend de D013
@@ -21,6 +22,17 @@ D002 | active | Multi-source configuration keyed by tag prefix; legacy single-so
 D001 | active | Build against Jellyfin 10.11.6 exactly (net9.0, ExcludeAssets=runtime) | —
 
 # Détail
+
+## D021 — The theme's « Aperçu » viewer is variant A « Salle »
+- Date : 2026-11-26 (maintainer's choice; committed in 0267574)
+- Contexte : the maintainer asked for a nicer preview viewer in the Projection theme; the modal (`openPreview`) was a dim veil with the browser's native `<video controls>`. Three clickable mockups were shown: A « Salle » (video centred in an ambient light of its own colours, theme controls under it, title and « Lire l'épisode » button), B « Fiche » (card with the synopsis beside the video), C « Plein cadre » (video filling the window, overlaid controls).
+- Décision : variant A, with the progress bar cut into pieces only for the clips built by the plugin (continuous bar for a source's preview video). Implementation: custom controls replace the native ones, keyboard handled by a `window` capture listener so jellyfin-web's shortcuts do not fire (arrows jump a moment on a clip, 5 s on a source video), volume slider hidden on phones. The number of segments is computed in the browser as `round(duration / 1.5)`, between 1 and 8. A source preview that raises `error` falls back to the plugin clip. « Lire l'épisode » / « Reprendre l'épisode » (hidden for virtual episodes) starts playback by clicking the page's `.btnPlay`, else by adding a temporary `itemAction` button with `data-action="resume"` inside the episode's row, because jellyfin-web does not expose its playback manager to the script (with neither, it opens the episode's page). The viewer's z-index is 10000 because the MUI header of the experimental layout covered it.
+- Alternatives écartées : B « Fiche » → P013; C « Plein cadre » → P014.
+- Conséquences : changing `PreviewClipService.Segments` or `ClipSeconds` requires changing `CLIP_SEGMENTS` / `CLIP_SEGMENT_SECONDS` in theme/projection.js. Playback depends on jellyfin-web's DOM (`.btnPlay`, the list's `itemAction` handling). Unlike the hover preview (D020), the viewer has no time limit on a source that never answers: only `error` triggers the fallback [vérifié, code read; behaviour not tested].
+- Liens : dépend de D019 ; dépend de D020 ; motivée par P013 ; motivée par P014
+- Code : theme/projection.js (`CLIP_SEGMENT_SECONDS`/`CLIP_SEGMENTS` :668, `openPreview` :670, play button from `describe` :725, `buildTrack` :748, fallback on `error` :802, `onKey` :847, `playEpisode` :875); theme/projection.css (viewer styles `.pj-viewer*` :1222-1304, z-index :1224, volume hidden in the phone media queries); Services/PreviewClipService.cs:29-30; CHANGELOG.md (Unreleased).
+- À réévaluer si : jellyfin-web changes its play buttons or list actions, or exposes its playback manager; the clip's constants change.
+- Fiabilité : [vérifié] code read in the working tree on 2026-11-26 (before the commit); [supposé] reported by the main agent, not re-run: in cm-uitest a throwaway Playwright script (not kept in the repository) passed all checks except page errors "player cannot be null", which jellyfin-web also logs with the previous theme script and its own play button.
 
 ## D020 — The theme's hover preview of a real episode prefers its source's preview video, proxied by the plugin, over its own file
 - Date : 2026-11-26 (maintainer decision; uncommitted at the time of writing)
