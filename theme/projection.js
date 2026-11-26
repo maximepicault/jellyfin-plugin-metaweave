@@ -152,7 +152,16 @@
     // the margin beside it its edge colour, the ground below a deep shade of its bottom edge, the text's scrim the same.
     // Candidates, in order: the episode's own still (large enough), the item's backdrops, the series' backdrops,
     // the item's thumbnail, the series' thumbnail. None landscape: the compact header (html.pj-noimage).
-    var MIN_RATIO = 1.25, MIN_WIDTH = 1200;   // landscape, and sharp at the size it is shown
+    var MIN_RATIO = 1.25;   // landscape
+    // sharp enough at the size it is really shown (the poster frame: 64% of the screen's height at the picture's ratio,
+    // at most the screen's width; the full width on a phone), allowing a third of upscaling and never under 640 px.
+    // A fixed 1200 px minimum turned down a 1080x720 backdrop that a 1080p screen shows at about 1040 px.
+    function usable(img) {
+        if (!img || img.naturalWidth / img.naturalHeight < MIN_RATIO) { return false; }
+        var ratio = img.naturalWidth / img.naturalHeight, phone = document.documentElement.classList.contains('layout-mobile');
+        var shown = phone ? window.innerWidth : Math.min(window.innerWidth, window.innerHeight * 0.64 * ratio);
+        return img.naturalWidth >= Math.max(640, shown * 0.75);
+    }
     function loadImage(url) {
         return new Promise(function (resolve) {
             var img = new Image();
@@ -204,7 +213,7 @@
             }
             return loadImage(list[i]).then(function (img) {
                 if (headerFor !== item.Id) { return null; }
-                if (!img || img.naturalWidth / img.naturalHeight < MIN_RATIO || img.naturalWidth < MIN_WIDTH) { return tryNext(i + 1); }
+                if (!usable(img)) { return tryNext(i + 1); }
                 setCanvas(img, String(list[i]), page, item);
                 // the other backdrops join a slideshow once they have loaded (and are landscape and large enough)
                 if (list[i].backdrop) { slideshow(item, list.slice(i + 1).filter(function (u) { return u.backdrop; })); }
@@ -267,7 +276,7 @@
     function slideshow(item, urls) {
         clearInterval(slideTimer); slideTimer = null;
         if (!urls.length) { return; }
-        Promise.all(urls.map(function (u) { return loadImage(String(u)).then(function (img) { return img && img.naturalWidth / img.naturalHeight >= MIN_RATIO && img.naturalWidth >= MIN_WIDTH ? { img: img, url: String(u) } : null; }); }))
+        Promise.all(urls.map(function (u) { return loadImage(String(u)).then(function (img) { return usable(img) ? { img: img, url: String(u) } : null; }); }))
             .then(function (found) {
                 var frame = document.querySelector('.' + NS + 'aff-frame');
                 var first = frame && frame.querySelector('.' + NS + 'aff-img');
