@@ -504,12 +504,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var tag = TagsOf(item).FirstOrDefault();
                 var source = tag == null ? null : _resolver.GetSourceByPrefix(_resolver.ExtractPrefixFromId(tag));
                 var kind = item is Series ? "series" : (item is Season ? "season" : "episode");
-                var images = source == null ? new List<ImageInfo>() : (await _api.GetImagesAsync(_resolver.ExtractIdWithoutPrefix(tag), kind, source, CancellationToken.None) ?? new List<ImageInfo>());
+                var offered = source == null ? null : await _api.GetImagesAsync(_resolver.ExtractIdWithoutPrefix(tag), kind, source, CancellationToken.None);
+                var images = offered ?? new List<ImageInfo>();
                 var changed = new List<string>();
+                var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);   // SHA-256 of every image applied (or already there) now
+                var unreadable = offered == null;                                       // then nothing is cleaned up: the source may only be down
 
                 async Task<(byte[] Data, string Mime)> Fetch(string url, bool landscape)
                 {
                     var (data, mime, _) = await _api.DownloadImageAsync(url, source, landscape, CancellationToken.None);
+                    if (data == null || data.Length == 0) { unreadable = true; }
                     return (data, mime);
                 }
 
@@ -524,8 +528,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     // a rotation only in the EXIF tag: Jellyfin's resizer ignores it, so the pixels are turned here (ExifOrientation)
                     data = ExifOrientation.Normalize(data, _logger, item.Name + " " + type);
+                    if (data == null || data.Length == 0)
+                    {
+                        return;
+                    }
 
-                    if (data == null || data.Length == 0 || Sha(data) == CurrentSha(type, index))
+                    var sha = Sha(data);
+                    wanted.Add(sha);
+                    if (sha == CurrentSha(type, index))
                     {
                         return;
                     }
@@ -633,6 +643,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     }
                 }
 
+                // Images the plugin applied before and the source no longer gives (removed from the local source, the API or the folder)
+                var removed = unreadable ? 0 : await RemoveDroppedImagesAsync(item, wanted);
+                if (removed > 0)
+                {
+                    changed.Add("-" + removed + " image(s) no longer given by the source");
+                }
+
                 // ImageSaver only sets the new paths on the item in memory: without this the database keeps the old image list, and the
                 // images vanish as soon as Jellyfin reloads the item (restart, or cache eviction in a big library)
                 if (changed.Count > 0)
@@ -651,6 +668,65 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 _logger.LogWarning(ex, "🔁 [SOURCE REFRESH] ⚠️ Could not apply the images of '{Name}': {Message}", item.Name, ex.Message);
             }
+        }
+
+        private static readonly object AppliedLock = new object();
+
+        private static string AppliedPath => Path.Combine(Plugin.Instance?.DataFolderPath ?? Path.Combine(Path.GetTempPath(), "CustomMetadata"), "applied-images.json");
+
+        /// <summary>
+        /// Removes the images of the item that the plugin applied at an earlier "Remplacer les images" and that the source no longer
+        /// gives, then remembers what it applied now. Only those: an image the plugin never applied (Jellyfin's own episode
+        /// thumbnail, another provider's, one set by hand) is never touched, which is why the SHA-256 of the applied images is kept
+        /// per item in applied-images.json (the item's image list says nothing about where an image came from). Files of the
+        /// media folder are left alone too (reported as kept files). Images applied before this record existed are not known:
+        /// they stay until removed by hand once.
+        /// </summary>
+        private async Task<int> RemoveDroppedImagesAsync(BaseItem item, HashSet<string> wanted)
+        {
+            var key = item.Id.ToString("N");
+            Dictionary<string, List<string>> record;
+            lock (AppliedLock)
+            {
+                try { record = File.Exists(AppliedPath) ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, List<string>>>(File.ReadAllText(AppliedPath)) ?? new() : new(); }
+                catch (Exception) { record = new Dictionary<string, List<string>>(); }
+            }
+
+            var before = new HashSet<string>(record.TryGetValue(key, out var known) ? known : new List<string>(), StringComparer.OrdinalIgnoreCase);
+            var removed = 0;
+            var metadataPath = item.GetInternalMetadataPath();
+            foreach (var type in new[] { ImageType.Primary, ImageType.Thumb, ImageType.Logo, ImageType.Banner, ImageType.Backdrop })
+            {
+                // highest index first: deleting an image shifts the ones after it
+                var list = item.GetImages(type).ToList();
+                for (var index = list.Count - 1; index >= 0; index--)
+                {
+                    var path = list[index].Path;
+                    if (before.Count == 0 || string.IsNullOrEmpty(path) || !File.Exists(path) || !path.StartsWith(metadataPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var sha = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(path)));
+                    if (before.Contains(sha) && !wanted.Contains(sha))
+                    {
+                        await item.DeleteImageAsync(type, index);
+                        removed++;
+                        _logger.LogInformation("🔁 [SOURCE REFRESH] 🗑️ '{Name}': {Type} image removed, the source no longer gives it ({File})", item.Name, type, Path.GetFileName(path));
+                    }
+                }
+            }
+
+            lock (AppliedLock)
+            {
+                try { record = File.Exists(AppliedPath) ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, List<string>>>(File.ReadAllText(AppliedPath)) ?? new() : new(); }
+                catch (Exception) { record = new Dictionary<string, List<string>>(); }
+                if (wanted.Count > 0) { record[key] = wanted.ToList(); } else { record.Remove(key); }
+                Directory.CreateDirectory(Path.GetDirectoryName(AppliedPath));
+                File.WriteAllText(AppliedPath, System.Text.Json.JsonSerializer.Serialize(record));
+            }
+
+            return removed;
         }
 
         /// <summary>One line per image of the item (type, file, last write): shows in the log whether a refresh really replaced them</summary>

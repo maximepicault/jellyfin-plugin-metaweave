@@ -184,7 +184,7 @@ The tab bar and the in-page confirmation are copied in several pages (no shared 
 | Area | Scripts (`tools/ui-test/`) |
 |---|---|
 | Config page | `config-e2e.mjs`, `config-local-ui.mjs` (no Docker), `config-local-real.mjs`, `config-menu-real.mjs`, `local-series-id-real.mjs`, `note-shots.mjs` |
-| Local sources and images | `local-override-real.mjs` (incl. targeted refresh, CORS), `local-gallery-real.mjs`, `local-image-orientation-real.mjs`, `local-gallery-shots.mjs`, `local-folder-images-real.mjs`, `refresh-persist-real.mjs` (D006), `poster-crop-real.mjs`, `poster-crop-local-real.mjs`, `poster-shots.mjs` |
+| Local sources and images | `local-override-real.mjs` (incl. targeted refresh, CORS), `local-gallery-real.mjs`, `local-image-orientation-real.mjs`, `local-image-cleanup-real.mjs`, `local-gallery-shots.mjs`, `local-folder-images-real.mjs`, `refresh-persist-real.mjs` (D006), `poster-crop-real.mjs`, `poster-crop-local-real.mjs`, `poster-shots.mjs` |
 | Missing episodes | `missing-number-real.mjs` (D009), `episode-number-real.mjs`, `download-real.mjs`, `download-parallel-real.mjs`, `downloads-real.mjs`, `local-preview-video-real.mjs`, `chapters-real.mjs` |
 | People and cast | `config-people-real.mjs` (`--quick`: cropper), `config-people-episodes-real.mjs` |
 | Dump | `dump-real.mjs` |
