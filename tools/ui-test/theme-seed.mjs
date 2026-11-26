@@ -143,6 +143,19 @@ for i, n in enumerate(names):
 // 5. an episode long enough for trickplay thumbnails (the hover preview of projection.js): 60 s of moving test
 // pattern, trickplay turned on for the theme library, and Jellyfin's trickplay task run once
 const tpFile = path.join(WORK, 'media/theme-series/Aperçu au survol (démo)/Season 1/S01E01.mkv');
+// and a portrait one (a phone video): previews must keep its shape
+const tpPortrait = path.join(WORK, 'media/theme-series/Aperçu au survol (démo)/Season 1/S01E02.mp4');
+if (!fs.existsSync(tpPortrait)) {
+  fs.mkdirSync(path.dirname(tpPortrait), { recursive: true });
+  const { execFileSync } = await import('node:child_process');
+  execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=360x640:d=40:r=10', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', tpPortrait]);
+  if (fs.existsSync(tpFile)) {
+    await api('POST', '/Library/Refresh'); await wait(15000);
+    const task = (await api('GET', '/ScheduledTasks')).find(t => t.Key === 'RefreshTrickplayImages');
+    if (task) { await fetch(`${J}/ScheduledTasks/Running/${task.Id}`, { method: 'POST', headers: H }); }
+    for (let i = 0; i < 60; i++) { await wait(3000); const t = (await api('GET', '/ScheduledTasks')).find(x => x.Key === 'RefreshTrickplayImages'); if (t && t.State === 'Idle') { break; } }
+  }
+}
 if (!fs.existsSync(tpFile)) {
   fs.mkdirSync(path.dirname(tpFile), { recursive: true });
   const { execFileSync } = await import('node:child_process');
