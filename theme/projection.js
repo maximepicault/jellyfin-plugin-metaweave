@@ -89,6 +89,8 @@
         getItem(id, 'RecursiveItemCount,ChildCount').then(function (item) {
             if (page.getAttribute('data-pj-for') !== id) { return; }
             page.setAttribute('data-pj-type', item.Type);
+            canvasHeader(page, item);
+            identity(page, item);
             if (item.Type === 'Episode') { episodePage(page, item).catch(function (e) { warn('episode page', e); }); }
             if (item.Type === 'Series') { seriesPage(page, item).catch(function (e) { warn('series page', e); }); }
             if (item.Type === 'Season') { seasonPage(page, item).catch(function (e) { warn('season page', e); }); }
@@ -101,9 +103,6 @@
         var name = page.querySelector('.detailRibbon .itemName');
         var code = epCode(item);
         if (name && code) { name.parentNode.insertBefore(counted(page, el('div', NS + 'epcode', code)), name); }
-
-        // the episode's own picture as the backdrop when it is large enough to fill the header
-        ownBackdrop(page, item);
 
         // previous / next in the whole series, in broadcast order
         if (!item.SeriesId) { return Promise.resolve(); }
@@ -132,28 +131,277 @@
         });
     }
 
-    function ownBackdrop(page, item) {
-        if (!item.ImageTags || !item.ImageTags.Primary) { return; }
-        var c = client();
-        c.getJSON(c.getUrl('Items/' + item.Id + '/Images')).then(function (images) {
-            var primary = (images || []).find(function (i) { return i.ImageType === 'Primary'; });
-            if (!primary || !(primary.Width >= 1280) || page.getAttribute('data-pj-for') !== item.Id) { return; }
-            var url = c.getImageUrl(item.Id, { type: 'Primary', maxWidth: 1920, tag: item.ImageTags.Primary, quality: 90 });
-            var box = document.querySelector('.backdropContainer');
-            if (!box) { return; }
-            var layer = box.querySelector('.' + NS + 'ownbackdrop') || box.appendChild(el('div', 'backdropImage displayingBackdropImage ' + NS + 'ownbackdrop'));
-            layer.style.backgroundImage = 'url("' + url + '")';
-            document.documentElement.classList.add(NS + 'has-own-backdrop');
-            ratioByUrl.delete(url);
-            backdropRatio();
-        }).catch(function (e) { warn('episode backdrop', e); });
+    // ---------- the header built around the item's picture ----------
+    // The picture is the header: a LANDSCAPE image (portrait backdrops do not suit a desktop screen), shown whole at
+    // its own ratio, as large as the screen allows; the page around it takes its colours (no blur, no black veil):
+    // the margin beside it its edge colour, the ground below a deep shade of its bottom edge, the text's scrim the same.
+    // Candidates, in order: the episode's own still (large enough), the item's backdrops, the series' backdrops,
+    // the item's thumbnail, the series' thumbnail. None landscape: the compact header (html.pj-noimage).
+    var MIN_RATIO = 1.25, MIN_WIDTH = 1200;   // landscape, and sharp at the size it is shown
+    function loadImage(url) {
+        return new Promise(function (resolve) {
+            var img = new Image();
+            img.onload = function () { resolve(img.naturalWidth && img.naturalHeight ? img : null); };
+            img.onerror = function () { resolve(null); };
+            img.src = url;
+        });
     }
-    // the episode's own backdrop belongs to its page only
-    function dropOwnBackdrop() {
+    function candidates(item) {
+        var c = client(), out = [];
+        var add = function (id, type, tag, index) { if (id && tag) { out.push(c.getImageUrl(id, { type: type, tag: tag, index: index, maxWidth: 2400, quality: 90 })); } };
+        if (item.Type === 'Episode' && item.ImageTags && item.ImageTags.Primary) { add(item.Id, 'Primary', item.ImageTags.Primary); }
+        (item.BackdropImageTags || []).forEach(function (tag, i) { add(item.Id, 'Backdrop', tag, i); });
+        (item.ParentBackdropImageTags || []).forEach(function (tag, i) { add(item.ParentBackdropItemId, 'Backdrop', tag, i); });
+        if (item.ImageTags && item.ImageTags.Thumb) { add(item.Id, 'Thumb', item.ImageTags.Thumb); }
+        if (item.ParentThumbItemId && item.ParentThumbImageTag) { add(item.ParentThumbItemId, 'Thumb', item.ParentThumbImageTag); }
+        return out;
+    }
+    // average colour of a region of the picture, as [r, g, b]
+    function sample(img, x, y, w, h) {
+        var cv = document.createElement('canvas'); cv.width = 32; cv.height = 32;
+        var g = cv.getContext('2d', { willReadFrequently: true });
+        g.drawImage(img, x * img.naturalWidth, y * img.naturalHeight, Math.max(1, w * img.naturalWidth), Math.max(1, h * img.naturalHeight), 0, 0, 32, 32);
+        var d = g.getImageData(0, 0, 32, 32).data, r = 0, gr = 0, b = 0, n = d.length / 4;
+        for (var i = 0; i < d.length; i += 4) { r += d[i]; gr += d[i + 1]; b += d[i + 2]; }
+        return [r / n, gr / n, b / n];
+    }
+    function lum(c) { var f = function (v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); }
+    // a deep shade of a colour, keeping its hue: dark enough for the theme's paper text (contrast about 10:1 or more)
+    function deep(c, target) {
+        var ink = [13, 20, 21], mix = [0, 1, 2].map(function (k) { return ink[k] * 0.45 + c[k] * 0.55; });
+        for (var i = 0; i < 40 && lum(mix) > (target || 0.03); i++) { mix = mix.map(function (v) { return v * 0.9; }); }
+        return mix.map(function (v) { return Math.round(v); });
+    }
+    var headerFor = null;
+    function canvasHeader(page, item) {
+        var root = document.documentElement;
+        // already built for this item (and its layer still in the page: a re-render may have removed it)
+        if (headerFor === item.Id && (root.classList.contains(NS + 'noimage') || (root.classList.contains(NS + 'canvas') && page.querySelector('.' + NS + 'canvas-layer, .' + NS + 'affiche')))) { return; }
+        headerFor = item.Id;
+        var list = candidates(item);
+        var tryNext = function (i) {
+            if (headerFor !== item.Id) { return null; }
+            if (i >= list.length) {
+                if (item.Type === 'Series' || item.Type === 'Movie') { return posterAffiche(page, item); }
+                setNoImage(); return null;
+            }
+            return loadImage(list[i]).then(function (img) {
+                if (headerFor !== item.Id) { return null; }
+                if (!img || img.naturalWidth / img.naturalHeight < MIN_RATIO || img.naturalWidth < MIN_WIDTH) { return tryNext(i + 1); }
+                return setCanvas(img, list[i], page, item);
+            });
+        };
+        tryNext(0);
+    }
+    function setNoImage() {
+        clearCanvas();
+        document.documentElement.classList.add(NS + 'noimage');
+    }
+    function setCanvas(img, url, page, item) {
+        var root = document.documentElement;
+        clearCanvas();
+        var left = sample(img, 0.015, 0, 0.04, 1), bottom = sample(img, 0, 0.9, 1, 0.1), lowLeft = sample(img, 0, 0.6, 0.5, 0.4);
+        var ground = deep(bottom, 0.028), scrim = deep(lowLeft, 0.02);
+        root.__pjImage = img;
+        root.style.setProperty('--pj-img-ratio', String(img.naturalWidth / img.naturalHeight));
+        root.style.setProperty('--pj-edge-l', left.map(Math.round).join(', '));
+        // the margin continues the picture's left edge as it goes down (sky, horizon, ground), band by band
+        var stops = [];
+        for (var k = 0; k < 10; k++) { stops.push('rgb(' + sample(img, 0.015, k / 10, 0.03, 0.1).map(Math.round).join(', ') + ') ' + (k * 10 + 5) + '%'); }
+        root.style.setProperty('--pj-edge-grad', 'linear-gradient(to bottom, ' + stops.join(', ') + ')');
+        var stopsR = [];
+        for (var q = 0; q < 10; q++) { stopsR.push('rgb(' + sample(img, 0.955, q / 10, 0.03, 0.1).map(Math.round).join(', ') + ') ' + (q * 10 + 5) + '%'); }
+        root.style.setProperty('--pj-edge-grad-r', 'linear-gradient(to bottom, ' + stopsR.join(', ') + ')');
+        root.style.setProperty('--pj-edge-b', bottom.map(Math.round).join(', '));
+        root.style.setProperty('--pj-scrim', scrim.join(', '));
+        // the whole theme's ink takes the picture's deep shade on this page
+        root.style.setProperty('--pj-bg', 'rgb(' + ground.join(', ') + ')');
+        root.style.setProperty('--pj-veil', ground.join(', '));
+        // in the page itself, behind its content: the picture scrolls with the text (in jellyfin-web's fixed backdrop
+        // layer it stayed while the synopsis scrolled up onto its bright sky)
+        // a series or a movie: the poster ("Affiche"); a season or an episode: the picture behind the header
+        if (page && item && (item.Type === 'Series' || item.Type === 'Movie')) {
+            page.insertBefore(affiche(item, url), page.querySelector('.detailPageWrapperContainer') || page.firstChild);
+            root.classList.add(NS + 'affiche-on', NS + 'aff-a');
+        } else if (page) {
+            var layer = mark(el('div', NS + 'canvas-layer'));
+            layer.setAttribute('aria-hidden', 'true');
+            layer.appendChild(el('div', NS + 'canvas-fill'));
+            layer.appendChild(el('div', NS + 'canvasimg')).style.backgroundImage = 'url("' + url + '")';
+            page.insertBefore(layer, page.firstChild);
+        }
+        sizeCanvas();
+        root.classList.add(NS + 'canvas');
+    }
+    // the picture as large as the screen allows: full width, or full height (85% of it) when that is smaller
+    function sizeCanvas() {
+        var root = document.documentElement, img = root.__pjImage;
+        if (!img) { return; }
+        var r = img.naturalWidth / img.naturalHeight, w = window.innerWidth, h = Math.min(w / r, window.innerHeight * 0.85);
+        root.style.setProperty('--pj-img-w', Math.round(h * r) + 'px');
+        root.style.setProperty('--pj-img-h', Math.round(h) + 'px');
+    }
+    function clearCanvas() {
+        var root = document.documentElement;
+        root.classList.remove(NS + 'canvas', NS + 'noimage', NS + 'affiche-on', NS + 'aff-a', NS + 'aff-b', NS + 'aff-c');
+        ['--pj-aff-a', '--pj-aff-b', '--pj-img-ratio', '--pj-edge-l', '--pj-edge-grad', '--pj-edge-grad-r', '--pj-edge-b', '--pj-scrim', '--pj-bg', '--pj-veil', '--pj-img-w', '--pj-img-h'].forEach(function (v) { root.style.removeProperty(v); });
+        root.__pjImage = null;
+        document.querySelectorAll('.' + NS + 'canvas-layer, .' + NS + 'affiche').forEach(function (n) { n.remove(); });
+    }
+    // ---------- "Affiche" (series and movies): the header as a film poster, whatever pictures the item has ----------
+    // a: a landscape backdrop whole on top, the logo on its lower third, the series' poster standing on its lower edge;
+    // b: no backdrop, a poster: the poster itself is the affiche, large on a band lit by its own colours;
+    // c: no picture at all: a typographic affiche, the title set large in the serif.
+    function posterUrl(item, height) {
+        var tag = item.ImageTags && item.ImageTags.Primary;
+        return tag ? client().getImageUrl(item.Id, { type: 'Primary', tag: tag, maxHeight: height || 900, quality: 92 }) : null;
+    }
+    function brand(item, holder, cls) {
+        var logoTag = item.ImageTags && item.ImageTags.Logo;
+        if (logoTag) {
+            var logo = holder.appendChild(el('img', NS + 'aff-logo ' + (cls || '')));
+            logo.alt = item.Name;
+            logo.src = client().getImageUrl(item.Id, { type: 'Logo', tag: logoTag, maxWidth: 1000, quality: 95 });
+        } else {
+            // a long name is set smaller, so it stays a title and not a wall of letters
+            holder.appendChild(el('h1', NS + 'aff-title ' + (item.Name.length > 26 ? NS + 'aff-long ' : '') + (cls || ''), item.Name));
+        }
+    }
+    function affiche(item, url) {
+        var box = mark(el('section', NS + 'affiche ' + NS + 'aff-mode-a'));
+        box.setAttribute('aria-label', item.Name);
+        var stage = box.appendChild(el('div', NS + 'aff-stage'));
+        stage.appendChild(el('div', NS + 'aff-fill ' + NS + 'aff-fill-l'));
+        stage.appendChild(el('div', NS + 'aff-fill ' + NS + 'aff-fill-r'));
+        var frame = stage.appendChild(el('div', NS + 'aff-frame'));
+        var pic = frame.appendChild(el('img', NS + 'aff-img'));
+        pic.alt = ''; pic.src = url;
+        brand(item, frame);
+        var bill = box.appendChild(billing(item));
+        // the series' poster, standing on the picture's lower edge like a sleeve set before the screen
+        var purl = posterUrl(item, 700);
+        if (purl) {
+            var poster = bill.insertBefore(el('img', NS + 'aff-poster'), bill.firstChild);
+            poster.alt = ''; poster.src = purl;
+            bill.classList.add(NS + 'has-poster');
+        }
+        return box;
+    }
+    function posterAffiche(page, item) {
+        var purl = posterUrl(item, 1000);
+        var done = function (img) {
+            if (headerFor !== item.Id) { return null; }
+            var root = document.documentElement;
+            clearCanvas();
+            var box = mark(el('section', NS + 'affiche'));
+            box.setAttribute('aria-label', item.Name);
+            if (img) {
+                // the band takes the poster's colours: its top and middle, then the page's deep shade of its bottom
+                var top = sample(img, 0, 0, 1, 0.25), mid = sample(img, 0, 0.35, 1, 0.3), bottom = sample(img, 0, 0.85, 1, 0.15);
+                var ground = deep(bottom, 0.028);
+                root.style.setProperty('--pj-aff-a', deep(top, 0.09).join(', '));
+                root.style.setProperty('--pj-aff-b', deep(mid, 0.05).join(', '));
+                root.style.setProperty('--pj-bg', 'rgb(' + ground.join(', ') + ')');
+                root.style.setProperty('--pj-veil', ground.join(', '));
+                box.classList.add(NS + 'aff-mode-b');
+                var poster = box.appendChild(el('img', NS + 'aff-poster'));
+                poster.alt = ''; poster.src = purl;
+                var side = box.appendChild(el('div', NS + 'aff-side'));
+                brand(item, side);
+                side.appendChild(billing(item));
+                root.classList.add(NS + 'aff-b');
+            } else {
+                box.classList.add(NS + 'aff-mode-c');
+                brand(item, box);
+                box.appendChild(el('span', NS + 'aff-rule'));
+                box.appendChild(billing(item));
+                root.classList.add(NS + 'aff-c');
+            }
+            page.insertBefore(box, page.querySelector('.detailPageWrapperContainer') || page.firstChild);
+            root.classList.add(NS + 'affiche-on', NS + 'canvas');
+            return null;
+        };
+        if (!purl) { return done(null); }
+        return loadImage(purl).then(done);
+    }
+    // the poster's billing block: tagline, credits, facts
+    function billing(item) {
+        var bill = el('div', NS + 'aff-billing');
+        var tagline = (item.Taglines || [])[0];
+        if (tagline) { bill.appendChild(el('p', NS + 'aff-tag', tagline)); }
+        // the credits, as a poster prints them: who presents, who plays, who made it
+        var people = item.People || [];
+        var actors = people.filter(function (p) { return p.Type === 'Actor' || p.Type === 'GuestStar'; }).slice(0, 4);
+        var makers = people.filter(function (p) { return p.Type === 'Director' || p.Type === 'Creator'; });
+        if (!makers.length) { makers = people.filter(function (p) { return p.Type === 'Writer'; }); }
+        makers = makers.slice(0, 2);
+        var studios = (item.Studios || []).slice(0, 3).map(function (st) { return st.Name; });
+        var credits = el('p', NS + 'aff-credits');
+        var text = function (t) { credits.appendChild(document.createTextNode(t)); };
+        var names = function (list) { list.forEach(function (p, i) { if (i) { text(i === list.length - 1 ? ' et ' : ', '); } credits.appendChild(el('b', null, p.Name)); }); };
+        if (studios.length) { text(studios.join(' et ') + (studios.length > 1 ? ' présentent ' : ' présente ')); }
+        if (actors.length) { names(actors); }
+        if (makers.length) { text((actors.length || studios.length ? ' dans ' : '') + (item.Type === 'Movie' ? 'un film de ' : 'une série de ')); names(makers); }
+        if (credits.childNodes.length) { bill.appendChild(credits); }
+        // the facts line: status and years, length, rating, score
+        var facts = bill.appendChild(el('div', NS + 'aff-facts'));
+        var fact = function (t, cls) { if (t) { facts.appendChild(el('span', cls ? NS + cls : null, t)); } };
+        if (item.Type === 'Series') {
+            var ended = item.Status === 'Ended', end = item.EndDate ? new Date(item.EndDate).getFullYear() : null;
+            if (item.Status) { fact(ended ? 'Terminée' : 'En cours', ended ? 'ended' : 'continuing'); }
+            if (item.ProductionYear) { fact(ended && end && end !== item.ProductionYear ? item.ProductionYear + '–' + end : 'Depuis ' + item.ProductionYear); }
+            if (item.ChildCount) { fact(item.ChildCount + (item.ChildCount > 1 ? ' saisons' : ' saison')); }
+        } else {
+            if (item.ProductionYear) { fact(String(item.ProductionYear)); }
+            if (item.RunTimeTicks >= 600000000) { var min = Math.round(item.RunTimeTicks / 600000000); fact(min >= 60 ? Math.floor(min / 60) + ' h ' + String(min % 60).padStart(2, '0') : min + ' min'); }
+        }
+        if (item.OfficialRating) { fact(item.OfficialRating, 'rating'); }
+        if (item.CommunityRating) { fact('★ ' + String(Math.round(item.CommunityRating * 10) / 10).replace('.', ',')); }
+        return bill;
+    }
+
+    // the header belongs to its detail page only
+    function leaveCanvas() {
         var page = currentPage();
-        if (page && page.getAttribute('data-pj-type') === 'Episode') { return; }
-        document.querySelectorAll('.' + NS + 'ownbackdrop').forEach(function (n) { n.remove(); });
-        document.documentElement.classList.remove(NS + 'has-own-backdrop');
+        if (page && page.classList.contains('itemDetailPage') && page.getAttribute('data-pj-for') === currentId()) { return; }
+        if (headerFor) { headerFor = null; clearCanvas(); }
+    }
+    window.addEventListener('resize', function () { sizeCanvas(); });
+
+    // ---------- what the item is: its logo instead of the title, its status ----------
+    function identity(page, item) {
+        var c = client();
+        var name = page.querySelector('.detailRibbon .itemName');
+        // the logo: the item's own (series, movie), or its series' (season, episode) in place of the series pill
+        var own = item.ImageTags && item.ImageTags.Logo;
+        if (own && name && (item.Type === 'Series' || item.Type === 'Movie') && !document.documentElement.classList.contains(NS + 'affiche-on')) {
+            var logo = counted(page, el('img', NS + 'logo'));
+            logo.alt = item.Name; logo.src = c.getImageUrl(item.Id, { type: 'Logo', tag: own, maxWidth: 900, quality: 95 });
+            name.parentNode.insertBefore(logo, name);
+            page.classList.add(NS + 'has-logo');
+        } else {
+            page.classList.remove(NS + 'has-logo');
+        }
+        var pill = page.querySelector('.detailRibbon .parentName');
+        if (pill && item.ParentLogoItemId && item.ParentLogoImageTag && !pill.querySelector('.' + NS + 'parentlogo')) {
+            var plogo = mark(el('img', NS + 'parentlogo'));
+            plogo.alt = item.SeriesName || '';
+            plogo.src = c.getImageUrl(item.ParentLogoItemId, { type: 'Logo', tag: item.ParentLogoImageTag, maxWidth: 500, quality: 95 });
+            var a = pill.querySelector('a') || pill;
+            a.insertBefore(plogo, a.firstChild);
+            pill.classList.add(NS + 'has-parentlogo');
+        }
+        // a series' status: "En cours" (since the year) or "Terminée" (with its years)
+        if (item.Type === 'Series' && item.Status) {
+            var facts = page.querySelector('.detailRibbon .itemMiscInfo-primary') || page.querySelector('.detailRibbon .itemMiscInfo');
+            if (facts) {
+                var ended = item.Status === 'Ended';
+                var end = item.EndDate ? new Date(item.EndDate).getFullYear() : null;
+                var text = ended ? 'Terminée' + (item.ProductionYear && end && end !== item.ProductionYear ? ' · ' + item.ProductionYear + '–' + end : '') : 'En cours';
+                var chip = counted(page, el('span', NS + 'status ' + NS + (ended ? 'ended' : 'continuing'), text));
+                facts.insertBefore(chip, facts.firstChild);
+            }
+        }
     }
 
     function markCurrentInRow(page, id) {
@@ -333,7 +581,7 @@
         scheduled = null;
         if (!client()) { return; }
         try { backdropRatio(); } catch (e) { warn('backdrop', e); }
-        try { dropOwnBackdrop(); } catch (e) { warn('backdrop reset', e); }
+        try { leaveCanvas(); } catch (e) { warn('header reset', e); }
         var page = currentPage();
         if (!page) { return; }
         try { detail(page); } catch (e) { warn('detail', e); }

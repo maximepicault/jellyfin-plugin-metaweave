@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&family=Barlow+Condensed:wght@400;600&display=swap");
 
 /*
  * Projection 2 - a flat, cinema-minded dark theme for jellyfin-web 10.11.
@@ -943,13 +943,202 @@ html.layout-desktop:has(.backgroundContainer.withBackdrop) .itemDetailPage .deta
 .pj-progress .pj-bar { width: clamp(6rem, 12vw, 11rem); height: 4px; border-radius: 2px; background: rgba(235, 230, 217, .18); overflow: hidden; flex: none; }
 .pj-progress .pj-bar i, .pj-seasonbar i { display: block; height: 100%; background: var(--pj-amber); }
 .pj-progress-text { text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+@media (max-width: 600px) { .pj-progress { flex-wrap: wrap; justify-content: center; gap: .35rem .75rem; } }
 /* a season started but not finished: its progress along the bottom of the poster */
 .pj-seasonbar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(5, 9, 10, .7); z-index: 3; pointer-events: none; }
 /* the episode number before its title on a season page */
 .pj-num { color: var(--pj-dim); font-weight: 700; margin-right: .45em; font-variant-numeric: tabular-nums; }
 .pj-num::after { content: "."; }
-/* the episode's own picture, put in place of the series' backdrop (same layout as it) */
-html.pj-has-own-backdrop .backdropContainer .backdropImage:not(.pj-ownbackdrop) { opacity: 0 !important; }
+/* --- the header built around the item's picture (html.pj-canvas, set by the script once it
+   found a landscape picture and read its colours). No blur and no black veil: the picture
+   whole at its own ratio, top right, as large as the screen allows (--pj-img-w/-h); the
+   margin beside it in its left edge colour; the ground below in a deep shade of its
+   bottom edge (the script sets --pj-bg and --pj-veil on this page, so every surface of
+   the theme takes it); the text on a scrim of the picture's own dark colour. --- */
+html.pj-canvas.layout-desktop:has(.itemDetailPage:not(.hide)) { --pj-hero-h: calc(var(--pj-img-h) - 15rem); }
+html.pj-canvas.layout-desktop:has(.itemDetailPage:not(.hide)) .backdropContainer { display: none; }
+/* the picture, in the page (it scrolls with the text): whole, top right; the margin on its
+   left in its left edge colour, down its whole height */
+.pj-canvas-layer { position: absolute; z-index: -1; top: 0; left: 0; right: 0; height: var(--pj-img-h); pointer-events: none; }
+.pj-canvas-fill {
+  position: absolute; left: 0; top: 0; height: 100%; width: calc(100% - var(--pj-img-w) * .9);   /* under the picture's faded edge (7%) */
+  background: var(--pj-edge-grad, linear-gradient(to bottom, rgb(var(--pj-edge-l)), rgb(var(--pj-edge-l))));
+  -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%); mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+}
+.pj-canvasimg {
+  position: absolute; top: 0; right: 0; width: var(--pj-img-w); height: 100%;
+  background-size: 100% 100%; background-repeat: no-repeat;
+  /* only the edges melt, into colours taken from those same edges */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 7%), linear-gradient(to bottom, #000 82%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, #000 7%), linear-gradient(to bottom, #000 82%, transparent 100%);
+  mask-composite: intersect;
+}
+html:not(.pj-canvas) .pj-canvas-layer, .layout-mobile .pj-canvas-layer { display: none; }
+html.pj-canvas.layout-desktop:has(.itemDetailPage:not(.hide)) .backgroundContainer.withBackdrop,
+html.pj-canvas.layout-desktop:has(.itemDetailPage:not(.hide)) .backgroundContainer { background: none !important; }
+/* the text's scrim, in the picture's own dark colour: behind the title and the actions at
+   the bottom left of the picture, then the ground from the picture's end down */
+html.pj-canvas.layout-desktop:has(.backdropContainer) .itemDetailPage .itemBackdrop::after {
+  background: radial-gradient(ellipse 60% 95% at 16% 100%, rgba(var(--pj-scrim), .82) 0, rgba(var(--pj-scrim), .5) 45%, rgba(var(--pj-scrim), 0) 75%) !important;
+  -webkit-mask-image: none; mask-image: none;
+}
+html.pj-canvas.layout-desktop .itemDetailPage .detailPageWrapperContainer {
+  background:
+    radial-gradient(ellipse 60% 15rem at 16% 0, rgba(var(--pj-scrim), .82) 0, rgba(var(--pj-scrim), .5) 45%, rgba(var(--pj-scrim), 0) 75%),
+    linear-gradient(to bottom, rgba(var(--pj-veil), 0) 0, rgba(var(--pj-veil), 0) calc(var(--pj-img-h) - var(--pj-hero-h) - 7rem), var(--pj-bg) calc(var(--pj-img-h) - var(--pj-hero-h))) !important;
+}
+/* the poster stands in the margin, the picture keeps the right */
+html.pj-canvas.layout-desktop .itemDetailPage .detailImageContainer .card .cardScalable { box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+/* no landscape picture at all (only portrait backdrops, or none): the compact header */
+html.pj-noimage.layout-desktop:has(.itemDetailPage:not(.hide)) { --pj-hero-h: 14rem; }
+html.pj-noimage.layout-desktop .itemDetailPage .detailImageContainer .card { top: calc(4.75rem - var(--pj-hero-h)) !important; }
+html.pj-noimage.layout-desktop:has(.itemDetailPage:not(.hide)) .backdropContainer { display: none; }
+html.pj-noimage.layout-desktop:has(.itemDetailPage:not(.hide)) .backgroundContainer.withBackdrop {
+  background-image: radial-gradient(ellipse 75% 34rem at 22% 0, #1d2e31 0, rgba(var(--pj-veil), 0) 100%) !important;
+}
+html.pj-noimage.layout-desktop .itemDetailPage .detailPageWrapperContainer { background: none !important; }
+html.pj-noimage.layout-desktop .itemDetailPage .itemBackdrop::after { background: none !important; }
+
+/* --- "Affiche" (chosen 2026-11-26): a series or a movie shown like a film poster. The
+   picture whole and sharp at the top, centred, as large as the screen allows (78% of
+   its height at most); the margins on both sides continue its left and right edges
+   band by band; its lower third darkens into the page's own colour and carries the
+   logo (or the title in the serif); under it the billing block of a poster, centred:
+   tagline, credits in condensed capitals, facts, then the actions and the synopsis.
+   The poster card is not shown: the picture is the poster. --- */
+html.pj-affiche-on.layout-desktop .itemDetailPage { --pj-indent: var(--pj-gutter); }
+html.pj-affiche-on .itemDetailPage .itemBackdrop,
+html.pj-affiche-on.layout-desktop .itemDetailPage .detailImageContainer,
+html.pj-affiche-on .itemDetailPage .pj-canvas-layer { display: none !important; }
+html.pj-affiche-on .backdropContainer { display: none; }
+html.pj-affiche-on .backgroundContainer { background: var(--pj-bg) !important; }
+html.pj-affiche-on.layout-desktop .itemDetailPage .detailPageWrapperContainer { background: none !important; min-height: 0; }
+html.pj-affiche-on.layout-desktop .itemDetailPage .detailRibbon { margin-top: 0 !important; padding-top: 0; min-height: 0; text-align: center; }
+html.pj-affiche-on.layout-desktop .itemDetailPage .detailPagePrimaryContainer { padding-top: 0; }
+/* what the poster already says goes from the stock header */
+html.pj-affiche-on .itemDetailPage .detailRibbon :is(.nameContainer, .itemMiscInfo, .pj-logo),
+html.pj-affiche-on .itemDetailPage .detailDetailLogo,
+html.pj-affiche-on .itemDetailPage .detailSectionContent > .tagline { display: none !important; }
+html.pj-affiche-on .itemDetailPage .detailRibbon .infoWrapper { margin: 0; }
+html.pj-affiche-on .itemDetailPage .mainDetailButtons { justify-content: center !important; margin: 0 auto !important; }
+html.pj-affiche-on .itemDetailPage .pj-progress { justify-content: center; margin: 0 0 1rem; }
+html.pj-affiche-on.layout-desktop .itemDetailPage .detailPagePrimaryContent .detailSection > .detailSectionContent,
+html.pj-affiche-on.layout-desktop .itemDetailPage .detailPagePrimaryContent .detailSection > .itemDetailsGroup { max-width: 62rem; margin-left: auto; margin-right: auto; text-align: center; }
+html.pj-affiche-on .itemDetailPage .overview { margin-left: auto; margin-right: auto; }
+html.pj-affiche-on .itemDetailPage :is(.itemTags, .genresGroup .content, .studiosGroup .content, .overview-controls) { justify-content: center !important; }
+html.pj-affiche-on .itemDetailPage .itemDetailsGroup .detailsGroupItem { justify-content: center; }
+
+.pj-affiche { position: relative; margin-bottom: 1.5rem; }
+.pj-aff-stage { position: relative; display: flex; justify-content: center; }
+.pj-aff-fill { position: absolute; top: 0; bottom: 0; width: 50%; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); }
+.pj-aff-fill-l { left: 0; background: var(--pj-edge-grad); }
+.pj-aff-fill-r { right: 0; background: var(--pj-edge-grad-r, var(--pj-edge-grad)); }
+.pj-aff-frame { position: relative; z-index: 1; width: min(100%, calc(64vh * var(--pj-img-ratio, 1.5))); }   /* 64% of the screen: the billing and the play button stay on the first screen */
+.pj-aff-img { display: block; width: 100%; height: auto; }
+.pj-aff-frame::after {
+  content: ""; position: absolute; inset: auto 0 0 0; height: 38%; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0), rgba(var(--pj-veil), .9));
+}
+.pj-aff-logo {
+  position: absolute; z-index: 2; left: 50%; bottom: 8%; transform: translateX(-50%);
+  width: auto; max-width: min(52%, 38rem); max-height: 34%; object-fit: contain;
+  filter: drop-shadow(0 6px 24px rgba(0, 0, 0, .55));
+}
+.pj-aff-title {
+  position: absolute; z-index: 2; left: 6%; right: 6%; bottom: 8%; margin: 0; text-align: center;
+  font-family: var(--pj-serif); font-weight: 800; font-size: clamp(2.4rem, 5.5vw, 5.4rem); line-height: .98; letter-spacing: -.02em;
+  color: var(--pj-text); text-shadow: 0 4px 30px rgba(0, 0, 0, .6); text-wrap: balance;
+}
+.pj-aff-billing { display: grid; justify-items: center; gap: .9rem; text-align: center; padding: 1.4rem var(--pj-gutter) 0; }
+.pj-aff-tag { margin: 0; font-family: var(--pj-serif); font-style: italic; font-size: clamp(1.2rem, 1rem + .6vw, 1.6rem); color: var(--pj-text); text-wrap: balance; }
+/* the billing block: a film poster's own vernacular, condensed capitals */
+.pj-aff-credits {
+  margin: 0; max-width: 64ch; font-family: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", sans-serif; font-stretch: condensed;
+  font-size: clamp(.95rem, .85rem + .3vw, 1.15rem); letter-spacing: .06em; text-transform: uppercase; line-height: 1.4; color: var(--pj-text-2);
+}
+.pj-aff-credits b { color: var(--pj-text); font-weight: 600; }
+.pj-aff-facts {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem 1.4rem;
+  font-family: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", sans-serif; font-size: 1rem; letter-spacing: .08em; text-transform: uppercase; color: var(--pj-dim);
+}
+.pj-aff-facts .pj-continuing { color: #8fd18b; }
+.pj-aff-facts .pj-rating { border: 1px solid var(--pj-line-2); padding: 0 .4em; border-radius: 3px; }
+/* a: the series' poster stands on the picture's lower edge, at the left, half on the
+   picture and half on the page; the centred billing keeps clear of it */
+.pj-aff-mode-a { --pj-aff-pw: clamp(9.5rem, 14vw, 14rem); }
+.pj-aff-billing.pj-has-poster { position: relative; padding-left: calc(var(--pj-aff-pw) + var(--pj-gutter) * 2); padding-right: calc(var(--pj-aff-pw) + var(--pj-gutter) * 2); min-height: calc(var(--pj-aff-pw) * .6); }
+.pj-aff-mode-a .pj-aff-poster {
+  position: absolute; z-index: 3; left: var(--pj-gutter); top: calc(var(--pj-aff-pw) * -.9);
+  width: var(--pj-aff-pw); height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--pj-r);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, .55), 0 0 0 1px rgba(235, 230, 217, .1);
+}
+/* b: no backdrop, the poster IS the affiche, large, on a band lit by its own colours;
+   the logo or title and the billing beside it, then the actions and the synopsis under
+   them in the same column */
+.pj-aff-mode-b {
+  --pj-aff-ph: clamp(19rem, 56vh, 34rem);
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(1.5rem, 3.4vw, 4rem); align-items: end;
+  padding: 5.25rem var(--pj-gutter) 1.25rem;
+  background: linear-gradient(115deg, rgb(var(--pj-aff-a)) 0%, rgb(var(--pj-aff-b)) 50%, var(--pj-bg) 100%);
+}
+.pj-aff-mode-b::after { content: ""; position: absolute; inset: auto 0 0 0; height: 5rem; pointer-events: none; background: linear-gradient(to bottom, rgba(var(--pj-veil), 0), var(--pj-bg)); }
+.pj-aff-mode-b .pj-aff-poster {
+  position: relative; z-index: 1; height: var(--pj-aff-ph); width: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--pj-r);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, .55), 0 0 0 1px rgba(235, 230, 217, .1);
+}
+.pj-aff-side { position: relative; z-index: 1; display: grid; gap: 1rem; justify-items: start; padding-bottom: .5rem; }
+.pj-aff-mode-b .pj-aff-logo, .pj-aff-mode-c .pj-aff-logo { position: static; transform: none; max-width: min(30rem, 100%); max-height: 10rem; }
+.pj-aff-mode-b .pj-aff-title { position: static; text-align: left; font-size: clamp(2.4rem, 4.6vw, 4.6rem); }
+.pj-aff-mode-b .pj-aff-billing { justify-items: start; text-align: left; padding: 0; }
+.pj-aff-mode-b .pj-aff-facts { justify-content: flex-start; }
+html.pj-aff-b.layout-desktop .itemDetailPage { --pj-indent: calc(var(--pj-gutter) + var(--pj-aff-ph-w, clamp(19rem, 56vh, 34rem) * 2 / 3) + clamp(1.5rem, 3.4vw, 4rem)); }
+html.pj-aff-b .itemDetailPage .detailRibbon { text-align: left !important; }
+html.pj-aff-b .itemDetailPage .mainDetailButtons { justify-content: flex-start !important; margin: 0 !important; }
+html.pj-aff-b .itemDetailPage .pj-progress { justify-content: flex-start; }
+html.pj-aff-b.layout-desktop .itemDetailPage .detailPagePrimaryContent .detailSection > :is(.detailSectionContent, .itemDetailsGroup) { margin-left: 0 !important; text-align: left !important; }
+html.pj-aff-b .itemDetailPage :is(.itemTags, .genresGroup .content, .studiosGroup .content, .overview-controls, .detailsGroupItem) { justify-content: flex-start !important; }
+html.pj-aff-b .itemDetailPage .overview { margin-left: 0; }
+/* c: no picture at all: a typographic affiche */
+.pj-aff-mode-c {
+  display: grid; justify-items: center; gap: 1rem; text-align: center; padding: 6.5rem var(--pj-gutter) .5rem;
+  background: radial-gradient(ellipse 70% 100% at 50% 0, #1d2e31, var(--pj-bg) 75%);
+}
+.pj-aff-mode-c .pj-aff-title { position: static; font-size: clamp(3rem, 8vw, 7.5rem); max-width: 14ch; }
+.pj-affiche .pj-aff-title.pj-aff-long { font-size: clamp(2rem, 3.6vw, 3.8rem); max-width: 22ch; }
+.pj-aff-rule { display: block; width: 4.5rem; height: 2px; background: var(--pj-amber); }
+.pj-aff-mode-c .pj-aff-billing { padding: 0; }
+html.pj-aff-c .backgroundContainer { background: var(--pj-bg) !important; }
+
+/* phones: the picture full width, the logo over it, the billing under it */
+.layout-mobile .pj-aff-frame { width: 100%; }
+.layout-mobile .pj-aff-logo { max-width: 70%; }
+.layout-mobile .pj-aff-billing { padding-top: 1rem; }
+.layout-mobile .pj-aff-mode-a .pj-aff-poster { display: none; }
+.layout-mobile .pj-aff-billing.pj-has-poster { padding-left: var(--pj-gutter); padding-right: var(--pj-gutter); min-height: 0; }
+.layout-mobile .pj-aff-mode-b { grid-template-columns: 1fr; justify-items: center; text-align: center; padding-top: 4rem; }
+.layout-mobile .pj-aff-mode-b .pj-aff-poster { height: auto; width: min(62%, 15rem); }
+.layout-mobile .pj-aff-mode-b .pj-aff-side, .layout-mobile .pj-aff-mode-b .pj-aff-billing { justify-items: center; text-align: center; }
+.layout-mobile .pj-aff-mode-b .pj-aff-title { text-align: center; }
+.layout-mobile .pj-aff-mode-b .pj-aff-facts { justify-content: center; }
+html.pj-aff-b.layout-mobile .itemDetailPage .mainDetailButtons { justify-content: center !important; }
+html.pj-affiche-on.layout-mobile .itemDetailPage .detailRibbon { margin-top: 0 !important; }
+html.pj-affiche-on.layout-mobile .itemDetailPage .detailImageContainer { display: none !important; }
+
+/* stock lays its own copy of the logo over the backdrop band: the script puts it in the title's place instead */
+html:is(.pj-canvas, .pj-noimage) .itemDetailPage .detailLogo { display: none !important; }
+/* the item's logo instead of its title (the title stays for screen readers) */
+.pj-logo { display: block; max-width: min(28rem, 100%); max-height: 9rem; width: auto; height: auto; object-fit: contain; object-position: left bottom; margin: 0 0 .4rem; filter: drop-shadow(0 4px 18px rgba(0, 0, 0, .55)); }
+.itemDetailPage.pj-has-logo .detailRibbon .itemName { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* the series' logo in place of its name above a season or an episode */
+.pj-parentlogo { display: block; max-height: 2.6rem; max-width: 14rem; width: auto; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, .6)); }
+.detailRibbon .parentName.pj-has-parentlogo a { background: none !important; box-shadow: none !important; padding: 0 !important; -webkit-backdrop-filter: none; backdrop-filter: none; font-size: 0 !important; }
+/* a series' status before its facts */
+.pj-status { font-weight: 600; margin-right: .6em; }
+.pj-status::before { content: "● "; }
+.pj-continuing { color: #8fd18b; }
+.pj-ended { color: var(--pj-text-2); }
 /* hover preview: over the episode's frame, trickplay thumbnails or its preview video */
 .pj-preview {
   position: absolute; inset: 0; z-index: 4; pointer-events: none; border-radius: inherit; overflow: hidden;
