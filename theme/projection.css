@@ -1031,12 +1031,25 @@ html.pj-affiche-on .itemDetailPage .itemDetailsGroup .detailsGroupItem { justify
 
 .pj-affiche { position: relative; margin-bottom: 1.5rem; }
 .pj-aff-stage { position: relative; display: flex; justify-content: center; }
-.pj-aff-fill { position: absolute; top: 0; bottom: 0; width: 50%; pointer-events: none;
-  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); }
-.pj-aff-fill-l { left: 0; background: var(--pj-edge-grad); }
-.pj-aff-fill-r { right: 0; background: var(--pj-edge-grad-r, var(--pj-edge-grad)); }
+.pj-aff-fill { position: absolute; top: 0; bottom: 0; width: 50%; pointer-events: none; }
+.pj-aff-fill-l { left: 0; background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 62%, rgba(var(--pj-veil), .92)), linear-gradient(to left, rgba(var(--pj-veil), 0) 30%, rgba(var(--pj-veil), .45)), var(--pj-edge-grad); }
+.pj-aff-fill-r { right: 0; background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 62%, rgba(var(--pj-veil), .92)), linear-gradient(to right, rgba(var(--pj-veil), 0) 30%, rgba(var(--pj-veil), .45)), var(--pj-edge-grad-r, var(--pj-edge-grad)); }
+/* the margins darken towards the bottom exactly as the picture does (its ::after), so the
+   two meet without an edge at any width */
 .pj-aff-frame { position: relative; z-index: 1; width: min(100%, calc(64vh * var(--pj-img-ratio, 1.5))); }   /* 64% of the screen: the billing and the play button stay on the first screen */
-.pj-aff-img { display: block; width: 100%; height: auto; }
+.pj-aff-img {
+  display: block; width: 100%; height: auto;
+  /* the sides melt into the margins (which continue the picture's edge colours): on a wide screen the frame
+     no longer stands as a hard-edged rectangle */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+}
+/* the other backdrops, stacked on the first, cross-fade in turn (slideshow) */
+.pj-aff-slide { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity 1.6s ease; }
+.pj-aff-frame > .pj-aff-img:first-child { transition: opacity 1.6s ease; }
+.pj-aff-frame:has(.pj-aff-slide.pj-aff-shown) > .pj-aff-img:first-child { opacity: 0; }
+.pj-aff-slide.pj-aff-shown { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .pj-aff-slide, .pj-aff-frame > .pj-aff-img:first-child { transition: none; } }
 .pj-aff-frame::after {
   content: ""; position: absolute; inset: auto 0 0 0; height: 38%; pointer-events: none;
   background: linear-gradient(to bottom, rgba(var(--pj-veil), 0), rgba(var(--pj-veil), .9));
@@ -1156,6 +1169,25 @@ html:is(.pj-canvas, .pj-noimage) .itemDetailPage .detailLogo { display: none !im
 .pj-status::before { content: "● "; }
 .pj-continuing { color: #8fd18b; }
 .pj-ended { color: var(--pj-text-2); }
+/* "Aperçu": a button next to the play button, and the viewer it opens */
+.mainDetailButtons .pj-previewbtn { background: transparent !important; color: var(--pj-text-2) !important; border: 0; }
+@media (hover: hover) { .mainDetailButtons .pj-previewbtn:hover { color: var(--pj-text) !important; background: var(--pj-raise-2) !important; } }
+.pj-previewbtn .material-icons { font-size: 1.5em; }
+.listViewUserDataButtons .pj-previewbtn { color: var(--pj-text-2); }
+.pj-viewer {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 2rem;
+  background: rgba(5, 9, 10, .82); animation: pj-viewer-in .2s ease-out;
+}
+@keyframes pj-viewer-in { from { opacity: 0; } }
+.pj-viewer-panel { width: min(100%, 72rem); display: grid; gap: .6rem; }
+.pj-viewer-head { display: flex; align-items: center; gap: 1rem; color: var(--pj-text); }
+.pj-viewer-title { font-family: var(--pj-serif); font-weight: 700; font-size: 1.25rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-viewer-note { color: var(--pj-dim); font-size: .85rem; }
+.pj-viewer-close { background: var(--pj-raise-2); color: var(--pj-text); border: 0; border-radius: 50%; width: 2.6rem; height: 2.6rem; display: grid; place-items: center; cursor: pointer; }
+.pj-viewer-close:hover { background: var(--pj-line); }
+.pj-viewer-video { width: 100%; max-height: 80vh; background: #000; border-radius: var(--pj-r); box-shadow: var(--pj-shadow-pop); }
+@media (max-width: 600px) { .pj-viewer { padding: .75rem; } }
+@media (prefers-reduced-motion: reduce) { .pj-viewer { animation: none; } }
 /* hover preview: over the episode's frame, a video (its preview or its own file) or its
    trickplay thumbnails; the picture whole at its own shape (a portrait one is not
    stretched), centred on the theme's ink */
@@ -1190,6 +1222,13 @@ html:is(.pj-canvas, .pj-noimage) .itemDetailPage .detailLogo { display: none !im
 }
 .pj-preview-trickplay .pj-preview-pic { height: auto; }
 @supports (width: 1cqw) { .pj-preview { container-type: size; } .pj-preview-pic { width: min(100cqw, 100cqh * var(--pj-preview-ratio, 1.7778)); } }
+/* where the preview comes from, in a corner chip */
+.pj-preview-origin {
+  position: absolute; z-index: 2; top: .45rem; right: .45rem; padding: .15rem .55rem; border-radius: 99px;
+  font-size: .68rem; font-weight: 600; color: var(--pj-text); background: rgba(5, 9, 10, .72);
+  box-shadow: inset 0 0 0 1px rgba(235, 230, 217, .2); pointer-events: none;
+}
+.pj-viewer-note.pj-origin-source { color: var(--pj-amber); }
 /* a video's own time runs continuously */
 .pj-preview-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--pj-amber); }
 /* trickplay is picture by picture: steps */

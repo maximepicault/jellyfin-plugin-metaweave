@@ -104,6 +104,21 @@
         var code = epCode(item);
         if (name && code) { name.parentNode.insertBefore(counted(page, el('div', NS + 'epcode', code)), name); }
 
+        // "Aperçu" next to the play button when the episode has a preview video (its source's, or the clip built by the
+        // plugin); a missing episode already has one through its play button
+        if (item.LocationType !== 'Virtual') {
+            previewInfo(item.Id).then(function (info) {
+                var buttons = page.querySelector('.mainDetailButtons');
+                if (!info || !(info.Source || info.Clip) || !buttons || buttons.querySelector('.' + NS + 'previewbtn') || page.getAttribute('data-pj-for') !== item.Id) { return; }
+                var btn = counted(page, el('button', NS + 'previewbtn button-flat detailButton emby-button'));
+                btn.type = 'button'; btn.title = 'Aperçu · ' + previewOrigin(info).label;
+                btn.appendChild(el('span', 'material-icons detailButton-icon movie')).setAttribute('aria-hidden', 'true');
+                btn.addEventListener('click', function () { openPreview(item, info); });
+                var play = buttons.querySelector('.btnPlay:not(.hide), .btnResume:not(.hide)');
+                buttons.insertBefore(btn, play ? play.nextSibling : buttons.firstChild);
+            });
+        }
+
         // previous / next in the whole series, in broadcast order
         if (!item.SeriesId) { return Promise.resolve(); }
         var c = client();
@@ -148,10 +163,12 @@
     }
     function candidates(item) {
         var c = client(), out = [];
-        var add = function (id, type, tag, index) { if (id && tag) { out.push(c.getImageUrl(id, { type: type, tag: tag, index: index, maxWidth: 2400, quality: 90 })); } };
-        if (item.Type === 'Episode' && item.ImageTags && item.ImageTags.Primary) { add(item.Id, 'Primary', item.ImageTags.Primary); }
+        var add = function (id, type, tag, index) { if (id && tag) { var u = new String(c.getImageUrl(id, { type: type, tag: tag, index: index, maxWidth: 2400, quality: 90 })); u.backdrop = type === 'Backdrop'; out.push(u); } };
+        // the backdrops first (all of them: they take turns, like jellyfin-web's backdrop slideshow): the item's own,
+        // else its parent's (a season's or an episode's series); then an episode's still; then the thumbnails
         (item.BackdropImageTags || []).forEach(function (tag, i) { add(item.Id, 'Backdrop', tag, i); });
-        (item.ParentBackdropImageTags || []).forEach(function (tag, i) { add(item.ParentBackdropItemId, 'Backdrop', tag, i); });
+        if (!(item.BackdropImageTags || []).length) { (item.ParentBackdropImageTags || []).forEach(function (tag, i) { add(item.ParentBackdropItemId, 'Backdrop', tag, i); }); }
+        if (item.Type === 'Episode' && item.ImageTags && item.ImageTags.Primary) { add(item.Id, 'Primary', item.ImageTags.Primary); }
         if (item.ImageTags && item.ImageTags.Thumb) { add(item.Id, 'Thumb', item.ImageTags.Thumb); }
         if (item.ParentThumbItemId && item.ParentThumbImageTag) { add(item.ParentThumbItemId, 'Thumb', item.ParentThumbImageTag); }
         return out;
@@ -188,7 +205,10 @@
             return loadImage(list[i]).then(function (img) {
                 if (headerFor !== item.Id) { return null; }
                 if (!img || img.naturalWidth / img.naturalHeight < MIN_RATIO || img.naturalWidth < MIN_WIDTH) { return tryNext(i + 1); }
-                return setCanvas(img, list[i], page, item);
+                setCanvas(img, String(list[i]), page, item);
+                // the other backdrops join a slideshow once they have loaded (and are landscape and large enough)
+                if (list[i].backdrop) { slideshow(item, list.slice(i + 1).filter(function (u) { return u.backdrop; })); }
+                return null;
             });
         };
         tryNext(0);
@@ -200,23 +220,8 @@
     function setCanvas(img, url, page, item) {
         var root = document.documentElement;
         clearCanvas();
-        var left = sample(img, 0.015, 0, 0.04, 1), bottom = sample(img, 0, 0.9, 1, 0.1), lowLeft = sample(img, 0, 0.6, 0.5, 0.4);
-        var ground = deep(bottom, 0.028), scrim = deep(lowLeft, 0.02);
+        paintColours(img);
         root.__pjImage = img;
-        root.style.setProperty('--pj-img-ratio', String(img.naturalWidth / img.naturalHeight));
-        root.style.setProperty('--pj-edge-l', left.map(Math.round).join(', '));
-        // the margin continues the picture's left edge as it goes down (sky, horizon, ground), band by band
-        var stops = [];
-        for (var k = 0; k < 10; k++) { stops.push('rgb(' + sample(img, 0.015, k / 10, 0.03, 0.1).map(Math.round).join(', ') + ') ' + (k * 10 + 5) + '%'); }
-        root.style.setProperty('--pj-edge-grad', 'linear-gradient(to bottom, ' + stops.join(', ') + ')');
-        var stopsR = [];
-        for (var q = 0; q < 10; q++) { stopsR.push('rgb(' + sample(img, 0.955, q / 10, 0.03, 0.1).map(Math.round).join(', ') + ') ' + (q * 10 + 5) + '%'); }
-        root.style.setProperty('--pj-edge-grad-r', 'linear-gradient(to bottom, ' + stopsR.join(', ') + ')');
-        root.style.setProperty('--pj-edge-b', bottom.map(Math.round).join(', '));
-        root.style.setProperty('--pj-scrim', scrim.join(', '));
-        // the whole theme's ink takes the picture's deep shade on this page
-        root.style.setProperty('--pj-bg', 'rgb(' + ground.join(', ') + ')');
-        root.style.setProperty('--pj-veil', ground.join(', '));
         // in the page itself, behind its content: the picture scrolls with the text (in jellyfin-web's fixed backdrop
         // layer it stayed while the synopsis scrolled up onto its bright sky)
         // a series or a movie: the poster ("Affiche"); a season or an episode: the picture behind the header
@@ -233,6 +238,55 @@
         sizeCanvas();
         root.classList.add(NS + 'canvas');
     }
+    // the colours the page takes from the picture: its edges (the margins), its bottom (the ground), its dark (the scrim)
+    function paintColours(img) {
+        var root = document.documentElement;
+        var left = sample(img, 0.015, 0, 0.04, 1), bottom = sample(img, 0, 0.9, 1, 0.1), lowLeft = sample(img, 0, 0.6, 0.5, 0.4);
+        var ground = deep(bottom, 0.028), scrim = deep(lowLeft, 0.02);
+        root.style.setProperty('--pj-img-ratio', String(img.naturalWidth / img.naturalHeight));
+        root.style.setProperty('--pj-edge-l', left.map(Math.round).join(', '));
+        // the margin continues the picture's left edge as it goes down (sky, horizon, ground), band by band
+        var stops = [];
+        for (var k = 0; k < 10; k++) { stops.push('rgb(' + sample(img, 0, k / 10, 0.08, 0.1).map(Math.round).join(', ') + ') ' + (k * 10 + 5) + '%'); }
+        root.style.setProperty('--pj-edge-grad', 'linear-gradient(to bottom, ' + stops.join(', ') + ')');
+        var stopsR = [];
+        for (var q = 0; q < 10; q++) { stopsR.push('rgb(' + sample(img, 0.92, q / 10, 0.08, 0.1).map(Math.round).join(', ') + ') ' + (q * 10 + 5) + '%'); }
+        root.style.setProperty('--pj-edge-grad-r', 'linear-gradient(to bottom, ' + stopsR.join(', ') + ')');
+        root.style.setProperty('--pj-edge-b', bottom.map(Math.round).join(', '));
+        root.style.setProperty('--pj-scrim', scrim.join(', '));
+        // the whole theme's ink takes the picture's deep shade on this page
+        root.style.setProperty('--pj-bg', 'rgb(' + ground.join(', ') + ')');
+        root.style.setProperty('--pj-veil', ground.join(', '));
+    }
+    // the item's other backdrops take turns in the poster's frame, cross-fading every 9 s; the page's colours follow
+    var slideTimer = null;
+    function slideshow(item, urls) {
+        clearInterval(slideTimer); slideTimer = null;
+        if (!urls.length) { return; }
+        Promise.all(urls.map(function (u) { return loadImage(String(u)).then(function (img) { return img && img.naturalWidth / img.naturalHeight >= MIN_RATIO && img.naturalWidth >= MIN_WIDTH ? { img: img, url: String(u) } : null; }); }))
+            .then(function (found) {
+                var frame = document.querySelector('.' + NS + 'aff-frame');
+                var first = frame && frame.querySelector('.' + NS + 'aff-img');
+                found = found.filter(Boolean);
+                if (!frame || !first || !found.length || headerFor !== item.Id) { return; }
+                var slides = [{ img: document.documentElement.__pjImage, node: first }];
+                found.forEach(function (f) {
+                    var node = el('img', NS + 'aff-img ' + NS + 'aff-slide');
+                    node.alt = ''; node.src = f.url;
+                    first.parentNode.insertBefore(node, first.nextSibling);
+                    slides.push({ img: f.img, node: node });
+                });
+                var at = 0;
+                slideTimer = setInterval(function () {
+                    if (headerFor !== item.Id || !document.contains(first)) { clearInterval(slideTimer); slideTimer = null; return; }
+                    if (document.hidden) { return; }
+                    at = (at + 1) % slides.length;
+                    slides.forEach(function (sl, k) { sl.node.classList.toggle(NS + 'aff-shown', k === at); });
+                    paintColours(slides[at].img);
+                }, 9000);
+                first.classList.add(NS + 'aff-shown');
+            });
+    }
     // the picture as large as the screen allows: full width, or full height (85% of it) when that is smaller
     function sizeCanvas() {
         var root = document.documentElement, img = root.__pjImage;
@@ -244,6 +298,7 @@
     function clearCanvas() {
         var root = document.documentElement;
         root.classList.remove(NS + 'canvas', NS + 'noimage', NS + 'affiche-on', NS + 'aff-a', NS + 'aff-b', NS + 'aff-c');
+        clearInterval(slideTimer); slideTimer = null;
         ['--pj-aff-a', '--pj-aff-b', '--pj-img-ratio', '--pj-edge-l', '--pj-edge-grad', '--pj-edge-grad-r', '--pj-edge-b', '--pj-scrim', '--pj-bg', '--pj-veil', '--pj-img-w', '--pj-img-h'].forEach(function (v) { root.style.removeProperty(v); });
         root.__pjImage = null;
         document.querySelectorAll('.' + NS + 'canvas-layer, .' + NS + 'affiche').forEach(function (n) { n.remove(); });
@@ -516,7 +571,7 @@
         return getItems({ ParentId: season.Id, IncludeItemTypes: 'Episode', Fields: 'ParentIndexNumber' }).then(function (res) {
             if (page.getAttribute('data-pj-for') !== season.Id) { return; }
             var byId = new Map((res.Items || []).map(function (e) { return [e.Id, e]; }));
-            page.__pjRows = function () { numberEpisodeRows(page, byId); };
+            page.__pjRows = function () { numberEpisodeRows(page, byId); previewButtons(page, byId); };
             page.__pjRows();
         });
     }
@@ -528,6 +583,71 @@
             if (/^\s*\d+\s*[.\-:]/.test(title.textContent)) { return; }   // jellyfin-web already wrote it ("1. S01E01")
             title.insertBefore(mark(el('span', NS + 'num', String(e.IndexNumber) + (e.IndexNumberEnd ? '-' + e.IndexNumberEnd : ''))), title.firstChild);
         });
+    }
+
+    // ---------- the preview of an episode, on demand: a button and a viewer with sound ----------
+    var infoCache = new Map();
+    function previewInfo(id) {
+        if (!infoCache.has(id)) {
+            var c = client();
+            infoCache.set(id, c.getJSON(c.getUrl('CustomMetadata/Preview/' + id + '/Info')).catch(function () { return null; }));
+        }
+        return infoCache.get(id);
+    }
+    // where a preview comes from, in words: the source's own video (with the source's name) or the plugin's clip
+    function previewOrigin(info) {
+        if (info.Source) { return { kind: 'source', label: 'Aperçu de la source « ' + (info.SourceName || 'source') + ' »' + (info.SourceIsLocal ? ' (vidéo envoyée dans la source locale)' : '') }; }
+        return { kind: 'clip', label: 'Extraits créés par le plugin à partir du fichier' };
+    }
+    // a small "Aperçu" button on each episode row of a season page that has a preview
+    function previewButtons(page, byId) {
+        page.querySelectorAll('#listChildrenCollapsible .listItem[data-id]').forEach(function (row) {
+            var e = byId.get(row.getAttribute('data-id'));
+            if (!e || e.LocationType === 'Virtual' || row.__pjPreviewAsked) { return; }
+            row.__pjPreviewAsked = true;
+            previewInfo(e.Id).then(function (info) {
+                var host = row.querySelector('.listViewUserDataButtons');
+                if (!info || !(info.Source || info.Clip) || !host || host.querySelector('.' + NS + 'previewbtn')) { return; }
+                var btn = mark(el('button', NS + 'previewbtn listItemButton paper-icon-button-light'));
+                btn.type = 'button'; btn.title = 'Aperçu · ' + previewOrigin(info).label;
+                btn.appendChild(el('span', 'material-icons movie')).setAttribute('aria-hidden', 'true');
+                btn.addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); openPreview(e, info); });
+                host.insertBefore(btn, host.firstChild);
+            });
+        });
+    }
+    // the viewer: the preview large, with sound and controls; Escape, the close button or a click outside closes it
+    function openPreview(item, info) {
+        stopPreview();
+        var c = client();
+        var src = info.Source ? c.getUrl('CustomMetadata/Preview/' + item.Id, { api_key: token() }) : c.getUrl('CustomMetadata/Preview/' + item.Id + '/Clip', { api_key: token() });
+        var box = el('div', NS + 'viewer');
+        box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'Aperçu de ' + item.Name);
+        var panel = box.appendChild(el('div', NS + 'viewer-panel'));
+        var head = panel.appendChild(el('div', NS + 'viewer-head'));
+        head.appendChild(el('span', NS + 'viewer-title', [epCode(item), item.Name].filter(Boolean).join(' · ')));
+        var origin = previewOrigin(info);
+        head.appendChild(el('span', NS + 'viewer-note ' + NS + 'origin-' + origin.kind, origin.label));
+        var close = head.appendChild(el('button', NS + 'viewer-close'));
+        close.type = 'button'; close.title = 'Fermer'; close.setAttribute('aria-label', 'Fermer');
+        close.appendChild(el('span', 'material-icons close')).setAttribute('aria-hidden', 'true');
+        var video = panel.appendChild(el('video', NS + 'viewer-video'));
+        video.controls = true; video.playsInline = true; video.src = src;
+        // with sound (the click allows it); if the browser still refuses, muted, and the controls unmute it
+        var p = video.play();
+        if (p && p.catch) { p.catch(function () { video.muted = true; video.play().catch(function () { /* the controls stay */ }); }); }
+        var done = function () {
+            document.removeEventListener('keydown', onKey, true);
+            try { video.pause(); video.removeAttribute('src'); video.load(); } catch (e) { /* gone */ }
+            box.remove();
+        };
+        var onKey = function (ev) { if (ev.key === 'Escape') { ev.stopPropagation(); done(); } };
+        close.addEventListener('click', done);
+        box.addEventListener('click', function (ev) { if (ev.target === box) { done(); } });
+        document.addEventListener('keydown', onKey, true);
+        window.addEventListener('hashchange', done, { once: true });
+        document.body.appendChild(box);
+        close.focus();
     }
 
     // ---------- 3. hover preview of an episode ----------
@@ -556,9 +676,9 @@
             if (item.LocationType === 'Virtual' || item.LocalTrailerCount) { return trailerPreview(host, item, fallback); }
             // a real episode: its source's preview video (served by the plugin), then the clip the plugin built from the
             // file (8 short moments spread over the episode), then the file itself, then trickplay
-            return videoPreview(host, sourcePreviewUrl(item), null, function () {
+            return videoPreview(host, sourcePreviewUrl(item), null, 'Aperçu de la source', function () {
                 if (!host.card.matches(':hover')) { return; }
-                videoPreview(host, clipUrl(item), null, function () { filePreview(host, item, fallback); });
+                videoPreview(host, clipUrl(item), null, 'Extraits (plugin)', function () { filePreview(host, item, fallback); });
             });
         }).catch(function (e) { warn('preview', e); });
     }
@@ -572,8 +692,10 @@
     }
     function endPreview(host, layer) { host.card.classList.remove(NS + 'previewing'); layer.remove(); }
     // a muted video in the frame; `segments` (fractions of the duration) makes it jump through the episode
-    function videoPreview(host, src, segments, fallback) {
+    // `origin` is shown in a corner chip: where the video comes from
+    function videoPreview(host, src, segments, origin, fallback) {
         var layer = overlay(host, 'video');
+        if (origin) { layer.appendChild(el('span', NS + 'preview-origin', origin)); }
         var video = layer.appendChild(el('video', NS + 'preview-video'));
         var bar = layer.appendChild(el('span', NS + 'preview-bar'));
         video.muted = true; video.playsInline = true; video.preload = 'auto'; video.loop = !segments;
@@ -647,7 +769,7 @@
         if (!source || item.LocationType === 'Virtual' || !host.card.matches(':hover')) { return fallback(); }
         if (source.Bitrate && source.Bitrate > MAX_PREVIEW_BITRATE) { return fallback(); }
         var src = c.getUrl('Videos/' + item.Id + '/stream', { static: true, MediaSourceId: source.Id, api_key: token() });
-        videoPreview(host, src, [0.12, 0.3, 0.48, 0.66, 0.84], fallback);
+        videoPreview(host, src, [0.12, 0.3, 0.48, 0.66, 0.84], 'Fichier de l’épisode', fallback);
     }
     function trailerPreview(host, item, fallback) {
         var c = client();
@@ -655,7 +777,7 @@
             var t = (trailers || [])[0];
             if (!host.card.matches(':hover')) { return; }
             if (!t) { return item.LocationType === 'Virtual' ? fallback() : filePreview(host, item, fallback); }
-            videoPreview(host, c.getUrl('Videos/' + t.Id + '/stream', { static: true, api_key: token() }), null, fallback);
+            videoPreview(host, c.getUrl('Videos/' + t.Id + '/stream', { static: true, api_key: token() }), null, 'Aperçu de la source', fallback);
         });
     }
     // trickplay: picture by picture, so the progress is shown as steps, not as a running line
@@ -671,6 +793,7 @@
         var perTile = info.TileWidth * info.TileHeight;
         var c = client();
         var layer = overlay(host, 'trickplay');
+        layer.appendChild(el('span', NS + 'preview-origin', 'Vignettes Jellyfin'));
         layer.style.setProperty('--pj-preview-ratio', String(info.Width / info.Height));
         var pic = layer.appendChild(el('div', NS + 'preview-pic'));
         var steps = layer.appendChild(el('div', NS + 'preview-steps'));

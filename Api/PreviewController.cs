@@ -41,6 +41,25 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             _logger = logger;
         }
 
+        /// <summary>Which previews the episode has: its source's (Source) and the clip built by the plugin (Clip)</summary>
+        [HttpGet("{itemId}/Info")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<ActionResult<PreviewInfo>> Info(Guid itemId, CancellationToken cancellationToken)
+        {
+            var episode = _library.GetItemById(itemId) as Episode;
+            var (url, source) = await _previews.GetAsync(episode, cancellationToken);
+            Response.Headers["Cache-Control"] = "private, max-age=600";
+            var hasSource = !string.IsNullOrEmpty(url) && (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+            return new PreviewInfo
+            {
+                Source = hasSource,
+                // which source gives it, so the user sees where the video comes from (its name in the plugin's settings)
+                SourceName = hasSource ? (string.IsNullOrWhiteSpace(source?.Name) ? source?.Prefix : source.Name) : null,
+                SourceIsLocal = hasSource && source?.IsLocal == true,
+                Clip = _clips.GetClip(episode) != null
+            };
+        }
+
         /// <summary>The episode's preview clip built by the "Générer les aperçus des épisodes" task, or 404</summary>
         [HttpGet("{itemId}/Clip")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -106,5 +125,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 // the pointer left the card: the browser dropped the request
             }
         }
+    }
+
+    public class PreviewInfo
+    {
+        public bool Source { get; set; }
+
+        public string SourceName { get; set; }
+
+        public bool SourceIsLocal { get; set; }
+
+        public bool Clip { get; set; }
     }
 }
