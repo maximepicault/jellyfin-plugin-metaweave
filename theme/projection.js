@@ -12,6 +12,8 @@
  * - series page: "625 / 1 076 vus · 17 manquants" with a bar, "Reprendre · S27 É2" on the play button, a progress
  *   bar on each season poster;
  * - season page: the episode number before each title;
+ * - person page: the left column (portrait, birth, links, what the library holds), the jobs over the name, counts
+ *   on the section titles, the backdrops as a banner;
  * - hover preview of an episode (pointer devices): its trickplay thumbnails scrubbed, or its preview video (missing
  *   episodes with a preview trailer).
  * Labels are French, like the rest of the theme.
@@ -92,6 +94,8 @@
         page.__pjRows = null;
         page.__pjItem = null;
         clearOld(page);
+        page.classList.remove(NS + 'person');
+        page.querySelectorAll('.' + NS + 'person-count').forEach(function (n) { n.remove(); });
         getItem(id, 'RecursiveItemCount,ChildCount').then(function (item) {
             if (page.getAttribute('data-pj-for') !== id) { return; }
             page.setAttribute('data-pj-type', item.Type);
@@ -102,6 +106,7 @@
             if (item.Type === 'Episode') { episodePage(page, item).catch(function (e) { warn('episode page', e); }); }
             if (item.Type === 'Series') { seriesPage(page, item).catch(function (e) { warn('series page', e); }); }
             if (item.Type === 'Season') { seasonPage(page, item).catch(function (e) { warn('season page', e); }); }
+            if (item.Type === 'Person') { personPage(page, item).catch(function (e) { warn('person page', e); }); }
         }).catch(function (e) { warn('detail', e); });
     }
 
@@ -151,6 +156,91 @@
             var buttons = page.querySelector('.mainDetailButtons');
             if (buttons) { buttons.parentNode.insertBefore(nav, buttons.nextSibling); }
             markCurrentInRow(page, item.Id);
+        });
+    }
+
+    // --- person page ("Fiche d'artiste"): who on the left (CSS: .pj-person-card), what they did on the right
+    var JOBS = [['Interprétation', ['Actor', 'GuestStar']], ['Réalisation', ['Director']], ['Scénario', ['Writer']], ['Production', ['Producer']], ['Musique', ['Composer']]];
+    var WORKS = [['Movie', 'film', 'films'], ['Series', 'série', 'séries'], ['Episode', 'épisode', 'épisodes']];
+    // a birth or death date is a calendar day: read in UTC, or it moves a day back west of Greenwich
+    function day(value) { var d = value ? new Date(value) : null; return d && !isNaN(d.getTime()) ? d : null; }
+    function dayText(d) { return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); }
+    function years(from, to) {
+        var n = to.getUTCFullYear() - from.getUTCFullYear();
+        if (to.getUTCMonth() < from.getUTCMonth() || (to.getUTCMonth() === from.getUTCMonth() && to.getUTCDate() < from.getUTCDate())) { n--; }
+        return n;
+    }
+    function personCard(person) {
+        var card = el('aside', NS + 'person-card');
+        card.setAttribute('aria-label', person.Name);
+        var photo = card.appendChild(el('div', NS + 'person-photo'));
+        var tag = person.ImageTags && person.ImageTags.Primary;
+        if (tag) {
+            // the photo's own shape, between a 2:3 portrait and a square
+            if (person.PrimaryImageAspectRatio) { photo.style.setProperty('--pj-photo-ratio', String(Math.min(1, Math.max(0.667, person.PrimaryImageAspectRatio)))); }
+            var img = photo.appendChild(el('img'));
+            img.alt = ''; img.src = client().getImageUrl(person.Id, { type: 'Primary', tag: tag, maxHeight: 900, quality: 92 });
+        } else {
+            var initials = (person.Name || '').split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
+            photo.appendChild(el('span', NS + 'person-initials', initials)).setAttribute('aria-hidden', 'true');
+        }
+        var facts = card.appendChild(el('dl', NS + 'person-facts'));
+        var fact = function (label, text) {
+            var row = facts.appendChild(el('div'));
+            row.appendChild(el('dt', null, label));
+            return row.appendChild(el('dd', null, text));
+        };
+        var born = day(person.PremiereDate), died = day(person.EndDate);
+        if (born) { fact('Naissance', dayText(born) + (died ? '' : ' · ' + years(born, new Date()) + ' ans')); }
+        if (died) { fact('Décès', dayText(died) + (born ? ' · à ' + years(born, died) + ' ans' : '')); }
+        var place = (person.ProductionLocations || [])[0];
+        if (place) { fact('Lieu de naissance', place); }
+        var links = (person.ExternalUrls || []).filter(function (l) { return /^https?:\/\//i.test(l.Url || ''); });
+        if (links.length) {
+            // jellyfin-web's own classes: the theme's chips and the plugin's network icons apply
+            var box = card.appendChild(el('div', NS + 'person-links itemExternalLinks'));
+            links.forEach(function (l) {
+                var a = box.appendChild(el('a', 'button-link', l.Name));
+                a.href = l.Url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+            });
+        }
+        return { node: card, fact: fact };
+    }
+    function personPage(page, person) {
+        var host = page.querySelector('.detailPagePrimaryContainer');
+        if (!host) { return Promise.resolve(); }
+        page.classList.add(NS + 'person');
+        var card = personCard(person);
+        // last in the container (the CSS places it): jellyfin-web's own lookups keep finding its elements first
+        host.appendChild(counted(page, card.node));
+        var query = function (types, more) {
+            var q = { PersonIds: person.Id, Recursive: true, IncludeItemTypes: types, EnableTotalRecordCount: true, EnableImages: false };
+            Object.keys(more).forEach(function (k) { q[k] = more[k]; });
+            return getItems(q).catch(function () { return { Items: [], TotalRecordCount: 0 }; });
+        };
+        var counts = Promise.all(WORKS.map(function (w) { return query(w[0], { Limit: 1 }); }));
+        // the jobs, from the credits of the latest works
+        var credits = query('Movie,Series,Episode', { Limit: 80, Fields: 'People', SortBy: 'PremiereDate', SortOrder: 'Descending' });
+        return Promise.all([counts, credits]).then(function (all) {
+            if (page.getAttribute('data-pj-for') !== person.Id || !card.node.isConnected) { return; }
+            var totals = {};
+            WORKS.forEach(function (w, i) { totals[w[0]] = all[0][i].TotalRecordCount || 0; });
+            var held = WORKS.filter(function (w) { return totals[w[0]] > 0; }).map(function (w) { return nf(totals[w[0]]) + ' ' + w[totals[w[0]] > 1 ? 2 : 1]; });
+            if (held.length) { card.fact('Dans votre médiathèque', held.join(' · ')); }
+            var plain = function (id) { return String(id || '').replace(/-/g, '').toLowerCase(); };
+            var types = {};
+            (all[1].Items || []).forEach(function (it) { (it.People || []).forEach(function (p) { if (plain(p.Id) === plain(person.Id)) { types[p.Type] = true; } }); });
+            var jobs = JOBS.filter(function (j) { return j[1].some(function (t) { return types[t]; }); }).map(function (j) { return j[0]; });
+            var name = page.querySelector('.detailRibbon .nameContainer');
+            if (jobs.length && name) { name.parentNode.insertBefore(counted(page, el('p', NS + 'person-job', jobs.join(' · '))), name); }
+            // "Films 5" on the sections, rendered by jellyfin-web in its own time
+            page.__pjRows = function () {
+                page.querySelectorAll('#childrenContent > [data-type]').forEach(function (section) {
+                    var n = totals[section.getAttribute('data-type')], title = section.querySelector('.sectionTitle');
+                    if (n && title && !title.querySelector('.' + NS + 'person-count')) { title.appendChild(el('span', NS + 'person-count', nf(n))); }
+                });
+            };
+            page.__pjRows();
         });
     }
 
@@ -214,7 +304,7 @@
         var root = document.documentElement;
         // already being built, or built, for this item in this page (and its layer still there: a re-render may have
         // removed it)
-        if (header && header.page === page && header.id === item.Id && (header.building || root.classList.contains(NS + 'noimage') || (root.classList.contains(NS + 'canvas') && page.querySelector('.' + NS + 'canvas-layer, .' + NS + 'affiche')))) { return; }
+        if (header && header.page === page && header.id === item.Id && (header.building || root.classList.contains(NS + 'noimage') || (root.classList.contains(NS + 'person-bd') && page.querySelector('.' + NS + 'person-banner')) || (root.classList.contains(NS + 'canvas') && page.querySelector('.' + NS + 'canvas-layer, .' + NS + 'affiche')))) { return; }
         var own = header = { page: page, id: item.Id, building: true };
         var list = candidates(item);
         var tryNext = function (i) {
@@ -229,7 +319,7 @@
                 setCanvas(img, String(list[i]), page, item, !!list[i].still);
                 own.building = false;
                 // the other backdrops join a slideshow once they have loaded (and are landscape and large enough)
-                if (list[i].backdrop) { slideshow(own, list.slice(i + 1).filter(function (u) { return u.backdrop; })); }
+                if (list[i].backdrop) { slideshow(own, list.slice(i + 1).filter(function (u) { return u.backdrop; }), item.Type === 'Person' ? '.' + NS + 'person-banner' : null); }
                 return null;
             });
         };
@@ -244,6 +334,16 @@
         clearCanvas();
         paintColours(img);
         root.__pjImage = img;
+        // a person: the picture as a banner across the top of the page (no poster, no side margins)
+        if (page && item && item.Type === 'Person') {
+            var banner = mark(el('div', NS + 'person-banner'));
+            banner.setAttribute('aria-hidden', 'true');
+            var picture = banner.appendChild(el('img', NS + 'aff-img'));
+            picture.alt = ''; picture.src = url;
+            page.insertBefore(banner, page.firstChild);
+            root.classList.add(NS + 'person-bd');
+            return;
+        }
         // in the page itself, behind its content: the picture scrolls with the text (in jellyfin-web's fixed backdrop
         // layer it stayed while the synopsis scrolled up onto its bright sky)
         // a series or a movie: the poster ("Affiche"); a season or an episode: the picture behind the header
@@ -286,12 +386,12 @@
     }
     // the item's other backdrops take turns in the poster's frame, cross-fading every 9 s; the page's colours follow
     var slideTimer = null;
-    function slideshow(own, urls) {
+    function slideshow(own, urls, frameSelector) {
         clearInterval(slideTimer); slideTimer = null;
         if (!urls.length) { return; }
         Promise.all(urls.map(function (u) { return loadImage(String(u)).then(function (img) { return usable(img) ? { img: img, url: String(u) } : null; }); }))
             .then(function (found) {
-                var frame = document.querySelector('.' + NS + 'aff-frame');
+                var frame = frameSelector ? own.page.querySelector(frameSelector) : document.querySelector('.' + NS + 'aff-frame');
                 var first = frame && frame.querySelector('.' + NS + 'aff-img');
                 found = found.filter(Boolean);
                 if (!frame || !first || !found.length || header !== own) { return; }
@@ -323,11 +423,11 @@
     }
     function clearCanvas() {
         var root = document.documentElement;
-        root.classList.remove(NS + 'canvas', NS + 'noimage', NS + 'affiche-on', NS + 'aff-a', NS + 'aff-b', NS + 'aff-c');
+        root.classList.remove(NS + 'canvas', NS + 'noimage', NS + 'affiche-on', NS + 'aff-a', NS + 'aff-b', NS + 'aff-c', NS + 'person-bd');
         clearInterval(slideTimer); slideTimer = null;
         ['--pj-aff-a', '--pj-aff-b', '--pj-img-ratio', '--pj-edge-l', '--pj-edge-grad', '--pj-edge-grad-r', '--pj-edge-b', '--pj-scrim', '--pj-bg', '--pj-veil', '--pj-img-w', '--pj-img-h', '--pj-amb-l1', '--pj-amb-l2', '--pj-amb-l3', '--pj-amb-r1', '--pj-amb-r2', '--pj-amb-r3'].forEach(function (v) { root.style.removeProperty(v); });
         root.__pjImage = null;
-        document.querySelectorAll('.' + NS + 'canvas-layer, .' + NS + 'affiche').forEach(function (n) { n.remove(); });
+        document.querySelectorAll('.' + NS + 'canvas-layer, .' + NS + 'affiche, .' + NS + 'person-banner').forEach(function (n) { n.remove(); });
     }
     // ---------- "Affiche" (series and movies): the header as a film poster, whatever pictures the item has ----------
     // a: a landscape backdrop whole on top, the logo on its lower third, the series' poster standing on its lower edge;

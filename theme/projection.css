@@ -26,6 +26,8 @@
  *   stay together; episodes as a grid of 16:9 cards.
  * - Seasons are a wall of large posters; watched ones shrink in place, so the
  *   season to resume comes up even on a series with 30+ seasons.
+ * - A person page keeps who it is on the left (portrait, facts, links) and what they
+ *   did on the right (section 9d).
  * Optional script: theme/projection.js (plugin setting « Améliorations du thème
  *   Projection ») adds hover previews, episode numbers, previous / next and
  *   progress; what it adds is styled in section 9c. The CSS works without it.
@@ -1355,6 +1357,154 @@ html.pj-viewer-open { overflow: hidden; }
 .pj-previewing .cardOverlayContainer { opacity: 0 !important; }
 .pj-previewing :is(.missingIndicator, .unairedIndicator) { z-index: 5 !important; }
 @media (prefers-reduced-motion: reduce) { .pj-preview { transition: none; } }
+
+/* ============================================================
+   9d. People ("Fiche d'artiste", variant B, chosen 2026-11-27)
+   ============================================================ */
+/* Who it is stays on the left (portrait, birth, links: it follows the scroll), what they
+   did takes the right (name, biography, then films, series and episodes as grids). The
+   theme's script builds the left column in one piece (.pj-person-card) and adds the jobs,
+   the counts and a banner that scrolls with the page; without it, the portrait alone is on
+   the left and the facts stay under the biography.
+   A person page is recognised by what jellyfin-web puts in it (birth facts, or its films /
+   series / episodes sections) or by the script's class. Nested rules: a browser too old for
+   them keeps the common detail page. */
+.layout-desktop .itemDetailPage:is(.pj-person, :has(#itemBirthday:not(.hide), #itemBirthLocation:not(.hide), #childrenContent > .verticalSection[data-type="Movie"], #childrenContent > .verticalSection[data-type="Series"], #childrenContent > .verticalSection[data-type="Episode"])) {
+  --pj-person-col: clamp(15rem, 19vw, 22rem);
+  & .itemBackdrop { height: 5rem !important; }
+  & .itemBackdrop::after { display: none; }
+  & .detailPageWrapperContainer { background: none !important; overflow: visible; }
+  & .detailPagePrimaryContainer {
+    display: grid; grid-template-columns: var(--pj-person-col) minmax(0, 1fr); grid-template-rows: auto 1fr;
+    column-gap: clamp(1.5rem, 3vw, 3.5rem); align-items: start; padding: 0 var(--pj-gutter) !important;
+  }
+  /* the left column: the stock portrait, or the script's card */
+  & .detailPagePrimaryContainer > :is(.detailImageContainer.hide-mobile, .pj-person-card) {
+    grid-column: 1; grid-row: 1 / span 2; position: sticky; top: 5rem; align-self: start; min-width: 0;
+  }
+  & .detailPagePrimaryContainer > .detailImageContainer.hide-mobile .card {
+    position: static !important; width: 100% !important; margin: 0 !important;
+  }
+  /* a tall portrait never pushes itself out of a short screen */
+  & .detailPagePrimaryContainer > .detailImageContainer.hide-mobile .card.portraitCard { max-width: calc(60vh * 2 / 3); }
+  & .detailPagePrimaryContainer > .detailImageContainer.hide-mobile .card.squareCard { max-width: 60vh; }
+  & .detailPagePrimaryContainer:has(> .pj-person-card) > .detailImageContainer { display: none; }
+  & .detailRibbon { grid-column: 2; grid-row: 1; min-height: 0; margin: 0; padding: 0 !important; }
+  & .detailRibbon .itemName { font-size: clamp(2.2rem, 4.4vw, 4.2rem); line-height: 1.04; }
+  & .detailPagePrimaryContent { grid-column: 2; grid-row: 2; min-width: 0; padding: .9rem 0 0 !important; }
+  & .overview.detail-clamp-text { -webkit-line-clamp: 5; }
+  /* the films and series: no full-bleed ink band here (it would cover the left column) */
+  & #listChildrenCollapsible:not(.hide) { margin-top: 1.4rem; padding-top: .4rem; border-top: 1px solid var(--pj-line); }
+  & #listChildrenCollapsible:not(.hide)::before, & #listChildrenCollapsible:not(.hide)::after,
+  & .detailPageSecondaryContainer::before { display: none; }
+  & .detailPageSecondaryContainer { background: transparent !important; }
+}
+/* with a backdrop, the name sits at the bottom of the picture's banner */
+html.layout-desktop:has(.backgroundContainer.withBackdrop):not(.pj-noimage) .itemDetailPage:is(.pj-person, :has(#itemBirthday:not(.hide), #itemBirthLocation:not(.hide), #childrenContent > .verticalSection[data-type="Movie"], #childrenContent > .verticalSection[data-type="Series"], #childrenContent > .verticalSection[data-type="Episode"])) .detailRibbon {
+  display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; min-height: 15rem;
+  & .infoWrapper { flex: none; }   /* stock lets it grow: the actions drifted away from the name */
+}
+/* a desktop browser in a narrow window: one column, the card between the name and the biography */
+@media (max-width: 40em) {
+  .layout-desktop .itemDetailPage:is(.pj-person, :has(#itemBirthday:not(.hide), #itemBirthLocation:not(.hide), #childrenContent > .verticalSection[data-type="Movie"], #childrenContent > .verticalSection[data-type="Series"], #childrenContent > .verticalSection[data-type="Episode"])) {
+    & .detailPagePrimaryContainer { display: flex; flex-direction: column; align-items: stretch; }
+    & .detailRibbon { order: 1; }
+    & .detailPagePrimaryContainer > .pj-person-card { order: 2; position: static; max-height: none; margin-top: .9rem; }
+    & .pj-person-photo { width: min(45%, 12rem); }
+    & .pj-person-facts { flex-direction: row; flex-wrap: wrap; gap: .6rem 1.4rem; }
+    & .detailPagePrimaryContent { order: 3; }
+  }
+}
+
+/* the same page on a phone: portrait, name, facts, links, then the biography and the works */
+.layout-mobile .itemDetailPage:is(.pj-person, :has(#itemBirthday:not(.hide), #itemBirthLocation:not(.hide), #childrenContent > .verticalSection[data-type="Movie"], #childrenContent > .verticalSection[data-type="Series"], #childrenContent > .verticalSection[data-type="Episode"])) {
+  & .itemBackdrop { height: 4.5rem !important; }
+  & .itemBackdrop::after { display: none; }
+  & .detailPagePrimaryContainer { display: flex; flex-direction: column; align-items: stretch; }
+  /* the banner shows through: the common phone rule paints the page in ink */
+  & .detailPageWrapperContainer { background: transparent !important; }
+  & .detailRibbon { order: 1; display: block; height: auto !important; margin-top: 0; padding: 0 5vw !important; }   /* on the text's edge */
+  & .detailRibbon .infoWrapper { display: block; padding-left: 0 !important; }
+  & .detailImageContainer.hide-desktop {
+    position: static !important; float: none !important; width: min(56%, 15rem) !important; height: auto !important; margin: 0 auto 1.1rem !important; display: flow-root;
+  }
+  & .detailImageContainer.hide-desktop .card { display: block; position: static !important; float: none !important; width: 100% !important; max-width: none !important; margin: 0 !important; }
+  & .detailPagePrimaryContainer > .pj-person-card { order: 2; }
+  & .detailPagePrimaryContent { order: 3; }
+}
+
+/* --- the links as chips (the Custom Metadata plugin's network icons keep working: they
+   target these very classes) --- */
+.itemDetailPage:is(.pj-person, :has(#itemBirthday:not(.hide), #itemBirthLocation:not(.hide), #childrenContent > .verticalSection[data-type="Movie"], #childrenContent > .verticalSection[data-type="Series"], #childrenContent > .verticalSection[data-type="Episode"])) {
+  & .itemExternalLinks:not(.hide) { display: flex; flex-wrap: wrap; gap: .45rem; font-size: 0 !important; }
+  & .itemExternalLinks a {
+    display: inline-flex; align-items: center; gap: .4rem; min-height: 32px; margin: 0 !important; padding: .25em .85em !important;
+    font-size: .82rem !important; font-weight: 600; line-height: 1.2; text-decoration: none !important; border: 0 !important; border-radius: 99px;
+    background: rgba(var(--pj-veil), .72) !important; box-shadow: inset 0 0 0 1px rgba(235, 230, 217, .16);
+  }
+  & .itemExternalLinks a:hover { box-shadow: inset 0 0 0 1px rgba(242, 180, 65, .55); }
+  /* films, series, episodes: grids that fill the column, a few cards never stretched */
+  & #childrenContent .itemsContainer.vertical-wrap {
+    display: grid !important; grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)); align-items: start;
+    margin: 0; padding: 0 !important;   /* each card brings its own right margin */
+  }
+  & #childrenContent [data-type="Episode"] .itemsContainer.vertical-wrap { grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr)); }
+  & #childrenContent .itemsContainer.vertical-wrap > .card { width: auto !important; max-width: none; min-width: 0; }
+  & #childrenContent .sectionTitleContainer { padding-left: 0 !important; }
+  /* the facts, when the script does not build its card */
+  & :is(#itemBirthday, #itemDeathDate, #itemBirthLocation) { margin: .35rem 0; color: var(--pj-text-2); }
+}
+.layout-mobile .itemDetailPage:is(.pj-person, :has(#itemBirthday:not(.hide), #childrenContent > .verticalSection[data-type])) #childrenContent .itemsContainer.vertical-wrap { grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); }
+.layout-mobile .itemDetailPage:is(.pj-person, :has(#itemBirthday:not(.hide), #childrenContent > .verticalSection[data-type])) #childrenContent [data-type="Episode"] .itemsContainer.vertical-wrap { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); }
+
+/* --- the script's card: portrait, facts, links; the stock copies go --- */
+.itemDetailPage .detailPagePrimaryContainer:has(> .pj-person-card) :is(#itemBirthday, #itemDeathDate, #itemBirthLocation, .detailSectionContent > .itemExternalLinks) { display: none !important; }
+.pj-person-card { display: flex; flex-direction: column; gap: 1.2rem; }
+/* more facts and links than the screen holds: the column scrolls on its own */
+.layout-desktop .pj-person-card { max-height: calc(100vh - 5.5rem); overflow-y: auto; scrollbar-width: thin; }
+.pj-person-photo {
+  flex: none; align-self: flex-start; width: min(100%, calc(52vh * var(--pj-photo-ratio, .667))); aspect-ratio: var(--pj-photo-ratio, .667);
+  overflow: hidden; border-radius: var(--pj-r-ui); background: var(--pj-raise); box-shadow: inset 0 0 0 1px var(--pj-line);   /* no drop shadow: the scrolling column would cut it */
+}
+.pj-person-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+.pj-person-initials { display: grid; place-items: center; width: 100%; height: 100%; font: 700 4rem var(--pj-serif); color: var(--pj-dim); }
+.pj-person-facts { display: flex; flex-direction: column; gap: .7rem; margin: 0; }
+.pj-person-facts dt { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--pj-dim); }
+.pj-person-facts dd { margin: 0; font-weight: 600; line-height: 1.4; }
+.pj-person-card .pj-person-links { margin: 0; }
+.layout-mobile .pj-person-card { gap: .9rem; margin: .9rem 0 0; padding: 0 5vw; }
+.layout-mobile .pj-person-photo { display: none; }
+.layout-mobile .pj-person-facts { flex-direction: row; flex-wrap: wrap; gap: .6rem 1.4rem; }
+/* "Interprétation · Réalisation" over the name */
+.pj-person-job { margin: 0 0 .5rem; font-size: .74rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pj-dim); text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+/* "Films 5" */
+.pj-person-count { margin-left: .55rem; font: 600 .8rem var(--pj-sans, system-ui, sans-serif); letter-spacing: 0; color: var(--pj-dim); }
+/* the banner: the person's backdrops across the top, scrolling with the page, melting into
+   the ink; they take turns */
+.pj-person-banner {
+  position: absolute; z-index: -1; top: 0; left: 0; right: 0; height: 28rem; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent 100%); mask-image: linear-gradient(to bottom, #000 35%, transparent 100%);
+}
+.pj-person-banner .pj-aff-img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: cover; object-position: center 30%; border-radius: 0; box-shadow: none; }
+.pj-person-banner::after { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(to right, rgba(var(--pj-veil), .72) 0, rgba(var(--pj-veil), .45) 40%, rgba(var(--pj-veil), 0) 70%); }
+.layout-mobile .pj-person-banner { height: 22rem; }
+html.pj-person-bd:has(.itemDetailPage:not(.hide)) .backdropContainer { display: none; }
+/* the fixed layer in front of the banner (both at z-index -1) must stay clear: the ink is on <html> */
+html.pj-person-bd:has(.itemDetailPage:not(.hide)) .backgroundContainer { background: none !important; }
+/* without the script: the fixed picture as a banner too, fading out as the page scrolls */
+html.layout-desktop:not(.pj-person-bd):has(.itemDetailPage:not(.hide) :is(#itemBirthday:not(.hide), #childrenContent > .verticalSection[data-type="Movie"], #childrenContent > .verticalSection[data-type="Series"], #childrenContent > .verticalSection[data-type="Episode"])) {
+  --pj-hero-h: 18rem;
+  & .backdropContainer .backdropImage {
+    inset: 0 0 auto 0; width: 100%; height: 28rem; background-size: cover; background-position: center 30%;
+    -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent 100%); mask-image: linear-gradient(to bottom, #000 35%, transparent 100%);
+  }
+}
+@keyframes pj-fade-out { to { opacity: .12; } }
+@supports (animation-timeline: scroll()) {
+  html.layout-desktop:not(.pj-person-bd):has(.itemDetailPage:not(.hide) :is(#itemBirthday:not(.hide), #childrenContent > .verticalSection[data-type="Movie"], #childrenContent > .verticalSection[data-type="Series"], #childrenContent > .verticalSection[data-type="Episode"])) .backdropContainer {
+    animation: pj-fade-out linear both; animation-timeline: scroll(root block); animation-range: 0 20rem;
+  }
+}
 
 /* ============================================================
    10. Other lists
