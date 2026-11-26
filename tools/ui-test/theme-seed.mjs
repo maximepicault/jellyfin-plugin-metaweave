@@ -171,4 +171,54 @@ if (!fs.existsSync(tpFile)) {
   for (let i = 0; i < 60; i++) { await wait(3000); const t = (await api('GET', '/ScheduledTasks')).find(x => x.Key === 'RefreshTrickplayImages'); if (t && t.State === 'Idle') { break; } }
 }
 
-console.log('🌱 seeded:', { series: series.length, movies: movies.map(m => m.Name), libraries: (await api('GET', '/Library/VirtualFolders')).map(f => f.Name) });
+// 6. people, for the person page: a full sheet (portrait, backdrop, long biography, birth, links, films, series and
+// many episodes) and a bare one (a name only, one film)
+const FULL = 'Maëlle Roussel', BARE = 'Noa Perrin';
+const credit = async (list, name, type) => {
+  for (const it of list) {
+    const cur = await api('GET', `/Items/${it.Id}?userId=${U}`);
+    if ((cur.People || []).some(p => p.Name === name && p.Type === type)) { continue; }
+    await update(it.Id, { People: [...(cur.People || []), { Name: name, Type: type, Role: type === 'Actor' ? 'Elle-même' : '' }] });
+  }
+};
+const filmList = await items({ IncludeItemTypes: 'Movie' });
+const opEps = op ? (await items({ ParentId: op.Id, IncludeItemTypes: 'Episode', SortBy: 'ParentIndexNumber,IndexNumber' })).slice(0, 16) : [];
+await credit([...filmList, ...(adv ? [adv] : []), ...(op ? [op] : []), ...opEps], FULL, 'Actor');
+await credit(filmList.slice(0, 1), FULL, 'Director');
+await credit(filmList.slice(0, 1), BARE, 'Actor');
+// by name: a search term with an accent finds nothing
+const person = await api('GET', `/Persons/${encodeURIComponent(FULL)}?userId=${U}`).catch(() => null);
+if (person) {
+  await update(person.Id, {
+    Overview: [
+      'Comédienne et réalisatrice née à Lyon, Maëlle Roussel débute au théâtre avant de tourner son premier long métrage. Révélée au grand public par la série Les Aventuriers, elle alterne depuis films d’auteur et productions populaires.',
+      'Formée au conservatoire, elle monte ses premiers spectacles dans des salles de quartier puis rejoint une troupe itinérante pendant quatre saisons. C’est sur ces routes qu’elle écrit ses premiers courts métrages, tournés avec les moyens du bord.',
+      'Elle réalise aujourd’hui entre deux tournages et accompagne de jeunes auteurs dans un atelier d’écriture.',
+    ].join('\n\n'),
+    PremiereDate: '1980-05-17T00:00:00Z', ProductionYear: 1980, ProductionLocations: ['Lyon, France'],
+    ProviderIds: { Tmdb: '2957223', Imdb: 'nm0000001' },
+  });
+  const dir = path.join(WORK, 'img-theme'); fs.mkdirSync(dir, { recursive: true });
+  const { execFileSync } = await import('node:child_process');
+  execFileSync('python3', ['-c', `
+import sys, os
+from PIL import Image, ImageDraw
+out = sys.argv[1]
+def grad(w, h, a, b):
+    im = Image.new("RGB", (w, h)); d = ImageDraw.Draw(im)
+    for y in range(h): k = y / h; d.line([(0, y), (w, y)], fill=tuple(int(x * (1 - k) + z * k) for x, z in zip(a, b)))
+    return im, d
+im, d = grad(800, 1200, (217, 138, 95), (59, 32, 54))
+d.ellipse([200, 250, 600, 650], fill=(241, 201, 165)); d.pieslice([180, 200, 620, 640], 180, 360, fill=(43, 24, 32)); d.ellipse([80, 720, 720, 1600], fill=(29, 43, 53))
+im.save(os.path.join(out, "person.png"))
+im, d = grad(1920, 1080, (227, 161, 94), (31, 59, 71))
+d.ellipse([1300, 160, 1640, 500], fill=(255, 226, 163)); d.polygon([(0, 840), (460, 400), (830, 770), (1180, 500), (1920, 1030), (1920, 1080), (0, 1080)], fill=(35, 65, 74)); d.polygon([(0, 960), (620, 700), (1080, 940), (1500, 770), (1920, 920), (1920, 1080), (0, 1080)], fill=(20, 36, 42))
+im.save(os.path.join(out, "person-backdrop.png"))
+`, dir]);
+  const full = await api('GET', `/Items/${person.Id}?userId=${U}`);
+  const upload = (type, file) => fetch(`${J}/Items/${person.Id}/Images/${type}`, { method: 'POST', headers: { ...H, 'Content-Type': 'image/png' }, body: fs.readFileSync(path.join(dir, file)).toString('base64') });
+  if (!full.ImageTags?.Primary) { await upload('Primary', 'person.png'); }
+  if (!full.BackdropImageTags?.length) { await upload('Backdrop', 'person-backdrop.png'); }
+}
+
+console.log('🌱 seeded:',{ series: series.length, movies: movies.map(m => m.Name), libraries: (await api('GET', '/Library/VirtualFolders')).map(f => f.Name) });

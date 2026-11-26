@@ -67,7 +67,9 @@ const season = seasons.find(s => s.Name === 'Saison 2023') || seasons[0];
 const eps = await items({ ParentId: season.Id, IncludeItemTypes: 'Episode' });
 const missingSeason = await items({ IncludeItemTypes: 'Episode', IsMissing: true, Fields: 'SeasonId' }).then(r => { const n = {}; r.forEach(i => (n[i.SeasonId] = (n[i.SeasonId] || 0) + 1)); return Object.keys(n).sort((a, b) => n[b] - n[a])[0]; });
 const movies = await items({ IncludeItemTypes: 'Movie' });
-const people = await get(`/Persons?userId=${U}&limit=5`).then(r => r.Items || []);
+// the two people theme-seed.mjs sets up: a full sheet and a bare name
+const personNamed = n => get(`/Persons/${encodeURIComponent(n)}?userId=${U}`).catch(() => null);
+const fullPerson = await personNamed('Maëlle Roussel'), barePerson = await personNamed('Noa Perrin');
 const views = await get(`/UserViews?userId=${U}`).then(r => r.Items);
 const genres = await get(`/Genres?userId=${U}&limit=3`).then(r => r.Items || []);
 const tvLib = views.find(v => v.CollectionType === 'tvshows'), movieLib = views.find(v => v.CollectionType === 'movies');
@@ -86,7 +88,8 @@ const PAGES = [
   ['episode-longtext', eps[1] && `#/details?id=${eps[1].Id}`],
   ['movie', movies.find(m => m.Name.startsWith('Le Grand')) && `#/details?id=${movies.find(m => m.Name.startsWith('Le Grand')).Id}`],
   ['movie-longtitle', movies.find(m => m.Name.startsWith('Les Chroniques')) && `#/details?id=${movies.find(m => m.Name.startsWith('Les Chroniques')).Id}`],
-  ['person', people[0] && `#/details?id=${people[0].Id}`],
+  ['person', fullPerson?.Id && `#/details?id=${fullPerson.Id}`],
+  ['person-bare', barePerson?.Id && `#/details?id=${barePerson.Id}`],
   ['genre', genres[0] && `#/list?genreId=${genres[0].Id}&serverId=${auth.ServerId}`],
   ['search', '#/search?query=a'],
   ['menu', `#/details?id=${adv.Id}`, 'menu'],
