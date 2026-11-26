@@ -1230,9 +1230,9 @@ html:is(.pj-canvas, .pj-noimage) .itemDetailPage .detailLogo { display: none !im
 }
 .pj-viewer-note.pj-origin-source { color: var(--pj-amber); }
 /* a video's own time runs continuously */
-.pj-preview-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--pj-amber); }
+.pj-preview-bar { position: absolute; z-index: 2; left: 0; bottom: 0; height: 3px; background: var(--pj-amber); }   /* above the video, which a portrait preview lifts (z-index 1) over its ambient light */
 /* trickplay is picture by picture: steps */
-.pj-preview-steps { position: absolute; left: 6px; right: 6px; bottom: 6px; display: flex; gap: 3px; }
+.pj-preview-steps { position: absolute; z-index: 2; left: 6px; right: 6px; bottom: 6px; display: flex; gap: 3px; }
 .pj-preview-steps i { flex: 1; height: 3px; border-radius: 2px; background: rgba(235, 230, 217, .3); }
 .pj-preview-steps i.pj-done { background: rgba(242, 180, 65, .55); }
 .pj-preview-steps i.pj-now { background: var(--pj-amber); }
