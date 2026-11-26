@@ -252,6 +252,10 @@
         var stopsR = [];
         for (var q = 0; q < 10; q++) { stopsR.push('rgb(' + sample(img, 0.92, q / 10, 0.08, 0.1).map(Math.round).join(', ') + ') ' + (q * 10 + 5) + '%'); }
         root.style.setProperty('--pj-edge-grad-r', 'linear-gradient(to bottom, ' + stopsR.join(', ') + ')');
+        // the ambient light beside the poster's frame: the picture's side thirds, top, middle and bottom
+        [['l', 0], ['r', 0.7]].forEach(function (side) {
+            [0, 0.3, 0.65].forEach(function (y, k) { root.style.setProperty('--pj-amb-' + side[0] + (k + 1), 'rgb(' + sample(img, side[1], y, 0.3, 0.35).map(Math.round).join(', ') + ')'); });
+        });
         root.style.setProperty('--pj-edge-b', bottom.map(Math.round).join(', '));
         root.style.setProperty('--pj-scrim', scrim.join(', '));
         // the whole theme's ink takes the picture's deep shade on this page
@@ -299,7 +303,7 @@
         var root = document.documentElement;
         root.classList.remove(NS + 'canvas', NS + 'noimage', NS + 'affiche-on', NS + 'aff-a', NS + 'aff-b', NS + 'aff-c');
         clearInterval(slideTimer); slideTimer = null;
-        ['--pj-aff-a', '--pj-aff-b', '--pj-img-ratio', '--pj-edge-l', '--pj-edge-grad', '--pj-edge-grad-r', '--pj-edge-b', '--pj-scrim', '--pj-bg', '--pj-veil', '--pj-img-w', '--pj-img-h'].forEach(function (v) { root.style.removeProperty(v); });
+        ['--pj-aff-a', '--pj-aff-b', '--pj-img-ratio', '--pj-edge-l', '--pj-edge-grad', '--pj-edge-grad-r', '--pj-edge-b', '--pj-scrim', '--pj-bg', '--pj-veil', '--pj-img-w', '--pj-img-h', '--pj-amb-l1', '--pj-amb-l2', '--pj-amb-l3', '--pj-amb-r1', '--pj-amb-r2', '--pj-amb-r3'].forEach(function (v) { root.style.removeProperty(v); });
         root.__pjImage = null;
         document.querySelectorAll('.' + NS + 'canvas-layer, .' + NS + 'affiche').forEach(function (n) { n.remove(); });
     }

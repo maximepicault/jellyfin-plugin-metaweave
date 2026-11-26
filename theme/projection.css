@@ -1030,19 +1030,57 @@ html.pj-affiche-on .itemDetailPage :is(.itemTags, .genresGroup .content, .studio
 html.pj-affiche-on .itemDetailPage .itemDetailsGroup .detailsGroupItem { justify-content: center; }
 
 .pj-affiche { position: relative; margin-bottom: 1.5rem; }
-.pj-aff-stage { position: relative; display: flex; justify-content: center; }
-.pj-aff-fill { position: absolute; top: 0; bottom: 0; width: 50%; pointer-events: none; }
-.pj-aff-fill-l { left: 0; background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 62%, rgba(var(--pj-veil), .92)), linear-gradient(to left, rgba(var(--pj-veil), 0) 30%, rgba(var(--pj-veil), .45)), var(--pj-edge-grad); }
-.pj-aff-fill-r { right: 0; background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 62%, rgba(var(--pj-veil), .92)), linear-gradient(to right, rgba(var(--pj-veil), 0) 30%, rgba(var(--pj-veil), .45)), var(--pj-edge-grad-r, var(--pj-edge-grad)); }
-/* the margins darken towards the bottom exactly as the picture does (its ::after), so the
-   two meet without an edge at any width */
-.pj-aff-frame { position: relative; z-index: 1; width: min(100%, calc(64vh * var(--pj-img-ratio, 1.5))); }   /* 64% of the screen: the billing and the play button stay on the first screen */
+.pj-aff-stage { position: relative; isolation: isolate; display: flex; justify-content: center; background: var(--pj-bg); }
+/* ONE veil over the whole width (picture and ambient light alike), between the picture and its title: darkened
+   once everywhere, ending on the page's ground, so nothing draws the frame's edge or the header's bottom */
+.pj-aff-stage::after {
+  content: ""; position: absolute; z-index: 1; inset: 0; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 62%, rgba(var(--pj-veil), .5) 78%, rgba(var(--pj-veil), .85) 90%, rgb(var(--pj-veil)) 100%);
+}
+.pj-aff-fill { position: absolute; z-index: 0; top: 0; bottom: 0; width: 50%; pointer-events: none; }
+.pj-aff-fill { overflow: hidden; background: var(--pj-bg); }
+/* each side panel covers exactly the margin beside the frame, plus the frame's melting edge */
+.pj-aff-mode-a .pj-aff-fill { width: calc((100% - min(100%, 64vh * var(--pj-img-ratio, 1.5))) / 2 + 14%); }
+/* beside a picture narrower than the screen: an ambient light, like YouTube's and like the
+   portrait hover preview: soft clouds of the picture's own colours (its side thirds, top,
+   middle and bottom) glowing out of its edge into the ink, not a copy of its edge. The
+   colours are registered properties: when the slideshow moves on, the light drifts to the
+   next picture's colours instead of jumping */
+@property --pj-amb-l1 { syntax: "<color>"; inherits: true; initial-value: rgba(0, 0, 0, 0); }
+@property --pj-amb-l2 { syntax: "<color>"; inherits: true; initial-value: rgba(0, 0, 0, 0); }
+@property --pj-amb-l3 { syntax: "<color>"; inherits: true; initial-value: rgba(0, 0, 0, 0); }
+@property --pj-amb-r1 { syntax: "<color>"; inherits: true; initial-value: rgba(0, 0, 0, 0); }
+@property --pj-amb-r2 { syntax: "<color>"; inherits: true; initial-value: rgba(0, 0, 0, 0); }
+@property --pj-amb-r3 { syntax: "<color>"; inherits: true; initial-value: rgba(0, 0, 0, 0); }
+html.pj-affiche-on { transition: --pj-amb-l1 1.6s ease, --pj-amb-l2 1.6s ease, --pj-amb-l3 1.6s ease, --pj-amb-r1 1.6s ease, --pj-amb-r2 1.6s ease, --pj-amb-r3 1.6s ease; }
+@media (prefers-reduced-motion: reduce) { html.pj-affiche-on { transition: none; } }
+.pj-aff-fill::before { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.pj-aff-fill::before { opacity: .8; }
+.pj-aff-fill-l { left: 0; }
+.pj-aff-fill-r { right: 0; }
+.pj-aff-fill-l::before {
+  background:
+    radial-gradient(ellipse 100% 50% at 100% 16%, var(--pj-amb-l1), var(--pj-amb-l1) 16%, color-mix(in srgb, var(--pj-amb-l1) 60%, transparent) 36%, color-mix(in srgb, var(--pj-amb-l1) 25%, transparent) 58%, color-mix(in srgb, var(--pj-amb-l1) 7%, transparent) 78%, transparent 95%),
+    radial-gradient(ellipse 115% 55% at 100% 50%, var(--pj-amb-l2), var(--pj-amb-l2) 16%, color-mix(in srgb, var(--pj-amb-l2) 60%, transparent) 36%, color-mix(in srgb, var(--pj-amb-l2) 25%, transparent) 58%, color-mix(in srgb, var(--pj-amb-l2) 7%, transparent) 78%, transparent 95%),
+    radial-gradient(ellipse 100% 50% at 100% 84%, var(--pj-amb-l3), var(--pj-amb-l3) 16%, color-mix(in srgb, var(--pj-amb-l3) 60%, transparent) 36%, color-mix(in srgb, var(--pj-amb-l3) 25%, transparent) 58%, color-mix(in srgb, var(--pj-amb-l3) 7%, transparent) 78%, transparent 95%);
+}
+.pj-aff-fill-r::before {
+  background:
+    radial-gradient(ellipse 100% 50% at 0% 16%, var(--pj-amb-r1), var(--pj-amb-r1) 16%, color-mix(in srgb, var(--pj-amb-r1) 60%, transparent) 36%, color-mix(in srgb, var(--pj-amb-r1) 25%, transparent) 58%, color-mix(in srgb, var(--pj-amb-r1) 7%, transparent) 78%, transparent 95%),
+    radial-gradient(ellipse 115% 55% at 0% 50%, var(--pj-amb-r2), var(--pj-amb-r2) 16%, color-mix(in srgb, var(--pj-amb-r2) 60%, transparent) 36%, color-mix(in srgb, var(--pj-amb-r2) 25%, transparent) 58%, color-mix(in srgb, var(--pj-amb-r2) 7%, transparent) 78%, transparent 95%),
+    radial-gradient(ellipse 100% 50% at 0% 84%, var(--pj-amb-r3), var(--pj-amb-r3) 16%, color-mix(in srgb, var(--pj-amb-r3) 60%, transparent) 36%, color-mix(in srgb, var(--pj-amb-r3) 25%, transparent) 58%, color-mix(in srgb, var(--pj-amb-r3) 7%, transparent) 78%, transparent 95%);
+}
+.pj-aff-frame {
+  /* eased, not linear: a straight ramp leaves a visible line where it meets the ambient light */
+  --pj-aff-side-mask: linear-gradient(to right, transparent 0, rgba(0, 0, 0, .1) 3%, rgba(0, 0, 0, .35) 7%, rgba(0, 0, 0, .7) 11%, rgba(0, 0, 0, .92) 14%, #000 17%, #000 83%, rgba(0, 0, 0, .92) 86%, rgba(0, 0, 0, .7) 89%, rgba(0, 0, 0, .35) 93%, rgba(0, 0, 0, .1) 97%, transparent 100%);
+  position: relative; width: min(100%, calc(64vh * var(--pj-img-ratio, 1.5))); }   /* 64% of the screen: the billing and the play button stay on the first screen */
 .pj-aff-img {
-  display: block; width: 100%; height: auto;
-  /* the sides melt into the margins (which continue the picture's edge colours): on a wide screen the frame
-     no longer stands as a hard-edged rectangle */
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  /* above the side panels, below the stage's veil (the frame is no stacking context: its title goes above the veil) */
+  position: relative; z-index: 0; display: block; width: 100%; height: auto;
+  /* the sides melt into the ambient light of the margins: on a wide screen the frame no longer stands as a
+     hard-edged rectangle */
+  -webkit-mask-image: var(--pj-aff-side-mask);
+  mask-image: var(--pj-aff-side-mask);
 }
 /* the other backdrops, stacked on the first, cross-fade in turn (slideshow) */
 .pj-aff-slide { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity 1.6s ease; }
@@ -1050,10 +1088,6 @@ html.pj-affiche-on .itemDetailPage .itemDetailsGroup .detailsGroupItem { justify
 .pj-aff-frame:has(.pj-aff-slide.pj-aff-shown) > .pj-aff-img:first-child { opacity: 0; }
 .pj-aff-slide.pj-aff-shown { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .pj-aff-slide, .pj-aff-frame > .pj-aff-img:first-child { transition: none; } }
-.pj-aff-frame::after {
-  content: ""; position: absolute; inset: auto 0 0 0; height: 38%; pointer-events: none;
-  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0), rgba(var(--pj-veil), .9));
-}
 .pj-aff-logo {
   position: absolute; z-index: 2; left: 50%; bottom: 8%; transform: translateX(-50%);
   width: auto; max-width: min(52%, 38rem); max-height: 34%; object-fit: contain;
