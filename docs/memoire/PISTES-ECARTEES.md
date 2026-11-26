@@ -13,3 +13,7 @@ P011 — 2026-11-26 — Live edge-colour side bands around a portrait hover prev
 P012 — 2026-11-26 — Ambient light of a portrait hover preview as a blurred live picture (32×18 canvas of the frame, blurred 18 px, 50 % opacity): it showed a moving image; replaced by colour clouds of the video's corners. See D020.
 P013 — 2026-11-26 — Preview viewer variant B « Fiche » (card with the synopsis beside the video): not chosen; it shows a smaller video and repeats the episode page [supposé: drawbacks stated by the assistant, the maintainer gave no reason]. See D021.
 P014 — 2026-11-26 — Preview viewer variant C « Plein cadre » (video filling the window, overlaid controls): not chosen; it looks too much like the real player [supposé: drawback stated by the assistant, the maintainer gave no reason]. See D021.
+P015 — 2026-11-26 — Episode photos variant A « Bande » (photo strip inside the episode page), the assistant's recommendation: not chosen by the maintainer on the mockups, reason not stated. See D022.
+P016 — 2026-11-26 — Episode photos variant C « visionneuse directe » (the button opens the large photo with a thumbnail column): not chosen by the maintainer on the mockups, reason not stated. See D022.
+P017 — 2026-11-26 — Show the whole local gallery of an episode in its photos: rejected by the maintainer in favour of a dedicated « Photo » type (plus the numbered folder), reason not stated. See D022.
+P018 — 2026-11-26 — Photos from the numbered folder only, with an import button: rejected by the maintainer, reason not stated. See D022.
