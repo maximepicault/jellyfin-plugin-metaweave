@@ -9,3 +9,4 @@ P007 — 2026-11-25 — Seasons as rows of small thumbnails: the maintainer want
 P008 — 2026-11-25 — The previous "sleeve" wide season cards of the Projection theme: replaced by the wall of 2:3 posters. See D017.
 P009 — 2026-11-25 — Blurred backdrop (`blur(22px)`) behind the detail header of the Projection theme: the maintainer wants to see the picture itself. See D017.
 P010 — 2026-11-25 — Glow from the poster for items without backdrop (`background-image: inherit` on a pseudo-element of the poster): stock's `contain: content` clipped it and its `z-index: 3` on the detail card made it paint over the poster and title. See D017.
+P011 — 2026-11-26 — Live edge-colour side bands around a portrait hover preview (the empty sides continuing the video's own edges, band by band, while it plays; commit 5935101): found "too weird" by the maintainer, replaced by a YouTube-like ambient light. See D020.

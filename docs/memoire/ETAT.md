@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-26 (D020 hover preview of real episodes = source preview via PreviewController; D019 optional theme script + backdrop at its own ratio; D018 theme served by the plugin; D017 Projection theme direction C, header adapted to the backdrop; earlier: memory audit, D010–D016, code map in docs/architecture/code-map.md)
+Dernière mise à jour : 2026-11-26 (D020 hover preview of real episodes = source preview via PreviewController, amended: ffmpeg preview clips + ambient light, P011; D019 optional theme script + backdrop at its own ratio; D018 theme served by the plugin; D017 Projection theme direction C, header adapted to the backdrop; earlier: memory audit, D010–D016, code map in docs/architecture/code-map.md)
 
 ## Objectif
 Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -14,12 +14,12 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Recent work (2026-11-21/23): missing-episode video downloads, landscape poster crop, Projection web theme (`theme/projection.css`), gallery typed by shape + multi-selection, people networks/backdrops, paginated dump APIs and dump seasons analysed like API seasons, missing-episode numbering (D009, committed in 41544ee).
 
 ## Déployé
-- Last successful deployment: 4d50be9, develop, 2026-11-26
+- Last successful deployment: f042677, develop, 2026-11-26
 
 ## En cours
 - Projection theme moved to the compact sheet + wall of season posters (D017), committed on develop (19f6bfd) on 2026-11-25 with the `tools/ui-test/theme-*.mjs` seed and audit (a33c721); not on `main` yet. Header adapted to the backdrop committed in 164e57b.
 - Served theme route (D018): Custom CSS `@import url("../CustomMetadata/Theme/projection.css")`. Header « Affiche » for series and movies (backdrop + poster, poster only, typographic) and the picture-built header for seasons and episodes added on 2026-11-26 (see D017 note).
-- Theme script (D019) + backdrop at its own ratio: committed (17fdd9c) and deployed (49b9351) on 2026-11-25 (`Services/ThemeScriptMiddleware.cs`, `theme/projection.js`, `EnableThemeScript`, CSS 9c). Remaining for the maintainer: turn on « Améliorations du thème Projection » (Settings tab) and reload with Ctrl+F5. Untested: trailer hover preview, real base URL. Source-preview hover of real episodes (D020: `Api/PreviewController.cs`, `Services/EpisodePreviewService.cs`) uncommitted on 2026-11-26.
+- Theme script (D019) + backdrop at its own ratio: committed (17fdd9c) and deployed (49b9351) on 2026-11-25 (`Services/ThemeScriptMiddleware.cs`, `theme/projection.js`, `EnableThemeScript`, CSS 9c). Remaining for the maintainer: turn on « Améliorations du thème Projection » (Settings tab) and reload with Ctrl+F5. Untested: trailer hover preview, real base URL. Source-preview hover of real episodes (D020) committed (5bc22c8); its amendment (ffmpeg preview clips `Services/PreviewClipService.cs` + `ScheduledTasks/PreviewClipsTask.cs`, route `Preview/{itemId}/Clip`, ambient light around portrait previews) uncommitted on 2026-11-26.
 - Untracked: `theme/previews/` (PNG screenshots: never commit).
 
 ## Prochaines étapes
