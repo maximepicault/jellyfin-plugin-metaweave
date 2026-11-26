@@ -269,7 +269,9 @@
             logo.src = client().getImageUrl(item.Id, { type: 'Logo', tag: logoTag, maxWidth: 1000, quality: 95 });
         } else {
             // a long name is set smaller, so it stays a title and not a wall of letters
-            holder.appendChild(el('h1', NS + 'aff-title ' + (item.Name.length > 26 ? NS + 'aff-long ' : '') + (cls || ''), item.Name));
+            // the year already shows in the facts: "Le Grand Voyage (2021)" is set as "Le Grand Voyage"
+            var name = item.ProductionYear ? item.Name.replace(new RegExp('\\s*\\(' + item.ProductionYear + '\\)\\s*$'), '') : item.Name;
+            holder.appendChild(el('h1', NS + 'aff-title ' + (name.length > 26 ? NS + 'aff-long ' : '') + (cls || ''), name));
         }
     }
     // a season or an episode: the series' logo (or name, small), linked to the series, then "S1 · É3" and the title
@@ -397,6 +399,7 @@
         }
         if (item.OfficialRating) { fact(item.OfficialRating, 'rating'); }
         if (item.CommunityRating) { fact('★ ' + String(Math.round(item.CommunityRating * 10) / 10).replace('.', ',')); }
+        if (item.CriticRating) { fact('Critiques ' + Math.round(item.CriticRating) + ' %'); }
         return bill;
     }
 
@@ -542,60 +545,108 @@
         clearTimeout(hoverTimer); hoverTimer = null;
         if (preview) { preview.stop(); preview = null; }
     }
+    // A preview is a video whenever there is one: a missing episode's preview trailer, else the episode's own file
+    // (muted, a few seconds taken at several points of the episode, like a teaser); trickplay thumbnails only when the
+    // file cannot play in the browser. Whatever the picture's shape (landscape, portrait), it is shown whole in the
+    // frame (contain), on the theme's ink, never stretched.
     function startPreview(host) {
-        getItem(host.id, 'Trickplay').then(function (item) {
-            if (!host.card.matches(':hover')) { return; }
-            if (item.LocationType === 'Virtual' || item.LocalTrailerCount) { return trailerPreview(host, item); }
-            if (item.Trickplay) { return trickplayPreview(host, item); }
-            return null;
+        getItem(host.id, 'Trickplay,MediaSources').then(function (item) {
+            if (!host.card.matches(':hover')) { return null; }
+            var fallback = function () { if (item.Trickplay && host.card.matches(':hover')) { trickplayPreview(host, item); } };
+            if (item.LocationType === 'Virtual' || item.LocalTrailerCount) { return trailerPreview(host, item, fallback); }
+            return filePreview(host, item, fallback);
         }).catch(function (e) { warn('preview', e); });
     }
-    function overlay(host) {
-        var layer = el('div', NS + 'preview');
+    function overlay(host, kind) {
+        var layer = el('div', NS + 'preview ' + NS + 'preview-' + kind);
         layer.setAttribute('aria-hidden', 'true');
         host.frame.appendChild(layer);
+        host.card.classList.add(NS + 'previewing');
         requestAnimationFrame(function () { layer.classList.add(NS + 'preview-on'); });
         return layer;
     }
+    function endPreview(host, layer) { host.card.classList.remove(NS + 'previewing'); layer.remove(); }
+    // a muted video in the frame; `segments` (fractions of the duration) makes it jump through the episode
+    function videoPreview(host, src, segments, fallback) {
+        var layer = overlay(host, 'video');
+        var video = layer.appendChild(el('video', NS + 'preview-video'));
+        var bar = layer.appendChild(el('span', NS + 'preview-bar'));
+        video.muted = true; video.playsInline = true; video.preload = 'auto'; video.loop = !segments;
+        var k = 0, timer = null, started = false;
+        var jump = function () {
+            if (!segments || !video.duration || !isFinite(video.duration)) { return; }
+            video.currentTime = video.duration * segments[k % segments.length];
+            k++;
+        };
+        video.addEventListener('loadedmetadata', function () {
+            // the frame takes the video's shape: a portrait video is not cropped to a landscape frame
+            if (video.videoWidth && video.videoHeight) { layer.style.setProperty('--pj-preview-ratio', String(video.videoWidth / video.videoHeight)); }
+            jump();
+            if (segments) { timer = setInterval(jump, 3500); }
+        });
+        video.addEventListener('timeupdate', function () { if (video.duration) { bar.style.width = (100 * video.currentTime / video.duration) + '%'; } });
+        video.addEventListener('playing', function () { started = true; });
+        var giveUp = function () { if (started) { return; } stop(); if (fallback) { fallback(); } };
+        video.addEventListener('error', giveUp);
+        var guard = setTimeout(giveUp, 4000);   // a file the browser cannot decode never starts
+        video.src = src;
+        var p = video.play(); if (p && p.catch) { p.catch(function () { /* autoplay refused: the guard falls back */ }); }
+        var stop = function () {
+            clearInterval(timer); clearTimeout(guard);
+            try { video.pause(); video.removeAttribute('src'); video.load(); } catch (e) { /* gone */ }
+            endPreview(host, layer);
+            if (preview && preview.layer === layer) { preview = null; }
+        };
+        preview = { layer: layer, stop: stop };
+    }
+    function filePreview(host, item, fallback) {
+        var c = client(), source = (item.MediaSources || [])[0];
+        if (!source || item.LocationType === 'Virtual') { return fallback(); }
+        var src = c.getUrl('Videos/' + item.Id + '/stream', { static: true, MediaSourceId: source.Id, api_key: token() });
+        videoPreview(host, src, [0.12, 0.3, 0.48, 0.66, 0.84], fallback);
+    }
+    function trailerPreview(host, item, fallback) {
+        var c = client();
+        return c.getLocalTrailers(c.getCurrentUserId(), item.Id).then(function (trailers) {
+            var t = (trailers || [])[0];
+            if (!host.card.matches(':hover')) { return; }
+            if (!t) { return item.LocationType === 'Virtual' ? fallback() : filePreview(host, item, fallback); }
+            videoPreview(host, c.getUrl('Videos/' + t.Id + '/stream', { static: true, api_key: token() }), null, fallback);
+        });
+    }
+    // trickplay: picture by picture, so the progress is shown as steps, not as a running line
     function trickplayPreview(host, item) {
-        var sources = item.Trickplay, msId = Object.keys(sources)[0];
+        var sources = item.Trickplay, msId = Object.keys(sources || {})[0];
         if (!msId) { return; }
         var widths = Object.keys(sources[msId]).map(Number).sort(function (a, b) { return a - b; });
-        var w = widths.find(function (x) { return x >= 320; }) || widths[widths.length - 1];
+        // the sharpest set for the frame's real size (screen pixels), else the largest there is
+        var need = host.frame.getBoundingClientRect().width * (window.devicePixelRatio || 1);
+        var w = widths.find(function (x) { return x >= need; }) || widths[widths.length - 1];
         var info = sources[msId][w];
         if (!info || !info.ThumbnailCount) { return; }
         var perTile = info.TileWidth * info.TileHeight;
         var c = client();
-        var layer = overlay(host);
-        var bar = layer.appendChild(el('span', NS + 'preview-bar'));
-        var i = 0, timer = null;
+        var layer = overlay(host, 'trickplay');
+        layer.style.setProperty('--pj-preview-ratio', String(info.Width / info.Height));
+        var pic = layer.appendChild(el('div', NS + 'preview-pic'));
+        var steps = layer.appendChild(el('div', NS + 'preview-steps'));
+        var count = Math.min(info.ThumbnailCount, 20), dots = [];
+        for (var d = 0; d < count; d++) { dots.push(steps.appendChild(el('i'))); }
+        var stride = Math.max(1, Math.floor(info.ThumbnailCount / count)), n = 0;
         var show = function () {
+            var i = (n * stride) % info.ThumbnailCount;
             var tile = Math.floor(i / perTile), inTile = i % perTile;
             var col = inTile % info.TileWidth, row = Math.floor(inTile / info.TileWidth);
-            var url = c.getUrl('Videos/' + item.Id + '/Trickplay/' + w + '/' + tile + '.jpg', { MediaSourceId: msId, api_key: token() });
-            layer.style.backgroundImage = 'url("' + url + '")';
-            layer.style.backgroundSize = (info.TileWidth * 100) + '% ' + (info.TileHeight * 100) + '%';
-            layer.style.backgroundPosition = (info.TileWidth > 1 ? col * 100 / (info.TileWidth - 1) : 0) + '% ' + (info.TileHeight > 1 ? row * 100 / (info.TileHeight - 1) : 0) + '%';
-            bar.style.width = Math.round(100 * (i + 1) / info.ThumbnailCount) + '%';
-            // about 10 s for the whole episode, whatever its length
-            i = (i + Math.max(1, Math.floor(info.ThumbnailCount / 25))) % info.ThumbnailCount;
+            pic.style.backgroundImage = 'url("' + c.getUrl('Videos/' + item.Id + '/Trickplay/' + w + '/' + tile + '.jpg', { MediaSourceId: msId, api_key: token() }) + '")';
+            pic.style.backgroundSize = (info.TileWidth * 100) + '% ' + (info.TileHeight * 100) + '%';
+            pic.style.backgroundPosition = (info.TileWidth > 1 ? col * 100 / (info.TileWidth - 1) : 0) + '% ' + (info.TileHeight > 1 ? row * 100 / (info.TileHeight - 1) : 0) + '%';
+            var at = Math.min(count - 1, Math.floor(i / info.ThumbnailCount * count));
+            dots.forEach(function (dot, k) { dot.className = k < at ? NS + 'done' : k === at ? NS + 'now' : ''; });
+            n = (n + 1) % count;
         };
         show();
-        timer = setInterval(show, 400);
-        preview = { stop: function () { clearInterval(timer); layer.remove(); } };
-    }
-    function trailerPreview(host, item) {
-        var c = client();
-        return c.getLocalTrailers(c.getCurrentUserId(), item.Id).then(function (trailers) {
-            var t = (trailers || [])[0];
-            if (!t || !host.card.matches(':hover')) { return; }
-            var layer = overlay(host);
-            var video = layer.appendChild(el('video', NS + 'preview-video'));
-            video.muted = true; video.loop = true; video.playsInline = true; video.preload = 'auto';
-            video.src = c.getUrl('Videos/' + t.Id + '/stream', { static: true, api_key: token() });
-            var p = video.play(); if (p && p.catch) { p.catch(function () { /* autoplay refused: the frame stays */ }); }
-            preview = { stop: function () { try { video.pause(); video.removeAttribute('src'); video.load(); } catch (e) { /* gone */ } layer.remove(); } };
-        });
+        var timer = setInterval(show, 700);
+        preview = { layer: layer, stop: function () { clearInterval(timer); endPreview(host, layer); } };
     }
     if (canHover) {
         document.addEventListener('pointerover', function (ev) {

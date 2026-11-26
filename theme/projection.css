@@ -636,28 +636,28 @@ html.layout-desktop:has(.backgroundContainer.withBackdrop) .itemDetailPage .deta
 /* tags and genres as chips on their own dark ground: readable on any picture, and the
    commas and "Étiquettes :" text between them go (font-size 0, label redrawn) */
 .itemDetailPage .itemTags:not(.hide),
-.itemDetailPage :is(.genresGroup, .studiosGroup) .content {
+.itemDetailPage :is(.genresGroup, .studiosGroup, .directorsGroup, .writersGroup) .content {
   display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: 0 !important;
 }
 .itemDetailPage .itemTags:not(.hide)::before {
   content: "Étiquettes"; font-size: .78rem !important; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
   color: var(--pj-dim); margin-right: .35rem;
 }
-.itemDetailPage :is(.itemTags, .genresGroup, .studiosGroup) a {
+.itemDetailPage :is(.itemTags, .genresGroup, .studiosGroup, .directorsGroup, .writersGroup) a {
   font-size: .82rem !important; font-weight: 500; line-height: 1.2; margin: 0 !important;
   padding: .3em .75em !important; border-radius: 99px; border: 0 !important;
   color: var(--pj-text) !important; background: rgba(var(--pj-veil), .72) !important;
   box-shadow: inset 0 0 0 1px rgba(235, 230, 217, .16);
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
 }
-.itemDetailPage :is(.itemTags, .genresGroup, .studiosGroup) a:hover {
+.itemDetailPage :is(.itemTags, .genresGroup, .studiosGroup, .directorsGroup, .writersGroup) a:hover {
   color: var(--pj-amber) !important; box-shadow: inset 0 0 0 1px rgba(242, 180, 65, .55);
 }
 .itemDetailPage .genresGroup { align-items: center; }
 /* phones: a chip is a thumb target, at least 32px tall with 8px between chips */
 @media (max-width: 600px), (pointer: coarse) {
-  .itemDetailPage .itemTags:not(.hide), .itemDetailPage :is(.genresGroup, .studiosGroup) .content { gap: .5rem; }
-  .itemDetailPage :is(.itemTags, .genresGroup, .studiosGroup) a { min-height: 32px; display: inline-flex !important; align-items: center; padding: .35em .9em !important; }
+  .itemDetailPage .itemTags:not(.hide), .itemDetailPage :is(.genresGroup, .studiosGroup, .directorsGroup, .writersGroup) .content { gap: .5rem; }
+  .itemDetailPage :is(.itemTags, .genresGroup, .studiosGroup, .directorsGroup, .writersGroup) a { min-height: 32px; display: inline-flex !important; align-items: center; padding: .35em .9em !important; }
 }
 /* every info row (genres, studio, director, writers...) gets the same small label as
    the tags, so the rows read as one block */
@@ -1007,7 +1007,7 @@ html.pj-noimage.layout-desktop .itemDetailPage .itemBackdrop::after { background
    logo (or the title in the serif); under it the billing block of a poster, centred:
    tagline, credits in condensed capitals, facts, then the actions and the synopsis.
    The poster card is not shown: the picture is the poster. --- */
-html.pj-affiche-on.layout-desktop .itemDetailPage.itemDetailPage { --pj-indent: var(--pj-gutter) !important; }   /* also over the episode page's wider-picture indent */
+html.pj-affiche-on:not(.pj-aff-b).layout-desktop .itemDetailPage.itemDetailPage { --pj-indent: var(--pj-gutter) !important; }   /* also over the episode page's wider-picture indent */
 html.pj-affiche-on .itemDetailPage .itemBackdrop,
 html.pj-affiche-on.layout-desktop .itemDetailPage .detailImageContainer,
 html.pj-affiche-on .itemDetailPage .pj-canvas-layer { display: none !important; }
@@ -1093,7 +1093,7 @@ html.pj-affiche-on .itemDetailPage .itemDetailsGroup .detailsGroupItem { justify
 .pj-aff-mode-b .pj-aff-title { position: static; text-align: left; font-size: clamp(2.4rem, 4.6vw, 4.6rem); }
 .pj-aff-mode-b .pj-aff-billing { justify-items: start; text-align: left; padding: 0; }
 .pj-aff-mode-b .pj-aff-facts { justify-content: flex-start; }
-html.pj-aff-b.layout-desktop .itemDetailPage { --pj-indent: calc(var(--pj-gutter) + var(--pj-aff-ph-w, clamp(19rem, 56vh, 34rem) * 2 / 3) + clamp(1.5rem, 3.4vw, 4rem)); }
+html.pj-aff-b.layout-desktop .itemDetailPage.itemDetailPage { --pj-indent: calc(var(--pj-gutter) + clamp(19rem, 56vh, 34rem) * 2 / 3 + clamp(1.5rem, 3.4vw, 4rem)) !important; }
 html.pj-aff-b .itemDetailPage .detailRibbon { text-align: left !important; }
 html.pj-aff-b .itemDetailPage .mainDetailButtons { justify-content: flex-start !important; margin: 0 !important; }
 html.pj-aff-b .itemDetailPage .pj-progress { justify-content: flex-start; }
@@ -1156,15 +1156,33 @@ html:is(.pj-canvas, .pj-noimage) .itemDetailPage .detailLogo { display: none !im
 .pj-status::before { content: "● "; }
 .pj-continuing { color: #8fd18b; }
 .pj-ended { color: var(--pj-text-2); }
-/* hover preview: over the episode's frame, trickplay thumbnails or its preview video */
+/* hover preview: over the episode's frame, a video (its preview or its own file) or its
+   trickplay thumbnails; the picture whole at its own shape (a portrait one is not
+   stretched), centred on the theme's ink */
 .pj-preview {
   position: absolute; inset: 0; z-index: 4; pointer-events: none; border-radius: inherit; overflow: hidden;
-  background-color: #000; background-repeat: no-repeat; opacity: 0; transition: opacity .25s;
+  background: var(--pj-bg); display: grid; place-items: center; opacity: 0; transition: opacity .25s;
 }
 .pj-preview.pj-preview-on { opacity: 1; }
-.pj-preview-video { width: 100%; height: 100%; object-fit: cover; display: block; }
-.pj-preview-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--pj-amber); transition: width .35s linear; }
+.pj-preview-video { width: 100%; height: 100%; object-fit: contain; display: block; background: var(--pj-bg); }
+.pj-preview-pic {
+  aspect-ratio: var(--pj-preview-ratio, 16 / 9); max-width: 100%; max-height: 100%; width: 100%;
+  background-repeat: no-repeat; image-rendering: auto;
+}
+.pj-preview-trickplay .pj-preview-pic { height: auto; }
+@supports (width: 1cqw) { .pj-preview { container-type: size; } .pj-preview-pic { width: min(100cqw, 100cqh * var(--pj-preview-ratio, 1.7778)); } }
+/* a video's own time runs continuously */
+.pj-preview-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--pj-amber); }
+/* trickplay is picture by picture: steps */
+.pj-preview-steps { position: absolute; left: 6px; right: 6px; bottom: 6px; display: flex; gap: 3px; }
+.pj-preview-steps i { flex: 1; height: 3px; border-radius: 2px; background: rgba(235, 230, 217, .3); }
+.pj-preview-steps i.pj-done { background: rgba(242, 180, 65, .55); }
+.pj-preview-steps i.pj-now { background: var(--pj-amber); }
 .listItemImage { position: relative; }
+/* while it plays, the picture is shown as it is: no veil of a missing or watched episode */
+.pj-previewing :is(.listItemImage, .cardScalable) { opacity: 1 !important; filter: none !important; }
+.pj-previewing .cardOverlayContainer { opacity: 0 !important; }
+.pj-previewing :is(.missingIndicator, .unairedIndicator) { z-index: 5 !important; }
 @media (prefers-reduced-motion: reduce) { .pj-preview { transition: none; } }
 
 /* ============================================================
