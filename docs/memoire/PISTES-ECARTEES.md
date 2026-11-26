@@ -17,3 +17,5 @@ P015 — 2026-11-26 — Episode photos variant A « Bande » (photo strip inside
 P016 — 2026-11-26 — Episode photos variant C « visionneuse directe » (the button opens the large photo with a thumbnail column): not chosen by the maintainer on the mockups, reason not stated. See D022.
 P017 — 2026-11-26 — Show the whole local gallery of an episode in its photos: rejected by the maintainer in favour of a dedicated « Photo » type (plus the numbered folder), reason not stated. See D022.
 P018 — 2026-11-26 — Photos from the numbered folder only, with an import button: rejected by the maintainer, reason not stated. See D022.
+P019 — 2026-11-27 — Person page variant A « Affiche » (large 2:3 portrait and huge name, like the series/movie pages): not chosen; it pushes the filmography down, mostly at 1920 [supposé: drawback stated by the assistant, the maintainer only picked B]. See D023.
+P020 — 2026-11-27 — Person page variant C « Générique » (compact band with a round portrait): not chosen; it crops the portrait and the backdrop is nearly invisible [supposé: drawbacks stated by the assistant, the maintainer only picked B]. See D023.
