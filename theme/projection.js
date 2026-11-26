@@ -663,38 +663,226 @@
             });
         });
     }
-    // the viewer: the preview large, with sound and controls; Escape, the close button or a click outside closes it
+    // the viewer (« Salle »): the preview large in an ambient light of its own colours, the theme's controls under it,
+    // the episode's title and its play button. Escape, the close button or a click outside closes it.
+    var CLIP_SEGMENT_SECONDS = 1.5, CLIP_SEGMENTS = 8;   // as PreviewClipService builds the clips
+    var closeViewer = null;
     function openPreview(item, info) {
         stopPreview();
-        var c = client();
-        var src = info.Source ? c.getUrl('CustomMetadata/Preview/' + item.Id, { api_key: token() }) : c.getUrl('CustomMetadata/Preview/' + item.Id + '/Clip', { api_key: token() });
+        if (closeViewer) { closeViewer(); }
+        var c = client(), opener = document.activeElement;
+        var urls = [];
+        if (info.Source) { urls.push({ src: sourcePreviewUrl(item), origin: previewOrigin(info) }); }
+        if (info.Clip) { urls.push({ src: clipUrl(item), origin: previewOrigin({ Clip: true }) }); }
+        if (!urls.length) { return; }
         var box = el('div', NS + 'viewer');
         box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'Aperçu de ' + item.Name);
-        var panel = box.appendChild(el('div', NS + 'viewer-panel'));
-        var head = panel.appendChild(el('div', NS + 'viewer-head'));
-        head.appendChild(el('span', NS + 'viewer-title', [epCode(item), item.Name].filter(Boolean).join(' · ')));
-        var origin = previewOrigin(info);
-        head.appendChild(el('span', NS + 'viewer-note ' + NS + 'origin-' + origin.kind, origin.label));
-        var close = head.appendChild(el('button', NS + 'viewer-close'));
-        close.type = 'button'; close.title = 'Fermer'; close.setAttribute('aria-label', 'Fermer');
-        close.appendChild(el('span', 'material-icons close')).setAttribute('aria-hidden', 'true');
-        var video = panel.appendChild(el('video', NS + 'viewer-video'));
-        video.controls = true; video.playsInline = true; video.src = src;
+        var glow = box.appendChild(el('div', NS + 'viewer-glow'));
+        glow.setAttribute('aria-hidden', 'true');
+        var button = function (parent, cls, icon, label) {
+            var b = parent.appendChild(el('button', cls));
+            b.type = 'button';
+            b.appendChild(el('span', 'material-icons ' + icon)).setAttribute('aria-hidden', 'true');
+            setButton(b, icon, label);
+            return b;
+        };
+        // jellyfin-web's icon font draws the icon named by the class
+        var setButton = function (b, icon, label) {
+            b.firstChild.className = 'material-icons ' + icon;
+            b.title = label; b.setAttribute('aria-label', label);
+        };
+        var close = button(box, NS + 'viewer-close', 'close', 'Fermer');
+        var col = box.appendChild(el('div', NS + 'viewer-col'));
+        var player = col.appendChild(el('div', NS + 'viewer-player'));
+        var screen = player.appendChild(el('div', NS + 'viewer-screen'));
+        var video = screen.appendChild(el('video', NS + 'viewer-video'));
+        video.playsInline = true; video.preload = 'auto';
+        var spinner = screen.appendChild(el('span', NS + 'viewer-spinner'));
+        spinner.setAttribute('aria-hidden', 'true');
+        var failed = screen.appendChild(el('p', NS + 'viewer-failed', 'Cet aperçu ne peut pas être lu pour le moment.'));
+        failed.setAttribute('role', 'alert'); failed.hidden = true;
+
+        var controls = player.appendChild(el('div', NS + 'viewer-controls'));
+        var toggle = button(controls, NS + 'viewer-ib ' + NS + 'viewer-toggle', 'play_arrow', 'Lecture');
+        var now = controls.appendChild(el('span', NS + 'viewer-time', '0:00'));
+        var track = controls.appendChild(el('div', NS + 'viewer-track'));
+        track.tabIndex = 0; track.setAttribute('role', 'slider'); track.setAttribute('aria-label', 'Position dans l’aperçu');
+        track.setAttribute('aria-valuemin', '0');
+        var total = controls.appendChild(el('span', NS + 'viewer-time', '–:––'));
+        var mute = button(controls, NS + 'viewer-ib ' + NS + 'viewer-mute', 'volume_up', 'Couper le son');
+        var volume = controls.appendChild(el('input', NS + 'viewer-volume'));
+        volume.type = 'range'; volume.min = '0'; volume.max = '1'; volume.step = '0.05'; volume.value = '1';
+        volume.setAttribute('aria-label', 'Volume');
+        var canFull = player.requestFullscreen || player.webkitRequestFullscreen || video.webkitEnterFullscreen;
+        var full = canFull ? button(controls, NS + 'viewer-ib', 'fullscreen', 'Plein écran') : null;
+
+        var bill = col.appendChild(el('div', NS + 'viewer-bill'));
+        var text = bill.appendChild(el('div', NS + 'viewer-text'));
+        var overline = text.appendChild(el('div', NS + 'viewer-overline'));
+        text.appendChild(el('h2', NS + 'viewer-title', item.Name));
+        var note = text.appendChild(el('span', NS + 'viewer-note'));
+        var playEpisodeButton = null;
+        var describe = function (it) {
+            var number = it.IndexNumber == null ? null : it.IndexNumberEnd ? 'Épisodes ' + it.IndexNumber + '-' + it.IndexNumberEnd : 'Épisode ' + it.IndexNumber;
+            overline.textContent = [it.SeriesName, it.SeasonName, number].filter(Boolean).join(' · ');
+            // a missing episode has nothing else to play than this preview
+            if (it.LocationType === 'Virtual') { if (playEpisodeButton) { playEpisodeButton.remove(); playEpisodeButton = null; } return; }
+            if (!playEpisodeButton) {
+                playEpisodeButton = bill.appendChild(el('button', NS + 'viewer-play'));
+                playEpisodeButton.type = 'button';
+                playEpisodeButton.appendChild(el('span', 'material-icons play_arrow')).setAttribute('aria-hidden', 'true');
+                playEpisodeButton.appendChild(el('span'));
+                playEpisodeButton.addEventListener('click', function () { done(); playEpisode(item.Id); });
+            }
+            var resumes = it.UserData && it.UserData.PlaybackPositionTicks > 0;
+            playEpisodeButton.lastChild.textContent = resumes ? 'Reprendre l’épisode' : 'Lire l’épisode';
+        };
+        describe(item);
+        // the list the button came from may not say everything, and the position may have changed since it was read
+        c.getItem(c.getCurrentUserId(), item.Id).then(function (fresh) { if (box.isConnected) { describe(fresh); } }).catch(function (e) { warn('viewer', e); });
+
+        // the plugin's clip is a row of short moments of the episode: the bar shows them apart; a source's video is one piece
+        var current = 0, segments = [], light = null, frame = null;
+        var duration = function () { return isFinite(video.duration) && video.duration > 0 ? video.duration : 0; };
+        var isClip = function () { return urls[current].origin.kind === 'clip'; };
+        var buildTrack = function () {
+            var count = isClip() && duration() ? Math.max(1, Math.min(CLIP_SEGMENTS, Math.round(duration() / CLIP_SEGMENT_SECONDS))) : 1;
+            track.textContent = ''; segments = [];
+            for (var k = 0; k < count; k++) { segments.push(track.appendChild(el('i')).appendChild(el('b'))); }
+            track.classList.toggle(NS + 'viewer-segmented', count > 1);
+        };
+        var clock = function (s) {
+            s = Math.floor(s);
+            var h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = String(s % 60).padStart(2, '0');
+            return h ? h + ':' + String(m).padStart(2, '0') + ':' + sec : m + ':' + sec;
+        };
+        var progress = function () {
+            var d = duration(), at = d ? video.currentTime / d : 0;
+            segments.forEach(function (fill, k) { fill.style.width = 100 * Math.max(0, Math.min(1, at * segments.length - k)) + '%'; });
+            var t = clock(video.currentTime || 0);
+            if (now.textContent !== t) {
+                now.textContent = t;
+                track.setAttribute('aria-valuenow', String(Math.floor(video.currentTime || 0)));
+                track.setAttribute('aria-valuetext', t + (d ? ' sur ' + clock(d) : ''));
+            }
+        };
+        var tick = function () { progress(); frame = video.paused ? null : requestAnimationFrame(tick); };
+        var seek = function (seconds) { var d = duration(); if (d) { video.currentTime = Math.max(0, Math.min(d - 0.05, seconds)); progress(); } };
+        var state = function () {
+            setButton(toggle, video.ended ? 'replay' : video.paused ? 'play_arrow' : 'pause', video.ended ? 'Revoir' : video.paused ? 'Lecture' : 'Pause');
+            var silent = video.muted || video.volume === 0;
+            setButton(mute, silent ? 'volume_off' : 'volume_up', silent ? 'Remettre le son' : 'Couper le son');
+            volume.value = String(silent ? 0 : video.volume);
+        };
+        var playPause = function () {
+            if (!video.paused) { video.pause(); return; }
+            var p = video.play(); if (p && p.catch) { p.catch(function () { /* the button stays */ }); }
+        };
         // with sound (the click allows it); if the browser still refuses, muted, and the controls unmute it
-        var p = video.play();
-        if (p && p.catch) { p.catch(function () { video.muted = true; video.play().catch(function () { /* the controls stay */ }); }); }
+        var load = function () {
+            note.textContent = urls[current].origin.label;
+            failed.hidden = true; box.classList.remove(NS + 'viewer-broken'); box.classList.add(NS + 'viewer-loading');
+            buildTrack();
+            video.src = urls[current].src;
+            var p = video.play();
+            if (p && p.catch) { p.catch(function (e) { if (e && e.name === 'NotAllowedError') { video.muted = true; video.play().catch(function () { /* the controls stay */ }); } }); }
+        };
+        video.addEventListener('loadedmetadata', function () {
+            if (video.videoWidth && video.videoHeight) { box.style.setProperty('--pj-viewer-ratio', String(video.videoWidth / video.videoHeight)); }
+            buildTrack();
+            total.textContent = duration() ? clock(duration()) : '–:––';
+            track.setAttribute('aria-valuemax', String(Math.floor(duration())));
+            progress();
+        });
+        ['play', 'pause', 'ended', 'volumechange'].forEach(function (name) { video.addEventListener(name, state); });
+        video.addEventListener('play', function () { if (!frame) { frame = requestAnimationFrame(tick); } });
+        video.addEventListener('seeked', progress);
+        video.addEventListener('waiting', function () { box.classList.add(NS + 'viewer-loading'); });
+        ['playing', 'canplay', 'pause'].forEach(function (name) { video.addEventListener(name, function () { if (video.readyState > 2) { box.classList.remove(NS + 'viewer-loading'); } }); });
+        video.addEventListener('error', function () {
+            if (!video.getAttribute('src')) { return; }
+            // the source's video does not play: the plugin's clip, when there is one
+            if (current + 1 < urls.length) { current++; load(); return; }
+            box.classList.remove(NS + 'viewer-loading'); box.classList.add(NS + 'viewer-broken'); failed.hidden = false;
+            if (controls.contains(document.activeElement)) { close.focus({ preventScroll: true, focusVisible: false }); }
+        });
+
+        toggle.addEventListener('click', playPause);
+        video.addEventListener('click', playPause);
+        mute.addEventListener('click', function () {
+            if (video.muted || video.volume === 0) { video.muted = false; if (video.volume === 0) { video.volume = 1; } } else { video.muted = true; }
+        });
+        volume.addEventListener('input', function () { video.volume = Number(volume.value); video.muted = video.volume === 0; });
+        var seekTo = function (ev) { var r = track.getBoundingClientRect(); if (r.width) { seek(duration() * (ev.clientX - r.left) / r.width); } };
+        track.addEventListener('pointerdown', function (ev) { ev.preventDefault(); track.focus({ preventScroll: true, focusVisible: false }); try { track.setPointerCapture(ev.pointerId); } catch (e) { /* no capture */ } seekTo(ev); });
+        track.addEventListener('pointermove', function (ev) { if (track.hasPointerCapture && track.hasPointerCapture(ev.pointerId)) { seekTo(ev); } });
+        // one arrow press: the previous or next moment of a clip, five seconds of a source's video
+        var step = function (dir) {
+            if (segments.length > 1) { var len = duration() / segments.length; seek((Math.floor(video.currentTime / len + 0.01) + dir) * len + 0.01); } else { seek(video.currentTime + 5 * dir); }
+        };
+        var fullElement = function () { return document.fullscreenElement || document.webkitFullscreenElement; };
+        var toggleFull = function () {
+            if (fullElement()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+            var ask = player.requestFullscreen || player.webkitRequestFullscreen;
+            if (ask) { ask.call(player); } else if (video.webkitEnterFullscreen) { video.webkitEnterFullscreen(); }   // iPhone
+        };
+        var onFull = function () { if (full) { setButton(full, fullElement() ? 'fullscreen_exit' : 'fullscreen', fullElement() ? 'Quitter le plein écran' : 'Plein écran'); } };
+        if (full) { full.addEventListener('click', toggleFull); document.addEventListener('fullscreenchange', onFull); }
+
         var done = function () {
-            document.removeEventListener('keydown', onKey, true);
+            if (closeViewer !== done) { return; }
+            closeViewer = null;
+            window.removeEventListener('keydown', onKey, true);
+            window.removeEventListener('hashchange', done);
+            document.removeEventListener('fullscreenchange', onFull);
+            if (fullElement() && box.contains(fullElement())) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+            if (frame) { cancelAnimationFrame(frame); }
+            light.stop();
             try { video.pause(); video.removeAttribute('src'); video.load(); } catch (e) { /* gone */ }
             box.remove();
+            document.documentElement.classList.remove(NS + 'viewer-open');
+            if (opener && opener.isConnected && opener.focus) { opener.focus({ preventScroll: true }); }
         };
-        var onKey = function (ev) { if (ev.key === 'Escape') { ev.stopPropagation(); done(); } };
+        // the keyboard belongs to the viewer while it is open (jellyfin-web has its own shortcuts)
+        var onKey = function (ev) {
+            ev.stopPropagation();
+            if (ev.ctrlKey || ev.metaKey || ev.altKey) { return; }
+            var key = ev.key, on = document.activeElement;
+            if (key === 'Escape') { ev.preventDefault(); if (fullElement()) { toggleFull(); } else { done(); } return; }
+            if (key === 'Tab') {
+                var stops = Array.prototype.filter.call(box.querySelectorAll('button, input, [tabindex="0"]'), function (n) { return n.offsetParent !== null || n === close; });
+                var at = stops.indexOf(on), next = at < 0 ? 0 : (at + (ev.shiftKey ? -1 : 1) + stops.length) % stops.length;
+                ev.preventDefault(); stops[next].focus(); return;
+            }
+            if (key === 'k' || (key === ' ' && !(on && on.tagName === 'BUTTON'))) { ev.preventDefault(); playPause(); return; }
+            if (on !== volume && (key === 'ArrowLeft' || key === 'ArrowRight')) { ev.preventDefault(); step(key === 'ArrowLeft' ? -1 : 1); return; }
+            if (key === 'm') { mute.click(); return; }
+            if (key === 'f' && full) { toggleFull(); }
+        };
+        closeViewer = done;
         close.addEventListener('click', done);
         box.addEventListener('click', function (ev) { if (ev.target === box) { done(); } });
-        document.addEventListener('keydown', onKey, true);
-        window.addEventListener('hashchange', done, { once: true });
+        window.addEventListener('keydown', onKey, true);
+        window.addEventListener('hashchange', done);
+        document.documentElement.classList.add(NS + 'viewer-open');
         document.body.appendChild(box);
-        close.focus();
+        light = glowFrom(video, glow);
+        load();
+        toggle.focus({ preventScroll: true });
+    }
+    // starts the episode itself, as jellyfin-web's own play buttons do: the page's button on the episode's page, else
+    // a "resume" action in the episode's row, which jellyfin-web's list handles
+    function playEpisode(id) {
+        var page = currentPage();
+        if (!page) { return; }
+        var main = currentId() === id.toLowerCase() && page.querySelector('.mainDetailButtons .btnPlay:not(.hide)');
+        if (main) { main.click(); return; }
+        var row = page.querySelector('.listItem[data-id="' + id + '"]');
+        if (!row) { location.hash = detailsHref(id); return; }
+        var action = row.appendChild(el('button', 'itemAction'));
+        action.type = 'button'; action.hidden = true; action.setAttribute('data-action', 'resume');
+        action.click();
+        action.remove();
     }
 
     // ---------- 3. hover preview of an episode ----------
@@ -791,7 +979,10 @@
     // video's own colours (its four corners), which drift slowly from one colour to the next as the video plays
     function ambientLight(layer, video) {
         layer.classList.add(NS + 'preview-narrow');
-        var glow = layer.insertBefore(el('div', NS + 'preview-glow'), layer.firstChild);
+        return glowFrom(video, layer.insertBefore(el('div', NS + 'preview-glow'), layer.firstChild));
+    }
+    // sets the glow's four colours from the video's four corners while it plays
+    function glowFrom(video, glow) {
         var cv = document.createElement('canvas'); cv.width = 4; cv.height = 4;
         var g = cv.getContext('2d', { willReadFrequently: true });
         var avg = function (x, y, w, h) {
@@ -904,7 +1095,7 @@
         // our own additions do not count
         for (var i = 0; i < records.length; i++) {
             var t = records[i].target;
-            if (!(t.closest && t.closest('[data-pj], .' + NS + 'preview'))) { schedule(); return; }
+            if (!(t.closest && t.closest('[data-pj], .' + NS + 'preview, .' + NS + 'viewer'))) { schedule(); return; }
         }
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
     schedule();
