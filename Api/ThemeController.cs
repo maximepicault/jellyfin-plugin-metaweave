@@ -85,9 +85,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 return NotFound();
             }
 
-            // a short cache and a validator: a plugin update reaches the browsers within minutes, and in between
-            // a reload costs a 304
-            Response.Headers["Cache-Control"] = "public, max-age=300";
+            // always revalidated (a reload costs a 304): with a cache of a few minutes, a browser kept the old CSS after a
+            // plugin update while it fetched the new script at once, and the script's new elements showed unstyled
+            Response.Headers["Cache-Control"] = "no-cache";
             Response.Headers["ETag"] = file.ETag;
             if (Request.Headers.TryGetValue("If-None-Match", out var sent) && sent.Any(v => v != null && v.Split(',').Any(t => t.Trim() == file.ETag)))
             {

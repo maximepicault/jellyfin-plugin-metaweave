@@ -14,7 +14,7 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Recent work (2026-11-21/23): missing-episode video downloads, landscape poster crop, Projection web theme (`theme/projection.css`), gallery typed by shape + multi-selection, people networks/backdrops, paginated dump APIs and dump seasons analysed like API seasons, missing-episode numbering (D009, committed in 41544ee).
 
 ## Déployé
-- Last successful deployment: 9ff19b4, develop, 2026-11-26
+- Last successful deployment: c8b51b7, develop, 2026-11-26
 
 ## En cours
 - Projection theme moved to the compact sheet + wall of season posters (D017), committed on develop (19f6bfd) on 2026-11-25 with the `tools/ui-test/theme-*.mjs` seed and audit (a33c721); not on `main` yet. Header adapted to the backdrop committed in 164e57b.
