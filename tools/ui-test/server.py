@@ -118,6 +118,8 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/previews/"):
             # served with Range support, as a real video host does (the browser seeks in the preview)
             f = os.path.join(IMG_DIR, "previews", os.path.basename(p))
+            if os.environ.get("PREVIEW_DELAY"):
+                import time; time.sleep(float(os.environ["PREVIEW_DELAY"]))   # a slow preview host (the hover preview must wait for it)
             if not os.path.exists(f): return self.send(404, {})
             data = open(f, "rb").read(); rng = self.headers.get("Range")
             if rng and rng.startswith("bytes="):
