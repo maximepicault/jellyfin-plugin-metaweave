@@ -27,16 +27,34 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     public class PreviewController : ControllerBase
     {
         private readonly EpisodePreviewService _previews;
+        private readonly PreviewClipService _clips;
         private readonly ILibraryManager _library;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<PreviewController> _logger;
 
-        public PreviewController(EpisodePreviewService previews, ILibraryManager library, IHttpClientFactory httpClientFactory, ILogger<PreviewController> logger)
+        public PreviewController(EpisodePreviewService previews, PreviewClipService clips, ILibraryManager library, IHttpClientFactory httpClientFactory, ILogger<PreviewController> logger)
         {
             _previews = previews;
+            _clips = clips;
             _library = library;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
+        }
+
+        /// <summary>The episode's preview clip built by the "Générer les aperçus des épisodes" task, or 404</summary>
+        [HttpGet("{itemId}/Clip")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public IActionResult Clip(Guid itemId)
+        {
+            var clip = _clips.GetClip(_library.GetItemById(itemId) as Episode);
+            if (clip == null)
+            {
+                return NotFound();
+            }
+
+            Response.Headers["Cache-Control"] = "private, max-age=86400";
+            return PhysicalFile(clip, "video/mp4", enableRangeProcessing: true);
         }
 
         /// <summary>The episode's preview video, or 404 when its source has none</summary>

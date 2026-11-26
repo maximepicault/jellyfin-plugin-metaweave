@@ -554,8 +554,12 @@
             if (!host.card.matches(':hover')) { return null; }
             var fallback = function () { if (item.Trickplay && host.card.matches(':hover')) { trickplayPreview(host, item); } };
             if (item.LocationType === 'Virtual' || item.LocalTrailerCount) { return trailerPreview(host, item, fallback); }
-            // a real episode: its source's preview video first (served by the plugin), then its own file
-            return videoPreview(host, sourcePreviewUrl(item), null, function () { filePreview(host, item, fallback); });
+            // a real episode: its source's preview video (served by the plugin), then the clip the plugin built from the
+            // file (8 short moments spread over the episode), then the file itself, then trickplay
+            return videoPreview(host, sourcePreviewUrl(item), null, function () {
+                if (!host.card.matches(':hover')) { return; }
+                videoPreview(host, clipUrl(item), null, function () { filePreview(host, item, fallback); });
+            });
         }).catch(function (e) { warn('preview', e); });
     }
     function overlay(host, kind) {
@@ -583,10 +587,9 @@
         video.addEventListener('loadedmetadata', function () {
             // the frame takes the video's shape: a portrait video is not cropped to a landscape frame
             if (video.videoWidth && video.videoHeight) { layer.style.setProperty('--pj-preview-ratio', String(video.videoWidth / video.videoHeight)); }
-            // narrower than the frame (a portrait video): the empty sides continue the picture's own edges, band by
-            // band, following the video as it plays (no blur, no black bars)
+            // narrower than the frame (a portrait video): an ambient light in its own colours around it, not black bars
             var box = host.frame.getBoundingClientRect();
-            if (video.videoWidth / video.videoHeight < box.width / box.height - 0.05) { fills = edgeFills(layer, video); }
+            if (video.videoWidth / video.videoHeight < box.width / box.height - 0.05) { fills = ambientLight(layer, video); }
             jump();
             if (segments) { timer = setInterval(jump, 3500); }
         });
@@ -607,31 +610,23 @@
         preview = { layer: layer, stop: stop };
     }
     function sourcePreviewUrl(item) { return client().getUrl('CustomMetadata/Preview/' + item.Id, { api_key: token() }); }
+    function clipUrl(item) { return client().getUrl('CustomMetadata/Preview/' + item.Id + '/Clip', { api_key: token() }); }
     // the file itself only when it is light: a Blu-ray or 4K file would cost tens or hundreds of MB per hover
     var MAX_PREVIEW_BITRATE = 12000000;
-    // the side bands of a narrow preview: the video's left and right edge columns, sampled from the playing frame
-    function edgeFills(layer, video) {
+    // a narrow (portrait) preview: an ambient light around it, like YouTube's: the playing frame drawn large and soft
+    // behind the video, refreshed slowly, so the frame glows in the video's own colours instead of black bars
+    function ambientLight(layer, video) {
         layer.classList.add(NS + 'preview-narrow');
-        var left = layer.insertBefore(el('div', NS + 'preview-fill ' + NS + 'preview-fill-l'), layer.firstChild);
-        var right = layer.insertBefore(el('div', NS + 'preview-fill ' + NS + 'preview-fill-r'), layer.firstChild);
-        var cv = document.createElement('canvas'); cv.width = 8; cv.height = 12;
-        var g = cv.getContext('2d', { willReadFrequently: true });
-        var grad = function (x) {
-            var stops = [];
-            for (var y = 0; y < 12; y++) { var d = g.getImageData(x, y, 1, 1).data; stops.push('rgb(' + d[0] + ', ' + d[1] + ', ' + d[2] + ') ' + Math.round((y + 0.5) / 12 * 100) + '%'); }
-            return 'linear-gradient(to bottom, ' + stops.join(', ') + ')';
-        };
+        var glow = layer.insertBefore(el('canvas', NS + 'preview-glow'), layer.firstChild);
+        glow.width = 32; glow.height = 18;
+        var g = glow.getContext('2d');
         var paint = function () {
             if (!video.videoWidth || video.readyState < 2) { return; }
-            try {
-                g.drawImage(video, 0, 0, 8, 12);
-                left.style.background = grad(0);
-                right.style.background = grad(7);
-            } catch (e) { /* a cross-origin frame cannot be read: the ink stays */ }
+            try { g.drawImage(video, 0, 0, glow.width, glow.height); } catch (e) { /* a cross-origin frame cannot be read: the ink stays */ }
         };
-        var timer = setInterval(paint, 300);
+        var timer = setInterval(paint, 1000);
         video.addEventListener('seeked', paint);
-        paint();
+        video.addEventListener('playing', paint);
         return { stop: function () { clearInterval(timer); } };
     }
     function filePreview(host, item, fallback) {
