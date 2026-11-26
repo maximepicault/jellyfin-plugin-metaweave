@@ -92,3 +92,7 @@ if not os.path.exists(os.path.join(dl, "b1v3-q720.m3u8")):
         f.write("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=300000,RESOLUTION=640x360\nb1v3-q360.m3u8\n"
                 "#EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=1280x720\nb1v3-q720.m3u8\n"
                 "#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1920x1080\nb1v3-q1080.m3u8\n")
+# Preview video of an episode that has its file (theme hover preview): a 12 s moving pattern served by server.py at /previews/
+pv = os.path.join(img, "previews"); os.makedirs(pv, exist_ok=True)
+if not os.path.exists(os.path.join(pv, "a3v1.mp4")):
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=s=640x360:d=12:r=15", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", os.path.join(pv, "a3v1.mp4")], check=True)

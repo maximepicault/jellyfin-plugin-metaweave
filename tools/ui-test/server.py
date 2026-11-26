@@ -1,5 +1,5 @@
 """Fake demo API to test the plugin: python3 server.py <base_url> <img_dir> (listens on 0.0.0.0:8765)
-Routes: /series/{id}, /sources/{id}, /sources/{id}/videos (episode list), /sources/longlist/videos (120 episodes in an object), /videos/{id}, /img/{file}"""
+Routes: /series/{id}, /sources/{id}, /previews/{file} (preview videos), /sources/{id}/videos (episode list), /sources/longlist/videos (120 episodes in an object), /videos/{id}, /img/{file}"""
 import json, urllib.parse, re, sys, os
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 sys.path.insert(0, os.path.dirname(__file__)); from data import SERIES, OV, PEOPLE, DUMP, _DUMP_BRANDS
@@ -26,6 +26,8 @@ def video_json(vid):
     if vid in CHAPTERS: j["chapters"] = CHAPTERS[vid]
     # Full videos offered for download (download-real.mjs): direct MP4, HLS playlist, and an HTML page
     if vid in DOWNLOADS: j["video"] = {"url": f"{BASE}/media/{DOWNLOADS[vid]}"}
+    # A preview video on an episode that HAS its file (the theme's hover preview plays it through the plugin), relative to test ResolveUrl
+    if vid == "a3v1": j["preview"] = {"url": "/previews/a3v1.mp4"}
     # Genres and tags with case variants and terms one would not want: the rules of the "Genres et tags" screen act on them
     if vid in ("d1v1", "d1v2"):
         j["genres"] = ["Docu", "DOCU", "Voyage", "Sponsorisé"]
@@ -113,6 +115,17 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/img/"):
             f = os.path.join(IMG_DIR, os.path.basename(p))
             return self.send(200, open(f, "rb").read(), "image/jpeg") if os.path.exists(f) else self.send(404, {})
+        if p.startswith("/previews/"):
+            # served with Range support, as a real video host does (the browser seeks in the preview)
+            f = os.path.join(IMG_DIR, "previews", os.path.basename(p))
+            if not os.path.exists(f): return self.send(404, {})
+            data = open(f, "rb").read(); rng = self.headers.get("Range")
+            if rng and rng.startswith("bytes="):
+                a, _, b = rng[6:].partition("-"); a = int(a or 0); b = int(b) if b else len(data) - 1
+                chunk = data[a:b + 1]
+                self.send_response(206); self.send_header("Content-Type", "video/mp4"); self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Content-Range", f"bytes {a}-{a + len(chunk) - 1}/{len(data)}"); self.send_header("Content-Length", str(len(chunk))); self.end_headers(); self.wfile.write(chunk); return
+            self.send_response(200); self.send_header("Content-Type", "video/mp4"); self.send_header("Accept-Ranges", "bytes"); self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data); return
         if p.startswith("/media/"):
             name = os.path.basename(p)
             if name == "notvideo": return self.send(200, b"<html><body>Please sign in</body></html>", "text/html")
