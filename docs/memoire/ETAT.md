@@ -14,12 +14,12 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Recent work (2026-11-21/23): missing-episode video downloads, landscape poster crop, Projection web theme (`theme/projection.css`), gallery typed by shape + multi-selection, people networks/backdrops, paginated dump APIs and dump seasons analysed like API seasons, missing-episode numbering (D009, committed in 41544ee).
 
 ## Déployé
-- Last successful deployment: 505e251, develop, 2026-11-25
+- Last successful deployment: 49b9351, develop, 2026-11-25
 
 ## En cours
 - Projection theme moved to the compact sheet + wall of season posters (D017), committed on develop (19f6bfd) on 2026-11-25 with the `tools/ui-test/theme-*.mjs` seed and audit (a33c721); not on `main` yet. Header adapted to the backdrop committed in 164e57b.
-- Committed and deployed: `develop` = `origin/develop` at 505e251 (includes the served theme route D018: Custom CSS `@import url("../CustomMetadata/Theme/projection.css")`).
-- Theme script (D019) + backdrop at its own ratio: uncommitted as of 2026-11-25 (`Services/ThemeScriptMiddleware.cs`, `theme/projection.js`, `EnableThemeScript`, CSS 9c). Plugin code changed: commit, deploy, then turn on « Améliorations du thème Projection » (Settings tab) and reload with Ctrl+F5. Untested: trailer hover preview, real base URL.
+- Served theme route (D018): Custom CSS `@import url("../CustomMetadata/Theme/projection.css")`. Header « Affiche » for series and movies (backdrop + poster, poster only, typographic) and the picture-built header for seasons and episodes added on 2026-11-26 (see D017 note).
+- Theme script (D019) + backdrop at its own ratio: committed (17fdd9c) and deployed (49b9351) on 2026-11-25 (`Services/ThemeScriptMiddleware.cs`, `theme/projection.js`, `EnableThemeScript`, CSS 9c). Remaining for the maintainer: turn on « Améliorations du thème Projection » (Settings tab) and reload with Ctrl+F5. Untested: trailer hover preview, real base URL.
 - Untracked: `theme/previews/` (PNG screenshots: never commit).
 
 ## Prochaines étapes
