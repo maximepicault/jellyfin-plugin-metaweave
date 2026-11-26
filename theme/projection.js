@@ -375,11 +375,26 @@
         var still = item.Type === 'Episode' && !isStill && item.ImageTags && item.ImageTags.Primary
             ? client().getImageUrl(item.Id, { type: 'Primary', tag: item.ImageTags.Primary, maxWidth: 800, quality: 92 }) : null;
         var purl = still || posterUrl(item, 700);
-        if (purl) {
-            var poster = bill.insertBefore(el('img', NS + 'aff-poster' + (still ? ' ' + NS + 'aff-still' : '')), bill.firstChild);
+        if (still) {
+            // the still plays the episode's preview on hover, like an episode card (previewHost), and opens it large on a
+            // click when there is a preview video
+            var sleeve = bill.insertBefore(el('div', NS + 'aff-poster ' + NS + 'aff-still'), bill.firstChild);
+            sleeve.setAttribute('data-id', item.Id);
+            var shot = sleeve.appendChild(el('img'));
+            shot.alt = item.Name; shot.src = still;
+            previewInfo(item.Id).then(function (info) {
+                if (!info || !(info.Source || info.Clip)) { return; }
+                sleeve.classList.add(NS + 'aff-still-preview');
+                sleeve.title = 'Aperçu · ' + previewOrigin(info).label;
+                sleeve.tabIndex = 0; sleeve.setAttribute('role', 'button'); sleeve.setAttribute('aria-label', sleeve.title);
+                sleeve.addEventListener('click', function () { openPreview(item, info); });
+                sleeve.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openPreview(item, info); } });
+            });
+            bill.classList.add(NS + 'has-poster', NS + 'has-still');
+        } else if (purl) {
+            var poster = bill.insertBefore(el('img', NS + 'aff-poster'), bill.firstChild);
             poster.alt = ''; poster.src = purl;
             bill.classList.add(NS + 'has-poster');
-            if (still) { bill.classList.add(NS + 'has-still'); }
         }
         return box;
     }
@@ -674,8 +689,10 @@
     var hoverTimer = null, preview = null;
     function previewHost(target) {
         // an episode card (rows, next up, continue watching) or a row of a season page
-        var card = target.closest && target.closest('.card[data-type="Episode"][data-id], .listItem[data-type="Episode"][data-id]');
+        var card = target.closest && target.closest('.card[data-type="Episode"][data-id], .listItem[data-type="Episode"][data-id], .' + NS + 'aff-still[data-id]');
         if (!card) { return null; }
+        // an episode page's still, under the series' backdrop: the still itself is the frame
+        if (card.classList.contains(NS + 'aff-still')) { return { id: card.getAttribute('data-id'), card: card, frame: card }; }
         var frame = card.querySelector('.cardScalable, .listItemImage');
         return frame ? { id: card.getAttribute('data-id'), card: card, frame: frame } : null;
     }
