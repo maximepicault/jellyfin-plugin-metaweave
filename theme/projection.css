@@ -1007,7 +1007,7 @@ html.pj-noimage.layout-desktop .itemDetailPage .itemBackdrop::after { background
    logo (or the title in the serif); under it the billing block of a poster, centred:
    tagline, credits in condensed capitals, facts, then the actions and the synopsis.
    The poster card is not shown: the picture is the poster. --- */
-html.pj-affiche-on.layout-desktop .itemDetailPage { --pj-indent: var(--pj-gutter); }
+html.pj-affiche-on.layout-desktop .itemDetailPage.itemDetailPage { --pj-indent: var(--pj-gutter) !important; }   /* also over the episode page's wider-picture indent */
 html.pj-affiche-on .itemDetailPage .itemBackdrop,
 html.pj-affiche-on.layout-desktop .itemDetailPage .detailImageContainer,
 html.pj-affiche-on .itemDetailPage .pj-canvas-layer { display: none !important; }
@@ -1060,7 +1060,7 @@ html.pj-affiche-on .itemDetailPage .itemDetailsGroup .detailsGroupItem { justify
 }
 .pj-aff-credits b { color: var(--pj-text); font-weight: 600; }
 .pj-aff-facts {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem 1.4rem;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .4rem 1.4rem;
   font-family: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", sans-serif; font-size: 1rem; letter-spacing: .08em; text-transform: uppercase; color: var(--pj-dim);
 }
 .pj-aff-facts .pj-continuing { color: #8fd18b; }
@@ -1068,7 +1068,7 @@ html.pj-affiche-on .itemDetailPage .itemDetailsGroup .detailsGroupItem { justify
 /* a: the series' poster stands on the picture's lower edge, at the left, half on the
    picture and half on the page; the centred billing keeps clear of it */
 .pj-aff-mode-a { --pj-aff-pw: clamp(9.5rem, 14vw, 14rem); }
-.pj-aff-billing.pj-has-poster { position: relative; padding-left: calc(var(--pj-aff-pw) + var(--pj-gutter) * 2); padding-right: calc(var(--pj-aff-pw) + var(--pj-gutter) * 2); min-height: calc(var(--pj-aff-pw) * .6); }
+.pj-aff-billing.pj-has-poster { position: relative; padding-left: calc(var(--pj-aff-pw) + var(--pj-gutter) * 2); padding-right: calc(var(--pj-aff-pw) + var(--pj-gutter) * 2); }
 .pj-aff-mode-a .pj-aff-poster {
   position: absolute; z-index: 3; left: var(--pj-gutter); top: calc(var(--pj-aff-pw) * -.9);
   width: var(--pj-aff-pw); height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--pj-r);
@@ -1110,6 +1110,23 @@ html.pj-aff-b .itemDetailPage .overview { margin-left: 0; }
 .pj-aff-rule { display: block; width: 4.5rem; height: 2px; background: var(--pj-amber); }
 .pj-aff-mode-c .pj-aff-billing { padding: 0; }
 html.pj-aff-c .backgroundContainer { background: var(--pj-bg) !important; }
+
+/* seasons and episodes: the series' logo (or its name, small), "S1 · É3", then the
+   title. On the picture (a), the block sits on its lower third like the logo; beside
+   the poster (b) and in the typographic poster (c) it is in the flow. */
+.pj-aff-brand { display: grid; justify-items: center; gap: .45rem; text-align: center; }
+.pj-aff-mode-a .pj-aff-brand { position: absolute; z-index: 2; left: 6%; right: 6%; bottom: 7%; }
+.pj-aff-series { color: var(--pj-text) !important; text-decoration: none; font-weight: 700; font-size: .85rem; letter-spacing: .1em; text-transform: uppercase; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.pj-aff-series:hover { color: var(--pj-amber) !important; }
+.pj-aff-serieslogo { display: block; max-width: min(22rem, 70vw); max-height: 6rem; width: auto; height: auto; object-fit: contain; filter: drop-shadow(0 4px 16px rgba(0, 0, 0, .55)); }
+.pj-aff-code { font-family: "Barlow Condensed", "Arial Narrow", sans-serif; font-size: 1.05rem; letter-spacing: .1em; text-transform: uppercase; color: var(--pj-amber); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.pj-affiche .pj-aff-title.pj-aff-subtitle { position: static; font-size: clamp(2rem, 4vw, 3.8rem); }
+.pj-affiche .pj-aff-title.pj-aff-subtitle.pj-aff-long { font-size: clamp(1.7rem, 3vw, 2.8rem); }
+.pj-aff-mode-b .pj-aff-brand { justify-items: start; text-align: left; }
+html.pj-affiche-on .itemDetailPage .pj-epnav { justify-content: center; margin-left: auto; margin-right: auto; }
+html.pj-aff-b .itemDetailPage .pj-epnav { justify-content: flex-start; margin-left: 0; }
+.layout-mobile .pj-aff-mode-b .pj-aff-brand { justify-items: center; text-align: center; }
+.layout-mobile .pj-affiche .pj-aff-title.pj-aff-subtitle { font-size: clamp(1.6rem, 7vw, 2.4rem); }
 
 /* phones: the picture full width, the logo over it, the billing under it */
 .layout-mobile .pj-aff-frame { width: 100%; }

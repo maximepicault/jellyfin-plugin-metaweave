@@ -182,7 +182,7 @@
         var tryNext = function (i) {
             if (headerFor !== item.Id) { return null; }
             if (i >= list.length) {
-                if (item.Type === 'Series' || item.Type === 'Movie') { return posterAffiche(page, item); }
+                if (item.Type === 'Series' || item.Type === 'Movie' || item.Type === 'Season' || item.Type === 'Episode') { return posterAffiche(page, item); }
                 setNoImage(); return null;
             }
             return loadImage(list[i]).then(function (img) {
@@ -220,7 +220,7 @@
         // in the page itself, behind its content: the picture scrolls with the text (in jellyfin-web's fixed backdrop
         // layer it stayed while the synopsis scrolled up onto its bright sky)
         // a series or a movie: the poster ("Affiche"); a season or an episode: the picture behind the header
-        if (page && item && (item.Type === 'Series' || item.Type === 'Movie')) {
+        if (page && item && (item.Type === 'Series' || item.Type === 'Movie' || item.Type === 'Season' || item.Type === 'Episode')) {
             page.insertBefore(affiche(item, url), page.querySelector('.detailPageWrapperContainer') || page.firstChild);
             root.classList.add(NS + 'affiche-on', NS + 'aff-a');
         } else if (page) {
@@ -252,11 +252,16 @@
     // a: a landscape backdrop whole on top, the logo on its lower third, the series' poster standing on its lower edge;
     // b: no backdrop, a poster: the poster itself is the affiche, large on a band lit by its own colours;
     // c: no picture at all: a typographic affiche, the title set large in the serif.
+    // the poster: the item's own (series, movie, season); an episode's is its series' (its own picture is a still)
     function posterUrl(item, height) {
+        if (item.Type === 'Episode') {
+            return item.SeriesId && item.SeriesPrimaryImageTag ? client().getImageUrl(item.SeriesId, { type: 'Primary', tag: item.SeriesPrimaryImageTag, maxHeight: height || 900, quality: 92 }) : null;
+        }
         var tag = item.ImageTags && item.ImageTags.Primary;
         return tag ? client().getImageUrl(item.Id, { type: 'Primary', tag: tag, maxHeight: height || 900, quality: 92 }) : null;
     }
     function brand(item, holder, cls) {
+        if (item.Type === 'Season' || item.Type === 'Episode') { return subBrand(item, holder); }
         var logoTag = item.ImageTags && item.ImageTags.Logo;
         if (logoTag) {
             var logo = holder.appendChild(el('img', NS + 'aff-logo ' + (cls || '')));
@@ -266,6 +271,22 @@
             // a long name is set smaller, so it stays a title and not a wall of letters
             holder.appendChild(el('h1', NS + 'aff-title ' + (item.Name.length > 26 ? NS + 'aff-long ' : '') + (cls || ''), item.Name));
         }
+    }
+    // a season or an episode: the series' logo (or name, small), linked to the series, then "S1 · É3" and the title
+    function subBrand(item, holder) {
+        var c = client();
+        var box = holder.appendChild(el('div', NS + 'aff-brand'));
+        var link = box.appendChild(el('a', NS + 'aff-series'));
+        link.href = detailsHref(item.SeriesId);
+        if (item.ParentLogoItemId && item.ParentLogoImageTag) {
+            var logo = link.appendChild(el('img', NS + 'aff-serieslogo'));
+            logo.alt = item.SeriesName || '';
+            logo.src = c.getImageUrl(item.ParentLogoItemId, { type: 'Logo', tag: item.ParentLogoImageTag, maxWidth: 700, quality: 95 });
+        } else {
+            link.textContent = item.SeriesName || '';
+        }
+        if (item.Type === 'Episode') { var code = epCode(item); if (code) { box.appendChild(el('span', NS + 'aff-code', code)); } }
+        box.appendChild(el('h1', NS + 'aff-title ' + NS + 'aff-subtitle' + (item.Name.length > 30 ? ' ' + NS + 'aff-long' : ''), item.Name));
     }
     function affiche(item, url) {
         var box = mark(el('section', NS + 'affiche ' + NS + 'aff-mode-a'));
@@ -339,6 +360,16 @@
         var credits = el('p', NS + 'aff-credits');
         var text = function (t) { credits.appendChild(document.createTextNode(t)); };
         var names = function (list) { list.forEach(function (p, i) { if (i) { text(i === list.length - 1 ? ' et ' : ', '); } credits.appendChild(el('b', null, p.Name)); }); };
+        if (item.Type === 'Episode' || item.Type === 'Season') {
+            // an episode's credits: who directed and wrote it, its guests
+            var directors = people.filter(function (p) { return p.Type === 'Director'; }).slice(0, 2);
+            var writers = people.filter(function (p) { return p.Type === 'Writer'; }).slice(0, 2);
+            var guests = people.filter(function (p) { return p.Type === 'GuestStar'; }).slice(0, 3);
+            var part = function (label, list) { if (!list.length) { return; } if (credits.childNodes.length) { text('   '); } text(label); names(list); };
+            part('Réalisé par ', directors); part('Écrit par ', writers); part('Avec ', guests);
+            if (credits.childNodes.length) { bill.appendChild(credits); }
+            studios = []; actors = []; makers = [];
+        }
         if (studios.length) { text(studios.join(' et ') + (studios.length > 1 ? ' présentent ' : ' présente ')); }
         if (actors.length) { names(actors); }
         if (makers.length) { text((actors.length || studios.length ? ' dans ' : '') + (item.Type === 'Movie' ? 'un film de ' : 'une série de ')); names(makers); }
@@ -346,7 +377,16 @@
         // the facts line: status and years, length, rating, score
         var facts = bill.appendChild(el('div', NS + 'aff-facts'));
         var fact = function (t, cls) { if (t) { facts.appendChild(el('span', cls ? NS + cls : null, t)); } };
-        if (item.Type === 'Series') {
+        if (item.Type === 'Season') {
+            var n = item.ChildCount, left = item.UserData ? item.UserData.UnplayedItemCount : null;
+            if (n) { fact(n + (n > 1 ? ' épisodes' : ' épisode')); }
+            if (left) { fact(left + ' à voir', 'continuing'); } else if (item.UserData && item.UserData.Played) { fact('Vue'); }
+            if (item.ProductionYear) { fact(String(item.ProductionYear)); }
+        } else if (item.Type === 'Episode') {
+            if (item.PremiereDate) { try { fact(new Date(item.PremiereDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })); } catch (e) { /* no date */ } }
+            if (item.RunTimeTicks >= 600000000) { var em = Math.round(item.RunTimeTicks / 600000000); fact(em >= 60 ? Math.floor(em / 60) + ' h ' + String(em % 60).padStart(2, '0') : em + ' min'); }
+            if (item.UserData && item.UserData.Played) { fact('Vu', 'continuing'); }
+        } else if (item.Type === 'Series') {
             var ended = item.Status === 'Ended', end = item.EndDate ? new Date(item.EndDate).getFullYear() : null;
             if (item.Status) { fact(ended ? 'Terminée' : 'En cours', ended ? 'ended' : 'continuing'); }
             if (item.ProductionYear) { fact(ended && end && end !== item.ProductionYear ? item.ProductionYear + '–' + end : 'Depuis ' + item.ProductionYear); }
