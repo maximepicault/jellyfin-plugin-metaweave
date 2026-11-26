@@ -46,17 +46,29 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     return (null, null);
                 }
 
-                var episodeTag = TagParser.Extract(Path.GetFileName(episode.Path));
+                // the episode's keys: every tag of its file name (a file may join several API episodes), then its custom id
+                var keys = TagParser.ExtractAll(Path.GetFileName(episode.Path)).ToList();
+                var ownId = CustomId.Get(episode.ProviderIds);
+                if (!string.IsNullOrEmpty(ownId) && !keys.Contains(ownId, StringComparer.OrdinalIgnoreCase)) { keys.Add(ownId); }
+
+                // its season: the tag of the file's folder, else the season item's custom id (a folder named "Season 1")
                 var folder = Path.GetDirectoryName(episode.Path);
                 var seasonTag = string.IsNullOrEmpty(folder) ? null : TagParser.Extract(Path.GetFileName(folder));
-                if (string.IsNullOrEmpty(episodeTag) || string.IsNullOrEmpty(seasonTag))
+                if (string.IsNullOrEmpty(seasonTag) && episode.Season != null)
                 {
+                    seasonTag = TagParser.Extract(Path.GetFileName(episode.Season.Path ?? string.Empty)) ?? CustomId.Get(episode.Season.ProviderIds);
+                }
+
+                if (keys.Count == 0 || string.IsNullOrEmpty(seasonTag))
+                {
+                    _logger.LogInformation("🎞️ [PREVIEW] '{Episode}': no preview lookup ({Reason})", episode.Name, keys.Count == 0 ? "the file carries no tag" : "no season tag");
                     return (null, null);
                 }
 
                 var source = _sourceResolver.GetSourceByPrefix(_sourceResolver.ExtractPrefixFromId(seasonTag));
                 if (source == null || string.IsNullOrWhiteSpace(source.EpisodeListEndpoint))
                 {
+                    _logger.LogInformation("🎞️ [PREVIEW] '{Episode}': season {Season} has no source with an episode list", episode.Name, seasonTag);
                     return (null, null);
                 }
 
@@ -83,7 +95,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     _logger.LogInformation("🎞️ [PREVIEW] Season {Season}: {Count} preview video(s) in the episode list", seasonTag, urls.Count);
                 }
 
-                return known.Urls.TryGetValue(episodeTag, out var found) ? (found, known.Source) : (null, null);
+                foreach (var key in keys)
+                {
+                    if (known.Urls.TryGetValue(key, out var found)) { return (found, known.Source); }
+                }
+
+                _logger.LogDebug("🎞️ [PREVIEW] '{Episode}': no preview for {Keys} in season {Season}", episode.Name, string.Join(", ", keys), seasonTag);
+                return (null, null);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

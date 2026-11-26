@@ -597,7 +597,10 @@
         video.addEventListener('playing', function () { started = true; });
         var giveUp = function () { if (started) { return; } stop(); if (fallback) { fallback(); } };
         video.addEventListener('error', giveUp);
-        var guard = setTimeout(giveUp, 4000);   // a file the browser cannot decode never starts (a 404 fails at once)
+        // a 404 or a codec the browser cannot decode fires "error" at once; the guard only covers a source that never
+        // answers (a slow preview host or a first episode-list lookup can take several seconds: that is not a failure)
+        var guard = setTimeout(giveUp, 15000);
+        video.addEventListener('loadedmetadata', function () { clearTimeout(guard); guard = setTimeout(giveUp, 8000); });
         video.src = src;
         var p = video.play(); if (p && p.catch) { p.catch(function () { /* autoplay refused: the guard falls back */ }); }
         var stop = function () {
@@ -613,19 +616,29 @@
     function clipUrl(item) { return client().getUrl('CustomMetadata/Preview/' + item.Id + '/Clip', { api_key: token() }); }
     // the file itself only when it is light: a Blu-ray or 4K file would cost tens or hundreds of MB per hover
     var MAX_PREVIEW_BITRATE = 12000000;
-    // a narrow (portrait) preview: an ambient light around it, like YouTube's: the playing frame drawn large and soft
-    // behind the video, refreshed slowly, so the frame glows in the video's own colours instead of black bars
+    // a narrow (portrait) preview: an ambient light around it, like YouTube's: no picture, only soft clouds of the
+    // video's own colours (its four corners), which drift slowly from one colour to the next as the video plays
     function ambientLight(layer, video) {
         layer.classList.add(NS + 'preview-narrow');
-        var glow = layer.insertBefore(el('canvas', NS + 'preview-glow'), layer.firstChild);
-        glow.width = 32; glow.height = 18;
-        var g = glow.getContext('2d');
+        var glow = layer.insertBefore(el('div', NS + 'preview-glow'), layer.firstChild);
+        var cv = document.createElement('canvas'); cv.width = 4; cv.height = 4;
+        var g = cv.getContext('2d', { willReadFrequently: true });
+        var avg = function (x, y, w, h) {
+            var d = g.getImageData(x, y, w, h).data, r = 0, gr = 0, b = 0, n = d.length / 4;
+            for (var i = 0; i < d.length; i += 4) { r += d[i]; gr += d[i + 1]; b += d[i + 2]; }
+            return 'rgb(' + Math.round(r / n) + ', ' + Math.round(gr / n) + ', ' + Math.round(b / n) + ')';
+        };
         var paint = function () {
             if (!video.videoWidth || video.readyState < 2) { return; }
-            try { g.drawImage(video, 0, 0, glow.width, glow.height); } catch (e) { /* a cross-origin frame cannot be read: the ink stays */ }
+            try {
+                g.drawImage(video, 0, 0, 4, 4);
+                glow.style.setProperty('--pj-glow-1', avg(0, 0, 2, 2));
+                glow.style.setProperty('--pj-glow-2', avg(0, 2, 2, 2));
+                glow.style.setProperty('--pj-glow-3', avg(2, 0, 2, 2));
+                glow.style.setProperty('--pj-glow-4', avg(2, 2, 2, 2));
+            } catch (e) { /* a cross-origin frame cannot be read: the ink stays */ }
         };
-        var timer = setInterval(paint, 1000);
-        video.addEventListener('seeked', paint);
+        var timer = setInterval(paint, 1500);
         video.addEventListener('playing', paint);
         return { stop: function () { clearInterval(timer); } };
     }

@@ -1165,14 +1165,25 @@ html:is(.pj-canvas, .pj-noimage) .itemDetailPage .detailLogo { display: none !im
 }
 .pj-preview.pj-preview-on { opacity: 1; }
 .pj-preview-video { width: 100%; height: 100%; object-fit: contain; display: block; background: var(--pj-bg); }
-/* a narrow (portrait) preview: an ambient light around the video, like YouTube's: its own
-   frame, tiny and stretched (a soft glow by itself), dimmed, behind it */
+/* a narrow (portrait) preview: an ambient light around the video, like YouTube's: soft
+   clouds of its own colours (its four corners), semi-transparent, that drift from one
+   colour to the next (registered properties, so the colours themselves transition) */
+@property --pj-glow-1 { syntax: "<color>"; inherits: false; initial-value: rgba(0, 0, 0, 0); }
+@property --pj-glow-2 { syntax: "<color>"; inherits: false; initial-value: rgba(0, 0, 0, 0); }
+@property --pj-glow-3 { syntax: "<color>"; inherits: false; initial-value: rgba(0, 0, 0, 0); }
+@property --pj-glow-4 { syntax: "<color>"; inherits: false; initial-value: rgba(0, 0, 0, 0); }
 .pj-preview-narrow { display: block; }
 .pj-preview-narrow .pj-preview-video { position: relative; z-index: 1; background: transparent; }
 .pj-preview-glow {
-  position: absolute; inset: -12%; width: 124%; height: 124%; opacity: .5;
-  filter: blur(18px) saturate(1.1) brightness(.8); transition: opacity .4s;
+  position: absolute; inset: 0; opacity: .55; pointer-events: none;
+  background:
+    radial-gradient(ellipse 55% 65% at 12% 22%, var(--pj-glow-1), transparent 72%),
+    radial-gradient(ellipse 55% 65% at 12% 78%, var(--pj-glow-2), transparent 72%),
+    radial-gradient(ellipse 55% 65% at 88% 22%, var(--pj-glow-3), transparent 72%),
+    radial-gradient(ellipse 55% 65% at 88% 78%, var(--pj-glow-4), transparent 72%);
+  transition: --pj-glow-1 1.4s ease, --pj-glow-2 1.4s ease, --pj-glow-3 1.4s ease, --pj-glow-4 1.4s ease;
 }
+@media (prefers-reduced-motion: reduce) { .pj-preview-glow { transition: none; } }
 .pj-preview-pic {
   aspect-ratio: var(--pj-preview-ratio, 16 / 9); max-width: 100%; max-height: 100%; width: 100%;
   background-repeat: no-repeat; image-rendering: auto;
