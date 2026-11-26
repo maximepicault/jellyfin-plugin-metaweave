@@ -85,6 +85,7 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddSingleton(sp => new EpisodePreviewService(
                 sp.GetRequiredService<CustomApiClient>(),
                 sp.GetRequiredService<SourceResolver>(),
+                sp.GetRequiredService<LocalSourceStore>(),
                 sp.GetRequiredService<ILogger<EpisodePreviewService>>()));
             // Preview clips built with ffmpeg for episodes without a source preview (PreviewClipsTask)
             serviceCollection.AddSingleton(sp => new PreviewClipService(

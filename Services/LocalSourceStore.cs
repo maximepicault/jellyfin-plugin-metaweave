@@ -755,6 +755,23 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             return null;
         }
 
+        /// <summary>
+        /// The preview video a local episode gives to the file tagged "prefix-id": its own episode, or the local data laid over
+        /// another source's episode. Null when no local episode names the tag or it brings no preview of its own (empty, or still
+        /// the API's value from the import: <see cref="DropUnchangedFromApi"/>).
+        /// </summary>
+        public (SourceConfiguration Source, string Url)? FindEpisodePreview(string tag)
+        {
+            var found = FindOverride(tag, "episode");
+            if (found?.Node is not LocalEpisode episode)
+            {
+                return null;
+            }
+
+            var url = EpisodeJson(episode).TryGetValue("preview", out var preview) ? ((Dictionary<string, object>)preview)["url"] as string : null;
+            return url == null ? null : (found.Value.Source, url);
+        }
+
         // ---- Serving in place of the API ------------------------------------------------------------------------
 
         /// <summary>Answers a "local://local/videos/abc" URL as the API would (200 + JSON, or 404)</summary>

@@ -15,9 +15,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     /// <summary>
     /// The preview video of a REAL (file-backed) episode, for the Projection theme's hover preview. Missing episodes get theirs
     /// as a trailer (<see cref="MissingEpisodeService"/>); a real episode cannot hold one (D: trailers are rebuilt from disk), so
-    /// the URL is looked up on demand: the episode list of the season named by the tag of the file's folder, the entry whose key
-    /// is the file's first tag, its <c>PreviewUrl</c> (EpisodeListMapping.PreviewUrl) made absolute. Lists are kept 30 minutes:
-    /// hovering a row of episodes asks for each of them.
+    /// the URL is looked up on demand. First the local sources: a preview typed or uploaded on the local episode that names one
+    /// of the file's tags wins, wherever the season comes from (<see cref="LocalSourceStore.FindEpisodePreview"/>, read live).
+    /// Otherwise the episode list of the season named by the tag of the file's folder, the entry whose key is one of the file's
+    /// tags, its <c>PreviewUrl</c> (EpisodeListMapping.PreviewUrl) made absolute. Lists are kept 30 minutes: hovering a row of
+    /// episodes asks for each of them.
     /// </summary>
     public class EpisodePreviewService
     {
@@ -25,14 +27,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         private readonly CustomApiClient _apiClient;
         private readonly SourceResolver _sourceResolver;
+        private readonly LocalSourceStore _localStore;
         private readonly ILogger _logger;
         private readonly ConcurrentDictionary<string, (DateTime At, SourceConfiguration Source, Dictionary<string, string> Urls)> _seasons
             = new ConcurrentDictionary<string, (DateTime, SourceConfiguration, Dictionary<string, string>)>(StringComparer.OrdinalIgnoreCase);
 
-        public EpisodePreviewService(CustomApiClient apiClient, SourceResolver sourceResolver, ILogger logger)
+        public EpisodePreviewService(CustomApiClient apiClient, SourceResolver sourceResolver, LocalSourceStore localStore, ILogger logger)
         {
             _apiClient = apiClient;
             _sourceResolver = sourceResolver;
+            _localStore = localStore;
             _logger = logger;
         }
 
@@ -50,6 +54,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var keys = TagParser.ExtractAll(Path.GetFileName(episode.Path)).ToList();
                 var ownId = CustomId.Get(episode.ProviderIds);
                 if (!string.IsNullOrEmpty(ownId) && !keys.Contains(ownId, StringComparer.OrdinalIgnoreCase)) { keys.Add(ownId); }
+
+                // what the user typed or uploaded in a local source wins over any episode list (an API's, which knows nothing of it)
+                foreach (var key in keys)
+                {
+                    var local = _localStore.FindEpisodePreview(key);
+                    if (local != null)
+                    {
+                        _logger.LogDebug("🎞️ [PREVIEW] '{Episode}': preview of {Key} from the local source '{Source}'", episode.Name, key, local.Value.Source.Name);
+                        return (local.Value.Url, local.Value.Source);
+                    }
+                }
 
                 // its season: the tag of the file's folder, else the season item's custom id (a folder named "Season 1")
                 var folder = Path.GetDirectoryName(episode.Path);

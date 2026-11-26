@@ -1,7 +1,8 @@
 // Preview video of a local episode (uploaded file or link) in the REAL Jellyfin: REST for the server side, Playwright for the editor.
 // Usage: node local-preview-video-real.mjs <base_url> <out_dir> [user] [password]   (needs ffmpeg on the host to make the test video)
 // Seeds a local source "ov" with a declared episode of the season "dm-a1" (it becomes a virtual episode), uploads a video,
-// checks the refusals, the ranged anonymous playback, the trailer Jellyfin creates and that it probes (duration), then
+// checks the refusals, the ranged anonymous playback, that a REAL episode named by a local episode gets that video as its
+// hover preview (over the API's), the trailer Jellyfin creates and that it probes (duration), then
 // the editor (player, link, "Retirer"). Restores the configuration and deletes the local data.
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
@@ -53,7 +54,6 @@ const config = JSON.parse(JSON.stringify(original));
 const browser = await chromium.launch({ channel: 'chrome' });
 try {
   const dm = config.Sources.find(s => (s.Prefix || '').toLowerCase() === 'dm');
-  dm.EpisodeListEndpoint = '';   // no API list: the local season's list is taken as is
   config.Sources = config.Sources.filter(s => s.Prefix !== 'ov');
   config.Sources.push({ Name: 'Aperçus', Prefix: 'ov', Enabled: true, SourceType: 'Local', LocalDataId: DATA, BaseUrl: 'local://local',
     VideoEndpoint: '/videos/{id}', SourceEndpoint: '/sources/{id}', SeriesEndpoint: '/series/{id}', EpisodeListEndpoint: '/sources/{id}/videos' });
@@ -83,7 +83,26 @@ try {
     check('playback: the big file is served too', head.status === 206);
   }
 
+  // ---- a REAL episode (it has its file) named by a local episode: the hover preview is the uploaded video (API list kept)
+  const items = (await api('GET', `/Items?userId=${auth.User.Id}&IncludeItemTypes=Episode&Recursive=true&IsMissing=false&Fields=Path`)).json;
+  const tagged = (pick(items, 'Items') || []).map(e => ({ id: pick(e, 'Id'), tag: (/\{(dm-[\w-]+)\}[^/]*$/.exec(pick(e, 'Path') || '') || [])[1] })).filter(e => e.tag);
+  const real = tagged.find(e => e.tag === 'dm-a3v1') || tagged[0];   // a3v1 has a preview in the API: the local one must win
+  check('real episode: one tagged file found in the demo library', !!real, String(tagged.length));
+  if (real) {
+    await api('PUT', `/CustomMetadata/Local/${DATA}`, { Version: 1, Series: [{ Id: 'pvs', Title: 'Série', Seasons: [{ Id: 'pvx', Title: 'Saison', Episodes: [{ Id: real.tag, PreviewUrl: url }] }] }] });
+    const info = (await api('GET', `/CustomMetadata/Preview/${real.id}/Info`)).json;
+    check(`real episode ${real.tag}: its preview comes from the local source`, pick(info, 'Source') === true && pick(info, 'SourceIsLocal') === true, JSON.stringify(info));
+    const hover = await fetch(`${J}/CustomMetadata/Preview/${real.id}`, { headers: { Authorization: AUTH } });
+    const body = Buffer.from(await hover.arrayBuffer());
+    check(`real episode ${real.tag}: the hover preview is the uploaded video`, hover.status === 200 && body.equals(bytes), `${hover.status}, ${body.length} bytes (expected ${bytes.length})`);
+    await api('PUT', `/CustomMetadata/Local/${DATA}`, { Version: 1, Series: [{ Id: 'pvs', Title: 'Série', Seasons: [{ Id: 'pvx', Title: 'Saison', Episodes: [{ Id: real.tag }] }] }] });
+    const after = (await api('GET', `/CustomMetadata/Preview/${real.id}/Info`)).json;
+    check(`real episode ${real.tag}: preview removed locally → no longer the local one, at once`, pick(after, 'SourceIsLocal') === false, JSON.stringify(after));
+  }
+
   // ---- the episode becomes a virtual episode whose preview is the uploaded file
+  dm.EpisodeListEndpoint = '';   // no API list: the local season's list is taken as is
+  await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
   const put = await api('PUT', `/CustomMetadata/Local/${DATA}`, { Version: 1, Series: [{ Id: 'dm-aventuriers', Title: 'Les Aventuriers', Seasons: [{ Id: 'dm-a1', Title: 'Saison 2024',
     Episodes: [{ Id: 'pv1', Title: 'Épisode avec aperçu', IndexNumber: 9, PreviewUrl: url }] }] }] });
   check('save: the episode keeps its local video address', put.status === 200 && JSON.stringify(put.json).includes(url), String(put.status));
