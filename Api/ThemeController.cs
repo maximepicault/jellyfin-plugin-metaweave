@@ -13,19 +13,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     /// <summary>The Projection theme's files, embedded in the DLL (theme/projection.css, theme/projection.js).</summary>
     public static class ThemeAssets
     {
-        private static readonly Lazy<(byte[] Data, string ETag)> CssFile = new(() => Load("projection.css"));
-        private static readonly Lazy<(byte[] Data, string ETag)> JsFile = new(() => Load("projection.js"));
+        private static readonly Lazy<(byte[] Data, string ETag)> CssFile = new(() => Load("theme.projection.css"));
+        private static readonly Lazy<(byte[] Data, string ETag)> JsFile = new(() => Load("theme.projection.js"));
+        private static readonly Lazy<(byte[] Data, string ETag)> GalleryFile = new(() => Load("web.gallery.js"));
 
         public static (byte[] Data, string ETag) Css => CssFile.Value;
 
         public static (byte[] Data, string ETag) Js => JsFile.Value;
 
+        /// <summary>The episode photo gallery's script (web/gallery.js), served by PhotosController</summary>
+        public static (byte[] Data, string ETag) Gallery => GalleryFile.Value;
+
         /// <summary>Changes with the script's content: the injected tag carries it, so browsers fetch a new script at once.</summary>
-        public static string ScriptVersion => (JsFile.Value.ETag ?? "0").Trim('"');
+        public static string ScriptVersion => Version(JsFile.Value);
+
+        public static string GalleryVersion => Version(GalleryFile.Value);
+
+        private static string Version((byte[] Data, string ETag) file) => (file.ETag ?? "0").Trim('"');
 
         private static (byte[] Data, string ETag) Load(string file)
         {
-            using var stream = typeof(ThemeAssets).Assembly.GetManifestResourceStream("Jellyfin.Plugin.CustomMetadata.theme." + file);
+            using var stream = typeof(ThemeAssets).Assembly.GetManifestResourceStream("Jellyfin.Plugin.CustomMetadata." + file);
             if (stream == null)
             {
                 return (null, null);

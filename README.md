@@ -79,6 +79,26 @@ The **Personnes** screen holds the directory (add by identifier from a people so
 
 Include these files in your backups: local sources and the people directory exist nowhere else.
 
+## Episode photo gallery (optional)
+
+Turn on « Galerie photos des épisodes » in the plugin’s settings, then reload jellyfin-web (Ctrl+F5). An episode that has photos gets a « Photos » button: a wall of its photos at their own ratios, and a full-size viewer (arrows, Escape, swipe). It works with or without the web theme, in the web client only.
+
+Photos come from two places, listed in this order:
+
+1. the images of type **Photo** in the episode’s gallery of a local source (an episode of the source itself, or local data laid over another source’s episode through its tag). They are shown on missing episodes too, and are never applied as the episode’s image;
+2. the sub-folder of the video’s folder named after the episode number Jellyfin knows: `3`, `03`, `E03`, or a range such as `03-04` (JPEG, PNG, WebP, GIF, AVIF; natural order; hidden files and links leaving the folder are ignored).
+
+```
+Season 01/
+  Show - S01E03.mkv
+  03/            <- photos of episode 3
+    img001.jpg
+```
+
+The same photos are offered in **Edit images → Search** (« Photos de l’épisode »), to pick one as the episode image; a scan or a refresh never picks one by itself. With the gallery on, a numbered folder holding photos and no video stays out of the library (otherwise Jellyfin may list it as an empty season; one already created disappears at the next scan). Thumbnails are cached in Jellyfin’s cache folder (`custom-metadata/photo-thumbs`).
+
+If you used the separate « Episode Gallery » plugin, uninstall it: your folders work as they are.
+
 ## Web theme (optional)
 
 `theme/projection.css` is a dark theme for jellyfin-web 10.11, usable with or without the plugin: detail pages whose header adapts to the item (with a backdrop, a band of about half a screen shows the picture and the title and synopsis sit on its lower edge; without one, a compact header with no empty band), a series' seasons as a wall of large posters where watched seasons shrink in place (made for series with dozens of seasons), episodes as a grid of 16:9 cards (rows on phones), missing episodes shown as empty frames. Put one of these lines in Dashboard → General → Custom CSS code:

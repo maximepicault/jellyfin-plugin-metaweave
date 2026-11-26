@@ -45,6 +45,8 @@
     <!-- Projection web theme, served by Api/ThemeController (CustomMetadata/Theme/projection.css, projection.js) -->
     <EmbeddedResource Include="theme\projection.css" LogicalName="Jellyfin.Plugin.CustomMetadata.theme.projection.css" />
     <EmbeddedResource Include="theme\projection.js" LogicalName="Jellyfin.Plugin.CustomMetadata.theme.projection.js" />
+    <!-- Episode photo gallery script, served by Api/PhotosController (CustomMetadata/Photos/gallery.js) -->
+    <EmbeddedResource Include="web\gallery.js" LogicalName="Jellyfin.Plugin.CustomMetadata.web.gallery.js" />
   </ItemGroup>
 
 </Project>

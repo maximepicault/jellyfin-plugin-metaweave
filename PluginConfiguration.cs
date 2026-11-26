@@ -112,6 +112,13 @@ namespace Jellyfin.Plugin.CustomMetadata
         public bool EnableThemeScript { get; set; } = false;
 
         /// <summary>
+        /// Episode photo gallery: a "Photos" button on an episode's page (web/gallery.js, added by ThemeScriptMiddleware,
+        /// with or without the theme) showing the local source's photos and the numbered folder next to the video, also
+        /// offered in the image search. Off by default: it adds a script to jellyfin-web.
+        /// </summary>
+        public bool EnableEpisodePhotos { get; set; } = false;
+
+        /// <summary>
         /// Creates virtual (greyed-out) episodes for the missing episodes detected through EpisodeListEndpoint
         /// Visible with the user setting "Show missing episodes in seasons"
         /// </summary>

@@ -37,6 +37,12 @@ namespace Jellyfin.Plugin.CustomMetadata
             // Projection theme: adds its script to jellyfin-web's page when EnableThemeScript is on (ThemeScriptMiddleware)
             serviceCollection.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, ThemeScriptStartupFilter>();
 
+            // Episode photo gallery: numbered folders and local "Photo" images, thumbnails, signed links for the image search
+            serviceCollection.AddSingleton<EpisodePhotoService>();
+            serviceCollection.AddSingleton<EpisodePhotoThumbnails>();
+            serviceCollection.AddSingleton<EpisodePhotoLinks>();
+            serviceCollection.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, EpisodePhotoDownloadStartupFilter>();
+
             serviceCollection.AddSingleton<PersonNetworkStore>();
             // Lets the person-network link providers answer their real names once Jellyfin has sorted them (see PersonNetworkUrlProvider.Ready)
             serviceCollection.AddHostedService<Providers.PersonNetworkReadyService>();

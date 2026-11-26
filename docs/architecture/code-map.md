@@ -16,6 +16,7 @@
 | `ScheduledTasks/` | `MissingEpisodesTask` (daily, key `CustomMetadataMissingEpisodes`) |
 | `tools/ui-test/` | Test bench (Docker Jellyfin 10.11.6 on 8097, mock API `server.py`, demo data `data.py`/`gen.py`, CDP/Playwright scripts) |
 | `deploy/` | Server-side updater (systemd timer) and its sandbox test |
+| `web/gallery.js` | Episode photo gallery script, embedded in the DLL, added to jellyfin-web’s page by `ThemeScriptMiddleware` when `EnableEpisodePhotos` is on |
 | `theme/projection.css`, `theme/projection.js` | Optional jellyfin-web theme (D013) and its optional script, embedded in the DLL and served by `ThemeController`; `Services/ThemeScriptMiddleware.cs` adds the script to jellyfin-web's page |
 
 ## 2. Wiring
@@ -26,8 +27,9 @@
 |---|---|---|
 | `CustomSeriesProvider`, `CustomSeasonProvider`, `CustomEpisodeProvider`, `CustomMetadataProvider` (movies) | `IRemoteMetadataProvider<T, TInfo>` | Metadata per item type (§3) |
 | `CustomImageProvider` | `IRemoteImageProvider` | Images for all types, picker URLs, download (`GetImageResponse`) |
+| `EpisodePhotoImageProvider` | `IRemoteImageProvider` | Offers an episode’s photos in the interactive image search only |
 | `CustomExternalId` | `IExternalId` | Shows `ProviderIds["custom"]` in the metadata editor; `Key` is always `"custom"` |
-| `ImageFolderIgnoreRule` | `IResolverIgnoreRule` | Keeps image sub-folders (`Primary/`, `Backdrop/`…) of a tagged series/season out of the library |
+| `ImageFolderIgnoreRule` | `IResolverIgnoreRule` | Keeps image sub-folders (`Primary/`, `Backdrop/`…) of a tagged series/season out of the library, and numbered photo folders when the photo gallery is on |
 | `PreviewMediaSourceProvider` | `IMediaSourceProvider` | Makes a virtual episode playable through its preview trailer (`PreviewMapper`) |
 | `PersonNetworkSlot00…` (`PersonNetworkUrlProviders.cs`) | `IExternalUrlProvider` | Fixed pool of link slots on Jellyfin's person page, filled at runtime from `PersonNetworkStore` |
 | `MissingEpisodesTask` | `IScheduledTask` | Runs `MissingEpisodeService.AnalyzeAsync`, then `CastApplyService.SyncUntaggedAsync` (cast of the tag-less children of cascading series/seasons) |
@@ -40,6 +42,7 @@
 | `MetadataCacheService` | `IMemoryCache` | `CustomApiClient` |
 | `LocalSourceStore` | lazy `PeopleStore`, local API URL | `CustomApiClient`, `ResilientHttp`, `CustomImageProvider`, `MissingEpisodeService`, `CastApplyService`, Local/FolderImages/People controllers |
 | `PeopleStore` | `LocalSourceStore` | providers (cast), `CastApplyService`, `MissingEpisodeService`, People controller |
+| `EpisodePhotoService`, `EpisodePhotoThumbnails`, `EpisodePhotoLinks` (+ `EpisodePhotoDownloadStartupFilter`) | library, users, `LocalSourceStore`, app paths | Photos controller, `EpisodePhotoImageProvider` (resolved through `IServiceProvider`) |
 | `PersonNetworkStore` (+ hosted `PersonNetworkReadyService`) | — | person link slots, People controller |
 | `DumpStore` | `IHttpClientFactory` | `CustomApiClient`, `ResilientHttp`, episode/movie/image providers, `SourceRefreshService`, Dump/SourceTest controllers |
 | `CustomApiClient` (owns its `JsonFieldMapper` and `ResilientHttp`) | cache, `LocalSourceStore`, `DumpStore` | every provider and most services |
@@ -121,6 +124,7 @@ All under the plugin's `DataFolderPath` unless noted (a temp-folder fallback exi
 | `cast-backdrops.json`, `cast-inherited.json` | `CastApplyService` |
 | `missing-episodes.json` (report), `missing-ignored.json` | `MissingEpisodeService` |
 | `missing-episodes-cache/{seasonId}.json` | `MissingEpisodeCache` |
+| `{CachePath}/custom-metadata/photo-thumbs/` (Jellyfin’s cache folder) | `EpisodePhotoThumbnails` |
 | `taxonomy.json`, `taxonomy-seen.json` | `TaxonomyStore` |
 | `diagnostic.json` | `DiagnosticService` |
 | memory only: dump catalogues, download history, refresh status, CORS choice, image origins | `DumpStore`, `VideoDownloadService`, `SourceRefreshService`, `SourceHeaders.OriginMemory`, `CustomImageProvider.ImageSourcePrefixes` |
@@ -135,6 +139,7 @@ All under the plugin's `DataFolderPath` unless noted (a temp-folder fallback exi
 | `Refresh`, `Refresh/Status` | `SourceRefreshController` → `SourceRefreshService` | `config.html` |
 | `Local/{dataId}`, `/Image`, `/Video`, `/Public/{file}`, `ImportEpisodes` | `LocalSourceController` → `LocalSourceStore` | `config.html`, `people.html` (photo upload) |
 | `FolderImages/{itemId}/{folder}/{file}` (anonymous GET), `FolderImages/Import` | `FolderImagesController` → `FolderImages`, `LocalSourceStore` | Jellyfin image picker, `config.html` |
+| `Photos/{itemId}`, `/Image/{key}`, `/Thumb/{key}` (any signed-in user who sees the item); `Photos/Remote/{itemId}/{key}` (anonymous, signed); `Photos/gallery.js` (anonymous) | `PhotosController` → `EpisodePhotoService`, `EpisodePhotoThumbnails`, `EpisodePhotoLinks` | `web/gallery.js`, Jellyfin image search (`episode-photos.md`) |
 | `Theme/projection.css` (anonymous GET, ETag, revalidated on every load) | `ThemeController` → `theme/projection.css` embedded in the DLL | the server's Custom CSS (`@import url("../CustomMetadata/Theme/projection.css")`) |
 | `Theme/projection.js` (anonymous GET, ETag, revalidated on every load) | `ThemeController` → `theme/projection.js` embedded in the DLL (`ThemeAssets`) | jellyfin-web's index.html, where `ThemeScriptMiddleware` (an `IStartupFilter` registered by `PluginServiceRegistrator`) inserts the script tag when `EnableThemeScript` is on |
 | `Preview/{itemId}` (any signed-in user, `api_key` in the URL; Range forwarded) | `PreviewController` → `EpisodePreviewService` (first a local episode's own preview, `LocalSourceStore.FindEpisodePreview`, read live; else the season episode list, 30 min cache) | the theme script's hover preview of a real episode: its source's `preview.url`, streamed with the source's headers |

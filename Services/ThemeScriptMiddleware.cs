@@ -26,14 +26,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     }
 
     /// <summary>
-    /// When <c>EnableThemeScript</c> is on, adds the Projection theme's script to jellyfin-web's index.html as it is
-    /// served: <c>&lt;script defer src="../CustomMetadata/Theme/projection.js?v=…"&gt;</c>. Nothing is written to the
-    /// server's web folder (often read-only, and replaced by every Jellyfin update); turning the setting off restores
-    /// the stock page at the next load. The relative path works under a base URL.
+    /// Adds the plugin's scripts to jellyfin-web's index.html as it is served: the Projection theme's
+    /// (<c>EnableThemeScript</c>, CustomMetadata/Theme/projection.js) and the episode photo gallery's
+    /// (<c>EnableEpisodePhotos</c>, CustomMetadata/Photos/gallery.js). Nothing is written to the server's web folder
+    /// (often read-only, and replaced by every Jellyfin update); turning a setting off restores the stock page at the
+    /// next load. The relative paths work under a base URL.
     /// </summary>
     public class ThemeScriptMiddleware
     {
-        private const string Marker = "data-projection-theme";
+        private const string ThemeMarker = "data-projection-theme";
+        private const string GalleryMarker = "data-episode-photos";
         private readonly RequestDelegate _next;
         private readonly ILogger<ThemeScriptMiddleware> _logger;
 
@@ -45,7 +47,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         public async Task InvokeAsync(HttpContext context)
         {
-            if (!IsIndexRequest(context.Request) || !(Plugin.Instance?.Configuration?.EnableThemeScript ?? false))
+            var config = Plugin.Instance?.Configuration;
+            var theme = config?.EnableThemeScript ?? false;
+            var gallery = config?.EnableEpisodePhotos ?? false;
+            if (!IsIndexRequest(context.Request) || !(theme || gallery))
             {
                 await _next(context);
                 return;
@@ -75,17 +80,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 var html = Encoding.UTF8.GetString(buffer.ToArray());
                 var at = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
-                if (at >= 0 && !html.Contains(Marker, StringComparison.Ordinal))
+                var tags = new StringBuilder();
+                if (theme && !html.Contains(ThemeMarker, StringComparison.Ordinal))
                 {
-                    var tag = "<script defer " + Marker + " src=\"../CustomMetadata/Theme/projection.js?v=" + ThemeAssets.ScriptVersion + "\"></script>";
-                    html = html.Insert(at, tag);
+                    tags.Append("<script defer " + ThemeMarker + " src=\"../CustomMetadata/Theme/projection.js?v=" + ThemeAssets.ScriptVersion + "\"></script>");
+                }
+
+                if (gallery && !html.Contains(GalleryMarker, StringComparison.Ordinal))
+                {
+                    tags.Append("<script defer " + GalleryMarker + " src=\"../CustomMetadata/Photos/gallery.js?v=" + ThemeAssets.GalleryVersion + "\"></script>");
+                }
+
+                if (at >= 0 && tags.Length > 0)
+                {
+                    html = html.Insert(at, tags.ToString());
                     var bytes = Encoding.UTF8.GetBytes(html);
                     response.ContentLength = bytes.Length;
                     response.Headers.Remove("ETag");
                     response.Headers.Remove("Last-Modified");
                     response.Headers["Cache-Control"] = "no-cache";
                     await original.WriteAsync(bytes);
-                    _logger.LogDebug("🎨 [THEME] script added to {Path}", context.Request.Path);
+                    _logger.LogDebug("🎨 [THEME] script(s) added to {Path} (theme: {Theme}, photos: {Photos})", context.Request.Path, theme, gallery);
                     return;
                 }
             }

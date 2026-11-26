@@ -553,6 +553,7 @@
                             <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Récupérer les images</span><span class="cm-row-hint">Affiches, fonds, miniatures, logos et bannières.</span></span><input type="checkbox" class="cm-switch" id="chkEnableImages" /></label>
                             <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Importer le casting</span><span class="cm-row-hint">Acteurs, réalisateurs, scénaristes… (champ « Cast » des mappings).</span></span><input type="checkbox" class="cm-switch" id="chkEnableCasting" /></label>
                             <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Améliorations du thème Projection</span><span class="cm-row-hint">Ajoute le script du thème aux pages de Jellyfin : aperçu des épisodes au survol, numéros « S1 · É3 », épisode précédent / suivant, progression des séries. À utiliser avec le thème (CSS personnalisé <code>@import url("../CustomMetadata/Theme/projection.css");</code>). Rechargez la page (Ctrl+F5) après avoir changé ce réglage.</span></span><input type="checkbox" class="cm-switch" id="chkEnableThemeScript" /></label>
+                            <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Galerie photos des épisodes</span><span class="cm-row-hint">Ajoute un bouton « Photos » sur la page d'un épisode qui en a : les images de type « Photo » de sa source locale, puis celles du sous-dossier nommé d'après son numéro à côté de la vidéo (<code>03</code>, <code>03-04</code>…). Elles sont aussi proposées dans « Modifier les images » → Rechercher. Fonctionne avec ou sans le thème. Rechargez la page (Ctrl+F5) après avoir changé ce réglage.</span></span><input type="checkbox" class="cm-switch" id="chkEnableEpisodePhotos" /></label>
                             <label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Ajouter les épisodes manquants à la médiathèque</span><span class="cm-row-hint">Crée des épisodes virtuels (grisés) pour ceux que l'API liste mais qui n'ont pas de fichier. Visibles avec le réglage utilisateur « Afficher les épisodes manquants dans les saisons ». Analyse : tâche planifiée « Détecter les épisodes manquants » ou <a class="cm-link" href="#/configurationpage?name=CustomMetadataMissingEpisodes">écran Épisodes manquants</a>.</span></span><input type="checkbox" class="cm-switch" id="chkCreateVirtualEpisodes" /></label>
                             <div class="cm-row cm-row-static"><label class="cm-row-text" for="txtMaxParallelDownloads"><span class="cm-row-title">Téléchargements simultanés</span><span class="cm-row-hint">Nombre de vidéos téléchargées en même temps par le téléchargement automatique des épisodes manquants (1 à 8). 1 = un à la fois. Plus de téléchargements parallèles vont plus vite, mais chargent la bande passante, le disque et le serveur d&#x27;origine : certains refusent plusieurs connexions.</span></label><div class="inputContainer"><input is="emby-input" type="number" id="txtMaxParallelDownloads" name="txtMaxParallelDownloads" min="1" max="8" aria-label="Téléchargements simultanés" /></div></div>
                             <div class="cm-row cm-row-static"><label class="cm-row-text" for="txtDefaultSourceName"><span class="cm-row-title">Nom de source par défaut</span><span class="cm-row-hint">Utilisé quand l'API ne renvoie pas de titre et que le dossier ne contient que le tag {PRÉFIXE-ID}.</span></label><div class="inputContainer"><input is="emby-input" type="text" id="txtDefaultSourceName" name="txtDefaultSourceName" aria-label="Nom de source par défaut" /></div></div>
@@ -1425,6 +1426,7 @@
                     document.querySelector('#chkEnableImages').checked = config.EnableImages !== false;
                     document.querySelector('#chkEnableCasting').checked = config.EnableCasting !== false;
                     document.querySelector('#chkEnableThemeScript').checked = config.EnableThemeScript === true;
+                    document.querySelector('#chkEnableEpisodePhotos').checked = config.EnableEpisodePhotos === true;
                     document.querySelector('#chkCreateVirtualEpisodes').checked = config.CreateVirtualEpisodes !== false;
                     document.querySelector('#txtDefaultSourceName').value = config.DefaultSourceName || '';
                     document.querySelector('#chkEnableCache').checked = config.EnableCache !== false;
@@ -1466,6 +1468,7 @@
                 currentConfig.EnableImages = document.querySelector('#chkEnableImages').checked;
                 currentConfig.EnableCasting = document.querySelector('#chkEnableCasting').checked;
                 currentConfig.EnableThemeScript = document.querySelector('#chkEnableThemeScript').checked;
+                currentConfig.EnableEpisodePhotos = document.querySelector('#chkEnableEpisodePhotos').checked;
                 currentConfig.CreateVirtualEpisodes = document.querySelector('#chkCreateVirtualEpisodes').checked;
                 currentConfig.DefaultSourceName = document.querySelector('#txtDefaultSourceName').value;
                 currentConfig.EnableCache = document.querySelector('#chkEnableCache').checked;
@@ -3529,19 +3532,21 @@
             var galSel = null;   // {key, i}: the gallery image selected in the editor
             var galMulti = null; // {key, idx[]}: several gallery images selected at once (Ctrl/Shift+click, "Tout sélectionner")
             var GALLERY_FIELD = { Primary: 'Poster', Backdrop: 'Backdrop', Logo: 'Logo', Banner: 'Banner', Thumb: 'Thumb' };
-            var GALLERY_LABELS = { Primary: 'Affiche', Backdrop: 'Fond', Logo: 'Logo', Banner: 'Bannière', Thumb: 'Miniature' };
-            // Every type is offered for every kind (the provider supports them all); the first one is the fallback type
-            function galleryTypes(kind) { return kind === 'episode' ? ['Thumb', 'Primary', 'Backdrop', 'Logo', 'Banner'] : ['Primary', 'Backdrop', 'Logo', 'Banner', 'Thumb']; }
+            var GALLERY_LABELS = { Primary: 'Affiche', Backdrop: 'Fond', Logo: 'Logo', Banner: 'Bannière', Thumb: 'Miniature', Photo: 'Photo' };
+            // Every image type is offered for every kind (the provider supports them all); the first one is the fallback type.
+            // "Photo" exists on episodes only: shown in the episode's photo gallery, never applied as an image (no default)
+            function galleryTypes(kind) { return kind === 'episode' ? ['Thumb', 'Primary', 'Backdrop', 'Logo', 'Banner', 'Photo'] : ['Primary', 'Backdrop', 'Logo', 'Banner', 'Thumb']; }
 
             // Extra images of a node: all offered in Jellyfin's "Modifier les images", the fields above stay the default ones
             function galleryBlock(n, kind) {
                 var list = n.Gallery || [];
                 var html = '<div class="cm-gallery cm-span" id="lfGallery"><div><strong>Galerie d\'images</strong><div class="cm-hint">Toutes ces images sont proposées, avec aperçu, dans « Modifier les images » de Jellyfin : plus besoin de les ranger dans les dossiers de la série. Les champs ci-dessus restent les images appliquées par défaut. Les <strong>fonds</strong> forment un diaporama : « Appliquer les images » les applique tous ; pour les autres types, seule l\'image par défaut est retenue.'
+                    + (kind !== 'episode' ? '' : '<br>Le type <strong>Photo</strong> va dans la galerie photos de l\'épisode (bouton « Photos » sur sa page, à activer dans l\'onglet Réglages) et n\'est jamais appliqué comme image. Pour en envoyer plusieurs, choisissez « Photo » dans le menu avant « Envoyer des fichiers… ». Le sous-dossier numéroté à côté de la vidéo (<code>03</code>) est lu aussi, sans rien importer.')
                     + (kind === 'episode' ? '' : '<br>Vous pouvez aussi déposer des images dans des <strong>sous-dossiers du dossier ' + (kind === 'series' ? 'de la série' : 'de la saison') + '</strong> nommés <code>Primary</code>, <code>Backdrop</code>, <code>Logo</code>, <code>Banner</code> ou <code>Thumb</code> (ou Principal, Fond, Bannière, Miniature) : elles sont proposées dans « Modifier les images » sans rien faire de plus. « Importer depuis les dossiers » les copie en plus dans cette galerie.')
                     + '</div></div>';
                 // Default image of a type: the single field above when it is filled, otherwise the FIRST gallery image of that type
                 var types = galleryTypes(kind), firstOf = {};
-                types.forEach(function(t) { if (t !== 'Backdrop' && !n[GALLERY_FIELD[t]]) { for (var k = 0; k < list.length; k++) { if (list[k].Type === t && !list[k].NoDefault) { firstOf[t] = k; break; } } } });
+                types.forEach(function(t) { if (t !== 'Backdrop' && t !== 'Photo' && !n[GALLERY_FIELD[t]]) { for (var k = 0; k < list.length; k++) { if (list[k].Type === t && !list[k].NoDefault) { firstOf[t] = k; break; } } } });
                 var slideRank = {}, rank = n.Backdrop ? 1 : 0;
                 list.forEach(function(g, i) { if (g.Type === 'Backdrop') { rank++; slideRank[i] = rank; } });
                 var selected = galSel && galSel.key === localSel && !galSel.field && list[galSel.i] ? galSel.i : -1;
@@ -3571,7 +3576,7 @@
                     var selButtons = '<button is="emby-button" type="button" class="raised" data-gal-act="all"><span>Tout sélectionner</span></button>'
                         + '<button is="emby-button" type="button" class="raised" data-gal-act="sametype"' + (selected >= 0 ? '' : ' disabled') + ' title="Sélectionne toutes les images du même type que l\'image sélectionnée"><span>Tout le même type</span></button>';
                     if (isMulti) {
-                        var flaggable = multiIdx.filter(function(k) { return list[k].Type !== 'Backdrop'; });
+                        var flaggable = multiIdx.filter(function(k) { return list[k].Type !== 'Backdrop' && list[k].Type !== 'Photo'; });
                         var allFlagged = flaggable.length > 0 && flaggable.every(function(k) { return list[k].NoDefault; });
                         html += '<div class="cm-gal-actions"><span class="cm-hint" style="margin:0;">' + plural(multiIdx.length, 'image sélectionnée', 'images sélectionnées') + '. Ctrl+clic ajoute ou retire une image, Maj+clic sélectionne une plage.</span>'
                             + '<select data-gal-retype aria-label="Changer le type des images sélectionnées" title="Change le type de toutes les images sélectionnées"><option value="">Changer le type…</option>' + typeOptions + '</select>'
@@ -3581,7 +3586,7 @@
                     } else {
                         html += '<div class="cm-gal-actions"><span class="cm-hint" style="margin:0;">' + (chosen ? 'Image sélectionnée : ' + escapeHtml(GALLERY_LABELS[chosen.Type]) : 'Cliquez sur une image pour la sélectionner.') + '</span>'
                         + (chosen ? '<select data-gal-retype aria-label="Type de l\'image sélectionnée" title="Changer le type de l\'image sélectionnée">' + galleryTypes(kind).map(function(t) { return '<option value="' + t + '"' + (t === chosen.Type ? ' selected' : '') + '>' + GALLERY_LABELS[t] + '</option>'; }).join('') + '</select>' : '')
-                        + '<button is="emby-button" type="button" class="raised" data-gal-act="default"' + (!chosen || (chosenIsDefault && !canDemote && !selectedField) ? ' disabled' : '') + '><span>' + (canDemote ? 'Ne plus utiliser par défaut' : (chosen && chosen.Type === 'Backdrop' ? 'Placer en tête du diaporama' : 'Utiliser comme image par défaut')) + '</span></button>'
+                        + '<button is="emby-button" type="button" class="raised" data-gal-act="default"' + (!chosen || chosen.Type === 'Photo' || (chosenIsDefault && !canDemote && !selectedField) ? ' disabled' : '') + '><span>' + (canDemote ? 'Ne plus utiliser par défaut' : (chosen && chosen.Type === 'Backdrop' ? 'Placer en tête du diaporama' : 'Utiliser comme image par défaut')) + '</span></button>'
                         + '<button is="emby-button" type="button" class="raised" data-gal-act="remove"' + (chosen ? '' : ' disabled') + '><span>Retirer</span></button>' + selButtons + '</div>';
                     }
                 }
@@ -4483,7 +4488,7 @@
                             var ref = galSel && galSel.key === localSel && !galSel.field ? glist[galSel.i] : null;
                             if (ref) { var same = []; glist.forEach(function(g, k) { if (g.Type === ref.Type) { same.push(k); } }); galMulti = same.length >= 2 ? { key: localSel, idx: same } : null; }
                         } else if (act === 'mflag') {
-                            var flag = midx.filter(function(k) { return glist[k].Type !== 'Backdrop'; });
+                            var flag = midx.filter(function(k) { return glist[k].Type !== 'Backdrop' && glist[k].Type !== 'Photo'; });
                             var restore = flag.length > 0 && flag.every(function(k) { return glist[k].NoDefault; });
                             flag.forEach(function(k) { if (restore) { delete glist[k].NoDefault; } else { glist[k].NoDefault = true; } });
                             markDirty();

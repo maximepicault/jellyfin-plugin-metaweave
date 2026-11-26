@@ -603,7 +603,28 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             node.Gallery = CleanGallery(node.Gallery);
         }
 
-        public static readonly string[] GalleryTypes = { "Primary", "Backdrop", "Logo", "Banner", "Thumb" };
+        /// <summary>An episode's photo: shown in its photo gallery (EpisodePhotoService), never served as an image to apply</summary>
+        public const string PhotoType = "Photo";
+
+        public static readonly string[] GalleryTypes = { "Primary", "Backdrop", "Logo", "Banner", "Thumb", PhotoType };
+
+        /// <summary>The file of an uploaded image ("local://img/{dataId}/{file}"), or null</summary>
+        public static string ImageFile(string url)
+        {
+            if (!IsLocalImageUrl(url))
+            {
+                return null;
+            }
+
+            var parts = url.Substring(ImageUrlPrefix.Length).Split('/');
+            if (parts.Length != 2 || !IsValidDataId(parts[0]) || !ImageFilePattern.IsMatch(parts[1]))
+            {
+                return null;
+            }
+
+            var path = Path.Combine(ImagesFolder(parts[0]), parts[1]);
+            return File.Exists(path) ? path : null;
+        }
 
         /// <summary>Known type (any case), non-empty address, no duplicate pair, at most 1000 images per node</summary>
         private static List<LocalImage> CleanGallery(List<LocalImage> gallery)
@@ -847,9 +868,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             Put(json, "banner", node.Banner);
             Put(json, "logo", node.Logo);
             Put(json, "thumb", node.Thumb);
-            if (node.Gallery?.Count > 0)
+            // photos stay out of the served images: nothing may apply them (or offer them as another type)
+            var images = node.Gallery?.Where(g => g.Type != PhotoType).ToList();
+            if (images?.Count > 0)
             {
-                json["images"] = node.Gallery.Select(g =>
+                json["images"] = images.Select(g =>
                 {
                     var entry = new Dictionary<string, object> { ["type"] = g.Type, ["url"] = g.Url };
                     if (g.NoDefault) { entry["noDefault"] = true; }

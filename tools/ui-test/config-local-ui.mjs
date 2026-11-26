@@ -158,7 +158,14 @@ try {
   await shot('L3b-image-uploaded-1440');
   // Gallery: extra images by type, offered in Jellyfin's image picker
   await ltab('images');
-  check('gallery: block shown for an episode with Miniature and Affiche', (await vis('#lfGallery')) && (await ev(`Array.from(document.querySelectorAll('#lfGalType option')).map(function(o){return o.value;}).join()`)) === 'auto,Thumb,Primary,Backdrop,Logo,Banner');
+  check('gallery: block shown for an episode with Miniature and Affiche', (await vis('#lfGallery')) && (await ev(`Array.from(document.querySelectorAll('#lfGalType option')).map(function(o){return o.value;}).join()`)) === 'auto,Thumb,Primary,Backdrop,Logo,Banner,Photo');
+  // a "Photo" goes to the episode gallery only: never a default image
+  await ev(`var s=document.querySelector('#lfGalType'); s.value='Photo'; true`); await type('#lfGalUrl', 'https://img.test/photo.jpg'); await click('[data-gal-url]'); await wait(250);
+  await click('#lfGallery [data-gal-sel="0"]'); await wait(200);
+  await shot('L3b2-gallery-photo-1440');
+  check('gallery: a Photo has no default badge and cannot be made the default', (await ev(`document.querySelector('#lfGallery .cm-gal-pick .cm-gal-meta').textContent`)) === 'Photo' && (await ev(`document.querySelector('[data-gal-act="default"]').disabled`)) === true);
+  await click('[data-gal-act="remove"]'); await wait(200);
+  await ev(`var s2=document.querySelector('#lfGalType'); s2.value='auto'; true`);
   await type('#lfGalUrl', 'https://img.test/a.jpg');
   await click('[data-gal-url]'); await wait(250);
   check('gallery: an address is added with its type', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-item:not(.cm-gal-default)').length`)) === 1 && (await ev(`document.querySelector('#lfGallery .cm-gal-meta span').textContent`)) === 'Miniature');
