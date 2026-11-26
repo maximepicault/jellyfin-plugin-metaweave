@@ -303,7 +303,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     continue;
                 }
 
-                using var stream = new MemoryStream(data);
+                using var stream = new MemoryStream(ExifOrientation.KeepLandscape(data, _logger, url));
                 await _providerManager.SaveImage(item, stream, mime, ImageType.Backdrop, index++, cancellationToken);
             }
 

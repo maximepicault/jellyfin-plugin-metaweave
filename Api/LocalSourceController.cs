@@ -200,12 +200,15 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public IActionResult GetPublicImage(string dataId, string file)
+        public IActionResult GetPublicImage(string dataId, string file, [FromQuery] string landscape = null)
         {
             if (!_store.TryReadImage(dataId, file, out var data, out var mime))
             {
                 return NotFound();
             }
+
+            // a backdrop (provider address with ?landscape=1): the picker previews what Jellyfin will download
+            if (landscape == "1") { data = ExifOrientation.KeepLandscape(data, null, file); }
 
             Response.Headers["Cache-Control"] = "private, max-age=3600";
             return File(data, mime);

@@ -522,6 +522,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
                 async Task Apply(ImageType type, int index, byte[] data, string mime)
                 {
+                    // a backdrop stays landscape: an EXIF rotation would show its landscape pixels portrait (ExifOrientation)
+                    if (type == ImageType.Backdrop && data != null) { data = ExifOrientation.KeepLandscape(data, _logger, item.Name); }
+
                     if (data == null || data.Length == 0 || Sha(data) == CurrentSha(type, index))
                     {
                         return;
