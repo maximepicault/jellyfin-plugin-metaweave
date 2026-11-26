@@ -79,17 +79,25 @@
         if (!id || !page.classList.contains('itemDetailPage')) { return; }
         var ribbon = page.querySelector('.detailRibbon');
         if (!ribbon || !page.querySelector('.detailRibbon .itemName')) { return; }   // not rendered yet
-        // same item and our additions still there: nothing to do (jellyfin-web re-renders the ribbon when the user
-        // marks an item watched, which wipes them: then they are added again)
-        if (page.getAttribute('data-pj-for') === id && !(Number(page.getAttribute('data-pj-count') || 0) > page.querySelectorAll('[data-pj]').length)) { return; }
+        // same item and our additions still there: nothing to add (jellyfin-web re-renders the ribbon when the user
+        // marks an item watched, which wipes them: then they are added again). The header is checked on its own:
+        // there is one for the whole document, so on a page jellyfin-web kept and shows again (back button) it has
+        // been removed, or built for another page, meanwhile
+        if (page.getAttribute('data-pj-for') === id && !(Number(page.getAttribute('data-pj-count') || 0) > page.querySelectorAll('[data-pj]').length)) {
+            if (page.__pjItem) { canvasHeader(page, page.__pjItem); }
+            return;
+        }
         page.setAttribute('data-pj-for', id);
         page.removeAttribute('data-pj-count');
         page.__pjRows = null;
+        page.__pjItem = null;
         clearOld(page);
         getItem(id, 'RecursiveItemCount,ChildCount').then(function (item) {
             if (page.getAttribute('data-pj-for') !== id) { return; }
             page.setAttribute('data-pj-type', item.Type);
-            canvasHeader(page, item);
+            page.__pjItem = item;
+            // a page already left gets its header when it is shown again (above), not now over the visible one's
+            if (!page.classList.contains('hide')) { canvasHeader(page, item); }
             identity(page, item);
             if (item.Type === 'Episode') { episodePage(page, item).catch(function (e) { warn('episode page', e); }); }
             if (item.Type === 'Series') { seriesPage(page, item).catch(function (e) { warn('series page', e); }); }
@@ -199,25 +207,29 @@
         for (var i = 0; i < 40 && lum(mix) > (target || 0.03); i++) { mix = mix.map(function (v) { return v * 0.9; }); }
         return mix.map(function (v) { return Math.round(v); });
     }
-    var headerFor = null;
+    // the document's one header: { page, id, building }. A new object for each build: whatever was still loading for
+    // an earlier one (even of the same item) sees it was replaced and stops
+    var header = null;
     function canvasHeader(page, item) {
         var root = document.documentElement;
-        // already built for this item (and its layer still in the page: a re-render may have removed it)
-        if (headerFor === item.Id && (root.classList.contains(NS + 'noimage') || (root.classList.contains(NS + 'canvas') && page.querySelector('.' + NS + 'canvas-layer, .' + NS + 'affiche')))) { return; }
-        headerFor = item.Id;
+        // already being built, or built, for this item in this page (and its layer still there: a re-render may have
+        // removed it)
+        if (header && header.page === page && header.id === item.Id && (header.building || root.classList.contains(NS + 'noimage') || (root.classList.contains(NS + 'canvas') && page.querySelector('.' + NS + 'canvas-layer, .' + NS + 'affiche')))) { return; }
+        var own = header = { page: page, id: item.Id, building: true };
         var list = candidates(item);
         var tryNext = function (i) {
-            if (headerFor !== item.Id) { return null; }
+            if (header !== own) { return null; }
             if (i >= list.length) {
-                if (item.Type === 'Series' || item.Type === 'Movie' || item.Type === 'Season' || item.Type === 'Episode') { return posterAffiche(page, item); }
-                setNoImage(); return null;
+                if (item.Type === 'Series' || item.Type === 'Movie' || item.Type === 'Season' || item.Type === 'Episode') { return posterAffiche(page, item, own); }
+                setNoImage(); own.building = false; return null;
             }
             return loadImage(list[i]).then(function (img) {
-                if (headerFor !== item.Id) { return null; }
+                if (header !== own) { return null; }
                 if (!usable(img)) { return tryNext(i + 1); }
                 setCanvas(img, String(list[i]), page, item, !!list[i].still);
+                own.building = false;
                 // the other backdrops join a slideshow once they have loaded (and are landscape and large enough)
-                if (list[i].backdrop) { slideshow(item, list.slice(i + 1).filter(function (u) { return u.backdrop; })); }
+                if (list[i].backdrop) { slideshow(own, list.slice(i + 1).filter(function (u) { return u.backdrop; })); }
                 return null;
             });
         };
@@ -274,7 +286,7 @@
     }
     // the item's other backdrops take turns in the poster's frame, cross-fading every 9 s; the page's colours follow
     var slideTimer = null;
-    function slideshow(item, urls) {
+    function slideshow(own, urls) {
         clearInterval(slideTimer); slideTimer = null;
         if (!urls.length) { return; }
         Promise.all(urls.map(function (u) { return loadImage(String(u)).then(function (img) { return usable(img) ? { img: img, url: String(u) } : null; }); }))
@@ -282,7 +294,7 @@
                 var frame = document.querySelector('.' + NS + 'aff-frame');
                 var first = frame && frame.querySelector('.' + NS + 'aff-img');
                 found = found.filter(Boolean);
-                if (!frame || !first || !found.length || headerFor !== item.Id) { return; }
+                if (!frame || !first || !found.length || header !== own) { return; }
                 var slides = [{ img: document.documentElement.__pjImage, node: first }];
                 found.forEach(function (f) {
                     var node = el('img', NS + 'aff-img ' + NS + 'aff-slide');
@@ -292,7 +304,7 @@
                 });
                 var at = 0;
                 slideTimer = setInterval(function () {
-                    if (headerFor !== item.Id || !document.contains(first)) { clearInterval(slideTimer); slideTimer = null; return; }
+                    if (header !== own || !document.contains(first)) { clearInterval(slideTimer); slideTimer = null; return; }
                     if (document.hidden) { return; }
                     at = (at + 1) % slides.length;
                     slides.forEach(function (sl, k) { sl.node.classList.toggle(NS + 'aff-shown', k === at); });
@@ -398,12 +410,13 @@
         }
         return box;
     }
-    function posterAffiche(page, item) {
+    function posterAffiche(page, item, own) {
         var purl = posterUrl(item, 1000);
         var done = function (img) {
-            if (headerFor !== item.Id) { return null; }
+            if (header !== own) { return null; }
             var root = document.documentElement;
             clearCanvas();
+            own.building = false;
             var box = mark(el('section', NS + 'affiche'));
             box.setAttribute('aria-label', item.Name);
             if (img) {
@@ -491,11 +504,12 @@
         return bill;
     }
 
-    // the header belongs to its detail page only
+    // the header belongs to the detail page it was built in, while that page shows that item: else it is removed
     function leaveCanvas() {
         var page = currentPage();
-        if (page && page.classList.contains('itemDetailPage') && page.getAttribute('data-pj-for') === currentId()) { return; }
-        if (headerFor) { headerFor = null; clearCanvas(); }
+        if (!header || (header.page === page && page.getAttribute('data-pj-for') === currentId())) { return; }
+        header = null;
+        clearCanvas();
     }
     window.addEventListener('resize', function () { sizeCanvas(); });
 
