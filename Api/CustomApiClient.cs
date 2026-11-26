@@ -692,6 +692,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     return (null, null, "Image locale introuvable");
                 }
 
+                // a rotation only in the EXIF tag is turned into the pixels first: Jellyfin's resizer and the 16:9 conversion ignore it
+                localData = ExifOrientation.Normalize(localData, _logger, url);
+
                 if (landscapeIfPortrait && PortraitThumbConverter.ToLandscapeIfPortrait(localData, _logger, url) is byte[] landscapeLocal)
                 {
                     return (landscapeLocal, "image/jpeg", null);

@@ -275,8 +275,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 foreach (var found in results.Where(r => LocalSourceStore.IsLocalImageUrl(r.Url)))
                 {
                     // jellyfin-web previews Url and Jellyfin's own HTTP client downloads it: an absolute address of this server
-                    // a backdrop asks to stay landscape: an EXIF rotation would show its landscape pixels portrait (ExifOrientation)
-                    found.Url = PublicBase() + ToPickerUrl(found.Url) + (found.Type == ImageType.Backdrop ? "?" + KeepLandscapeQuery : string.Empty);
+                    found.Url = PublicBase() + ToPickerUrl(found.Url);
                     found.ThumbnailUrl = found.Url;
                 }
 
@@ -391,9 +390,6 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
         private const string PickerPath = "/CustomMetadata/Local/";
 
-        /// <summary>Query of an uploaded backdrop's address: served with a landscape-to-portrait EXIF rotation removed</summary>
-        internal const string KeepLandscapeQuery = "landscape=1";
-
         /// <summary>
         /// "local://img/{dataId}/{file}" → "/CustomMetadata/Local/{dataId}/Public/{file}" (anonymous endpoint, relative to the Jellyfin address:
         /// what the browser of the image picker previews). The absolute form is what Jellyfin downloads; FromPickerUrl maps both back.
@@ -425,7 +421,6 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
         public async Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)
         {
-            var keepLandscape = url?.Contains("?" + KeepLandscapeQuery, StringComparison.OrdinalIgnoreCase) == true;
             url = FromPickerUrl(url);
 
             // An image of a sub-folder of the series or season folder (library refresh path): read from disk, no network
@@ -476,7 +471,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             {
                 if (_localStore.TryReadImage(url, out var localData, out var localMime))
                 {
-                    if (keepLandscape) { localData = ExifOrientation.KeepLandscape(localData, _logger, url); }
+                    // a rotation only in the EXIF tag: Jellyfin's resizer ignores it, so the pixels are turned here
+                    localData = ExifOrientation.Normalize(localData, _logger, url);
                     response = new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(localData) };
                     response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(localMime);
                 }
