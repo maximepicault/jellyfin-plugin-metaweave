@@ -3604,7 +3604,7 @@
                 return '<div class="cm-bulk"><div><strong>Appliquer les images dans Jellyfin</strong><div class="cm-hint">Remplace les images de ' + escapeHtml(tagOf(n))
                     + (kind === 'episode' ? '' : ' et de ses éléments enfants portant ce préfixe') + ' par les images par défaut ci-dessus (la première de chaque type). Enregistrez d\'abord. Jamais automatique.</div>'
                     + '<div class="cm-hint" id="lfApplyMsg" role="status"></div></div>'
-                    + '<button is="emby-button" type="button" class="raised" data-apply-images="' + nodeKey(kind, n.Id) + '" data-types="' + types.join(',') + '"><span>Appliquer les images</span></button></div>';
+                    + '<button is="emby-button" type="button" class="raised" data-apply-images="' + nodeKey(kind, n.Id) + '" data-apply-kinds="' + types.join(',') + '"><span>Appliquer les images</span></button></div>';
             }
 
             var localTab = 'info';   // sub-tab of the element form, kept from one element to the next
@@ -4181,7 +4181,7 @@
                 var full = isFullTag(hit.node.Id);
                 var prefix = full ? String(hit.node.Id).split('-')[0] : qs('#srcPrefix').value.trim();
                 var tag = full ? hit.node.Id : prefix + '-' + hit.node.Id;
-                var types = (button.getAttribute('data-types') || '').split(',').filter(Boolean);
+                var types = (button.getAttribute('data-apply-kinds') || '').split(',').filter(Boolean);   // not data-types: that attribute shows a field only for some source types
                 button.disabled = true; say('Recherche des éléments…');
                 ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('CustomMetadata/Refresh'),
                     data: JSON.stringify({ Prefix: prefix, Types: types, ReplaceImages: true, Tag: tag, IncludeChildren: hit.kind !== 'episode' }), contentType: 'application/json', dataType: 'json'

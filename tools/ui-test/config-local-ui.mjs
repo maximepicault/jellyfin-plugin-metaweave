@@ -186,6 +186,8 @@ try {
   await click('#lfGallery [data-gal-sel="0"]'); await wait(250);
   await click('[data-gal-act="default"]'); await wait(300);
   check('default: the selected image became the default and the old one took its place', (await ev(`document.querySelectorAll('#lfGallery .cm-gal-pick').length`)) === 2 && (await ev(`document.querySelector('#lfGallery .cm-gal-default .cm-imgprev img') !== null`)));
+  // a data-types attribute on it once matched the editor's per-source-type visibility rule: the button was always hidden
+  check('apply images: the button is visible', await vis('[data-apply-images]'));
   await click('[data-apply-images]'); await wait(600);
   const applied = JSON.parse(await ev(`JSON.stringify(__mock.refresh)`));
   check('apply images: the request targets the tag, replaces images, episode only', /^[a-z]+-[a-z0-9]{6}$/i.test(applied.Tag) && applied.ReplaceImages === true && JSON.stringify(applied.Types) === '["episode"]' && applied.IncludeChildren === false, JSON.stringify(applied));
