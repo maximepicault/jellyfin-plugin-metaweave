@@ -81,6 +81,11 @@ namespace Jellyfin.Plugin.CustomMetadata
                 sp.GetRequiredService<CustomApiClient>(),
                 sp.GetRequiredService<SourceResolver>(),
                 sp.GetRequiredService<ILogger<EpisodePositionService>>()));
+            // Preview video of a real episode (its source's preview.url), for the theme's hover preview (PreviewController)
+            serviceCollection.AddSingleton(sp => new EpisodePreviewService(
+                sp.GetRequiredService<CustomApiClient>(),
+                sp.GetRequiredService<SourceResolver>(),
+                sp.GetRequiredService<ILogger<EpisodePreviewService>>()));
             serviceCollection.AddSingleton<VideoDownloadService>();
             serviceCollection.AddHostedService(sp => sp.GetRequiredService<VideoDownloadService>());
 

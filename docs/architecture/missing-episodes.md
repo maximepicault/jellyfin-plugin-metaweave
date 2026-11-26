@@ -8,6 +8,7 @@
   - `BaseItem.RefreshExtras` rebuilds `ExtraIds` from disk on every refresh and deletes extras it doesn't find.
   - A `-trailer` file in a shared season folder attaches to every episode in it (`ExtraResolver.TryGetExtraTypeForOwner` same-folder rule).
 - Virtual episodes are safe because `RefreshedOwnedItems` requires `IsFileProtocol`.
+- A real episode's preview is still available, without a trailer: `EpisodePreviewService` looks its `PreviewUrl` up in the season's episode list on demand and `PreviewController` (`CustomMetadata/Preview/{itemId}`) streams it. Only the Projection theme script uses it (hover preview).
 - `Providers/PreviewMediaSourceProvider` (`IMediaSourceProvider`, auto-discovered) also returns the preview trailer's media sources as the **virtual episode's own** sources.
   - jellyfin-web's season episode list (`listview` with `imagePlayButton`) shows a play button on every episode thumbnail, virtual ones included.
   - `MediaSourceManager.GetPlaybackMediaSources` drops the virtual episode's `Placeholder` source and keeps dynamic ones, so that button plays the preview.

@@ -554,7 +554,8 @@
             if (!host.card.matches(':hover')) { return null; }
             var fallback = function () { if (item.Trickplay && host.card.matches(':hover')) { trickplayPreview(host, item); } };
             if (item.LocationType === 'Virtual' || item.LocalTrailerCount) { return trailerPreview(host, item, fallback); }
-            return filePreview(host, item, fallback);
+            // a real episode: its source's preview video first (served by the plugin), then its own file
+            return videoPreview(host, sourcePreviewUrl(item), null, function () { filePreview(host, item, fallback); });
         }).catch(function (e) { warn('preview', e); });
     }
     function overlay(host, kind) {
@@ -578,9 +579,14 @@
             video.currentTime = video.duration * segments[k % segments.length];
             k++;
         };
+        var fills = null;
         video.addEventListener('loadedmetadata', function () {
             // the frame takes the video's shape: a portrait video is not cropped to a landscape frame
             if (video.videoWidth && video.videoHeight) { layer.style.setProperty('--pj-preview-ratio', String(video.videoWidth / video.videoHeight)); }
+            // narrower than the frame (a portrait video): the empty sides continue the picture's own edges, band by
+            // band, following the video as it plays (no blur, no black bars)
+            var box = host.frame.getBoundingClientRect();
+            if (video.videoWidth / video.videoHeight < box.width / box.height - 0.05) { fills = edgeFills(layer, video); }
             jump();
             if (segments) { timer = setInterval(jump, 3500); }
         });
@@ -588,20 +594,50 @@
         video.addEventListener('playing', function () { started = true; });
         var giveUp = function () { if (started) { return; } stop(); if (fallback) { fallback(); } };
         video.addEventListener('error', giveUp);
-        var guard = setTimeout(giveUp, 4000);   // a file the browser cannot decode never starts
+        var guard = setTimeout(giveUp, 4000);   // a file the browser cannot decode never starts (a 404 fails at once)
         video.src = src;
         var p = video.play(); if (p && p.catch) { p.catch(function () { /* autoplay refused: the guard falls back */ }); }
         var stop = function () {
             clearInterval(timer); clearTimeout(guard);
+            if (fills) { fills.stop(); }
             try { video.pause(); video.removeAttribute('src'); video.load(); } catch (e) { /* gone */ }
             endPreview(host, layer);
             if (preview && preview.layer === layer) { preview = null; }
         };
         preview = { layer: layer, stop: stop };
     }
+    function sourcePreviewUrl(item) { return client().getUrl('CustomMetadata/Preview/' + item.Id, { api_key: token() }); }
+    // the file itself only when it is light: a Blu-ray or 4K file would cost tens or hundreds of MB per hover
+    var MAX_PREVIEW_BITRATE = 12000000;
+    // the side bands of a narrow preview: the video's left and right edge columns, sampled from the playing frame
+    function edgeFills(layer, video) {
+        layer.classList.add(NS + 'preview-narrow');
+        var left = layer.insertBefore(el('div', NS + 'preview-fill ' + NS + 'preview-fill-l'), layer.firstChild);
+        var right = layer.insertBefore(el('div', NS + 'preview-fill ' + NS + 'preview-fill-r'), layer.firstChild);
+        var cv = document.createElement('canvas'); cv.width = 8; cv.height = 12;
+        var g = cv.getContext('2d', { willReadFrequently: true });
+        var grad = function (x) {
+            var stops = [];
+            for (var y = 0; y < 12; y++) { var d = g.getImageData(x, y, 1, 1).data; stops.push('rgb(' + d[0] + ', ' + d[1] + ', ' + d[2] + ') ' + Math.round((y + 0.5) / 12 * 100) + '%'); }
+            return 'linear-gradient(to bottom, ' + stops.join(', ') + ')';
+        };
+        var paint = function () {
+            if (!video.videoWidth || video.readyState < 2) { return; }
+            try {
+                g.drawImage(video, 0, 0, 8, 12);
+                left.style.background = grad(0);
+                right.style.background = grad(7);
+            } catch (e) { /* a cross-origin frame cannot be read: the ink stays */ }
+        };
+        var timer = setInterval(paint, 300);
+        video.addEventListener('seeked', paint);
+        paint();
+        return { stop: function () { clearInterval(timer); } };
+    }
     function filePreview(host, item, fallback) {
         var c = client(), source = (item.MediaSources || [])[0];
-        if (!source || item.LocationType === 'Virtual') { return fallback(); }
+        if (!source || item.LocationType === 'Virtual' || !host.card.matches(':hover')) { return fallback(); }
+        if (source.Bitrate && source.Bitrate > MAX_PREVIEW_BITRATE) { return fallback(); }
         var src = c.getUrl('Videos/' + item.Id + '/stream', { static: true, MediaSourceId: source.Id, api_key: token() });
         videoPreview(host, src, [0.12, 0.3, 0.48, 0.66, 0.84], fallback);
     }
