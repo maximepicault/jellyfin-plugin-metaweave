@@ -66,6 +66,12 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddSingleton(sp => new SourceResolver(
                 sp.GetRequiredService<ILogger<SourceResolver>>()));
 
+            // Photo albums and photos: which source answers for a folder or a file
+            serviceCollection.AddSingleton(sp => new PhotoLibraryService(
+                sp.GetRequiredService<CustomApiClient>(),
+                sp.GetRequiredService<SourceResolver>(),
+                sp.GetRequiredService<ILogger<PhotoLibraryService>>()));
+
             // Rules on genres and tags: also reachable as TaxonomyStore.Current by the providers and static helpers
             serviceCollection.AddSingleton(sp => new TaxonomyStore(sp.GetRequiredService<ILogger<TaxonomyStore>>()));
             serviceCollection.AddHostedService(sp => sp.GetRequiredService<TaxonomyStore>());

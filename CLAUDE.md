@@ -106,6 +106,7 @@ The per-feature detail lives in `docs/architecture/`. **Read the matching file b
 | `docs/architecture/ui-pages.md` | tab bar, Diagnostic, click-to-fill, confirmations, setup guide, left menu |
 | `docs/architecture/episode-media.md` | local episode preview video, chapters |
 | `docs/architecture/episode-photos.md` | episode photo gallery: photo folders, local « Photo » images, signed links, `web/gallery.js` |
+| `docs/architecture/photo-albums.md` | photo albums and photos: content of a source, album / folder / photo providers, local albums, targeted refresh |
 | `docs/architecture/theme-index.md` | the theme's filtered lists and library screens, `theme/projection-index.js`, the server search `CustomMetadata/Index` (`LibraryIndex*`) |
 | `docs/architecture/taxonomy.md` | genres and tags rules |
 | `docs/architecture/http-and-cache.md` | `ResilientHttp`, headers, CORS, source test, metadata cache |

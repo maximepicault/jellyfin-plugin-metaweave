@@ -27,6 +27,8 @@
 |---|---|---|
 | `CustomSeriesProvider`, `CustomSeasonProvider`, `CustomEpisodeProvider`, `CustomMetadataProvider` (movies) | `IRemoteMetadataProvider<T, TInfo>` | Metadata per item type (§3) |
 | `CustomImageProvider` | `IRemoteImageProvider` | Images for all types, picker URLs, download (`GetImageResponse`) |
+| `CustomPhotoAlbumProvider`, `CustomFolderProvider` | `IRemoteMetadataProvider<PhotoAlbum / Folder, ItemLookupInfo>` | Tagged album folders (`photo-albums.md`) |
+| `CustomPhotoProvider` | `ICustomMetadataProvider<Photo>` (late order, forced) | One photo, after Jellyfin's EXIF provider |
 | `EpisodePhotoImageProvider` | `IRemoteImageProvider` | Offers an episode’s photos in the interactive image search only |
 | `CustomExternalId` | `IExternalId` | Shows `ProviderIds["custom"]` in the metadata editor; `Key` is always `"custom"` |
 | `ImageFolderIgnoreRule` | `IResolverIgnoreRule` | Keeps image sub-folders (`Primary/`, `Backdrop/`…) of a tagged series/season out of the library, and numbered photo folders when the photo gallery is on |
@@ -43,6 +45,7 @@
 | `LocalSourceStore` | lazy `PeopleStore`, local API URL | `CustomApiClient`, `ResilientHttp`, `CustomImageProvider`, `MissingEpisodeService`, `CastApplyService`, Local/FolderImages/People controllers |
 | `PeopleStore` | `LocalSourceStore` | providers (cast), `CastApplyService`, `MissingEpisodeService`, People controller |
 | `EpisodePhotoService`, `EpisodePhotoThumbnails`, `EpisodePhotoLinks` (+ `EpisodePhotoDownloadStartupFilter`) | library, users, `LocalSourceStore`, app paths | Photos controller, `EpisodePhotoImageProvider` (resolved through `IServiceProvider`) |
+| `PhotoLibraryService` | `CustomApiClient`, `SourceResolver` | album and photo providers (`PhotoList` reads an album's photos) |
 | `PersonNetworkStore` (+ hosted `PersonNetworkReadyService`) | — | person link slots, People controller |
 | `DumpStore` | `IHttpClientFactory` | `CustomApiClient`, `ResilientHttp`, episode/movie/image providers, `SourceRefreshService`, Dump/SourceTest controllers |
 | `CustomApiClient` (owns its `JsonFieldMapper` and `ResilientHttp`) | cache, `LocalSourceStore`, `DumpStore` | every provider and most services |
@@ -172,7 +175,7 @@ The tab bar and the in-page confirmation are copied in several pages (no shared 
 ## 8. Configuration model
 
 - Global (`PluginConfiguration`): feature flags (`EnableMetadata`, `EnableImages`, `EnableCasting`), cache, `DefaultSourceName`, `MaxParallelDownloads`, `Sources`, and the legacy single-source fields kept for XML compatibility.
-- Per source (`SourceConfiguration`): `SourceType` (`Api` default / `Local` / `People` / `Dump`, helpers `IsLocal`, `IsPeople`, `IsDump`), prefix, base URL, key, endpoints, `FieldMapping` ×3, `EpisodeListMapping`, `CustomHeaders` (key/value list, not a dictionary), HTTP options (`TimeoutSeconds`, `MaxRetries`, `MaxConcurrentRequests`, `SendOriginReferer` + overrides), image options (`LandscapePortraitThumbs`, `LandscapePosterCrop`), `AutoDownloadVideos`, `DumpSettings`, person mappings, `LocalDataId`.
+- Per source (`SourceConfiguration`): `SourceType` (`Api` default / `Local` / `People` / `Dump`, helpers `IsLocal`, `IsPeople`, `IsDump`), prefix, base URL, key, endpoints, `FieldMapping` ×3, `EpisodeListMapping`, `CustomHeaders` (key/value list, not a dictionary), HTTP options (`TimeoutSeconds`, `MaxRetries`, `MaxConcurrentRequests`, `SendOriginReferer` + overrides), image options (`LandscapePortraitThumbs`, `LandscapePosterCrop`), content (`ContentVideo`, `ContentAlbums`) and the album / photo settings, `AutoDownloadVideos`, `DumpSettings`, person mappings, `LocalDataId`.
 - Adding a mapping field touches C#, the mapper, the page and the tests: follow skill `add-mapping-field`.
 
 ## 9. Change recipes
@@ -196,6 +199,7 @@ The tab bar and the in-page confirmation are copied in several pages (no shared 
 | Missing episodes | `missing-number-real.mjs` (D009), `episode-number-real.mjs`, `download-real.mjs`, `download-parallel-real.mjs`, `downloads-real.mjs`, `local-preview-video-real.mjs`, `chapters-real.mjs` |
 | People and cast | `config-people-real.mjs` (`--quick`: cropper), `config-people-episodes-real.mjs` |
 | Dump | `dump-real.mjs` |
+| Photo albums | `albums-real.mjs <url> <out_dir> <host_media_dir>` |
 | Taxonomy | `taxonomy-real.mjs`, `taxonomy-shots.mjs` |
 | Shared UI | `diagnostic-real.mjs`, `improvements-real.mjs`, `shoot.mjs` |
 | Harness | `ui-test.sh`, `server.py`, `data.py`, `gen.py`, `chrome-session.mjs` (lock + Chrome cleanup), `quiet.mjs` |

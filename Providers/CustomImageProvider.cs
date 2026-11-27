@@ -62,8 +62,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
         public bool Supports(BaseItem item)
         {
-            // Supports movies, series, seasons and episodes
-            return item is Movie || item is Series || item is Season || item is Episode;
+            // Movies, series, seasons, episodes, and tagged album folders (every other folder is left alone, silently)
+            return item is Movie || item is Series || item is Season || item is Episode
+                || (SourceRefreshService.IsAlbum(item) && AlbumTag(item) != null);
         }
 
         /// <summary>
@@ -113,6 +114,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                     Season => "season",
                     Episode => "episode",
                     Movie => "movie",
+                    Folder => "album",
                     _ => "video"
                 };
 
@@ -124,7 +126,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 if (!string.IsNullOrEmpty(prefix))
                 {
                     _logger.LogDebug("🖼️ [IMAGE PROVIDER] 🔍 Extracted prefix '{Prefix}' from ID", prefix);
-                    source = _sourceResolver.GetSourceByPrefix(prefix);
+                    source = _sourceResolver.GetSourceByPrefix(prefix, SourceRefreshService.IsAlbum(item) ? SourceContent.Albums : SourceContent.Video);
                     
                     if (source != null)
                     {
@@ -447,7 +449,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
             string posterOverridePrefix = null;
             if (ImageSourcePrefixes.TryGetValue(url ?? string.Empty, out var origin))
             {
-                source = _sourceResolver.GetSourceByPrefix(origin.Prefix);
+                source = _sourceResolver.GetSourceByPrefix(origin.Prefix, SourceContent.Any);
                 isEpisodeImage = origin.IsEpisodeThumbnail;
                 isPosterImage = origin.IsPoster;
                 posterOverridePrefix = origin.OverridePrefix;
@@ -597,8 +599,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         /// Extracts the item identifier for the API
         /// MULTI-SOURCE: checks that the ID has a prefix, otherwise re-extracts it from the file
         /// </summary>
+        private static string AlbumTag(BaseItem item)
+            => (string.IsNullOrEmpty(item.Path) ? null : TagParser.Extract(TagParser.GetOwnName(item.Path))) ?? CustomId.Get(item.ProviderIds);
+
         private string GetItemIdentifier(BaseItem item)
         {
+            if (SourceRefreshService.IsAlbum(item))
+            {
+                return AlbumTag(item);
+            }
+
             _logger.LogInformation("🖼️ [IMAGE PROVIDER] ========== GetItemIdentifier START ==========");
             _logger.LogInformation("🖼️ [IMAGE PROVIDER] Item.Name: '{ItemName}'", item.Name);
             _logger.LogInformation("🖼️ [IMAGE PROVIDER] Item.Type: {ItemType}", item.GetType().Name);

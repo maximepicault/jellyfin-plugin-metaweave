@@ -22,7 +22,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>Prefix of the sources to refresh: an API source and a local source that share it are one group</summary>
         public string Prefix { get; set; }
 
-        /// <summary>"series", "season", "episode" (empty = all three). A dump source: "episode" and "movie" (empty = both)</summary>
+        /// <summary>"series", "season", "episode", "album", "photo" (empty = everything the sources of the prefix hold). A dump source: "episode" and "movie" (empty = both)</summary>
         public List<string> Types { get; set; } = new List<string>();
 
         /// <summary>Dump sources only: the libraries to look into (ids from Library/VirtualFolders). Empty = every library</summary>
@@ -48,6 +48,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public int Series { get; set; }
         public int Seasons { get; set; }
         public int Episodes { get; set; }
+        public int Albums { get; set; }
+        public int Photos { get; set; }
         public int Movies { get; set; }
 
         /// <summary>Dump sources: "scan" (looking for the files the dump recognises) then "refresh"; empty for the other sources</summary>
@@ -108,7 +110,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private static SourceRefreshStatus Copy(SourceRefreshStatus s) => new SourceRefreshStatus
         {
             Running = s.Running, Prefix = s.Prefix, Total = s.Total, Done = s.Done, Failed = s.Failed,
-            Series = s.Series, Seasons = s.Seasons, Episodes = s.Episodes, Movies = s.Movies, Phase = s.Phase, Scanned = s.Scanned, Matched = s.Matched, StartedAt = s.StartedAt, FinishedAt = s.FinishedAt, Message = s.Message, LocalFilesKept = s.LocalFilesKept
+            Series = s.Series, Seasons = s.Seasons, Episodes = s.Episodes, Albums = s.Albums, Photos = s.Photos, Movies = s.Movies, Phase = s.Phase, Scanned = s.Scanned, Matched = s.Matched, StartedAt = s.StartedAt, FinishedAt = s.FinishedAt, Message = s.Message, LocalFilesKept = s.LocalFilesKept
         };
 
         /// <summary>Finds the items, then refreshes them in the background. Returns at once with the counts.</summary>
@@ -160,6 +162,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     Running = items.Count > 0, Prefix = prefix, Total = items.Count,
                     Series = items.Count(i => i is Series), Seasons = items.Count(i => i is Season), Episodes = items.Count(i => i is Episode),
+                    Albums = items.Count(IsAlbum), Photos = items.Count(i => i is Photo),
                     StartedAt = DateTime.UtcNow, FinishedAt = items.Count > 0 ? null : DateTime.UtcNow
                 };
             }
@@ -172,14 +175,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             var replaceImages = request.ReplaceImages;
-            _logger.LogInformation("🔁 [SOURCE REFRESH] Refreshing {Total} item(s) of prefix '{Prefix}' ({Series} series, {Seasons} seasons, {Episodes} episodes), {Images}",
-                items.Count, prefix, Status().Series, Status().Seasons, Status().Episodes, replaceImages ? "metadata and images" : "metadata only");
+            _logger.LogInformation("🔁 [SOURCE REFRESH] Refreshing {Total} item(s) of prefix '{Prefix}' ({Series} series, {Seasons} seasons, {Episodes} episodes, {Albums} albums, {Photos} photos), {Images}",
+                items.Count, prefix, Status().Series, Status().Seasons, Status().Episodes, Status().Albums, Status().Photos, replaceImages ? "metadata and images" : "metadata only");
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    // Series first, then seasons, then episodes: a child refreshed after its parent sees the parent's new data
-                    await RefreshItemsAsync(items.OrderBy(i => i is Series ? 0 : (i is Season ? 1 : 2)).ToList(), replaceImages);
+                    // Series first, then seasons, then episodes (albums, then photos): a child refreshed after its parent sees the parent's new data
+                    await RefreshItemsAsync(items.OrderBy(i => i is Series || IsAlbum(i) ? 0 : (i is Season ? 1 : 2)).ThenBy(i => i.Path?.Length ?? 0).ToList(), replaceImages);
                 }
                 finally
                 {
@@ -198,12 +201,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         /// <summary>Refreshes the items one at a time (full refresh, plugin cache bypassed); a failure is counted and logged, never fatal</summary>
-        private async Task RefreshItemsAsync(List<BaseItem> items, bool replaceImages)
+        private async Task RefreshItemsAsync(List<BaseItem> items, bool replaceImagesWanted)
         {
             foreach (var item in items)
             {
                 try
                 {
+                    // A photo's image is its own file: never replaced
+                    var replaceImages = replaceImagesWanted && item is not Photo;
                     var watch = System.Diagnostics.Stopwatch.StartNew();
                     long jellyfinMs, imagesMs = 0;
                     var imagesBefore = replaceImages ? ImageSignature(item) : null;
@@ -502,8 +507,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             try
             {
                 var tag = TagsOf(item).FirstOrDefault();
-                var source = tag == null ? null : _resolver.GetSourceByPrefix(_resolver.ExtractPrefixFromId(tag));
-                var kind = item is Series ? "series" : (item is Season ? "season" : "episode");
+                var source = tag == null ? null : _resolver.GetSourceByPrefix(_resolver.ExtractPrefixFromId(tag), IsAlbum(item) ? SourceContent.Albums : SourceContent.Video);
+                var kind = item is Series ? "series" : (item is Season ? "season" : (IsAlbum(item) ? "album" : "episode"));
                 var offered = source == null ? null : await _api.GetImagesAsync(_resolver.ExtractIdWithoutPrefix(tag), kind, source, CancellationToken.None);
                 var images = offered ?? new List<ImageInfo>();
                 var changed = new List<string>();
@@ -745,20 +750,39 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private List<BaseItem> Find(SourceRefreshRequest request, string prefix)
         {
             var wanted = new HashSet<string>(
-                (request.Types == null || request.Types.Count == 0 ? new List<string> { "series", "season", "episode" } : request.Types).Select(t => (t ?? string.Empty).Trim().ToLowerInvariant()));
+                (request.Types == null || request.Types.Count == 0 ? DefaultTypes(prefix) : request.Types).Select(t => (t ?? string.Empty).Trim().ToLowerInvariant()));
             var kinds = new List<BaseItemKind>();
             if (wanted.Contains("series")) { kinds.Add(BaseItemKind.Series); }
             if (wanted.Contains("season")) { kinds.Add(BaseItemKind.Season); }
             if (wanted.Contains("episode")) { kinds.Add(BaseItemKind.Episode); }
-            if (kinds.Count == 0)
+            // A tagged folder holding only sub-folders is a plain Folder for Jellyfin: it is an album too
+            if (wanted.Contains("album")) { kinds.Add(BaseItemKind.PhotoAlbum); kinds.Add(BaseItemKind.Folder); }
+            var photos = wanted.Contains("photo");
+            if (kinds.Count == 0 && !photos)
             {
                 return new List<BaseItem>();
+            }
+
+            // Photos are mostly known by their file name in their album: they come with their album, or by their own tag
+            List<BaseItem> WithPhotos(List<BaseItem> found, bool exact)
+            {
+                if (!photos)
+                {
+                    return found;
+                }
+
+                var all = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Photo }, Recursive = true });
+                var albums = found.Where(IsAlbum).Select(a => a.Id).ToHashSet();
+                return found.Concat(all.Where(p => albums.Contains(p.ParentId) || (!exact && TagsOf(p).Any(t => HasPrefix(t, prefix))))).ToList();
             }
 
             var tag = (request.Tag ?? string.Empty).Trim().Trim('{', '}');
 
             // Every candidate of the chosen types: the library query is cheap, the tag test is made here
-            var candidates = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = kinds.ToArray(), Recursive = true });
+            var candidates = kinds.Count == 0
+                ? new List<BaseItem>()
+                : _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = kinds.ToArray(), Recursive = true })
+                    .Where(i => i is Series || i is Season || i is Episode || IsAlbum(i)).ToList();
             bool Carries(BaseItem item, bool exact)
             {
                 var tags = TagsOf(item);
@@ -769,18 +793,31 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             if (tag.Length == 0)
             {
-                return candidates.Where(i => Carries(i, false)).ToList();
+                return WithPhotos(candidates.Where(i => Carries(i, false)).ToList(), false);
             }
 
             var roots = candidates.Where(i => Carries(i, true)).ToList();
             if (!request.IncludeChildren)
             {
-                return roots;
+                return WithPhotos(roots, true);
             }
 
             var rootIds = roots.Select(r => r.Id).ToHashSet();
             var children = candidates.Where(i => !rootIds.Contains(i.Id) && Carries(i, false) && i.GetAncestorIds().Any(rootIds.Contains));
-            return roots.Concat(children).ToList();
+            return WithPhotos(roots.Concat(children).ToList(), true);
+        }
+
+        /// <summary>A photo album, or a plain folder (an album holding only sub-albums): never a series, a season or a library</summary>
+        internal static bool IsAlbum(BaseItem item) => item is PhotoAlbum || item?.GetType() == typeof(Folder);
+
+        private static List<string> DefaultTypes(string prefix)
+        {
+            var sources = (Plugin.Instance?.Configuration?.Sources ?? new List<Configuration.SourceConfiguration>())
+                .Where(s => s.Enabled && !s.IsPeople && string.Equals(s.Prefix, prefix, StringComparison.OrdinalIgnoreCase)).ToList();
+            var types = new List<string>();
+            if (sources.Count == 0 || sources.Any(s => s.ContentVideo)) { types.AddRange(new[] { "series", "season", "episode" }); }
+            if (sources.Any(s => s.ContentAlbums)) { types.AddRange(new[] { "album", "photo" }); }
+            return types;
         }
 
         private static bool HasPrefix(string tag, string prefix)

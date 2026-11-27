@@ -14,6 +14,7 @@ A file or folder whose name carries a `{prefix-ID}` tag (for example `{dm-1234}`
   - **Dump**: one call returns a whole catalogue of standalone episodes (`{ "data": [ … ] }`). The plugin keeps it in memory and finds each file in it, by its `{prefix-id}` tag or, without a tag, by its name (slug, exact name, fuzzy score with a configurable threshold). A "Catalogues" view of the missing-episodes screen shows what the dump holds that your library does not. See [docs/DUMP_SOURCE.md](docs/DUMP_SOURCE.md).
   - **People**: an API that describes people (name, photo, biography), queried by identifier.
 - **Missing episodes**: from an episode list provided by the API (or a local source), the plugin creates greyed-out "virtual" episodes for those that have no file, with thumbnail, duration, overview and a preview video. A dedicated screen ("Épisodes manquants") lists what is missing, with a "copy name" button (`Title {prefix-ID}`) to name the future file.
+- **Photo albums** (API and local sources, off by default): tagged album folders, sub-albums included, and their photos get their metadata. See [Photo albums](#photo-albums).
 - **Cast**: a people directory shared by all sources (deduplicated by identifier and by name, with photos), hand-entered casts for local episodes, and casts for series, seasons and episodes of API sources attached by tag, without modifying the API.
 - **Files that bundle several episodes**: `Ep {dm-1} {dm-2}.mkv` merges the metadata (the first tag is the reference, lists are merged without duplicates, episode range `3-4`).
 - **Images**: posters, backdrops, logos, banners and thumbnails, fetched with the source's HTTP settings; optional conversion of portrait thumbnails to 16:9.
@@ -69,6 +70,24 @@ Set the source's "episode list" endpoint (for example `/sources/{id}/videos`): `
 ### Cast
 
 The **Personnes** screen holds the directory (add by identifier from a people source, or enter by hand with a photo) and the **distribution** tab for series, seasons and episodes of API sources, by tag or by a typed identifier. After a change, **"Appliquer aux épisodes"** refreshes only the affected episodes. The "Importer le casting" (import cast) setting must be on.
+
+### Photo albums
+
+For a library of the type « home videos and photos » with photos enabled. In the source's editor, tick **Albums photo** under « Contenu de cette source » (a source may hold videos, albums, or both).
+
+```
+Photos/
+└── Voyage {dm-12}/                 ← album (a folder holding only sub-albums works too)
+    └── Bretagne {dm-31}/           ← sub-album, with its own tag
+        ├── phare.jpg               ← found by its file name in the answer of album 31
+        └── plage {dm-7}.jpg        ← or by its own tag
+```
+
+- **API source**: an album is read from `/albums/{id}` (sections « Album » and « Photo » of the editor for the address and the JSON fields). Its answer may list its photos, by default `"photos": [{ "file": "phare.jpg", "title": "…", "overview": "…", "tags": ["…"] }]`. A photo with its own tag is read from `/photos/{id}`. An option adds the album's tags to its photos.
+- **Local source**: section « Albums »: a tree of albums, each with its form, its two images and its photos (« Lire les photos du dossier » lists the files once the folder carries the tag and has been scanned).
+- What the source gives wins over the file's EXIF; an empty field keeps the file's value. Jellyfin reads the EXIF again at each refresh of a photo, so **lock a photo** in Jellyfin to keep something typed there.
+- A library scan does not pick up a change of the source: use « Actualiser » on the source's card, « Appliquer » on a local album, or refresh the album in Jellyfin.
+- Not available: cast on albums and photos, dump sources. In the web client, a click on an album shows its photos; its description is on its page.
 
 ## Stored data
 

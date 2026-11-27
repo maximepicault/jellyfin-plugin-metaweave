@@ -69,6 +69,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             {
                 case "series":
                     return (source.SeriesEndpoint ?? "/series/{id}", source.SeriesFieldMappings ?? new FieldMapping(), "SERIES", "SeriesFieldMappings");
+                // A local source serves its albums in the default shape, whatever its saved mappings say
+                case "album":
+                    return source.IsLocal
+                        ? (LocalSourceStore.AlbumEndpoint, new FieldMapping(), "ALBUM", "AlbumFieldMappings")
+                        : (source.AlbumEndpoint ?? "/albums/{id}", source.AlbumFieldMappings ?? new FieldMapping(), "ALBUM", "AlbumFieldMappings");
+                case "photo":
+                    return (source.PhotoEndpoint ?? "/photos/{id}", source.IsLocal ? new FieldMapping() : source.PhotoFieldMappings ?? new FieldMapping(), "PHOTO", "PhotoFieldMappings");
                 case "season":
                 case "source":
                     return (source.SourceEndpoint ?? "/sources/{id}", source.SourceFieldMappings ?? new FieldMapping(), "SOURCE/SEASON", "SourceFieldMappings");
@@ -522,6 +529,29 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         }
 
         /// <summary>
+        /// The raw answer of an album, for its list of photos. Null when the source is not configured or does not answer.
+        /// </summary>
+        public async Task<string> GetAlbumJsonAsync(string itemId, SourceConfiguration source, CancellationToken cancellationToken)
+        {
+            if (source == null || IsPlaceholderUrl(source.BaseUrl))
+            {
+                return null;
+            }
+
+            var url = ResilientHttp.BuildUrl(source.BaseUrl, ResolveEndpoint("album", source).Endpoint, itemId);
+            var client = _httpClientFactory.CreateClient();
+            AddHeadersToClient(client, source);
+            var fetch = await _http.GetStringAsync(client, url, source, "📸 [ALBUM FETCH]", cancellationToken);
+            if (!fetch.IsSuccess)
+            {
+                _logger.LogWarning("📸 [ALBUM FETCH] ⚠️ {Error} for album {ItemId}", fetch.Error, itemId);
+                return null;
+            }
+
+            return fetch.Content;
+        }
+
+        /// <summary>
         /// Fetches the COMPLETE episode list of a source/season through EpisodeListEndpoint (no cache)
         /// Returns null on error (even partial): an incomplete list would make false "missing" episodes
         /// appear or delete virtual episodes wrongly.
@@ -834,7 +864,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         /// <summary>
         /// "Test" button of the configuration page: calls a source's endpoint (even unsaved)
         /// WITHOUT cache and returns the raw response + what the mapping extracts from it.
-        /// itemType : "video" | "season" | "series" | "episodelist"
+        /// itemType : "video" | "season" | "series" | "episodelist" | "album" | "photo" | "albumphotos" | "person"
         /// </summary>
         public async Task<SourceTestResult> TestSourceAsync(
             SourceConfiguration source,
@@ -858,6 +888,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
             var isEpisodeList = string.Equals(itemType, "episodelist", StringComparison.OrdinalIgnoreCase);
             var isPerson = string.Equals(itemType, "person", StringComparison.OrdinalIgnoreCase);
+            var isPhotoList = string.Equals(itemType, "albumphotos", StringComparison.OrdinalIgnoreCase);
+            if (string.Equals(itemType, "photo", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(source.PhotoEndpoint))
+            {
+                result.Error = "Adresse d'une photo vide";
+                return result;
+            }
+
             FieldMapping mapping = null;
             string url;
 
@@ -883,7 +920,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             else
             {
                 string endpoint;
-                (endpoint, mapping, _, _) = ResolveEndpoint(itemType, source);
+                (endpoint, mapping, _, _) = ResolveEndpoint(isPhotoList ? "album" : itemType, source);
                 url = ResilientHttp.BuildUrl(source.BaseUrl, endpoint, itemId);
             }
 
@@ -957,6 +994,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     result.EpisodeCount = episodes.Count;
                     result.Episodes = episodes.Take(SourceTestResult.MaxEpisodes).ToList();
                 }
+                else if (isPhotoList)
+                {
+                    var photos = PhotoList.Read(jsonDoc.RootElement, source, _fieldMapper);
+                    if (photos == null)
+                    {
+                        result.Error = "Liste de photos introuvable : vérifiez « Liste des photos » dans la section Photo";
+                        return result;
+                    }
+
+                    result.PhotoCount = photos.Count;
+                    result.Photos = photos.Take(SourceTestResult.MaxEpisodes).Select(p => new SourcePhotoPreview { File = p.File, Title = p.Data.Title }).ToList();
+                }
                 else
                 {
                     result.Metadata = _fieldMapper.MapToMetadata(jsonDoc, mapping);
@@ -983,6 +1032,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         }
     }
 
+    /// <summary>A photo of the album's list, as the test screen shows it</summary>
+    public class SourcePhotoPreview
+    {
+        public string File { get; set; }
+        public string Title { get; set; }
+    }
+
     /// <summary>
     /// Result of the "Test" button of the configuration page
     /// </summary>
@@ -998,6 +1054,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 
         public bool Success { get; set; }
         public string ItemType { get; set; }
+
+        /// <summary>Test "albumphotos": the photos found in the album's answer</summary>
+        public int? PhotoCount { get; set; }
+        public List<SourcePhotoPreview> Photos { get; set; }
         public string Id { get; set; }
         public string Url { get; set; }
         public int? StatusCode { get; set; }
@@ -1038,6 +1098,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         public string SeriesName { get; set; }
         public List<string> Tags { get; set; }
         public List<string> Genres { get; set; }
+
+        /// <summary>A photo whose source adds its album's tags to it (SourceConfiguration.PhotoInheritAlbumTags)</summary>
+        public List<string> InheritedTags { get; set; }
 
         /// <summary>Studios (FieldMapping.Studio)</summary>
         public List<string> Studios { get; set; }

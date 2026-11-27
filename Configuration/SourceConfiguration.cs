@@ -28,6 +28,36 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         public string SourceType { get; set; } = "Api";
 
         /// <summary>
+        /// Content of an API or local source: series, seasons, episodes and movies. On by default (sources saved before photo albums).
+        /// A dump source holds videos only.
+        /// </summary>
+        public bool ContentVideo { get; set; } = true;
+
+        /// <summary>Content of an API or local source: photo albums (tagged folders) and their photos. Off by default</summary>
+        public bool ContentAlbums { get; set; }
+
+        /// <summary>Albums: endpoint of ONE album. {id} = the folder's tag without its prefix</summary>
+        public string AlbumEndpoint { get; set; } = "/albums/{id}";
+
+        /// <summary>Albums: endpoint of ONE photo carrying its own tag in its file name. Empty = disabled</summary>
+        public string PhotoEndpoint { get; set; } = "/photos/{id}";
+
+        /// <summary>Albums: JSON fields of an album</summary>
+        public FieldMapping AlbumFieldMappings { get; set; } = new FieldMapping();
+
+        /// <summary>Albums: JSON fields of a photo, in the album's list as well as in its own endpoint's answer</summary>
+        public FieldMapping PhotoFieldMappings { get; set; } = new FieldMapping();
+
+        /// <summary>Albums: path of the list of photos in an album's answer. Empty = photos are not looked up there</summary>
+        public string PhotoListPath { get; set; } = "photos";
+
+        /// <summary>Albums: field of a list entry holding the photo's file name, compared without case to the file in the library</summary>
+        public string PhotoFileField { get; set; } = "file";
+
+        /// <summary>Albums: add the tags of the photo's own album to the photo</summary>
+        public bool PhotoInheritAlbumTags { get; set; }
+
+        /// <summary>
         /// Local source: stable identifier of the content file (independent of the prefix, which can be renamed)
         /// </summary>
         public string LocalDataId { get; set; } = string.Empty;

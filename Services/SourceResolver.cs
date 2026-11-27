@@ -5,6 +5,14 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.CustomMetadata.Services
 {
+    /// <summary>What a source enriches (SourceConfiguration.ContentVideo / ContentAlbums)</summary>
+    public enum SourceContent
+    {
+        Video,
+        Albums,
+        Any
+    }
+
     /// <summary>
     /// Resolves which source to use from a prefix extracted from a file name
     /// </summary>
@@ -22,12 +30,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// </summary>
         /// <param name="prefix">The extracted prefix (e.g. "mv1", "yt")</param>
         /// <returns>The source configuration, or null if not found</returns>
-        public SourceConfiguration GetSourceByPrefix(string prefix)
+        /// <param name="content">What the caller enriches: only a source set up for it answers (<see cref="SourceContent.Any"/>: whatever it holds)</param>
+        public SourceConfiguration GetSourceByPrefix(string prefix, SourceContent content = SourceContent.Video)
         {
             if (string.IsNullOrEmpty(prefix))
             {
                 _logger.LogWarning("🔍 [SOURCE RESOLVER] Prefix is null or empty");
-                return GetDefaultSource();
+                return content == SourceContent.Albums ? null : GetDefaultSource();
             }
 
             var config = Plugin.Instance?.Configuration;
@@ -47,6 +56,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var source = config.Sources
                     .Where(s => s.Enabled &&
                         !s.IsPeople &&   // a people source does not enrich media: its tag designates no file
+                        (content == SourceContent.Any || (content == SourceContent.Video ? s.ContentVideo : s.ContentAlbums && !s.IsDump)) &&
                         !string.IsNullOrEmpty(s.Prefix) &&
                         s.Prefix.Equals(prefix, System.StringComparison.OrdinalIgnoreCase))
                     .OrderBy(s => s.IsLocal)
@@ -70,7 +80,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             // Single-source mode (backward compatibility): use the global config
             _logger.LogDebug("🔍 [SOURCE RESOLVER] Mono-source mode (legacy): checking global prefix");
             
-            if (string.Equals(config.PatternPrefix, prefix, System.StringComparison.OrdinalIgnoreCase))
+            if (content != SourceContent.Albums && string.Equals(config.PatternPrefix, prefix, System.StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogInformation("🔍 [SOURCE RESOLVER] ✅ Using global configuration for prefix '{Prefix}'", prefix);
                 return GetDefaultSource();

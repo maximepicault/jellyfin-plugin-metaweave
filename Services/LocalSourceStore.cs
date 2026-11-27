@@ -11,11 +11,35 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.CustomMetadata.Services
 {
-    /// <summary>Content of a local source: series → seasons → episodes</summary>
+    /// <summary>Content of a local source: series → seasons → episodes, and photo albums (which may hold albums)</summary>
     public class LocalContent
     {
         public int Version { get; set; } = 1;
         public List<LocalSeries> Series { get; set; } = new List<LocalSeries>();
+        public List<LocalAlbum> Albums { get; set; } = new List<LocalAlbum>();
+    }
+
+    /// <summary>A photo album: a tagged folder. It may hold photos, sub-albums, or both (the tree is only a way to arrange them: each folder carries its own tag)</summary>
+    public class LocalAlbum : LocalNode
+    {
+        public string Studio { get; set; }
+        public List<LocalAlbum> Albums { get; set; } = new List<LocalAlbum>();
+        public List<LocalPhoto> Photos { get; set; } = new List<LocalPhoto>();
+    }
+
+    /// <summary>What an album says about one of its photos, found by its file name</summary>
+    public class LocalPhoto
+    {
+        public string File { get; set; }
+        public string Title { get; set; }
+        public string Overview { get; set; }
+
+        /// <summary>yyyy-MM-dd</summary>
+        public string PremiereDate { get; set; }
+        public float? CommunityRating { get; set; }
+        public string Studio { get; set; }
+        public List<string> Tags { get; set; } = new List<string>();
+        public List<string> Genres { get; set; } = new List<string>();
     }
 
     /// <summary>Fields shared by series, seasons and episodes (the names follow the default mappings)</summary>
@@ -126,6 +150,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public const string SourceEndpoint = "/sources/{id}";
         public const string SeriesEndpoint = "/series/{id}";
         public const string EpisodeListEndpoint = "/sources/{id}/videos";
+        public const string AlbumEndpoint = "/albums/{id}";
+        public const string PhotoListPath = "photos";
+        public const string PhotoFileField = "file";
+
+        /// <summary>Albums inside albums: the page stops there too (each level is two levels of JSON, and the REST layer limits them)</summary>
+        public const int MaxAlbumDepth = 10;
+        private const int MaxPhotosPerAlbum = 5000;
 
         private const string Alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
         private static readonly Regex DataIdPattern = new Regex(@"^[A-Za-z0-9\-]{8,64}$", RegexOptions.Compiled);
@@ -229,8 +260,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 PruneVideos(dataId, content);
             }
 
-            _logger.LogInformation("🗂️ [LOCAL SOURCE] 💾 Saved {Series} series / {Seasons} seasons / {Episodes} episodes ({DataId})",
-                content.Series.Count, content.Series.Sum(s => s.Seasons.Count), content.Series.Sum(s => s.Seasons.Sum(x => x.Episodes.Count)), dataId);
+            var albums = AllAlbums(content.Albums).ToList();
+            _logger.LogInformation("🗂️ [LOCAL SOURCE] 💾 Saved {Series} series / {Seasons} seasons / {Episodes} episodes, {Albums} albums / {Photos} photos ({DataId})",
+                content.Series.Count, content.Series.Sum(s => s.Seasons.Count), content.Series.Sum(s => s.Seasons.Sum(x => x.Episodes.Count)),
+                albums.Count, albums.Sum(a => a.Photos.Count), dataId);
             return content;
         }
 
@@ -469,8 +502,26 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
         }
 
+        /// <summary>The albums and, below each one, its sub-albums</summary>
+        private static IEnumerable<LocalAlbum> AllAlbums(IEnumerable<LocalAlbum> albums)
+        {
+            foreach (var album in albums ?? Enumerable.Empty<LocalAlbum>())
+            {
+                yield return album;
+                foreach (var child in AllAlbums(album.Albums))
+                {
+                    yield return child;
+                }
+            }
+        }
+
         private static IEnumerable<LocalNode> AllNodes(LocalContent content)
         {
+            foreach (var album in AllAlbums(content.Albums))
+            {
+                yield return album;
+            }
+
             foreach (var series in content.Series ?? new List<LocalSeries>())
             {
                 yield return series;
@@ -580,6 +631,51 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             return Plugin.Instance?.Configuration?.Sources?.Any(s => !s.IsPeople && string.Equals((s.Prefix ?? string.Empty).Trim(), prefix, StringComparison.OrdinalIgnoreCase)) ?? false;
         }
 
+        private static string CleanDate(string text)
+            => DateTime.TryParseExact(text?.Trim(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date)
+                ? date.ToString("yyyy-MM-dd")
+                : null;
+
+        private static List<LocalAlbum> NormalizeAlbums(List<LocalAlbum> albums, HashSet<string> used, int depth)
+        {
+            var result = (albums ?? new List<LocalAlbum>()).Where(a => a != null && depth <= MaxAlbumDepth).ToList();
+            foreach (var album in result)
+            {
+                NormalizeNode(album, used);
+                album.Studio = Clean(HtmlText.Decode(album.Studio));
+                album.Photos = NormalizePhotos(album.Photos);
+                album.Albums = NormalizeAlbums(album.Albums, used, depth + 1);
+            }
+
+            return result;
+        }
+
+        /// <summary>One entry per file name (any case); an entry without a file name describes nothing</summary>
+        private static List<LocalPhoto> NormalizePhotos(List<LocalPhoto> photos)
+        {
+            var result = new List<LocalPhoto>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var photo in photos ?? new List<LocalPhoto>())
+            {
+                var file = Clean(Path.GetFileName((photo?.File ?? string.Empty).Replace('\\', '/')));
+                if (file == null || !seen.Add(file) || result.Count >= MaxPhotosPerAlbum)
+                {
+                    continue;
+                }
+
+                photo.File = file;
+                photo.Title = Clean(HtmlText.Decode(photo.Title));
+                photo.Overview = Clean(HtmlText.Decode(photo.Overview));
+                photo.PremiereDate = CleanDate(photo.PremiereDate);
+                photo.Studio = Clean(HtmlText.Decode(photo.Studio));
+                photo.Tags = CleanList(photo.Tags);
+                photo.Genres = CleanList(photo.Genres);
+                result.Add(photo);
+            }
+
+            return result;
+        }
+
         private static void NormalizeNode(LocalNode node, HashSet<string> used, bool mayOverride = false)
         {
             var id = Clean(node.Id);
@@ -589,9 +685,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             // entities in the editor nor in "Copier le nom" (a file name with "&amp;" in it)
             node.Title = Clean(HtmlText.Decode(node.Title));
             node.Overview = Clean(HtmlText.Decode(node.Overview));
-            node.PremiereDate = DateTime.TryParseExact(node.PremiereDate?.Trim(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date)
-                ? date.ToString("yyyy-MM-dd")
-                : null;
+            node.PremiereDate = CleanDate(node.PremiereDate);
             node.Tags = CleanList(node.Tags);
             node.Genres = CleanList(node.Genres);
             node.Note = string.IsNullOrWhiteSpace(node.Note) ? null : node.Note.Trim();
@@ -683,6 +777,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var usedSeries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var usedSeasons = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var usedEpisodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            content.Albums = NormalizeAlbums(content.Albums, new HashSet<string>(StringComparer.OrdinalIgnoreCase), 1);
             content.Series ??= new List<LocalSeries>();
             foreach (var series in content.Series)
             {
@@ -723,6 +818,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>Decodes the HTML entities of the texts (ids untouched): files saved before this behaviour</summary>
         private static void DecodeText(LocalContent content)
         {
+            foreach (var album in AllAlbums(content.Albums))
+            {
+                album.Title = HtmlText.Decode(album.Title);
+                album.Overview = HtmlText.Decode(album.Overview);
+                album.Tags = HtmlText.Decode(album.Tags);
+                album.Genres = HtmlText.Decode(album.Genres);
+            }
+
             foreach (var series in content.Series ?? new List<LocalSeries>())
             {
                 var nodes = new List<LocalNode> { series };
@@ -836,6 +939,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 json = episode == null ? null : EpisodeJson(episode);
             }
 
+            else if (parts.Length == 2 && parts[0] == "albums")
+            {
+                var album = AllAlbums(content.Albums).FirstOrDefault(a => IdEquals(a.Id, parts[1]));
+                json = album == null ? null : AlbumJson(album);
+            }
+
             if (json == null)
             {
                 result.Error = $"Introuvable dans la source locale : {path}";
@@ -880,6 +989,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }).ToList();
             }
 
+            return json;
+        }
+
+        private static Dictionary<string, object> AlbumJson(LocalAlbum album)
+        {
+            var json = NodeJson(album);
+            Put(json, "studio", album.Studio);
+            // A photo with nothing typed is only listed in the editor: it is not served, so Jellyfin keeps what the file says
+            json["photos"] = (album.Photos ?? new List<LocalPhoto>()).Select(photo =>
+            {
+                var entry = new Dictionary<string, object>();
+                Put(entry, "title", photo.Title);
+                Put(entry, "overview", photo.Overview);
+                Put(entry, "premiereDate", photo.PremiereDate);
+                if (photo.CommunityRating.HasValue) { entry["communityRating"] = photo.CommunityRating.Value; }
+                Put(entry, "studio", photo.Studio);
+                if (photo.Tags?.Count > 0) { entry["tags"] = photo.Tags; }
+                if (photo.Genres?.Count > 0) { entry["genres"] = photo.Genres; }
+                if (entry.Count > 0) { entry[PhotoFileField] = photo.File; }
+                return entry;
+            }).Where(entry => entry.Count > 0).ToList();
             return json;
         }
 

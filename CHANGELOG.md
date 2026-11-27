@@ -6,6 +6,7 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **Photo albums and photos**: an API or local source can now hold photo albums (« Contenu de cette source » in the editor, off by default). A folder tagged `{prefix-ID}` in a library of home videos and photos gets its title, overview, date, rating, tags, genres, studio and images, sub-albums and folders holding only sub-albums included. A photo is found by its file name in its album (no renaming) or by its own tag; what the source gives wins over the file's EXIF, the rest is kept. Local sources have an album tree with the photos of each album; the source test and the targeted refresh cover albums and photos. No cast: Jellyfin keeps none on these items.
 - **Fix: Projection theme on Jellyfin 12: studios and genres were hidden** on detail pages, because the theme took the group of info rows for empty.
 - **Projection theme: missing episodes are hidden on the « Index » screens**: lists and library screens now leave them out of the results and counts; a « Manquants » button in the filter bar, with their number, shows them, and the « Manquants » playback state of the filter panel still shows them alone.
 - **Projection theme: the library screens take less room**: jellyfin-web's extra bar row with the view menu (Séries, Épisodes, Suggestions…) is gone and the picture moves up; the title offers the same views, and once a filter is on, a small button above it does.

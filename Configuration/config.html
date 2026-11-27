@@ -313,6 +313,31 @@
         #CustomMetadataConfigPage #editorView[data-source-type="local"] [data-types]:not([data-types~="local"]),
         #CustomMetadataConfigPage #editorView[data-source-type="people"] [data-types]:not([data-types~="people"]),
         #CustomMetadataConfigPage #editorView[data-source-type="dump"] [data-types]:not([data-types~="dump"]) { display: none !important; }
+        /* Content of a source: what is not ticked in « Général » is hidden (the .cm-nav-item display would otherwise win over [hidden]) */
+        #CustomMetadataConfigPage #editorView [data-content][hidden], #CustomMetadataConfigPage #navAdvanced[hidden] { display: none !important; }
+        #CustomMetadataConfigPage .cm-contents { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+        #CustomMetadataConfigPage .cm-content-choice { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid var(--cm-border); border-radius: 8px; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-content-choice.cm-sel { border-color: var(--cm-accent); background: rgba(0, 164, 220, 0.1); }
+        #CustomMetadataConfigPage .cm-content-choice input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--cm-accent); }
+        #CustomMetadataConfigPage .cm-content-choice small { display: block; color: var(--cm-muted); }
+        /* Albums: tree with covers, and the photos of an album */
+        #CustomMetadataConfigPage .cm-t-album { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; align-items: center; padding-top: 4px; padding-bottom: 4px; }
+        #CustomMetadataConfigPage .cm-t-cover { width: 40px; height: 40px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        #CustomMetadataConfigPage .cm-t-cover img { width: 100%; height: 100%; object-fit: cover; }
+        #CustomMetadataConfigPage .cm-t-album .t, #CustomMetadataConfigPage .cm-t-album .n { display: block; }
+        #CustomMetadataConfigPage .cm-t-nochev { display: inline-block; width: 32px; flex: none; }
+        #CustomMetadataConfigPage .cm-path { font-size: 13px; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-photo-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        #CustomMetadataConfigPage .cm-photo-tools input[type="text"] { flex: 1 1 180px; min-width: 0; max-width: 340px; box-sizing: border-box; padding: 9px 10px; border: 1px solid var(--cm-border); border-radius: 4px; background: rgba(255, 255, 255, 0.07); color: inherit; font: inherit; }
+        #CustomMetadataConfigPage .cm-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 420px; overflow: auto; }
+        #CustomMetadataConfigPage .cm-photo { min-width: 0; padding: 5px; border: 2px solid transparent; border-radius: 8px; background: rgba(255, 255, 255, 0.04); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-photo[aria-current="true"] { border-color: var(--cm-accent); }
+        #CustomMetadataConfigPage .cm-photo-img { display: flex; align-items: center; justify-content: center; aspect-ratio: 3 / 2; border-radius: 5px; background: rgba(255, 255, 255, 0.07); overflow: hidden; font-size: 24px; }
+        #CustomMetadataConfigPage .cm-photo-img img { width: 100%; height: 100%; object-fit: cover; }
+        #CustomMetadataConfigPage .cm-photo strong, #CustomMetadataConfigPage .cm-photo small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
+        #CustomMetadataConfigPage .cm-photo small { color: var(--cm-muted); font-size: 12px; }
+        #CustomMetadataConfigPage .cm-photo.cm-empty-photo strong { font-weight: 400; font-style: italic; color: var(--cm-muted); }
+        #CustomMetadataConfigPage .cm-example { margin: 0; padding: 12px 14px; border: 1px solid var(--cm-border); border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.7; }
 
         /* Library picker of the targeted refresh of a dump */
         #CustomMetadataConfigPage .cm-libpick { position: relative; }
@@ -614,17 +639,22 @@
                     <span class="cm-nav-group">Source</span>
                     <button type="button" class="cm-nav-item" data-go="general" aria-current="page"><span>Général</span><span class="cm-count" data-count-for="general"></span></button>
                     <button type="button" class="cm-nav-item" data-go="dump" data-types="dump"><span>Catalogue</span><span class="cm-count" data-count-for="dump"></span></button>
-                    <button type="button" class="cm-nav-item" data-go="content" data-types="local"><span>Contenu</span><span class="cm-count" data-count-for="content"></span></button>
                     <button type="button" class="cm-nav-item" data-go="person" data-types="people"><span>Personne</span><span class="cm-count" data-count-for="person"></span></button>
-                    <button type="button" class="cm-nav-item" data-go="endpoints" data-types="api"><span>Endpoints</span><span class="cm-count" data-count-for="endpoints"></span></button>
-                    <span class="cm-nav-group" data-types="api dump">Mappings JSON</span>
-                    <button type="button" class="cm-nav-item" data-go="video" data-types="api dump"><span>Vidéo / épisode</span><span class="cm-count" data-count-for="video"></span></button>
-                    <button type="button" class="cm-nav-item" data-go="season" data-types="api"><span>Source / saison</span><span class="cm-count" data-count-for="season"></span></button>
-                    <button type="button" class="cm-nav-item" data-go="series" data-types="api"><span>Série</span><span class="cm-count" data-count-for="series"></span></button>
-                    <button type="button" class="cm-nav-item" data-go="episodes" data-types="api"><span>Liste des épisodes</span><span class="cm-count" data-count-for="episodes"></span></button>
-                    <span class="cm-nav-group">Avancé</span>
+                    <span class="cm-nav-group" data-types="api local" data-content="video">Séries et vidéos</span>
+                    <button type="button" class="cm-nav-item" data-content="video" data-go="content" data-types="local"><span>Contenu</span><span class="cm-count" data-count-for="content"></span></button>
+                    <button type="button" class="cm-nav-item" data-content="video" data-go="endpoints" data-types="api"><span>Endpoints</span><span class="cm-count" data-count-for="endpoints"></span></button>
+                    <span class="cm-nav-group" data-types="dump">Mappings JSON</span>
+                    <button type="button" class="cm-nav-item" data-content="video" data-go="video" data-types="api dump"><span>Vidéo / épisode</span><span class="cm-count" data-count-for="video"></span></button>
+                    <button type="button" class="cm-nav-item" data-content="video" data-go="season" data-types="api"><span>Source / saison</span><span class="cm-count" data-count-for="season"></span></button>
+                    <button type="button" class="cm-nav-item" data-content="video" data-go="series" data-types="api"><span>Série</span><span class="cm-count" data-count-for="series"></span></button>
+                    <button type="button" class="cm-nav-item" data-content="video" data-go="episodes" data-types="api"><span>Liste des épisodes</span><span class="cm-count" data-count-for="episodes"></span></button>
+                    <span class="cm-nav-group" data-types="api local" data-content="albums">Albums photo</span>
+                    <button type="button" class="cm-nav-item" data-go="album" data-types="api" data-content="albums"><span>Album</span><span class="cm-count" data-count-for="album"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="photo" data-types="api" data-content="albums"><span>Photo</span><span class="cm-count" data-count-for="photo"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="albums" data-types="local" data-content="albums"><span>Albums</span><span class="cm-count" data-count-for="albums"></span></button>
+                    <span class="cm-nav-group" id="navAdvanced">Avancé</span>
                     <button type="button" class="cm-nav-item" data-go="network" data-types="api people dump"><span>Réseau</span><span class="cm-count" data-count-for="network"></span></button>
-                    <button type="button" class="cm-nav-item" data-go="thumbs"><span>Miniatures et posters</span><span class="cm-count" data-count-for="thumbs"></span></button>
+                    <button type="button" class="cm-nav-item" data-content="video" data-go="thumbs"><span>Miniatures et posters</span><span class="cm-count" data-count-for="thumbs"></span></button>
                         </nav>
                         <div style="min-width: 0;">
                     <section class="cm-pane" data-section="general" aria-labelledby="paneTitle-general">
@@ -672,6 +702,14 @@
                         <div class="cm-callout cm-callout-info" data-types="local">
                             <span aria-hidden="true">ⓘ</span>
                             <span><strong>Source locale.</strong> Aucune API : les séries, saisons et épisodes se saisissent dans la section « Contenu » et sont enregistrés par le plugin, pas par Jellyfin. Un rafraîchissement forcé des métadonnées ne les efface donc pas.</span>
+                        </div>
+                        <div data-types="api local">
+                            <div class="cm-kicker" style="margin-bottom: 8px;">Contenu de cette source</div>
+                            <div class="cm-contents">
+                                <label class="cm-content-choice"><input type="checkbox" id="srcContentVideo" checked /><span><strong>Séries et vidéos</strong><small>Séries, saisons, épisodes et films</small></span></label>
+                                <label class="cm-content-choice"><input type="checkbox" id="srcContentAlbums" /><span><strong>Albums photo</strong><small>Albums, sous-albums et photos</small></span></label>
+                            </div>
+                            <div class="cm-hint">Au moins un. Décocher masque la partie sans effacer ses réglages.</div>
                         </div>
                         <div class="cm-danger" id="dangerZone">
                             <div><strong>Supprimer cette source</strong><span id="dangerText">Les médias qui portent son tag ne seront plus enrichis. Les métadonnées déjà enregistrées restent.</span></div>
@@ -1211,8 +1249,136 @@
                         </div>
                         </div>
                     </section>
+                    <section class="cm-pane cm-mono" data-section="album" data-types="api" aria-labelledby="paneTitle-album" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-album">Album</h3><p class="cm-pane-intro">L'adresse appelée pour un dossier de photos qui porte un tag, et où lire chaque information.</p></div>
+                        <div class="cm-grid">
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcAlbumEndpoint">Adresse d'un album</label>
+                            <input is="emby-input" type="text" id="srcAlbumEndpoint" placeholder="/albums/{id}" data-count="1" />
+                            <div class="cm-hint"><code>{id}</code> est remplacé par l'identifiant du tag du dossier.</div>
+                        </div>
+                        <div class="cm-span">
+<pre class="cm-example">Voyages {dm-12}/           → /albums/12
+└─ Bretagne {dm-31}/       → /albums/31
+   ├─ Jour 1 {dm-44}/      → /albums/44
+   └─ Divers/              → pas de tag : non enrichi</pre>
+                            <div class="cm-hint">Un album peut en contenir d'autres. Chaque dossier a son propre tag, même celui qui ne contient que des sous-albums. Jellyfin ne garde pas de casting sur un album.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumTitle">Titre</label>
+                            <input is="emby-input" type="text" id="srcAlbumTitle" placeholder="title" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumOverview">Résumé</label>
+                            <input is="emby-input" type="text" id="srcAlbumOverview" placeholder="overview" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumDate">Date</label>
+                            <input is="emby-input" type="text" id="srcAlbumDate" placeholder="premiereDate" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumRating">Note</label>
+                            <input is="emby-input" type="text" id="srcAlbumRating" placeholder="communityRating" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumTags">Tags</label>
+                            <input is="emby-input" type="text" id="srcAlbumTags" placeholder="tags" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumTagsItemField">Champ lu dans une liste de tags (objets)</label>
+                            <input is="emby-input" type="text" id="srcAlbumTagsItemField" placeholder="label" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumGenres">Genres</label>
+                            <input is="emby-input" type="text" id="srcAlbumGenres" placeholder="genres" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumGenresItemField">Champ lu dans une liste de genres (objets)</label>
+                            <input is="emby-input" type="text" id="srcAlbumGenresItemField" placeholder="name" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumStudio">Studio</label>
+                            <input is="emby-input" type="text" id="srcAlbumStudio" placeholder="studio" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumPoster">Couverture</label>
+                            <input is="emby-input" type="text" id="srcAlbumPoster" placeholder="poster" data-count="1" />
+                            <div class="cm-hint">Un folder.jpg dans le dossier reste prioritaire.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumBackdrop">Image de fond</label>
+                            <input is="emby-input" type="text" id="srcAlbumBackdrop" placeholder="backdrop" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcAlbumImagesArray">Liste d'images</label>
+                            <input is="emby-input" type="text" id="srcAlbumImagesArray" placeholder="images" data-count="1" />
+                        </div>
+                        <div class="cm-rows cm-span" style="margin: 0;"><label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Le texte est en HTML</span><span class="cm-row-hint">Les balises et entités sont converties en texte simple.</span></span><input type="checkbox" class="cm-switch" id="srcAlbumOverviewHtml" /></label></div>
+                        </div>
+                    </section>
+                    <section class="cm-pane cm-mono" data-section="photo" data-types="api" aria-labelledby="paneTitle-photo" hidden>
+                        <div><h3 class="cm-pane-title" id="paneTitle-photo">Photo</h3><p class="cm-pane-intro">Les informations d'une photo viennent de la source ; un champ absent garde la valeur écrite dans le fichier (EXIF). Verrouillez une photo dans Jellyfin pour garder une saisie manuelle.</p></div>
+                        <div class="cm-grid">
+                        <h4 class="cm-span">1 · Dans la réponse de son album (sans renommer les photos)</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoList">Liste des photos</label>
+                            <input is="emby-input" type="text" id="srcPhotoList" placeholder="photos" data-count="1" />
+                            <div class="cm-hint">Chemin de la liste dans la réponse de l'album. Vide = photos non cherchées là.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoFile">Nom du fichier</label>
+                            <input is="emby-input" type="text" id="srcPhotoFile" placeholder="file" data-count="1" />
+                            <div class="cm-hint">Champ de chaque entrée, comparé au nom de la photo sans tenir compte des majuscules.</div>
+                        </div>
+                        <h4 class="cm-span">2 · Photo avec son propre tag</h4>
+                        <div class="inputContainer cm-span">
+                            <label class="inputLabel" for="srcPhotoEndpoint">Adresse d'une photo</label>
+                            <input is="emby-input" type="text" id="srcPhotoEndpoint" placeholder="/photos/{id}" />
+                            <div class="cm-hint">Pour « plage {dm-7}.jpg ». Prioritaire sur la liste. Vide = désactivé.</div>
+                        </div>
+                        <h4 class="cm-span">Champs (les mêmes dans les deux cas)</h4>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoTitle">Titre</label>
+                            <input is="emby-input" type="text" id="srcPhotoTitle" placeholder="title" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoOverview">Légende</label>
+                            <input is="emby-input" type="text" id="srcPhotoOverview" placeholder="overview" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoDate">Date</label>
+                            <input is="emby-input" type="text" id="srcPhotoDate" placeholder="premiereDate" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoRating">Note</label>
+                            <input is="emby-input" type="text" id="srcPhotoRating" placeholder="communityRating" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoTags">Tags</label>
+                            <input is="emby-input" type="text" id="srcPhotoTags" placeholder="tags" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoTagsItemField">Champ lu dans une liste de tags (objets)</label>
+                            <input is="emby-input" type="text" id="srcPhotoTagsItemField" placeholder="label" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoGenres">Genres</label>
+                            <input is="emby-input" type="text" id="srcPhotoGenres" placeholder="genres" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoGenresItemField">Champ lu dans une liste de genres (objets)</label>
+                            <input is="emby-input" type="text" id="srcPhotoGenresItemField" placeholder="name" data-count="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="srcPhotoStudio">Studio</label>
+                            <input is="emby-input" type="text" id="srcPhotoStudio" placeholder="studio" data-count="1" />
+                        </div>
+                        <div class="cm-rows cm-span" style="margin: 0;"><label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Le texte est en HTML</span><span class="cm-row-hint">Les balises et entités sont converties en texte simple.</span></span><input type="checkbox" class="cm-switch" id="srcPhotoOverviewHtml" /></label></div>
+                        <div class="cm-rows cm-span" style="margin: 0;"><label class="cm-row"><span class="cm-row-text"><span class="cm-row-title">Ajouter aux photos les tags de leur album</span><span class="cm-row-hint">Seul l'album du dossier de la photo compte, pas ses albums parents.</span></span><input type="checkbox" class="cm-switch" id="srcPhotoInheritAlbumTags" /></label></div>
+                        </div>
+                    </section>
                     <section class="cm-pane" data-section="content" data-types="local" aria-labelledby="paneTitle-content" hidden>
-                        <div><h3 class="cm-pane-title" id="paneTitle-content">Contenu</h3><p class="cm-pane-intro">Séries, saisons et épisodes de cette source. Chaque élément a un tag <code>{préfixe-ID}</code> à mettre dans le nom de son dossier (série, saison) ou de son fichier (épisode). Un épisode sans fichier apparaît comme épisode manquant.</p></div>
+                        <div><h3 class="cm-pane-title" id="paneTitle-content">Contenu</h3><p class="cm-pane-intro" id="localIntro">Séries, saisons et épisodes de cette source. Chaque élément a un tag <code>{préfixe-ID}</code> à mettre dans le nom de son dossier (série, saison) ou de son fichier (épisode). Un épisode sans fichier apparaît comme épisode manquant.</p></div>
                         <div class="cm-local">
                             <nav class="cm-tree" id="localTree" aria-label="Contenu de la source"></nav>
                             <div class="cm-detail" id="localDetail"></div>
@@ -1255,6 +1421,9 @@
                                     <option value="season" data-for="api">Source / saison</option>
                                     <option value="series" data-for="api">Série</option>
                                     <option value="episodelist" data-for="api">Liste des épisodes</option>
+                                    <option value="album" data-for="api" data-content-option="albums">Album</option>
+                                    <option value="albumphotos" data-for="api" data-content-option="albums">Photos d'un album</option>
+                                    <option value="photo" data-for="api" data-content-option="albums">Photo (tag propre)</option>
                                 </select>
                             </div>
                             <div class="inputContainer">
@@ -1513,12 +1682,16 @@
                     // A dump holds standalone episodes: no series or season to refresh
                     var dumpOnly = g.items.every(function(it) { return it.source.SourceType === 'Dump'; });
                     var allOff = g.items.every(function(it) { return it.source.Enabled === false; });
+                    var hasVideo = g.items.some(function(it) { return it.source.SourceType !== 'People' && it.source.ContentVideo !== false; });
+                    var hasAlbums = g.items.some(function(it) { return it.source.SourceType !== 'People' && it.source.SourceType !== 'Dump' && it.source.ContentAlbums; });
                     if (enriches && g.prefix) {
                         head = '<div class="cm-group-head" data-group="' + escapeHtml(g.prefix) + '">'
                             + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span><span class="cm-group-opts"><span class="cm-group-optlabel">Actualiser dans Jellyfin :</span>'
-                            + (dumpOnly ? '<span class="cm-libpick-slot" data-libpick="' + escapeHtml(g.prefix) + '"></span>' : '<label><input type="checkbox" class="cm-check" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
+                            + (dumpOnly ? '<span class="cm-libpick-slot" data-libpick="' + escapeHtml(g.prefix) + '"></span>' : !hasVideo ? '' : '<label><input type="checkbox" class="cm-check" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
                             + '<label><input type="checkbox" class="cm-check" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>')
-                            + '<label><input type="checkbox" class="cm-check" data-rf="episode" checked aria-label="Actualiser les épisodes" /> Épisodes</label>'
+                            + (hasVideo ? '<label><input type="checkbox" class="cm-check" data-rf="episode" checked aria-label="Actualiser les épisodes" /> Épisodes</label>' : '')
+                            + (hasAlbums ? '<label><input type="checkbox" class="cm-check" data-rf="album" checked aria-label="Actualiser les albums" /> Albums</label>'
+                                + '<label><input type="checkbox" class="cm-check" data-rf="photo" checked aria-label="Actualiser les photos" /> Photos</label>' : '')
                             + (dumpOnly ? '<label><input type="checkbox" class="cm-check" data-rf="movie" checked aria-label="Actualiser les films" /> Films</label>' : '')
                             + '<span class="cm-group-optsep" aria-hidden="true"></span>'
                             + '<label title="Décochez pour ne remplacer que les métadonnées"><input type="checkbox" class="cm-check" data-rf="images" checked aria-label="Remplacer aussi les images" /> Remplacer les images</label></span>'
@@ -1540,7 +1713,7 @@
                         ['Saisons', source.SourceEndpoint],
                         ['Séries', source.SeriesEndpoint],
                         ['Épisodes manquants', source.EpisodeListEndpoint]
-                    ].map(function(d) { return '<span><i class="' + (d[1] ? 'on' : '') + '"></i>' + d[0] + '</span>'; }).join('');
+                    ].filter(function() { return source.ContentVideo !== false; }).concat(source.ContentAlbums ? [['Albums', source.AlbumEndpoint || '/albums/{id}']] : []).map(function(d) { return '<span><i class="' + (d[1] ? 'on' : '') + '"></i>' + d[0] + '</span>'; }).join('');
                     html += '<article class="cm-card' + (on ? '' : ' cm-off') + '">'
                         + '<div class="cm-card-head"><div><h3>' + escapeHtml(source.Name || 'Sans nom') + '</h3>'
                         + (isLocal ? '<span class="cm-url">Source locale</span>' : '<span class="cm-url" title="' + escapeHtml(source.BaseUrl || '') + '">' + escapeHtml(source.BaseUrl || 'URL non configurée') + '</span>') + '</div>'
@@ -1586,7 +1759,9 @@
                 clearInvalid();
                 editOriginalPrefix = '';
                 localDataId = type === 'local' ? randomHex(16) : '';
-                localContent = type === 'local' ? { Series: [] } : null;
+                localContent = type === 'local' ? { Series: [], Albums: [] } : null;
+                localMode = 'series';
+                localPhotoThumbs = {};
                 if (type === 'local') { loadTermNames(); }
                 localSel = null;
                 localCollapsed = {};
@@ -1640,6 +1815,7 @@
                 customHeaders = [];
                 renderHeaders();
                 
+                fillAlbumFields({});
                 applyMappingDefaults();
                 // After the form's reset(), which would put this hidden field back to its original value
                 document.querySelector('#editType').value = type === 'local' ? 'Local' : (type === 'people' ? 'People' : (type === 'dump' ? 'Dump' : 'Api'));
@@ -1666,6 +1842,8 @@
                 localContent = null;
                 localSel = null;
                 localCollapsed = {};
+                localMode = source.ContentVideo === false ? 'albums' : 'series';
+                localPhotoThumbs = {};
                 
                 document.querySelector('#srcName').value = source.Name || '';
                 document.querySelector('#srcPrefix').value = source.Prefix || '';
@@ -1722,6 +1900,7 @@
 
                 // Episode list
                 fillEpisodeListFields(source.EpisodeListEndpoint, source.EpisodeListMappings || {});
+                fillAlbumFields(source);
                 fillNetworkFields(source);
                 document.querySelector('#testResult').innerHTML = '';
 
@@ -1859,6 +2038,12 @@
                     html += '<details><summary>En-têtes envoyés (' + r.RequestHeaders.length + ')</summary><pre>' + escapeHtml(r.RequestHeaders.join('\n')) + '</pre></details>';
                 }
 
+                if (r.Photos) {
+                    html += '<h4>' + plural(r.PhotoCount || 0, 'photo trouvée', 'photos trouvées') + '</h4><ul class="cm-photo-list">' + r.Photos.slice(0, 50).map(function(p) {
+                        return '<li><code>' + escapeHtml(p.File) + '</code> ' + escapeHtml(p.Title || '— sans titre') + '</li>';
+                    }).join('') + '</ul>';
+                }
+
                 // The clickable answer comes first: it is what the mappings are filled from
                 if (r.RawJson) {
                     // PickJson: the server's trimmed copy of the WHOLE answer (the raw text is cut at 20 KB, a list of episodes is longer)
@@ -1941,10 +2126,10 @@
             var lastRawText = '';   // the raw answer as shown, for "Copier la réponse brute"
             var activeMapField = null;
             var pickCounts = {};   // real length of the lists the server cut to their first element, by path
-            var MAP_SECTIONS = ['video', 'season', 'series', 'episodes', 'person', 'dump'];
+            var MAP_SECTIONS = ['video', 'season', 'series', 'episodes', 'person', 'dump', 'album', 'photo'];
 
             function isPathField(el) {
-                if (!el || el.tagName !== 'INPUT' || el.type !== 'text' || /PageParam|PhotoBase|^srcDumpItems$/.test(el.id)) { return false; }
+                if (!el || el.tagName !== 'INPUT' || el.type !== 'text' || /PageParam|PhotoBase|Endpoint$|^srcDumpItems$/.test(el.id)) { return false; }
                 var pane = el.closest('.cm-pane');
                 return !!pane && MAP_SECTIONS.indexOf(pane.getAttribute('data-section')) >= 0;
             }
@@ -2096,6 +2281,11 @@
                 if (inList && field.id !== 'srcListItemsPath') {
                     var at = path.indexOf('[0]');
                     if (at >= 0) { path = path.slice(at + 3).replace(/^\./, ''); }
+                }
+                // A photo field is relative to one entry of the album's list of photos
+                if (field.closest('.cm-pane').getAttribute('data-section') === 'photo' && field.id !== 'srcPhotoList') {
+                    var entry = qs('#srcPhotoList').value.trim() + '[0]';
+                    if (path.indexOf(entry) === 0) { path = path.slice(entry.length).replace(/^\./, ''); }
                 }
                 if (/(Tags|Genres)$/.test(field.id)) { path = path.replace('[0]', '[]'); }
                 return path;
@@ -2398,6 +2588,7 @@
                 ['VideoFieldMappings', 'SourceFieldMappings', 'SeriesFieldMappings', 'EpisodeListMappings'].forEach(function(key) {
                     merged[key] = Object.assign({}, base[key] || {}, raw[key]);
                 });
+                readAlbumFields(merged, base);
                 if (isLocalForm()) { applyLocalSourceDefaults(merged); }
                 if (isDumpForm()) { applyDumpSourceDefaults(merged); }
                 if (isPeopleForm()) {
@@ -2494,8 +2685,87 @@
                 '#srcVideoIndex': 'indexNumber', '#srcVideoImagesArray': 'images', '#srcVideoStudio': 'studio',
                 '#srcVideoChapters': 'chapters', '#srcVideoChapterTime': 'time', '#srcVideoChapterTitle': 'title',
                 '#srcSourceTitle': 'title', '#srcSourceOverview': 'overview', '#srcSourcePoster': 'poster', '#srcSourceBackdrop': 'backdrop', '#srcSourceImagesArray': 'images',
-                '#srcSeriesTitle': 'title', '#srcSeriesOverview': 'overview', '#srcSeriesStatus': 'status', '#srcSeriesPoster': 'poster', '#srcSeriesBackdrop': 'backdrop'
+                '#srcSeriesTitle': 'title', '#srcSeriesOverview': 'overview', '#srcSeriesStatus': 'status', '#srcSeriesPoster': 'poster', '#srcSeriesBackdrop': 'backdrop',
+                '#srcAlbumEndpoint': '/albums/{id}', '#srcAlbumTitle': 'title', '#srcAlbumOverview': 'overview', '#srcAlbumDate': 'premiereDate', '#srcAlbumRating': 'communityRating',
+                '#srcAlbumTags': 'tags', '#srcAlbumTagsItemField': 'label', '#srcAlbumGenres': 'genres', '#srcAlbumGenresItemField': 'name', '#srcAlbumStudio': 'studio',
+                '#srcAlbumPoster': 'poster', '#srcAlbumBackdrop': 'backdrop', '#srcAlbumImagesArray': 'images',
+                '#srcPhotoList': 'photos', '#srcPhotoFile': 'file', '#srcPhotoEndpoint': '/photos/{id}', '#srcPhotoTitle': 'title', '#srcPhotoOverview': 'overview', '#srcPhotoDate': 'premiereDate',
+                '#srcPhotoRating': 'communityRating', '#srcPhotoTags': 'tags', '#srcPhotoTagsItemField': 'label', '#srcPhotoGenres': 'genres', '#srcPhotoGenresItemField': 'name', '#srcPhotoStudio': 'studio'
             };
+
+            // ---- Content of a source (videos, photo albums) and the album / photo mappings ----
+            // Input id suffix → FieldMapping property
+            var ALBUM_FIELDS = { Title: 'Title', Overview: 'Overview', Date: 'PremiereDate', Rating: 'CommunityRating', Tags: 'Tags', TagsItemField: 'TagsItemField',
+                Genres: 'Genres', GenresItemField: 'GenresItemField', Studio: 'Studio' };
+            var ALBUM_IMAGE_FIELDS = { Poster: 'PosterUrl', Backdrop: 'BackdropUrl', ImagesArray: 'ImagesArray' };
+
+            function fillAlbumFields(source) {
+                qs('#srcContentVideo').checked = source.ContentVideo !== false;
+                qs('#srcContentAlbums').checked = !!source.ContentAlbums;
+                qs('#srcAlbumEndpoint').value = source.AlbumEndpoint === undefined ? '/albums/{id}' : (source.AlbumEndpoint || '');
+                qs('#srcPhotoEndpoint').value = source.PhotoEndpoint === undefined ? '/photos/{id}' : (source.PhotoEndpoint || '');
+                qs('#srcPhotoList').value = source.PhotoListPath === undefined ? 'photos' : (source.PhotoListPath || '');
+                qs('#srcPhotoFile').value = source.PhotoFileField === undefined ? 'file' : (source.PhotoFileField || '');
+                qs('#srcPhotoInheritAlbumTags').checked = !!source.PhotoInheritAlbumTags;
+                [['srcAlbum', source.AlbumFieldMappings, Object.assign({}, ALBUM_FIELDS, ALBUM_IMAGE_FIELDS)], ['srcPhoto', source.PhotoFieldMappings, ALBUM_FIELDS]].forEach(function(set) {
+                    Object.keys(set[2]).forEach(function(suffix) {
+                        var input = qs('#' + set[0] + suffix);
+                        // A source saved before albums existed has no mapping: the standard paths
+                        input.value = set[1] ? (set[1][set[2][suffix]] || '') : (FIELD_DEFAULTS['#' + set[0] + suffix] || '');
+                    });
+                    qs('#' + set[0] + 'OverviewHtml').checked = !!(set[1] && set[1].OverviewIsHtml);
+                });
+            }
+
+            function readAlbumFields(source, base) {
+                // A dump holds videos only; a people source holds neither
+                var choice = isDumpForm() || isPeopleForm();
+                source.ContentVideo = choice ? true : qs('#srcContentVideo').checked;
+                source.ContentAlbums = choice ? false : qs('#srcContentAlbums').checked;
+                source.AlbumEndpoint = qs('#srcAlbumEndpoint').value.trim() || '/albums/{id}';
+                source.PhotoEndpoint = qs('#srcPhotoEndpoint').value.trim();
+                source.PhotoListPath = qs('#srcPhotoList').value.trim();
+                source.PhotoFileField = qs('#srcPhotoFile').value.trim();
+                source.PhotoInheritAlbumTags = qs('#srcPhotoInheritAlbumTags').checked;
+                [['srcAlbum', 'AlbumFieldMappings', Object.assign({}, ALBUM_FIELDS, ALBUM_IMAGE_FIELDS)], ['srcPhoto', 'PhotoFieldMappings', ALBUM_FIELDS]].forEach(function(set) {
+                    var mapping = Object.assign({}, base[set[1]] || {});
+                    Object.keys(set[2]).forEach(function(suffix) { mapping[set[2][suffix]] = qs('#' + set[0] + suffix).value.trim(); });
+                    mapping.OverviewIsHtml = qs('#' + set[0] + 'OverviewHtml').checked;
+                    source[set[1]] = mapping;
+                });
+            }
+
+            // Hides what concerns a content that is not ticked (menu, test types)
+            function updateContentUi() {
+                var type = formType();
+                var choosable = type === 'api' || type === 'local';
+                var on = { video: !choosable || qs('#srcContentVideo').checked, albums: choosable && qs('#srcContentAlbums').checked };
+                Array.prototype.forEach.call(document.querySelectorAll('#editorView [data-content]'), function(el) { el.hidden = !on[el.getAttribute('data-content')]; });
+                Array.prototype.forEach.call(document.querySelectorAll('#editorView .cm-content-choice'), function(label) { label.classList.toggle('cm-sel', label.querySelector('input').checked); });
+                // A local source without videos has nothing under « Avancé »
+                qs('#navAdvanced').hidden = type === 'local' && !on.video;
+                var select = qs('#testItemType');
+                Array.prototype.forEach.call(select.options, function(option) {
+                    var show = option.getAttribute('data-for') === (type === 'people' ? 'people' : 'api') && !(type === 'dump' && option.value !== 'video')
+                        && on[option.getAttribute('data-content-option') || (type === 'people' ? 'people' : 'video')] !== false;
+                    option.hidden = !show;
+                    option.disabled = !show;
+                });
+                var current = select.options[select.selectedIndex];
+                if (!current || current.disabled) {
+                    var first = Array.prototype.filter.call(select.options, function(o) { return !o.disabled; })[0];
+                    if (first) { select.value = first.value; }
+                }
+            }
+
+            ['#srcContentVideo', '#srcContentAlbums'].forEach(function(selector) {
+                document.querySelector(selector).addEventListener('change', function(e) {
+                    // At least one content: the last one stays ticked
+                    if (!document.querySelector('#srcContentVideo').checked && !document.querySelector('#srcContentAlbums').checked) { e.target.checked = true; }
+                    updateContentUi();
+                    updateCounts();
+                });
+            });
 
             // A new source starts with the standard paths: an empty field is IGNORED by the plugin,
             // whereas before it stayed empty behind a placeholder that looked like a default value.
@@ -2513,8 +2783,10 @@
             }
 
             function showSection(name) {
+                var paneName = name === 'albums' ? 'content' : name;
+                if (isLocalForm() && (name === 'content' || name === 'albums')) { setLocalMode(name === 'albums' ? 'albums' : 'series'); }
                 Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage .cm-pane'), function(pane) {
-                    pane.hidden = pane.getAttribute('data-section') !== name;
+                    pane.hidden = pane.getAttribute('data-section') !== paneName;
                 });
                 Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage .cm-nav-item'), function(item) {
                     if (item.getAttribute('data-go') === name) { item.setAttribute('aria-current', 'page'); } else { item.removeAttribute('aria-current'); }
@@ -2532,6 +2804,8 @@
                     } else if (key === 'content') {
                         var n = countLocal(localContent);
                         text = localContent ? n.episodes + (n.episodes > 1 ? ' épisodes' : ' épisode') : '';
+                    } else if (key === 'albums') {
+                        text = localContent ? plural(countLocal(localContent).albums, 'album', 'albums') : '';
                     } else if (key === 'thumbs') {
                         var thumbsOn = (qs('#srcLandscapePortraitThumbs').checked ? 1 : 0) + (qs('#srcLandscapePosterCrop').checked ? 1 : 0);
                         text = thumbsOn === 2 ? 'Activé' : thumbsOn === 1 ? '1 sur 2' : 'Désactivé';
@@ -2606,14 +2880,10 @@
                 qs('#lblBaseUrl').textContent = type === 'dump' ? 'URL du dump *' : 'URL de base *';
                 qs('#hintBaseUrl').textContent = type === 'dump' ? 'L\'adresse complète qui renvoie tout le catalogue, par exemple https://api.example.com/dump' : 'Par exemple https://api.example.com';
                 qs('#srcPersonEndpoint').required = type === 'people';
-                // Test: a people source only offers "Personne"
+                // Test: a people source only offers "Personne"; the others offer what their content holds
                 var typeSelect = qs('#testItemType');
-                Array.prototype.forEach.call(typeSelect.options, function(option) {
-                    var show = option.getAttribute('data-for') === (type === 'people' ? 'people' : 'api') && !(type === 'dump' && option.value !== 'video');
-                    option.hidden = !show;
-                    option.disabled = !show;
-                });
                 typeSelect.value = type === 'people' ? 'person' : 'video';
+                updateContentUi();
                 qs('#testItemId').placeholder = type === 'people' ? 'Identifiant : 123, pe-123 ou {pe-123}' : '123, mv1-123 ou {mv1-123}';
                 qs('#testItemId').closest('.inputContainer').querySelector('label').textContent = type === 'dump' ? 'Identifiant d\'une entrée (facultatif)' : 'Identifiant';
                 if (type === 'dump') { qs('#testItemId').placeholder = 'Vide = la première entrée du dump'; }
@@ -2733,6 +3003,8 @@
                 if (status.Series) { kinds.push(status.Series + ' série' + (status.Series > 1 ? 's' : '')); }
                 if (status.Seasons) { kinds.push(status.Seasons + ' saison' + (status.Seasons > 1 ? 's' : '')); }
                 if (status.Episodes) { kinds.push(status.Episodes + ' épisode' + (status.Episodes > 1 ? 's' : '')); }
+                if (status.Albums) { kinds.push(plural(status.Albums, 'album', 'albums')); }
+                if (status.Photos) { kinds.push(plural(status.Photos, 'photo', 'photos')); }
                 var percent = status.Total > 0 ? ' · ' + Math.floor(status.Done * 100 / status.Total) + ' %' : '';
                 return status.Done + ' / ' + status.Total.toLocaleString('fr-FR') + ' actualisé' + (status.Total > 1 ? 's' : '') + percent + ' (' + kinds.join(', ') + ')' + (status.Failed ? ', ' + status.Failed + ' en échec (voir le journal)' : '');
             }
@@ -2787,7 +3059,7 @@
                 var prefix = button.getAttribute('data-refresh');
                 var head = button.closest('.cm-group-head');
                 // Only the types this group offers (a dump has no series or season boxes)
-                var types = ['series', 'season', 'episode', 'movie'].filter(function(t) { var box = head.querySelector('[data-rf="' + t + '"]'); return box && box.checked; });
+                var types = ['series', 'season', 'episode', 'movie', 'album', 'photo'].filter(function(t) { var box = head.querySelector('[data-rf="' + t + '"]'); return box && box.checked; });
                 if (!types.length) { refreshSay(prefix, 'Cochez au moins un type à actualiser.', true); return; }
                 var picker = head.querySelector('[data-libpick]');
                 var libraryIds = picker ? selectedLibraries(picker) : [];
@@ -3045,6 +3317,7 @@
 
             function usedIds() {
                 var used = {};
+                walkAlbums(function(album) { used[album.Id] = true; });
                 ((localContent && localContent.Series) || []).forEach(function(s) {
                     used[s.Id] = true;
                     (s.Seasons || []).forEach(function(season) {
@@ -3066,7 +3339,8 @@
             }
 
             function countLocal(content) {
-                var n = { series: 0, seasons: 0, episodes: 0 };
+                var n = { series: 0, seasons: 0, episodes: 0, albums: 0 };
+                (function count(list) { (list || []).forEach(function(a) { n.albums++; count(a.Albums); }); })(content && content.Albums);
                 ((content && content.Series) || []).forEach(function(s) {
                     n.series++;
                     (s.Seasons || []).forEach(function(season) { n.seasons++; n.episodes += (season.Episodes || []).length; });
@@ -3134,9 +3408,10 @@
                     if (!id) { return; }
                     ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Local/' + id)).then(function(content) {
                         var n = countLocal(content);
-                        span.textContent = n.episodes + n.seasons + n.series === 0
-                            ? 'Aucun contenu pour le moment'
-                            : plural(n.series, 'série', 'séries') + ' · ' + plural(n.seasons, 'saison', 'saisons') + ' · ' + plural(n.episodes, 'épisode', 'épisodes');
+                        var parts = [];
+                        if (n.episodes + n.seasons + n.series > 0) { parts.push(plural(n.series, 'série', 'séries') + ' · ' + plural(n.seasons, 'saison', 'saisons') + ' · ' + plural(n.episodes, 'épisode', 'épisodes')); }
+                        if (n.albums > 0) { parts.push(plural(n.albums, 'album', 'albums')); }
+                        span.textContent = parts.length ? parts.join(' · ') : 'Aucun contenu pour le moment';
                     });
                 });
             }
@@ -3312,6 +3587,7 @@
                 renderLocalEditor();
                 ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Local/' + localDataId)).then(function(content) {
                     content.Series = content.Series || [];
+                    content.Albums = content.Albums || [];
                     localContent = content;
                     renderLocalEditor();
                 }, function() {
@@ -3329,6 +3605,7 @@
                     dataType: 'json'
                 }).then(function(saved) {
                     saved.Series = saved.Series || [];
+                    saved.Albums = saved.Albums || [];
                     localContent = saved;
                 });
             }
@@ -3361,12 +3638,16 @@
             // ---- Recherche et tri ----
             // An element is designated by a KEY ("s:1234" series, "n:1234" season, "e:1234" episode): a series and its season may carry
             // the same id (the API numbers them separately), so the id alone does not tell them apart
-            function nodeKey(kind, id) { return (kind === 'series' ? 's:' : (kind === 'season' ? 'n:' : 'e:')) + id; }
+            function nodeKey(kind, id) { return (kind === 'album' ? 'a:' : (kind === 'series' ? 's:' : (kind === 'season' ? 'n:' : 'e:'))) + id; }
 
             function findNode(key) {
                 key = String(key || '');
                 var kind = key.charAt(0), id = key.slice(2);
                 var found = null;
+                if (kind === 'a') {
+                    walkAlbums(function(album, list, path) { if (album.Id === id) { found = { kind: 'album', node: album, list: list, path: path }; } });
+                    return found;
+                }
                 ((localContent && localContent.Series) || []).forEach(function(s) {
                     if (kind === 's' && s.Id === id) { found = { kind: 'series', node: s, list: localContent.Series }; }
                     (s.Seasons || []).forEach(function(season) {
@@ -3421,6 +3702,7 @@
             function renderLocalTree() {
                 var tree = qs('#localTree');
                 if (!localContent) { tree.innerHTML = '<p class="cm-hint" style="margin: 8px;">Chargement…</p>'; return; }
+                if (localMode === 'albums') { renderAlbumTree(tree); return; }
                 var html = '<ul>';
                 localContent.Series.forEach(function(s) {
                     var open = !localCollapsed[nodeKey('series', s.Id)];
@@ -3455,6 +3737,211 @@
                     + '<button type="button" class="cm-t-item" data-node="' + key + '"' + (localSel === key ? ' aria-current="true"' : '') + '>'
                     + '<span class="t' + (node.Title ? '' : ' untitled') + '">' + escapeHtml(node.Title || (kindLabel === 'série' ? 'Série sans titre' : 'Saison sans titre')) + '</span><span class="n">' + count + '</span></button></div>';
             }
+
+            // ---- Photo albums of a local source ----
+            var localMode = 'series';     // which tree the content pane shows: 'series' or 'albums'
+            var localPhoto = 0;           // photo selected in the « Photos » tab
+            var localPhotoThumbs = {};    // album key → { file name in lower case → Jellyfin item id }
+            var MAX_ALBUM_DEPTH = 10;     // same limit as the server
+
+            // fn(album, list holding it, parents from the top)
+            function walkAlbums(fn) {
+                (function walk(list, path) {
+                    (list || []).forEach(function(album) { fn(album, list, path); walk(album.Albums, path.concat([album])); });
+                })(localContent && localContent.Albums, []);
+            }
+
+            function setLocalMode(mode) {
+                var intro = qs('#localIntro'), title = qs('#paneTitle-content');
+                title.textContent = mode === 'albums' ? 'Albums' : 'Contenu';
+                intro.innerHTML = mode === 'albums'
+                    ? 'Rangez-les comme vos dossiers : un album peut contenir des photos, des sous-albums, ou les deux. Chaque album a un tag <code>{préfixe-ID}</code> à mettre dans le nom de son dossier.'
+                    : 'Séries, saisons et épisodes de cette source. Chaque élément a un tag <code>{préfixe-ID}</code> à mettre dans le nom de son dossier (série, saison) ou de son fichier (épisode). Un épisode sans fichier apparaît comme épisode manquant.';
+                if (localMode === mode) { return; }
+                localMode = mode;
+                localSel = null;
+                localTab = 'info';
+                renderLocalEditor();
+            }
+
+            function numberOrNull(value) {
+                var number = parseFloat(String(value).replace(',', '.'));
+                return isNaN(number) ? null : number;
+            }
+
+            function albumSummary(album) {
+                var parts = [];
+                if ((album.Albums || []).length) { parts.push(plural(album.Albums.length, 'sous-album', 'sous-albums')); }
+                if ((album.Photos || []).length) { parts.push(plural(album.Photos.length, 'photo', 'photos')); }
+                return parts.join(' · ') || 'vide';
+            }
+
+            function renderAlbumTree(tree) {
+                var rows = function(list, depth) {
+                    return '<ul>' + (list || []).map(function(album) {
+                        var key = nodeKey('album', album.Id), children = (album.Albums || []).length, open = !localCollapsed[key];
+                        var cover = imagePreviewUrl(album.Poster);
+                        var html = '<li><div class="cm-t-row">' + (children ? '<button type="button" class="cm-t-chev" data-toggle-node="' + key + '" aria-expanded="' + open + '" aria-label="' + (open ? 'Replier' : 'Déplier') + ' l\'album ' + escapeHtml(album.Title || '') + '">' + (open ? '▼' : '▶') + '</button>' : '<span class="cm-t-nochev"></span>')
+                            + '<button type="button" class="cm-t-item cm-t-album" data-node="' + key + '"' + (localSel === key ? ' aria-current="true"' : '') + '><span class="cm-t-cover">' + (cover ? '<img alt="" src="' + escapeHtml(cover) + '" />' : '🖼️') + '</span>'
+                            + '<span><span class="t' + (album.Title ? '' : ' untitled') + '">' + escapeHtml(album.Title || 'Album sans titre') + '</span><span class="n">' + albumSummary(album) + '</span></span></button></div>';
+                        if (open && (children || localSel === key)) {
+                            html += rows(album.Albums, depth + 1);
+                            if (localSel === key && depth < MAX_ALBUM_DEPTH) { html += '<ul><li><button type="button" class="cm-t-add" data-add="album" data-parent="' + key + '">＋ Sous-album</button></li></ul>'; }
+                        }
+                        return html + '</li>';
+                    }).join('') + '</ul>';
+                };
+                tree.innerHTML = rows(localContent.Albums, 1) + '<button type="button" class="cm-t-add" data-add="album">＋ Album</button>';
+            }
+
+            function photoHasInfo(photo) {
+                return !!(photo.Title || photo.Overview || photo.PremiereDate || photo.Studio || photo.CommunityRating != null || (photo.Tags || []).length || (photo.Genres || []).length);
+            }
+
+            function renderAlbumDetail(box, hit) {
+                if (!hit || hit.kind !== 'album') {
+                    box.innerHTML = '<div class="cm-detail-empty">' + (localContent.Albums.length === 0
+                        ? '<strong>Aucun album.</strong><br>Commencez par un album : il pourra contenir des sous-albums.<br><button is="emby-button" type="button" class="raised button-submit" data-add="album"><span>Ajouter un album</span></button>'
+                        : 'Choisissez un album dans l\'arbre pour le modifier,<br>ou ajoutez-en avec les boutons « ＋ ».') + '</div>';
+                    return;
+                }
+                var n = hit.node;
+                var photos = n.Photos = n.Photos || [];
+                var imageCount = ['Poster', 'Backdrop'].filter(function(f) { return !!n[f]; }).length;
+                var tabs = [['info', 'Informations', ''], ['images', 'Images', imageCount ? String(imageCount) : ''], ['photos', 'Photos', photos.length ? String(photos.length) : '']];
+                if (!tabs.some(function(t) { return t[0] === localTab; })) { localTab = 'info'; }
+                box.setAttribute('data-ltab', localTab);
+                var path = hit.path.concat([n]).map(function(a) { return a.Title || 'sans titre'; }).join(' › ');
+                var html = '<div><div class="cm-path">' + escapeHtml(path) + '</div><h4>' + escapeHtml(n.Title || 'Album sans titre') + '</h4></div>'
+                    + '<div class="cm-ltabs" role="tablist" aria-label="Parties de la fiche">' + tabs.map(function(t) {
+                        return '<button type="button" class="cm-ltab" role="tab" data-ltab-btn="' + t[0] + '" aria-selected="' + (t[0] === localTab ? 'true' : 'false') + '">' + t[1] + (t[2] ? ' <span class="cm-badge">' + t[2] + '</span>' : '') + '</button>';
+                    }).join('') + '</div>';
+                if (localTab === 'info') {
+                    var below = (n.Albums || []).length;
+                    html += '<div class="cm-tagbox"><div><span class="cm-hint" style="margin:0;">Tag à mettre dans le nom du dossier de l\'album</span><code class="cm-tag" id="lfTag">' + escapeHtml(tagOf(n)) + '</code></div>'
+                        + '<button is="emby-button" type="button" class="raised" data-copy="tag"><span>Copier le tag</span></button><button is="emby-button" type="button" class="raised" data-copy="name"><span>Copier le nom</span></button></div>'
+                        + '<div class="cm-grid"><div class="inputContainer cm-span"><label class="inputLabel" for="lf-NodeId">Identifiant</label><input is="emby-input" type="text" id="lf-NodeId" data-node-id value="' + escapeHtml(n.Id) + '" />'
+                        + '<div class="cm-hint">Généré, vous pouvez le changer (lettres sans accent, chiffres, _ et -). Changer l\'identifiant d\'un album déjà utilisé oblige à renommer son dossier.</div><div class="cm-hint" id="lfIdMsg" role="alert"></div></div>'
+                        + inputField('Titre', 'Title', n.Title, { span: true }) + areaField('Résumé', 'Overview', n.Overview)
+                        + inputField('Date', 'PremiereDate', n.PremiereDate, { placeholder: 'AAAA-MM-JJ' }) + inputField('Note', 'CommunityRating', n.CommunityRating, { placeholder: 'Sur 10' })
+                        + inputField('Studio', 'Studio', n.Studio, { span: true })
+                        + termField('Tags', 'Tags', 'Entrée ou virgule pour ajouter. Les règles de la page « Genres et tags » s\'appliquent.')
+                        + termField('Genres', 'Genres', 'Même fonctionnement et mêmes règles que les tags.')
+                        + '<div class="inputContainer cm-span cm-note"><label class="inputLabel" for="lf-Note">📝 Note privée</label><textarea id="lf-Note" data-f="Note" rows="3">' + escapeHtml(n.Note || '') + '</textarea>'
+                        + '<div class="cm-hint">Pour vous seulement, jamais envoyée à Jellyfin.</div></div></div>'
+                        + '<div class="cm-danger"><div><strong>Supprimer cet album</strong><span>' + (below ? plural(below, 'sous-album est supprimé', 'sous-albums sont supprimés') + ' avec lui. ' : '') + 'Pris en compte à l\'enregistrement.</span></div>'
+                        + '<button is="emby-button" type="button" class="raised" data-del="' + nodeKey('album', n.Id) + '"><span>Supprimer…</span></button></div>';
+                } else if (localTab === 'images') {
+                    html += '<div class="cm-grid">' + imageField('Couverture', 'Poster', n.Poster, 'Un folder.jpg dans le dossier reste prioritaire.') + imageField('Image de fond', 'Backdrop', n.Backdrop) + '</div>'
+                        + applyAlbumBlock(n);
+                } else {
+                    html += renderPhotosTab(n, photos);
+                }
+                box.innerHTML = html;
+                if (localTab === 'info') { renderTermChips(); }
+            }
+
+            function applyAlbumBlock(n) {
+                return '<div class="cm-bulk"><div><strong>Appliquer dans Jellyfin</strong><div class="cm-hint">Actualise l\'album ' + escapeHtml(tagOf(n))
+                    + ', ses photos et ses sous-albums portant ce préfixe, images comprises. Enregistrez d\'abord : une simple analyse de la médiathèque ne reprend pas vos changements.</div><div class="cm-hint" id="lfApplyMsg" role="status"></div></div>'
+                    + '<button is="emby-button" type="button" class="raised" data-apply-images="' + nodeKey('album', n.Id) + '" data-apply-kinds="album,photo"><span>Appliquer</span></button></div>';
+            }
+
+            function renderPhotosTab(n, photos) {
+                if (localPhoto >= photos.length) { localPhoto = 0; }
+                var thumbs = localPhotoThumbs[nodeKey('album', n.Id)] || {};
+                var html = '<div class="cm-photo-tools"><button is="emby-button" type="button" class="raised button-submit" data-photos-read><span>Lire les photos du dossier</span></button>'
+                    + '<input type="text" id="lfPhotoName" placeholder="plage.jpg" aria-label="Nom de fichier d\'une photo" /><button is="emby-button" type="button" class="raised" data-photo-add><span>＋ Ajouter ce fichier</span></button></div>'
+                    + '<div class="cm-hint" id="lfPhotoMsg" role="status"></div>';
+                if (!photos.length) {
+                    return html + '<div class="cm-detail-empty">Aucune photo décrite.' + ((n.Albums || []).length ? '<br>Un album qui ne contient que des sous-albums n\'en a pas besoin.' : '<br>« Lire les photos du dossier » les liste, une fois le dossier nommé avec son tag et analysé par Jellyfin.') + '</div>' + applyAlbumBlock(n);
+                }
+                html += '<div class="cm-photos">' + photos.map(function(p, i) {
+                    var id = thumbs[String(p.File).toLowerCase()];
+                    return '<button type="button" class="cm-photo' + (photoHasInfo(p) ? '' : ' cm-empty-photo') + '" data-photo="' + i + '"' + (i === localPhoto ? ' aria-current="true"' : '') + '><span class="cm-photo-img">'
+                        + (id ? '<img alt="" loading="lazy" src="' + escapeHtml(ApiClient.getUrl('Items/' + id + '/Images/Primary', { maxHeight: 200 })) + '" />' : '🖼️') + '</span>'
+                        + '<strong>' + escapeHtml(p.Title || (photoHasInfo(p) ? 'Sans titre' : 'Sans informations')) + '</strong><small>' + escapeHtml(p.File) + '</small></button>';
+                }).join('') + '</div>';
+                var p = photos[localPhoto];
+                var input = function(label, field, value, placeholder, span) {
+                    return '<div class="inputContainer' + (span ? ' cm-span' : '') + '"><label class="inputLabel" for="lp-' + field + '">' + label + '</label><input is="emby-input" type="text" id="lp-' + field + '" data-pf="' + field + '" value="' + escapeHtml(value == null ? '' : value) + '" placeholder="' + escapeHtml(placeholder || '') + '" /></div>';
+                };
+                return html + '<div class="cm-kicker">' + escapeHtml(p.File) + '</div><div class="cm-grid">' + input('Titre', 'Title', p.Title, '', true)
+                    + '<div class="inputContainer cm-span"><label class="inputLabel" for="lp-Overview">Légende</label><textarea id="lp-Overview" data-pf="Overview" rows="3">' + escapeHtml(p.Overview || '') + '</textarea></div>'
+                    + input('Date', 'PremiereDate', p.PremiereDate, 'AAAA-MM-JJ') + input('Note', 'CommunityRating', p.CommunityRating, 'Sur 10') + input('Studio', 'Studio', p.Studio, '', true)
+                    + input('Tags (séparés par des virgules)', 'Tags', (p.Tags || []).join(', '), '', true) + input('Genres (séparés par des virgules)', 'Genres', (p.Genres || []).join(', '), '', true)
+                    + '<div class="cm-hint cm-span">Un champ vide garde la valeur du fichier (EXIF). La photo est reconnue par son nom : inutile de la renommer.</div></div>'
+                    + '<div><button is="emby-button" type="button" class="raised" data-photo-remove><span>Retirer cette photo de la liste</span></button></div>' + applyAlbumBlock(n);
+            }
+
+            function selectedAlbum() {
+                var hit = localSel ? findNode(localSel) : null;
+                return hit && hit.kind === 'album' ? hit.node : null;
+            }
+
+            // Adds the files of the album's folder(s) that are not listed yet (nothing typed is touched) and keeps their ids for the thumbnails
+            function readLibraryPhotos(button) {
+                var album = selectedAlbum(), key = localSel;
+                if (!album) { return; }
+                var say = function(text, bad) { var m = qs('#lfPhotoMsg'); if (m) { m.textContent = text; m.style.color = bad ? '#e57373' : ''; } };
+                var tag = tagOf(album).replace(/[{}]/g, '');
+                button.disabled = true; say('Lecture…');
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/Local/LibraryPhotos', { tag: tag })).then(function(result) {
+                    button.disabled = false;
+                    if (!result.Found) { say('Aucun dossier de la médiathèque ne porte {' + tag + '} : nommez le dossier avec ce tag, puis analysez la médiathèque.', true); return; }
+                    var thumbs = localPhotoThumbs[key] = {};
+                    var known = {};
+                    album.Photos.forEach(function(p) { known[String(p.File).toLowerCase()] = true; });
+                    var added = 0;
+                    (result.Photos || []).forEach(function(p) {
+                        thumbs[p.File.toLowerCase()] = p.ItemId;
+                        if (!known[p.File.toLowerCase()]) { album.Photos.push({ File: p.File, Tags: [], Genres: [] }); added++; }
+                    });
+                    if (added) { markDirty(); }
+                    if (localSel !== key) { return; }
+                    renderLocalTree();
+                    renderLocalDetail();
+                    say(plural((result.Photos || []).length, 'photo dans le dossier', 'photos dans le dossier') + ', ' + plural(added, 'ajoutée à la liste', 'ajoutées à la liste') + '.');
+                }, function() { button.disabled = false; say('Les photos n\'ont pas pu être lues.', true); });
+            }
+
+            function addPhotoByName() {
+                var album = selectedAlbum();
+                if (!album) { return; }
+                var file = qs('#lfPhotoName').value.trim().split(/[\\/]/).pop();
+                var msg = qs('#lfPhotoMsg');
+                if (!file) { msg.textContent = 'Saisissez le nom du fichier, avec son extension.'; return; }
+                var index = -1;
+                album.Photos.forEach(function(p, i) { if (String(p.File).toLowerCase() === file.toLowerCase()) { index = i; } });
+                if (index < 0) { album.Photos.push({ File: file, Tags: [], Genres: [] }); index = album.Photos.length - 1; markDirty(); }
+                localPhoto = index;
+                renderLocalTree();
+                renderLocalDetail();
+            }
+
+            function removePhoto() {
+                var album = selectedAlbum();
+                if (!album || !album.Photos[localPhoto]) { return; }
+                album.Photos.splice(localPhoto, 1);
+                localPhoto = Math.max(0, localPhoto - 1);
+                markDirty();
+                renderLocalTree();
+                renderLocalDetail();
+            }
+
+            document.querySelector('#localDetail').addEventListener('input', function(e) {
+                var field = e.target.getAttribute && e.target.getAttribute('data-pf');
+                var album = field ? selectedAlbum() : null;
+                var photo = album && album.Photos[localPhoto];
+                if (!photo) { return; }
+                var value = e.target.value;
+                photo[field] = field === 'Tags' || field === 'Genres' ? splitList(value) : (field === 'CommunityRating' ? numberOrNull(value) : value);
+                var card = qs('#localDetail [data-photo="' + localPhoto + '"]');
+                if (card) {
+                    card.querySelector('strong').textContent = photo.Title || (photoHasInfo(photo) ? 'Sans titre' : 'Sans informations');
+                    card.classList.toggle('cm-empty-photo', !photoHasInfo(photo));
+                }
+            });
 
             // ---- Fiche ----
             function inputField(label, field, value, opts) {
@@ -3618,6 +4105,7 @@
                 var box = qs('#localDetail');
                 if (!localContent) { box.innerHTML = ''; return; }
                 var hit = localSel ? findNode(localSel) : null;
+                if (localMode === 'albums') { renderAlbumDetail(box, hit); return; }
                 if (!hit) {
                     var empty = localContent.Series.length === 0;
                     box.innerHTML = '<div class="cm-detail-empty">'
@@ -3724,6 +4212,7 @@
                 localSel = key;
                 // The parents of the chosen element are expanded
                 var hit = findNode(key);
+                if (hit && hit.kind === 'album') { hit.path.forEach(function(parent) { delete localCollapsed[nodeKey('album', parent.Id)]; }); }
                 if (hit && hit.kind === 'season') { delete localCollapsed[nodeKey('series', hit.parent.Id)]; }
                 if (hit && hit.kind === 'episode') { delete localCollapsed[nodeKey('season', hit.parent.Id)]; delete localCollapsed[nodeKey('series', hit.grand.Id)]; }
                 renderLocalTree();
@@ -3737,7 +4226,13 @@
 
             function addNode(kind, parentId) {
                 var node = { Id: newNodeId(), Title: '', Overview: '', PremiereDate: '', Tags: [], Genres: [] };
-                if (kind === 'series') {
+                if (kind === 'album') {
+                    node.Albums = [];
+                    node.Photos = [];
+                    var holder = parentId ? findNode(parentId) : null;
+                    if (holder && holder.path.length + 1 >= MAX_ALBUM_DEPTH) { Dashboard.alert('Un album ne peut pas être imbriqué sur plus de ' + MAX_ALBUM_DEPTH + ' niveaux dans cet écran.'); return; }
+                    if (holder) { (holder.node.Albums = holder.node.Albums || []).push(node); delete localCollapsed[parentId]; } else { localContent.Albums.push(node); }
+                } else if (kind === 'series') {
                     node.Seasons = [];
                     localContent.Series.push(node);
                 } else if (kind === 'season') {
@@ -3822,7 +4317,7 @@
                 var hit = findNode(id);
                 if (!hit) { return; }
                 var label = (hit.node.Title || 'sans titre');
-                var extra = hit.kind === 'series' ? '\nSes saisons et leurs épisodes sont supprimés avec elle.' : (hit.kind === 'season' ? '\nSes épisodes sont supprimés avec elle.' : '');
+                var extra = hit.kind === 'series' ? '\nSes saisons et leurs épisodes sont supprimés avec elle.' : (hit.kind === 'season' ? '\nSes épisodes sont supprimés avec elle.' : (hit.kind === 'album' ? '\nSes sous-albums et les informations de leurs photos sont supprimés avec lui.' : ''));
                 if (needConfirm('delete-node', 'Supprimer « ' + label + ' » ?' + extra + '\nPris en compte à l\'enregistrement de la source.', { ok: 'Supprimer', danger: true }, function() { deleteNode(id); })) { return; }
                 hit.list.splice(hit.list.indexOf(hit.node), 1);
                 localSel = null;
@@ -3879,10 +4374,11 @@
                 var value = e.target.value;
                 if (f === 'Tags' || f === 'Genres') { hit.node[f] = splitList(value); }
                 else if (f === 'IndexNumber') { hit.node[f] = value === '' ? null : Math.max(0, parseInt(value, 10) || 0); }
+                else if (f === 'CommunityRating') { hit.node[f] = numberOrNull(value); }
                 else { hit.node[f] = value; }
                 if (f === 'Title' || f === 'IndexNumber') {
                     var heading = qs('#localDetail h4');
-                    if (heading && f === 'Title') { heading.textContent = value || (hit.kind === 'series' ? 'Série' : (hit.kind === 'season' ? 'Saison' : 'Épisode')) + ' sans titre'; }
+                    if (heading && f === 'Title') { heading.textContent = value || (hit.kind === 'album' ? 'Album' : (hit.kind === 'series' ? 'Série' : (hit.kind === 'season' ? 'Saison' : 'Épisode'))) + ' sans titre'; }
                     renderLocalTree();
                 }
             });
@@ -3894,7 +4390,8 @@
                 var id = String(value || '').trim();
                 // Unique among the elements of the SAME level: a series and its season may share an id
                 var taken = false;
-                ((localContent && localContent.Series) || []).forEach(function(s) {
+                if (hit.kind === 'album') { walkAlbums(function(album) { if (album !== hit.node && String(album.Id).toLowerCase() === id.toLowerCase()) { taken = true; } }); }
+                else ((localContent && localContent.Series) || []).forEach(function(s) {
                     var all = hit.kind === 'series' ? [s] : [];
                     (s.Seasons || []).forEach(function(season) {
                         if (hit.kind === 'season') { all.push(season); }
@@ -4194,6 +4691,7 @@
                     button.disabled = false;
                     if (st.Message) { say(st.Message, true); return; }
                     if (!st.Total) { say('Aucun élément de la médiathèque ne porte ce tag : nommez le dossier ou le fichier avec ' + '{' + tag + '}.', true); return; }
+                    if (hit.kind === 'album') { say('Actualisation lancée en arrière-plan : ' + plural(st.Albums, 'album', 'albums') + ' et ' + plural(st.Photos, 'photo', 'photos') + '.'); return; }
                     say('Images appliquées en arrière-plan à ' + plural(st.Total, 'élément', 'éléments') + ' (' + plural(st.Series, 'série', 'séries') + ', ' + plural(st.Seasons, 'saison', 'saisons') + ', ' + plural(st.Episodes, 'épisode', 'épisodes') + ').');
                 }, function() { button.disabled = false; say('L\'application n\'a pas pu être lancée.', true); });
             }
@@ -4400,7 +4898,7 @@
             function onLocalClick(e) {
                 var ltab = e.target.closest('[data-ltab-btn]');
                 if (ltab) { localTab = ltab.getAttribute('data-ltab-btn'); renderLocalDetail(); return; }
-                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-upload-video],[data-clear-video],[data-chip],[data-clear-img],[data-gal-sel],[data-gal-field],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-pickdir],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person]');
+                var target = e.target.closest('[data-node],[data-toggle-node],[data-add],[data-copy],[data-del],[data-bulk],[data-sync-episodes],[data-upload],[data-upload-video],[data-clear-video],[data-chip],[data-clear-img],[data-gal-sel],[data-gal-field],[data-gal-act],[data-gal-url],[data-gal-pick],[data-gal-pickdir],[data-gal-folders],[data-apply-images],[data-cast-remove],[data-cast-add],[data-cast-season],[data-ac-person],[data-photo],[data-photos-read],[data-photo-add],[data-photo-remove]');
                 if (!target || !localContent) { return; }
                 if (target.hasAttribute('data-node')) { selectNode(target.getAttribute('data-node')); return; }
                 if (target.hasAttribute('data-toggle-node')) {
@@ -4410,6 +4908,10 @@
                     return;
                 }
                 if (target.hasAttribute('data-add')) { addNode(target.getAttribute('data-add'), target.getAttribute('data-parent')); return; }
+                if (target.hasAttribute('data-photo')) { localPhoto = parseInt(target.getAttribute('data-photo'), 10); renderLocalDetail(); return; }
+                if (target.hasAttribute('data-photos-read')) { readLibraryPhotos(target); return; }
+                if (target.hasAttribute('data-photo-add')) { addPhotoByName(); return; }
+                if (target.hasAttribute('data-photo-remove')) { removePhoto(); return; }
                 if (target.hasAttribute('data-bulk')) { bulkAdd(target.getAttribute('data-bulk')); return; }
                 if (target.hasAttribute('data-sync-episodes')) { syncEpisodes(target.getAttribute('data-sync-episodes'), target.hasAttribute('data-overwrite')); return; }
                 if (target.hasAttribute('data-del')) { deleteNode(target.getAttribute('data-del')); return; }
@@ -4590,6 +5092,14 @@
             var lastSavedLocalPrefix = '';
 
             function showPostSaveNotice(prefix) {
+                var albumsOnly = ((currentConfig && currentConfig.Sources) || []).some(function(s) { return s.SourceType === 'Local' && s.Prefix === prefix && s.ContentVideo === false; });
+                qs('#btnNoticeAnalyze').hidden = albumsOnly;
+                qs('#btnNoticeApply').hidden = albumsOnly;
+                if (albumsOnly) {
+                    qs('#postSaveText').textContent = 'Source locale enregistrée. Pour reprendre vos changements dans Jellyfin, utilisez « Appliquer » sur un album, ou « Actualiser » sur la carte de la source.';
+                    qs('#postSaveNotice').hidden = false;
+                    return;
+                }
                 qs('#postSaveText').textContent = 'Source locale enregistrée. Les épisodes déclarés sans fichier apparaissent après l\'analyse des épisodes manquants. Pour les épisodes déjà enrichis (fichiers présents, distribution), « Appliquer aux épisodes » les met à jour sans toucher au reste de la série.';
                 qs('#postSaveNotice').hidden = false;
                 qs('#btnNoticeAnalyze').disabled = false;

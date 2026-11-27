@@ -3,7 +3,10 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.CustomMetadata.Services;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -24,11 +27,39 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         private readonly SourceResolver _resolver;
         private readonly CustomApiClient _api;
 
-        public LocalSourceController(LocalSourceStore store, SourceResolver resolver, CustomApiClient api)
+        private readonly ILibraryManager _library;
+
+        public LocalSourceController(LocalSourceStore store, SourceResolver resolver, CustomApiClient api, ILibraryManager library)
         {
+            _library = library;
             _store = store;
             _resolver = resolver;
             _api = api;
+        }
+
+        /// <summary>
+        /// The photos of the library folder(s) carrying this album tag ("loc-k3f9qa"), for the editor to describe them by file
+        /// name. Found = false when no album of the library carries the tag yet (folder not renamed, or not scanned).
+        /// </summary>
+        [HttpGet("LibraryPhotos")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public ActionResult<LibraryPhotosResult> LibraryPhotos([FromQuery] string tag)
+        {
+            tag = (tag ?? string.Empty).Trim().Trim('{', '}');
+            var albums = tag.Length == 0
+                ? new List<BaseItem>()
+                : _library.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.PhotoAlbum, BaseItemKind.Folder }, Recursive = true })
+                    .Where(i => SourceRefreshService.IsAlbum(i) && SourceRefreshService.TagsOf(i).Any(t => string.Equals(t, tag, System.StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+            var photos = albums
+                .SelectMany(a => _library.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Photo }, ParentId = a.Id }))
+                .Where(p => !string.IsNullOrEmpty(p.Path))
+                .Select(p => new LibraryPhoto { File = Path.GetFileName(p.Path), ItemId = p.Id.ToString("N") })
+                .GroupBy(p => p.File, System.StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .OrderBy(p => p.File, System.StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            return Ok(new LibraryPhotosResult { Found = albums.Count > 0, Photos = photos });
         }
 
         /// <summary>
@@ -233,5 +264,17 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     {
         /// <summary>Tag of the API season: "dm-123" or "{dm-123}"</summary>
         public string Tag { get; set; }
+    }
+
+    public class LibraryPhotosResult
+    {
+        public bool Found { get; set; }
+        public List<LibraryPhoto> Photos { get; set; }
+    }
+
+    public class LibraryPhoto
+    {
+        public string File { get; set; }
+        public string ItemId { get; set; }
     }
 }
