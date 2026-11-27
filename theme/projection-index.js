@@ -37,7 +37,11 @@
     var STATES = { unseen: 'Non vus', resume: 'En cours', seen: 'Vus', miss: 'Manquants' };
     var SORTS = [['serie', 'Par série'], ['name', 'Par nom'], ['date', 'Plus récents'], ['oldest', 'Plus anciens'], ['added', 'Ajoutés récemment'], ['rating', 'Les mieux notés'], ['random', 'Au hasard']];
     // the views of a library that stay jellyfin-web's, with their tab number (experimental layout)
-    var VIEWS = { tv: [['Suggestions', 1], ['À venir', 2], ['Genres', 3], ['Réseaux TV', 4]], movies: [['Suggestions', 1], ['Favoris', 2], ['Collections', 3], ['Genres', 4]] };
+    // a library's views and their `tab=` number, as jellyfin-web's own view menu lists them
+    var VIEWS = {
+        tv: [['Séries', 0], ['Épisodes', 5], ['Suggestions', 1], ['À venir', 2], ['Genres', 3], ['Réseaux TV', 4], ['Collections', 6], ['Listes de lecture', 7]],
+        movies: [['Films', 0], ['Suggestions', 1], ['Favoris', 2], ['Collections', 3], ['Genres', 4], ['Studios', 5], ['Listes de lecture', 6]]
+    };
     var LETTERS = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
     var PAGE = 60, MAX_PAGE = 600, PEOPLE_STEP = 240;
 
@@ -61,8 +65,6 @@
     function plain(s) { return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
     function byName(a, b) { return String(a).localeCompare(String(b), 'fr', { numeric: true }); }
     // not in the TV layout: jellyfin-web's own list is made for a remote control
-    // Jellyfin 12 draws the library's toolbar in the app bar (10.11 draws it in the page, which the screen hides)
-    function barViewMenu() { return document.querySelector('.MuiAppBar-root [aria-controls="library-view-menu"]'); }
     function themed() { var root = document.documentElement; return !root.classList.contains('layout-tv') && getComputedStyle(root).getPropertyValue('--pj-index').trim() === '1'; }
     function currentPage() { return document.querySelector('.page:not(.hide)'); }
     function serverId() { var c = client(); return c && c.serverId ? c.serverId() : ''; }
@@ -331,9 +333,11 @@
             title.appendChild(button('pj-ix-term', { 'data-k': k, 'data-v': t[1], title: 'Retirer ce filtre', 'aria-label': 'Retirer le filtre ' + label(k, t[1]) }, [
                 k === 'people' ? personFace(ix, t[1], 160) : null, h('b', { text: label(k, t[1]) }), h('i', { 'aria-hidden': 'true', text: '✕' })]));
         });
+        // jellyfin-web 12 gives the library's view menu a whole row of its bar: the title offers the views instead
+        var views = !!ix.route.library && !ix.route.tabbed;
         if (!terms.length) {
-            var name = ix.route.library ? ix.scope || '…' : !ix.loaded && ix.route.base ? ix.route.base.v || '…' : ALL_TITLES[ix.type];
-            title.appendChild(h('span', { text: name }));
+            var name = !ix.route.library ? (!ix.loaded && ix.route.base ? ix.route.base.v || '…' : ALL_TITLES[ix.type]) : views && ix.route.type === 'Episode' ? 'Épisodes' : ix.scope || '…';
+            title.appendChild(views ? viewSwitch(name, 'pj-ix-viewtitle') : h('span', { text: name }));
         }
         title.appendChild(button('pj-ix-plus', { 'data-open': 'all', 'aria-label': 'Ajouter un filtre', title: 'Ajouter un filtre', text: '+' }));
         ix.heroBox.classList.toggle('pj-ix-plain', !!ix.route.library && !terms.length);
@@ -350,16 +354,61 @@
             if (ix.scope && !ix.route.library) { sum += (series ? ', bibliothèque ' : ' dans la bibliothèque ') + ix.scope; }
         }
         under.appendChild(h('p', { 'aria-live': 'polite', text: sum }));
-        // the library's other views, which the stock page offered in a menu this screen takes the place of
-        if (ix.route.library && !ix.route.tabbed && !barViewMenu()) {
-            var collection = ix.route.library === 'tv' ? 'tvshows' : 'movies';
-            under.appendChild(h('nav', { 'class': 'pj-ix-views', 'aria-label': 'Autres vues de la bibliothèque' }, VIEWS[ix.route.library].map(function (v) {
-                return h('a', { href: '#/' + ix.route.library + '?topParentId=' + ix.route.parentId + '&collectionType=' + collection + '&tab=' + v[1], text: v[0] });
-            })));
+        var head = title;
+        if (views) {
+            // filtered, the title says the filter: the view it applies to stands above it
+            head = h('div', { 'class': 'pj-ix-viewbox' }, terms.length
+                ? [viewSwitch((ix.scope || '…') + (ix.route.type === 'Episode' ? ' · Épisodes' : ''), 'pj-ix-eyebrow'), viewMenu(ix), title]
+                : [title, viewMenu(ix)]);
         }
-        ix.titleBox.replaceChildren(title, under);
+        ix.titleBox.replaceChildren(head, under);
         picture(ix);
     }
+    // ---------- the library's views, in the header ----------
+    function viewSwitch(text, cls) {
+        return button('pj-ix-view ' + cls, { 'data-views': true, 'aria-expanded': 'false', title: 'Changer de vue' }, [h('span', { text: text }), icon('expand_more')]);
+    }
+    function viewMenu(ix) {
+        var r = ix.route, here = r.type === 'Episode' ? 5 : 0;
+        var address = '#/' + r.library + '?topParentId=' + r.parentId + '&collectionType=' + (r.library === 'tv' ? 'tvshows' : 'movies') + '&tab=';
+        return h('nav', { 'class': 'pj-ix-menu', 'aria-label': 'Vues de la bibliothèque', hidden: true }, VIEWS[r.library].map(function (v) {
+            return h('a', { href: address + v[1], 'aria-current': v[1] === here ? 'page' : null, text: v[0] });
+        }));
+    }
+    function openViewBox() {
+        var menu = document.querySelector('.pj-ix-menu:not([hidden])');
+        return menu ? { menu: menu, box: menu.parentElement, button: menu.parentElement.querySelector('.pj-ix-view') } : null;
+    }
+    function closeViews(refocus) {
+        var open = openViewBox();
+        if (!open) { return; }
+        open.menu.hidden = true;
+        open.button.setAttribute('aria-expanded', 'false');
+        if (refocus) { open.button.focus(); }
+    }
+    function toggleViews(opener, byKeyboard) {
+        var menu = opener.closest('.pj-ix-viewbox').querySelector('.pj-ix-menu'), show = menu.hidden;
+        closeViews();
+        menu.hidden = !show;
+        opener.setAttribute('aria-expanded', String(show));
+        // under the button that opened it, whether that is the title or the line above it
+        menu.style.top = (opener.offsetTop + opener.offsetHeight + 6) + 'px';
+        if (show && byKeyboard) { (menu.querySelector('[aria-current]') || menu.firstChild).focus(); }
+    }
+    document.addEventListener('click', function (ev) {
+        var open = openViewBox();
+        if (open && (ev.target.closest('.pj-ix-menu a') || !(ev.target.closest('.pj-ix-view') || open.menu.contains(ev.target)))) { closeViews(); }
+    }, true);
+    document.addEventListener('keydown', function (ev) {
+        var open = openViewBox();
+        if (!open) { return; }
+        if (ev.key === 'Escape') { ev.preventDefault(); closeViews(true); return; }
+        if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') { return; }
+        ev.preventDefault(); ev.stopPropagation();
+        var links = Array.prototype.slice.call(open.menu.children), at = links.indexOf(document.activeElement), step = ev.key === 'ArrowDown' ? 1 : -1;
+        links[at < 0 ? 0 : (at + step + links.length) % links.length].focus();
+    }, true);
+
     // the picture behind the title: the person's own, else a landscape backdrop of a result, else an episode's still
     function pictures(ix) {
         var out = [], seen = new Set();
@@ -534,6 +583,7 @@
         var b = ev.target.closest('button');
         if (!b || b.classList.contains('itemAction') || !ix.root.contains(b)) { return; }
         if (b.hasAttribute('data-open')) { openPanel(ix, b.getAttribute('data-open'), b); }
+        else if (b.hasAttribute('data-views')) { toggleViews(b, ev.detail === 0); }
         else if (b.hasAttribute('data-top')) { window.scrollTo({ top: 0, behavior: 'smooth' }); }
         else if (b.hasAttribute('data-play')) { play(ix, b.getAttribute('data-play') === 'shuffle'); }
         else if (b.hasAttribute('data-type')) {
@@ -798,8 +848,8 @@
         for (var i = 0; i < roots.length; i++) { if (roots[i].offsetParent !== null) { return roots[i].__pjIx; } }
         return null;
     }
-    // while a screen shows: Jellyfin's own backdrop leaves the page, a library's stock controls leave the app bar (both
-    // CSS), and the screen makes room for the bar as it now is (jellyfin-web fills it after the page)
+    // while a screen shows: Jellyfin's own backdrop leaves the page, a library's own row leaves the app bar (both CSS;
+    // the page moves up with it), and the screen makes room for the bar as it now is
     function followBar() {
         var ix = shownIndex();
         var root = document.documentElement;
@@ -810,8 +860,6 @@
         root.classList.toggle('pj-ix-art-on', !!art);
         document.documentElement.classList.toggle('pj-ix-libon', !!(ix && ix.route.library));
         if (!ix) { return; }
-        var menu = !!barViewMenu();
-        if (ix.route.library && ix.barMenu !== menu) { ix.barMenu = menu; header(ix); }
         place(ix);
     }
     function run() {

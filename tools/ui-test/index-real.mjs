@@ -250,13 +250,13 @@ try {
     await go(page, hash); await wait(600); await ready(page);
     s = await state(page);
     const n = await libraryCount(lib, type);
-    check(`library ${name}: the library is the title`, s.title.replace('+', '') === lib.Name && s.terms.length === 0, s.title);
+    check(`library ${name}: the library (or the episodes view) is the title`, s.title.replace('+', '') === (type === 'Episode' ? 'Épisodes' : lib.Name) && s.terms.length === 0, s.title);
     check(`library ${name}: count matches the server`, (s.types[type] ?? s.cards) === n && s.cards === Math.min(60, n), `${s.types[type]} / ${n}, ${s.cards} cards`);
     check(`library ${name}: stock view hidden`, s.stockShown === 0, s.stockShown);
     const columns = await page.evaluate(`new Set([...(${shown})().querySelector('.pj-ix-grid').children].map(c => Math.round(c.getBoundingClientRect().left))).size`);
     check(`library ${name}: cards side by side`, columns >= Math.min(2, await page.evaluate(`(${shown})().querySelector('.pj-ix-grid').children.length`)), columns);
-    const bar = await page.evaluate(() => [...document.querySelectorAll('.MuiAppBar-root .MuiToolbar-root:nth-of-type(2) button')].filter(b => b.offsetParent !== null).map(b => b.innerText.trim() || b.getAttribute('aria-label') || b.title));
-    check(`library ${name}: no stock control left in the header`, bar.length === (legacy ? 0 : 1), bar.join(' | '));
+    const bar = await page.evaluate(() => ({ height: Math.round(document.querySelector('.MuiAppBar-root').getBoundingClientRect().height), page: Math.round(document.querySelector('.page:not(.hide)').getBoundingClientRect().top), row: [...document.querySelectorAll('.MuiAppBar-root [aria-controls="library-view-menu"]')].some(b => b.offsetParent !== null) }));
+    check(`library ${name}: jellyfin-web's second bar row is gone and the page moved up`, !bar.row && bar.page === bar.height && bar.height <= 48, JSON.stringify(bar));
     check(`library ${name}: the header covers neither title nor ribbon`, await page.evaluate(`(() => { const r = (${shown})(), b = document.querySelector('.MuiAppBar-root').getBoundingClientRect().bottom; return r.querySelector('h1').getBoundingClientRect().top >= b && parseFloat(getComputedStyle(r.querySelector('.pj-ix-ribbon')).top) >= b - 1; })()`));
     await checkPicture(`library ${name}`, page);
     await shot(page, `library-${type}-1440`);
@@ -276,15 +276,20 @@ try {
   s = await state(page);
   const docs = await libraryCount(tv, 'Series', { Genres: 'Documentaire' });
   check('library: a genre narrows the library', s.terms.join() === 'Documentaire' && s.types.Series === docs, `${s.types.Series} / ${docs}`);
+  check('library: filtered, the library is named above the filter', (await page.locator(`${ix} .pj-ix-eyebrow`).first().innerText()).trim() === tv.Name);
+  await shot(page, 'library-filtered-1440');
   // the other views stay jellyfin-web's, and one comes back from them
   await go(page, tvAddress + '&tab=0'); await wait(600); await ready(page);
-  if (legacy) {
-    await page.locator(`${ix} .pj-ix-views a`, { hasText: 'Suggestions' }).click(); await wait(2500);
-  } else {
-    await page.locator('.MuiAppBar-root [aria-controls="library-view-menu"]').click(); await wait(600);
-    await page.locator('[role=menuitem]:visible, .MuiMenu-paper a:visible', { hasText: /^Suggestions$/ }).first().click(); await wait(2500);
-    check('library: leaving it, the header has jellyfin-web\'s controls again', await page.evaluate(() => !document.documentElement.classList.contains('pj-ix-libon')));
-  }
+  // the title offers the library's views: by keyboard, then a click
+  await page.focus(`${ix} .pj-ix-view`); await page.keyboard.press('Enter'); await wait(300);
+  const menu = await page.evaluate(`(() => { const r = (${shown})(), m = r.querySelector('.pj-ix-menu'), b = m.getBoundingClientRect(), last = m.lastElementChild, l = last.getBoundingClientRect(); return { open: !m.hidden, items: [...m.children].map(a => a.textContent), current: m.querySelector('[aria-current]')?.textContent, focus: document.activeElement.textContent, onTop: document.elementFromPoint(b.left + 30, l.top + l.height / 2) === last }; })()`);
+  check('library: the title opens the views, above the ribbon', menu.open && menu.items.length === 8 && menu.current === 'Séries' && menu.focus === 'Séries' && menu.onTop, JSON.stringify(menu));
+  await shot(page, 'views-1440');
+  await page.keyboard.press('Escape'); await wait(200);
+  check('library: Escape closes the views', await page.locator(`${ix} .pj-ix-menu`).first().isHidden() && await page.locator(ix).count() > 0);
+  await page.locator(`${ix} .pj-ix-view`).first().click(); await wait(300);
+  await page.locator(`${ix} .pj-ix-menu a`, { hasText: /^Suggestions$/ }).click(); await wait(2500);
+  check('library: leaving it, the header has jellyfin-web\'s controls again', await page.evaluate(() => !document.documentElement.classList.contains('pj-ix-libon') && document.querySelector('.MuiAppBar-root [aria-controls="library-view-menu"]')?.offsetParent !== null));
   check('library: "Suggestions" gives jellyfin-web its view back', await page.locator(ix).count() === 0 && await page.evaluate(() => document.querySelector('.page:not(.hide)').innerText.length > 0));
   await go(page, tvAddress + '&tab=0&n=back'); await wait(600); await ready(page);
   check('library: back to the series view', (await state(page))?.types.Series === await libraryCount(tv, 'Series'));

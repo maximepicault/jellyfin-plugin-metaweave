@@ -1934,10 +1934,27 @@ html.pj-ix-locked, html.pj-ix-locked body { overflow: hidden !important; }
 /* no picture to show: no empty band either */
 .pj-ix-hero.pj-ix-bare { --pj-ix-ph: 14rem; padding-top: 3.5rem; }
 .pageTabContent.pj-ix-on > :not(.pj-ix) { display: none !important; }
-/* the stock views left to jellyfin-web, which its view menu offered */
-.pj-ix-views { display: flex; flex-wrap: wrap; gap: .2rem; margin-left: auto; }
-.pj-ix-views a { display: inline-flex; align-items: center; min-height: 2.25rem; padding: 0 .7rem; border-radius: 99px; color: var(--pj-text-2); text-decoration: none; font-size: .88rem; font-weight: 600; text-shadow: 0 1px 8px rgba(0, 0, 0, .8); }
-.pj-ix-views a:hover { background: rgba(var(--pj-veil), .7); color: var(--pj-text); }
+/* the library's views, offered by the title (or the line above it once filtered) */
+.pj-ix-viewbox { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
+.pj-ix .pj-ix-view { display: inline-flex; align-items: center; gap: .15em; text-align: left; }
+.pj-ix .pj-ix-viewtitle { border-radius: var(--pj-r-ui); font: inherit; letter-spacing: inherit; text-shadow: inherit; }
+.pj-ix-viewtitle .material-icons { font-size: .62em; color: var(--pj-text-2); transition: color var(--pj-fast); }
+.pj-ix .pj-ix-eyebrow {
+  min-height: 2.25rem; padding: 0 .5rem 0 .85rem; border-radius: 99px; font-weight: 700; font-size: .9rem;
+  box-shadow: inset 0 0 0 1px rgba(235, 230, 217, .3); background: rgba(var(--pj-veil), .55);
+}
+.pj-ix-eyebrow .material-icons { font-size: 1.35em; }
+@media (hover: hover) { .pj-ix .pj-ix-view:hover .material-icons { color: var(--pj-amber); } }
+.pj-ix-menu {
+  position: absolute; left: 0; z-index: 1; min-width: 15rem; max-height: min(24rem, 60vh); overflow-y: auto; padding: .35rem;
+  border-radius: 10px; background: var(--pj-raise); box-shadow: var(--pj-shadow-pop), inset 0 0 0 1px var(--pj-line);
+}
+.pj-ix-menu[hidden] { display: none; }
+.pj-ix-menu a { display: flex; align-items: center; min-height: 2.5rem; padding: 0 .8rem; border-radius: var(--pj-r-ui); color: var(--pj-text); font-weight: 600; font-size: .95rem; text-decoration: none; }
+.pj-ix-menu a:hover, .pj-ix-menu a:focus-visible { background: var(--pj-raise-2); }
+.pj-ix-menu a[aria-current] { color: var(--pj-amber); box-shadow: inset 3px 0 0 var(--pj-amber); }
+/* the open menu runs over the ribbon */
+.pj-ix-hero:has(.pj-ix-menu:not([hidden])) { z-index: 7; }
 /* the letter column, sorted by name: beside the results, following the scroll under the ribbon */
 .pj-ix-hasletters .pj-ix-results { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
 .pj-ix-alpha { display: none; position: sticky; top: calc(var(--pj-ix-top, 0px) + 4.2rem); flex-direction: column; margin: 1.2rem .35rem 0 0; height: min(40rem, calc(100vh - var(--pj-ix-top, 0px) - 5rem)); }
@@ -1952,8 +1969,9 @@ html.pj-ix-locked, html.pj-ix-locked body { overflow: hidden !important; }
   .pj-ix-hasletters .pj-ix-alpha { display: none; }
   .pj-ix.pj-ix-hasletters .pj-ix-list { padding-right: var(--pj-gutter); }
 }
-/* Jellyfin 12 keeps the library's toolbar in the app bar: its view menu stays, the controls of the hidden list go */
-html.pj-ix-libon .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-view-menu"]) > :not([aria-controls="library-view-menu"]) { display: none !important; }
+/* Jellyfin 12 gives the library's view menu a second row of the app bar: the screen has its own, the row goes and the
+   page moves up */
+html.pj-ix-libon .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-view-menu"]) { display: none !important; }
 /* the results kept on screen while the next ones come */
 .pj-ix-busy .pj-ix-list, .pj-ix-pbody.pj-ix-busy { opacity: .55; transition: opacity .2s .15s; }
 

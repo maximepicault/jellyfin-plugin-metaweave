@@ -14,7 +14,7 @@ Why a server search: the screens need counts for every filter, genres and tags t
 - Does nothing unless the stylesheet defines `--pj-index: 1` (section 18): an older theme copy (jsDelivr `@main`) leaves stock screens.
 - Not in the TV layout (`layout-tv`).
 - Lists: `listRoute()` takes `genreId`, `studioId`, `personId`, `type=tag&tag=`. Another `type` (music, programmes), `IsFavorite`, or an arrival with no video item keeps jellyfin-web's list.
-- Libraries: `libraryTarget()`. Experimental layout: the view comes from `tab=` in the address (0 = series or films, 5 = episodes); without it, from what the stock page shows. Classic layout: the open `.pageTabContent` (`seriesTab`, `episodesTab`, `moviesTab`), each with its own screen and memory. The other views stay stock; in the experimental layout the screen links to them, since it hides the stock view menu.
+- Libraries: `libraryTarget()`. Experimental layout: the view comes from `tab=` in the address (0 = series or films, 5 = episodes); without it, from what the stock page shows. Classic layout: the open `.pageTabContent` (`seriesTab`, `episodesTab`, `moviesTab`), each with its own screen and memory. The other views stay stock. The screen hides jellyfin-web 12's second app bar row (its view menu; the page moves up by itself) and offers the same views from its title, or from the line above it once filtered (`VIEWS`, `viewMenu`).
 
 ## The server search
 
@@ -41,7 +41,7 @@ Why a server search: the screens need counts for every filter, genres and tags t
 The plugin is built for 12.4 only (D026). Check these screens with `ui-test.sh`, the theme script setting turned on, `theme-seed.mjs`, then `index-real.mjs`.
 
 - `BaseItemEntity.PrimaryVersionId` changed type between 10.11 and 12: it is read with `EF.Property<object>`, which does not bind to the type (a build made for the other version threw `MissingMethodException` on a typed access, at run time only).
-- jellyfin-web 12 has one layout (the « classic » setting too), draws the library toolbar in the app bar (its view menu `[aria-controls="library-view-menu"]` stays, the rest is hidden under `html.pj-ix-libon`), starts pages below the bar (`--pj-ix-covered`) and makes every `.itemsContainer` a flex box.
+- jellyfin-web 12 has one layout (the « classic » setting too), draws the library toolbar in a second row of the app bar (found by its view menu `[aria-controls="library-view-menu"]`, hidden under `html.pj-ix-libon`), starts pages below the bar (`--pj-ix-covered`) and makes every `.itemsContainer` a flex box.
 
 ## Depends on jellyfin-web
 
