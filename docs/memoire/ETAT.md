@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-27 (ac28db1 deployed, Index header fix; c09eac1 deployed on a 12.4.0 server; D026 Jellyfin 12.4 only, replaces D001, P026; D025 server-side Index and library screens, P024/P025; 7ec9ff7 deployed; D024 theme « Index » lists, P021–P023; D023 person page, P019/P020; D022 episode photo gallery, P015–P018; D021 preview viewer « Salle », P013/P014; D020 hover preview of real episodes; D019 optional theme script; D018 theme served by the plugin; D017 Projection theme direction C; earlier: memory audit, D010–D016, code map in docs/architecture/code-map.md)
+Dernière mise à jour : 2026-11-27 (a2cfd79 deployed, Index header like a detail page; ac28db1 deployed, Index header fix; c09eac1 deployed on a 12.4.0 server; D026 Jellyfin 12.4 only, replaces D001, P026; D025 server-side Index and library screens, P024/P025; 7ec9ff7 deployed; D024 theme « Index » lists, P021–P023; D023 person page, P019/P020; D022 episode photo gallery, P015–P018; D021 preview viewer « Salle », P013/P014; D020 hover preview of real episodes; D019 optional theme script; D018 theme served by the plugin; D017 Projection theme direction C; earlier: memory audit, D010–D016, code map in docs/architecture/code-map.md)
 
 ## Objectif
 Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -13,7 +13,7 @@ Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (
 - Recent work (2026-11-20/21): CLAUDE.md split into docs/architecture/, project skills and memory agents, folder upload to a gallery, photo cropper for people, test bench fast mode. Then (2026-11-21/23): missing-episode video downloads, landscape poster crop, Projection web theme (`theme/projection.css`), gallery typed by shape + multi-selection, people networks/backdrops, paginated dump APIs and dump seasons analysed like API seasons, missing-episode numbering (D009, committed in 41544ee).
 
 ## Déployé
-- Last successful deployment: ac28db1, develop, 2026-11-27
+- Last successful deployment: a2cfd79, develop, 2026-11-27
 
 ## En cours
 - Move to Jellyfin 12.4 only (D026, 2026-11-27): committed on develop (392163f, e5a0330, 510e9bd, tests 6e2c0b9), pushed and deployed (c09eac1) on 2026-11-27 (keep `theme/previews/` out of Git). Reported on a 12.4 bench (`cm-uitest12`, port 8098): build 0 warnings, all 27 plugin scripts of tools/ui-test and `test-updater.sh` 17/0 pass (detail in D026); not verified: real server and library, upgrade of a 10.11 database with the plugin's data and previews, TV layout, Firefox/Safari, `big-library.sh` / `index-perf.mjs`, CI on GitHub.
