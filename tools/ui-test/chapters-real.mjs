@@ -104,7 +104,8 @@ try {
   await page.evaluate(() => { window.__cmdAnswer = 'ok'; new MutationObserver(() => { const b = document.querySelector('.cmd-backdrop [data-cmd=ok]'); if (b) b.click(); }).observe(document.documentElement, { childList: true, subtree: true }); });
   // the API source: mapping fields, filled from the configuration
   await page.evaluate(() => { const c = Array.from(document.querySelectorAll('#CustomMetadataConfigPage .cm-card')).find(x => x.textContent.includes('Démo API')); c.querySelector('.raised').click(); });
-  await page.click(`${C} [data-go="video"]`);
+  await page.click(`${C} [data-go="group-video"]`);
+  await page.click(`${C} .cm-subitem[data-go="video"]`);
   check('editor: the chapters mapping is filled (list, time, title)', (await page.$eval(`${C} #srcVideoChapters`, e => e.value)) === 'chapters' && (await page.$eval(`${C} #srcVideoChapterTime`, e => e.value)) === 'time' && (await page.$eval(`${C} #srcVideoChapterTitle`, e => e.value)) === 'title');
   check('editor: the optional end field shows the saved path', (await page.$eval(`${C} #srcVideoChapterEnd`, e => e.value)) === 'end');
   check('editor: the option "read the chapters in the synopsis" shows the saved choice', await page.$eval(`${C} #srcVideoChaptersFromOverview`, e => e.checked === true));

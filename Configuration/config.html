@@ -109,25 +109,33 @@
         #CustomMetadataConfigPage .cm-group { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 14px; padding: 14px; border: 1px solid var(--cm-border); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
         #CustomMetadataConfigPage .cm-group-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 16px; }
         #CustomMetadataConfigPage .cm-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 2px 4px; }
-        #CustomMetadataConfigPage .cm-group-opts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+        #CustomMetadataConfigPage .cm-lanes { order: 3; flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 10px; }
+        #CustomMetadataConfigPage .cm-lane { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--cm-border); border-radius: 8px; }
+        #CustomMetadataConfigPage .cm-lane-title { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+        #CustomMetadataConfigPage .cm-lane-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        /* A choice is a pill: its checkbox covers it, invisible */
+        #CustomMetadataConfigPage .cm-group-head label.cm-pill { position: relative; display: inline-flex; align-items: center; min-height: 34px; padding: 0 14px; border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 99px; font-size: 13px; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-pill input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-pill:has(input:checked) { border-color: var(--cm-accent); background: rgba(0, 164, 220, 0.22); }
+        #CustomMetadataConfigPage .cm-pill:has(input:checked) span::before { content: '✓ '; }
+        #CustomMetadataConfigPage .cm-pill:has(input:focus-visible) { outline: 2px solid var(--cm-accent); outline-offset: 2px; }
+        #CustomMetadataConfigPage .cm-group-status { order: 4; }
+        #CustomMetadataConfigPage .cm-libpick label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
         @media (max-width: 600px) {
             #CustomMetadataConfigPage .cm-group-sep { display: none; }
-            #CustomMetadataConfigPage .cm-group-opts { flex-basis: 100%; order: 3; }
-            #CustomMetadataConfigPage .cm-group-head [data-refresh] { order: 4; width: 100%; }
-            #CustomMetadataConfigPage .cm-group-status { order: 5; }
+            #CustomMetadataConfigPage .cm-lane { flex: 1 1 100%; }
+            #CustomMetadataConfigPage .cm-group-head [data-refresh] { order: 3; width: 100%; }
+            #CustomMetadataConfigPage .cm-lanes { order: 2; }
         }
         #CustomMetadataConfigPage .cm-group-kinds { font-size: 13px; color: var(--cm-muted); }
-        #CustomMetadataConfigPage .cm-group-optlabel { font-size: 13px; color: var(--cm-muted); }
         /* Options of one action are plain checkboxes: switches are kept for what turns a source or a feature on */
         #CustomMetadataConfigPage input.cm-check { appearance: none; -webkit-appearance: none; flex: none; width: 18px; height: 18px; margin: 0; border: 2px solid rgba(255, 255, 255, 0.45); border-radius: 4px; background: transparent; cursor: pointer; position: relative; }
         #CustomMetadataConfigPage input.cm-check:checked { background: var(--cm-accent-strong); border-color: var(--cm-accent-strong); }
         #CustomMetadataConfigPage input.cm-check:checked::before { content: ''; position: absolute; left: 4px; top: 0; width: 4px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
         #CustomMetadataConfigPage input.cm-check:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 2px; }
-        #CustomMetadataConfigPage .cm-group-optsep { width: 1px; height: 18px; background: var(--cm-border); }
         /* The prefix is already in the group header */
         #CustomMetadataConfigPage .cm-group .cm-card .cm-tag { display: none; }
         #CustomMetadataConfigPage .cm-group-sep { flex: 1; }
-        #CustomMetadataConfigPage .cm-group-head label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
         #CustomMetadataConfigPage .cm-group-head [data-refresh] { margin: 0; }
         #CustomMetadataConfigPage .cm-group-head [data-refresh][disabled] { opacity: .45; cursor: not-allowed; }
         #CustomMetadataConfigPage .cm-group-status { flex-basis: 100%; font-size: 13px; color: var(--cm-muted); }
@@ -191,6 +199,11 @@
         #CustomMetadataConfigPage .cm-nav-item:hover { background: rgba(255, 255, 255, 0.06); }
         #CustomMetadataConfigPage .cm-nav-item > span:first-child { flex: 1; }
         #CustomMetadataConfigPage .cm-nav-item[aria-current="page"] { border-left-color: var(--cm-accent); background: rgba(0, 164, 220, 0.14); color: #fff; font-weight: 700; }
+        #CustomMetadataConfigPage .cm-subtabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+        #CustomMetadataConfigPage .cm-subtabs[hidden], #CustomMetadataConfigPage .cm-subitem[hidden] { display: none !important; }
+        #CustomMetadataConfigPage .cm-subitem { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; border: 1px solid var(--cm-border); border-radius: 20px; background: transparent; color: rgba(255, 255, 255, 0.82); font: inherit; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-subitem:hover { background: rgba(255, 255, 255, 0.06); }
+        #CustomMetadataConfigPage .cm-subitem[aria-current="page"] { border-color: var(--cm-accent); background: rgba(0, 164, 220, 0.16); color: #fff; font-weight: 700; }
         #CustomMetadataConfigPage .cm-count { font-size: 12px; color: var(--cm-muted); white-space: nowrap; }
         #CustomMetadataConfigPage .cm-count.cm-full { color: var(--cm-ok); }
         #CustomMetadataConfigPage .cm-pane { display: flex; flex-direction: column; gap: 18px; padding: 22px; border: 1px solid var(--cm-border); border-radius: 10px; background: var(--cm-surface); min-width: 0; }
@@ -640,23 +653,27 @@
                     <button type="button" class="cm-nav-item" data-go="general" aria-current="page"><span>Général</span><span class="cm-count" data-count-for="general"></span></button>
                     <button type="button" class="cm-nav-item" data-go="dump" data-types="dump"><span>Catalogue</span><span class="cm-count" data-count-for="dump"></span></button>
                     <button type="button" class="cm-nav-item" data-go="person" data-types="people"><span>Personne</span><span class="cm-count" data-count-for="person"></span></button>
-                    <span class="cm-nav-group" data-types="api local" data-content="video">Séries et vidéos</span>
-                    <button type="button" class="cm-nav-item" data-content="video" data-go="content" data-types="local"><span>Contenu</span><span class="cm-count" data-count-for="content"></span></button>
-                    <button type="button" class="cm-nav-item" data-content="video" data-go="endpoints" data-types="api"><span>Endpoints</span><span class="cm-count" data-count-for="endpoints"></span></button>
+                    <span class="cm-nav-group" data-types="api local">Contenu</span>
+                    <button type="button" class="cm-nav-item" data-go="group-video" data-types="api" data-content="video"><span>Séries et vidéos</span><span class="cm-count" data-count-for="group-video"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="content" data-types="local" data-content="video"><span>Séries et vidéos</span><span class="cm-count" data-count-for="content"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="group-albums" data-types="api" data-content="albums"><span>Albums photo</span><span class="cm-count" data-count-for="group-albums"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="albums" data-types="local" data-content="albums"><span>Albums photo</span><span class="cm-count" data-count-for="albums"></span></button>
                     <span class="cm-nav-group" data-types="dump">Mappings JSON</span>
-                    <button type="button" class="cm-nav-item" data-content="video" data-go="video" data-types="api dump"><span>Vidéo / épisode</span><span class="cm-count" data-count-for="video"></span></button>
-                    <button type="button" class="cm-nav-item" data-content="video" data-go="season" data-types="api"><span>Source / saison</span><span class="cm-count" data-count-for="season"></span></button>
-                    <button type="button" class="cm-nav-item" data-content="video" data-go="series" data-types="api"><span>Série</span><span class="cm-count" data-count-for="series"></span></button>
-                    <button type="button" class="cm-nav-item" data-content="video" data-go="episodes" data-types="api"><span>Liste des épisodes</span><span class="cm-count" data-count-for="episodes"></span></button>
-                    <span class="cm-nav-group" data-types="api local" data-content="albums">Albums photo</span>
-                    <button type="button" class="cm-nav-item" data-go="album" data-types="api" data-content="albums"><span>Album</span><span class="cm-count" data-count-for="album"></span></button>
-                    <button type="button" class="cm-nav-item" data-go="photo" data-types="api" data-content="albums"><span>Photo</span><span class="cm-count" data-count-for="photo"></span></button>
-                    <button type="button" class="cm-nav-item" data-go="albums" data-types="local" data-content="albums"><span>Albums</span><span class="cm-count" data-count-for="albums"></span></button>
+                    <button type="button" class="cm-nav-item" data-go="video" data-types="dump"><span>Vidéo / épisode</span><span class="cm-count" data-count-for="video"></span></button>
                     <span class="cm-nav-group" id="navAdvanced">Avancé</span>
                     <button type="button" class="cm-nav-item" data-go="network" data-types="api people dump"><span>Réseau</span><span class="cm-count" data-count-for="network"></span></button>
                     <button type="button" class="cm-nav-item" data-content="video" data-go="thumbs"><span>Miniatures et posters</span><span class="cm-count" data-count-for="thumbs"></span></button>
                         </nav>
                         <div style="min-width: 0;">
+                    <div class="cm-subtabs" id="subTabs" role="group" aria-label="Parties de ce contenu" data-types="api" hidden>
+                        <button type="button" class="cm-subitem" data-go="endpoints" data-sub="video" data-types="api"><span>Endpoints</span><span class="cm-count" data-count-for="endpoints"></span></button>
+                        <button type="button" class="cm-subitem" data-go="video" data-sub="video" data-types="api"><span>Vidéo / épisode</span><span class="cm-count" data-count-for="video"></span></button>
+                        <button type="button" class="cm-subitem" data-go="season" data-sub="video" data-types="api"><span>Source / saison</span><span class="cm-count" data-count-for="season"></span></button>
+                        <button type="button" class="cm-subitem" data-go="series" data-sub="video" data-types="api"><span>Série</span><span class="cm-count" data-count-for="series"></span></button>
+                        <button type="button" class="cm-subitem" data-go="episodes" data-sub="video" data-types="api"><span>Liste des épisodes</span><span class="cm-count" data-count-for="episodes"></span></button>
+                        <button type="button" class="cm-subitem" data-go="album" data-sub="albums" data-types="api"><span>Album</span><span class="cm-count" data-count-for="album"></span></button>
+                        <button type="button" class="cm-subitem" data-go="photo" data-sub="albums" data-types="api"><span>Photos et vidéos</span><span class="cm-count" data-count-for="photo"></span></button>
+                    </div>
                     <section class="cm-pane" data-section="general" aria-labelledby="paneTitle-general">
                         <div><h3 class="cm-pane-title" id="paneTitle-general">Général</h3><p class="cm-pane-intro">Identité de la source et clé d&#x27;accès. Le préfixe relie vos fichiers à cette source.</p></div>
                         <div class="cm-grid">
@@ -1685,17 +1702,22 @@
                     var hasVideo = g.items.some(function(it) { return it.source.SourceType !== 'People' && it.source.ContentVideo !== false; });
                     var hasAlbums = g.items.some(function(it) { return it.source.SourceType !== 'People' && it.source.SourceType !== 'Dump' && it.source.ContentAlbums; });
                     if (enriches && g.prefix) {
+                        var pill = function(rf, label, aria, title) {
+                            return '<label class="cm-pill"' + (title ? ' title="' + title + '"' : '') + '><input type="checkbox" data-rf="' + rf + '" checked aria-label="' + aria + '" /><span>' + label + '</span></label>';
+                        };
+                        var lane = function(title, content) { return '<div class="cm-lane"><span class="cm-lane-title">' + title + '</span><div class="cm-lane-pills">' + content + '</div></div>'; };
+                        var lanes = '';
+                        if (dumpOnly) {
+                            lanes += lane('Fichiers', '<span class="cm-libpick-slot" data-libpick="' + escapeHtml(g.prefix) + '"></span>' + pill('episode', 'Épisodes', 'Actualiser les épisodes') + pill('movie', 'Films', 'Actualiser les films'));
+                        } else if (hasVideo) {
+                            lanes += lane('Séries et vidéos', pill('series', 'Séries', 'Actualiser les séries') + pill('season', 'Saisons', 'Actualiser les saisons') + pill('episode', 'Épisodes', 'Actualiser les épisodes'));
+                        }
+                        if (hasAlbums) { lanes += lane('Albums photo', pill('album', 'Albums', 'Actualiser les albums') + pill('photo', 'Photos et vidéos', 'Actualiser les photos et les vidéos')); }
+                        lanes += lane('Options', pill('images', 'Remplacer les images', 'Remplacer aussi les images', 'Décochez pour ne remplacer que les métadonnées'));
                         head = '<div class="cm-group-head" data-group="' + escapeHtml(g.prefix) + '">'
-                            + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span><span class="cm-group-opts"><span class="cm-group-optlabel">Actualiser dans Jellyfin :</span>'
-                            + (dumpOnly ? '<span class="cm-libpick-slot" data-libpick="' + escapeHtml(g.prefix) + '"></span>' : !hasVideo ? '' : '<label><input type="checkbox" class="cm-check" data-rf="series" checked aria-label="Actualiser les séries" /> Séries</label>'
-                            + '<label><input type="checkbox" class="cm-check" data-rf="season" checked aria-label="Actualiser les saisons" /> Saisons</label>')
-                            + (hasVideo ? '<label><input type="checkbox" class="cm-check" data-rf="episode" checked aria-label="Actualiser les épisodes" /> Épisodes</label>' : '')
-                            + (hasAlbums ? '<label><input type="checkbox" class="cm-check" data-rf="album" checked aria-label="Actualiser les albums" /> Albums</label>'
-                                + '<label><input type="checkbox" class="cm-check" data-rf="photo" checked aria-label="Actualiser les photos" /> Photos</label>' : '')
-                            + (dumpOnly ? '<label><input type="checkbox" class="cm-check" data-rf="movie" checked aria-label="Actualiser les films" /> Films</label>' : '')
-                            + '<span class="cm-group-optsep" aria-hidden="true"></span>'
-                            + '<label title="Décochez pour ne remplacer que les métadonnées"><input type="checkbox" class="cm-check" data-rf="images" checked aria-label="Remplacer aussi les images" /> Remplacer les images</label></span>'
+                            + '<span class="cm-tag">{' + escapeHtml(g.prefix) + '-…}</span><span class="cm-group-kinds">' + kinds.join(' + ') + '</span><span class="cm-group-sep"></span>'
                             + '<button is="emby-button" type="button" class="raised" data-refresh="' + escapeHtml(g.prefix) + '"' + (allOff ? ' disabled' : '') + ' title="Actualise uniquement les éléments de la médiathèque qui portent ce préfixe (l\'API d\'abord, puis la source locale par-dessus), sans scanner la médiathèque"><span>Actualiser les éléments</span></button>'
+                            + '<div class="cm-lanes" role="group" aria-label="Ce que « Actualiser » reprend">' + lanes + '</div>'
                             + '<span class="cm-group-status" data-refresh-status="' + escapeHtml(g.prefix) + '" role="status">' + (allOff ? 'Source désactivée : activez-la pour actualiser ses éléments.' : '') + '</span></div>';
                     }
                     groupsHtml.push({ head: head, items: g.items });
@@ -2782,13 +2804,27 @@
                 });
             }
 
+            // The sections of an API source's two contents: one menu entry per content, its sections as sub-tabs above the form
+            var CONTENT_SECTIONS = { video: ['endpoints', 'video', 'season', 'series', 'episodes'], albums: ['album', 'photo'] };
+            var lastSection = {};     // content → the section last shown in it
+
             function showSection(name) {
+                var asked = /^group-(video|albums)$/.exec(name);
+                if (asked) { name = lastSection[asked[1]] || CONTENT_SECTIONS[asked[1]][0]; }
+                var content = formType() !== 'api' ? null : Object.keys(CONTENT_SECTIONS).filter(function(key) { return CONTENT_SECTIONS[key].indexOf(name) >= 0; })[0] || null;
+                if (content) { lastSection[content] = name; }
+                qs('#subTabs').hidden = !content;
                 var paneName = name === 'albums' ? 'content' : name;
                 if (isLocalForm() && (name === 'content' || name === 'albums')) { setLocalMode(name === 'albums' ? 'albums' : 'series'); }
                 Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage .cm-pane'), function(pane) {
                     pane.hidden = pane.getAttribute('data-section') !== paneName;
                 });
                 Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage .cm-nav-item'), function(item) {
+                    var go = item.getAttribute('data-go');
+                    if (go === name || (content && go === 'group-' + content)) { item.setAttribute('aria-current', 'page'); } else { item.removeAttribute('aria-current'); }
+                });
+                Array.prototype.forEach.call(document.querySelectorAll('#CustomMetadataConfigPage .cm-subitem'), function(item) {
+                    item.hidden = item.getAttribute('data-sub') !== content;
                     if (item.getAttribute('data-go') === name) { item.setAttribute('aria-current', 'page'); } else { item.removeAttribute('aria-current'); }
                 });
             }
@@ -2804,6 +2840,16 @@
                     } else if (key === 'content') {
                         var n = countLocal(localContent);
                         text = localContent ? n.episodes + (n.episodes > 1 ? ' épisodes' : ' épisode') : '';
+                    } else if (key === 'group-video' || key === 'group-albums') {
+                        // Every field of the content's sections
+                        var all = [];
+                        CONTENT_SECTIONS[key.slice(6)].forEach(function(section) {
+                            all = all.concat([].slice.call(document.querySelectorAll('#CustomMetadataConfigPage [data-section="' + section + '"] input[data-count]')));
+                        });
+                        var done = all.filter(function(i) { return i.value.trim() !== ''; }).length;
+                        text = done + ' / ' + all.length;
+                        full = done === all.length;
+                        title = plural(done, 'champ renseigné', 'champs renseignés') + ' sur ' + all.length + ' : un champ vide est ignoré.';
                     } else if (key === 'albums') {
                         text = localContent ? plural(countLocal(localContent).albums, 'album', 'albums') : '';
                     } else if (key === 'thumbs') {
@@ -2891,6 +2937,7 @@
                     ? 'Les médias qui portent son tag ne seront plus enrichis, et tout le contenu saisi (séries, saisons, épisodes) est supprimé.'
                     : 'Les médias qui portent son tag ne seront plus enrichis. Les métadonnées déjà enregistrées restent.';
                 dirty = false;
+                lastSection = {};
                 showSection('general');
                 if (isLocal) { loadPeopleDirectory(); }
                 renderLocalEditor();

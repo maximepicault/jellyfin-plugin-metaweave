@@ -539,8 +539,15 @@ try {
   check('libraries: the warning goes away once the libraries are fine', (await ev(`document.querySelector('#libraryWarn').hidden`)) === true);
   // 9. API source: the editor is unchanged
   await ev(`document.querySelectorAll("#sourcesList article.cm-card")[1-1].querySelector(".raised").click(); true`); await wait(300);
-  const apiNav = await ev(`Array.from(document.querySelectorAll('${P} .cm-nav-item')).filter(function(b){return b.offsetParent!==null;}).length`);
-  check('API source: the 8 sections are still there', apiNav === 8, String(apiNav));
+  const shown_ = (selector) => ev(`Array.from(document.querySelectorAll('${P} ${selector}')).filter(function(b){return b.offsetParent!==null;}).map(function(b){return b.getAttribute('data-go');}).join(',')`);
+  check('API source: one menu entry for its videos', (await shown_('.cm-nav-item')) === 'general,group-video,network,thumbs', await shown_('.cm-nav-item'));
+  check('API source: no sub-tab on « Général »', (await shown_('.cm-subitem')) === '');
+  await click(`${P} [data-go="group-video"]`); await wait(200);
+  check('API source: the five video sections are its sub-tabs', (await shown_('.cm-subitem')) === 'endpoints,video,season,series,episodes', await shown_('.cm-subitem'));
+  await click(`${P} .cm-subitem[data-go="series"]`); await wait(200);
+  await click(`${P} [data-go="general"]`); await click(`${P} [data-go="group-video"]`); await wait(200);
+  check('API source: back on a content, the section last shown', await vis('[data-section="series"]'));
+  await click(`${P} [data-go="general"]`); await wait(200);
   check('source API : URL de base visible et obligatoire', (await vis('#srcBaseUrl')) && (await ev(`document.querySelector('#srcBaseUrl').required`)) === true);
   check('source API : panneau de test visible', await vis('.cm-test'));
   // changing the prefix of an existing source: warning then confirmation

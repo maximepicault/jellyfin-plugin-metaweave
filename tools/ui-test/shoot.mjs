@@ -104,7 +104,7 @@ try {
   console.log('🧭 compteurs :', await evalJs(`[...document.querySelectorAll('${C} .cm-count')].map(function(c){return c.parentNode.firstChild.textContent+'='+c.textContent}).join(' | ')`));
 
   // Video mappings + test (episode list of the dm-d1 source)
-  await click(`${C} [data-go=video]`); await wait(400);
+  await click(`${C} [data-go=group-video]`); await wait(300); await click(`${C} .cm-subitem[data-go=video]`); await wait(400);
   await evalJs(`(function(){var t=document.querySelector('${C} #testItemType'); t.value='episodelist'; t.dispatchEvent(new Event('change',{bubbles:true}));
     var i=document.querySelector('${C} #testItemId'); i.value='d1'; i.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
   await click(`${C} #btnTestSource`);
@@ -115,7 +115,7 @@ try {
 
   // Empty required field while in another section: we must be taken back to « Général »
   await evalJs(`(function(){var n=document.querySelector('${C} #srcName'); n.value=''; n.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
-  await click(`${C} [data-go=series]`); await wait(300);
+  await click(`${C} .cm-subitem[data-go=series]`); await wait(300);
   await click(`${C} #btnSaveQuit`); await wait(700);
   console.log('✅ validation: section shown =', await evalJs(`document.querySelector('${C} .cm-nav-item[aria-current]').getAttribute('data-go')`),
     '(expected: general) | state:', await evalJs(`document.querySelector('${C} #dirtyState').textContent`));
@@ -127,7 +127,7 @@ try {
   await click(`${C} [data-tab=legacy]`); await wait(500); await shot('14-config-legacy-1440');
 
   // 1920: editor in 3 columns
-  await size(1920, 1100); await openConfig(); await editFirstSource(); await click(`${C} [data-go=episodes]`); await wait(500);
+  await size(1920, 1100); await openConfig(); await editFirstSource(); await click(`${C} [data-go=group-video]`); await wait(300); await click(`${C} .cm-subitem[data-go=episodes]`); await wait(500);
   await shot('15-editor-episodes-1920');
 
   // Mobile

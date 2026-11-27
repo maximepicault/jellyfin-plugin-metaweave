@@ -165,15 +165,15 @@ try {
         const visibleNav = () => page.$$eval(`${root} .cm-nav-item`, all => all.filter(e => e.offsetParent).map(e => e.getAttribute('data-go')));
 
         await openSource('Albums API (test)');
-        check('page: an albums-only API source shows only the album sections', (await visibleNav()).join() === 'general,album,photo,network', await visibleNav());
+        check('page: an albums-only API source shows only the albums entry', (await visibleNav()).join() === 'general,group-albums,network', await visibleNav());
         await page.locator(`${root} #srcContentVideo`).check();
-        check('page: ticking videos brings their sections back', (await visibleNav()).includes('endpoints'), await visibleNav());
+        check('page: ticking videos brings their entry back', (await visibleNav()).includes('group-video'), await visibleNav());
         await shot('A1-general-1440');
         await page.locator(`${root} #srcContentVideo`).uncheck();
         await page.locator(`${root} #srcContentAlbums`).click();
         check('page: the last content stays ticked', await page.locator(`${root} #srcContentAlbums`).isChecked());
-        await page.click(`${root} [data-go="photo"]`); await shot('A2-photo-mapping-1440');
-        await page.click(`${root} [data-go="album"]`);
+        await page.click(`${root} [data-go="group-albums"]`); await page.click(`${root} .cm-subitem[data-go="photo"]`); await shot('A2-photo-mapping-1440');
+        await page.click(`${root} .cm-subitem[data-go="album"]`);
         await page.selectOption(`${root} #testItemType`, 'albumphotos'); await page.fill(`${root} #testItemId`, 'b'); await page.click(`${root} #btnTestSource`);
         await page.waitForSelector(`${root} .cm-photo-list li`, { timeout: 15000 });
         check('page: the test lists the photos of the album', (await page.locator(`${root} .cm-photo-list li`).count()) === 2);

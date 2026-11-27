@@ -93,7 +93,8 @@ try {
   check('element: "Tester la source" opens the editor of that source', (await page.$eval(`${C} #srcPrefix`, e => e.value)) === 'dm');
 
   // ---- 4. click-to-fill mappings (still in the editor of the dm source)
-  await page.click(`${C} [data-go=video]`);
+  await page.click(`${C} [data-go=group-video]`);
+  await page.click(`${C} .cm-subitem[data-go=video]`);
   await page.fill(`${C} #srcVideoOverview`, '');
   await page.focus(`${C} #srcVideoOverview`);
   await page.selectOption(`${C} #testItemType`, 'video');
@@ -109,7 +110,7 @@ try {
   await page.setViewportSize({ width: 1440, height: 1300 }); await page.waitForTimeout(400);
   await shot('M1-pick-video-1440');
   // episode list: paths are relative to one element of the list
-  await page.click(`${C} [data-go=episodes]`);
+  await page.click(`${C} .cm-subitem[data-go=episodes]`);
   await page.fill(`${C} #srcListTitle`, '');
   await page.focus(`${C} #srcListTitle`);
   await page.selectOption(`${C} #testItemType`, 'episodelist');
