@@ -91,10 +91,11 @@ const PAGES = [
   ['person', fullPerson?.Id && `#/details?id=${fullPerson.Id}`],
   ['person-bare', barePerson?.Id && `#/details?id=${barePerson.Id}`],
   ['genre', genres[0] && `#/list?genreId=${genres[0].Id}&serverId=${auth.ServerId}`],
-  // the Index (theme/projection-index.js, when the theme script setting is on): a tag, a person's episodes, a library
+  // the Index (theme/projection-index.js, when the theme script setting is on): a tag, a person's episodes, a library's
+  // episodes (its series and films screens are library-tv and library-movies above)
   ['tag-list', `#/list?type=tag&tag=Montagne&serverId=${auth.ServerId}`],
   ['person-list', fullPerson?.Id && `#/list?type=Episode&personId=${fullPerson.Id}&serverId=${auth.ServerId}`],
-  ['library-index', tvLib && `#/list?parentId=${tvLib.Id}&type=Episode&pj=index&serverId=${auth.ServerId}`],
+  ['library-episodes', tvLib && `#/tv?topParentId=${tvLib.Id}&collectionType=tvshows&tab=5`],
   ['search', '#/search?query=a'],
   ['menu', `#/details?id=${adv.Id}`, 'menu'],
   ['preferences', '#/mypreferencesmenu'],

@@ -1,6 +1,7 @@
-// End-to-end test of the theme's "Index" (theme/projection-index.js) in the real jellyfin-web: genre, tag, studio and
-// person lists, adding and removing filters, play and item menu, back navigation, the library entry, and the pages it
-// must leave alone. Counts are compared with the server's own answers.
+// End-to-end test of the theme's "Index" (theme/projection-index.js and the plugin's CustomMetadata/Index) in the real
+// jellyfin-web: genre, tag, studio and person lists, adding and removing filters, paging, play and item menu, back
+// navigation, the library screens in both layouts, a user limited to one library, and the pages it must leave alone.
+// Counts are compared with Jellyfin's own answers.
 // Usage: node index-real.mjs <base_url> <out_dir>
 // Needs the theme script setting on (ui-test.sh container) and theme-seed.mjs run once (tags, genres, people).
 // The server's custom CSS is replaced by the plugin's theme for the run, then restored.
@@ -55,9 +56,12 @@ async function open(layout, w, h, mobile = false) {
 // in-app navigation, as a click on a link does
 const go = (page, hash) => page.evaluate(h => { location.hash = h; }, hash);
 const ix = '.page:not(.hide) .pj-ix';
-const ready = async page => { await page.waitForFunction(() => { const p = document.querySelector('.page:not(.hide) .pj-ix-under-title p'); return p && !p.textContent.includes('Chargement'); }, null, { timeout: 20000 }); await wait(700); };
-const state = page => page.evaluate(() => {
-  const r = document.querySelector('.page:not(.hide) .pj-ix');
+// the shown screen: in the classic layout a library keeps one per tab it showed
+const shown = () => [...document.querySelectorAll('.page:not(.hide) .pj-ix')].find(r => r.offsetParent !== null);
+const ready = async page => { await wait(450); await page.waitForFunction(`(() => { const r = (${shown})(); const p = r && r.querySelector('.pj-ix-under-title p'); return p && !p.textContent.includes('Chargement') && !r.classList.contains('pj-ix-busy'); })()`, null, { timeout: 20000 }); await wait(500); };
+const panelReady = page => page.waitForFunction(() => { const b = document.querySelector('.pj-ix-pbody'); return b && !b.classList.contains('pj-ix-busy') && b.querySelector('[data-k]'); }, null, { timeout: 15000 });
+const state = page => page.evaluate(`(${((find) => {
+  const r = find();
   if (!r) return null;
   const t = e => e.textContent.replace(/\s+/g, ' ').trim();
   return {
@@ -65,10 +69,11 @@ const state = page => page.evaluate(() => {
     pressed: t(r.querySelector('.pj-ix-type[aria-pressed=true]') || { textContent: '' }),
     types: Object.fromEntries([...r.querySelectorAll('.pj-ix-type')].map(b => [b.dataset.type || 'all', Number(b.querySelector('small').textContent)])),
     cards: r.querySelectorAll('.pj-ix-item').length, groups: [...r.querySelectorAll('.pj-ix-group h2')].map(t),
+    names: [...r.querySelectorAll('.pj-ix-name')].map(t),
     stockShown: [...r.parentElement.children].filter(c => c !== r && getComputedStyle(c).display !== 'none').length,
     sideways: document.documentElement.scrollWidth - innerWidth,
   };
-});
+}).toString()})(${shown})`);
 const shot = (page, name) => page.screenshot({ path: `${outDir}/${name}.png` });
 
 try {
@@ -120,12 +125,12 @@ try {
   await go(page, `#/list?type=tag&tag=Montagne&serverId=${S}&n=1`); await ready(page);
   await page.keyboard.press('/'); await wait(600);
   check('"/" opens the index', await page.locator('.pj-ix-panel').isVisible());
-  await page.waitForFunction(() => !document.querySelector('.pj-ix-pbody').textContent.includes('arrivent'), null, { timeout: 15000 });
+  await panelReady(page); await wait(400);
   await shot(page, 'panel-overview-1440');
   check('overview fits 1440x900', await page.evaluate(() => { const b = document.querySelector('.pj-ix-pbody'); return b.scrollHeight <= b.clientHeight + 2; }),
     await page.evaluate(() => { const b = document.querySelector('.pj-ix-pbody'); return `${b.scrollHeight} in ${b.clientHeight}`; }));
   for (const tab of ['genres', 'tags', 'people', 'years', 'state']) {
-    await page.click(`.pj-ix-tab[data-tab=${tab}]`); await wait(350); await shot(page, `panel-${tab}-1440`);
+    await page.click(`.pj-ix-tab[data-tab=${tab}]`); await wait(150); await panelReady(page); await wait(250); await shot(page, `panel-${tab}-1440`);
     check(`panel tab ${tab} offers choices`, await page.locator('.pj-ix-pbody [data-k]').count() > 0);
   }
   await page.keyboard.press('Escape'); await wait(300);
@@ -135,9 +140,9 @@ try {
   await go(page, `#/list?type=tag&tag=Montagne&serverId=${S}&n=2`); await ready(page);
   const before = (await state(page)).types.all;
   await page.click(`${ix} .pj-ix-open`); await wait(400);
-  await page.fill('.pj-ix-search', 'hiv'); await wait(300); await shot(page, 'panel-search-1440');
-  await page.press('.pj-ix-search', 'Enter'); await wait(500);
-  await page.click('.pj-ix-pfoot .pj-ix-go'); await wait(500);
+  await page.fill('.pj-ix-search', 'hiv'); await wait(600); await panelReady(page); await shot(page, 'panel-search-1440');
+  await page.press('.pj-ix-search', 'Enter'); await ready(page);
+  await page.click('.pj-ix-pfoot .pj-ix-go'); await wait(400);
   s = await state(page);
   check('search + Enter adds the filter', s.terms.join() === 'Montagne,Hiver', s.title);
   check('two tags narrow the list', s.types.all > 0 && s.types.all <= before, `${before} → ${s.types.all}`);
@@ -151,18 +156,29 @@ try {
   const everything = await apiCount({});
   check('no filter left: the whole library', s.terms.length === 0 && s.types.all === everything, `${s.title} — ${s.types.all} / ${everything}`);
   await shot(page, 'all-1440');
+  // paging: the first page only, the next ones as one scrolls
+  check('first page only', s.cards === 60 && everything > 60, `${s.cards} / ${everything}`);
+  const asked = [];
+  const listenPages = r => { if (r.url().endsWith('/CustomMetadata/Index')) asked.push(r.postDataJSON()); };
+  page.on('request', listenPages);
+  for (let i = 0; i < 12 && (await state(page)).cards < everything; i++) { await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight)); await wait(900); }
+  page.off('request', listenPages);
+  s = await state(page);
+  const ids = await page.evaluate(`[...(${shown})().querySelectorAll('.pj-ix-item')].map(a => a.dataset.id)`);
+  check('scrolling brings every result, each once', s.cards === everything && new Set(ids).size === everything, `${s.cards} cards, ${new Set(ids).size} ids / ${everything}`);
+  check('the next pages are asked 60 at a time', asked.length >= 2 && asked.every(a => a.Limit === 60 && a.StartIndex > 0), JSON.stringify(asked.map(a => [a.StartIndex, a.Limit])));
 
   // a tag on a card, the sort order, then back from an item
   await go(page, `#/list?type=tag&tag=Montagne&serverId=${S}&n=3`); await ready(page);
-  await page.click(`${ix} .pj-ix-type[data-type=Episode]`); await wait(400);
+  await page.click(`${ix} .pj-ix-type[data-type=Episode]`); await ready(page);
   const first = page.locator(`${ix} .pj-ix-item[data-type=Episode]`).first();
   await first.hover(); await wait(300); await shot(page, 'card-hover-1440');
   const tagButton = first.locator('.pj-ix-tag').first();
   const added = await tagButton.getAttribute('data-v');
-  await tagButton.click(); await wait(500);
+  await tagButton.click(); await ready(page);
   s = await state(page);
   check('a card\'s tag adds a filter', s.terms.includes(added) && s.terms.includes('Montagne'), s.title);
-  await page.selectOption(`${ix} .pj-ix-sort`, 'name'); await wait(400);
+  await page.selectOption(`${ix} .pj-ix-sort`, 'name'); await ready(page);
   const wanted = await state(page);
   await page.locator(`${ix} .pj-ix-item .pj-ix-name`).first().click(); await wait(2500);
   check('a title opens the item', /#\/details/.test(await page.evaluate(() => location.hash)));
@@ -186,8 +202,8 @@ try {
   // a reload ends the playback and its queue, which goes on in the background between two short files
   const leavePlayer = async () => { await page.reload(); await wait(3000); };
   const firstFile = await page.evaluate(() => document.querySelector('.page:not(.hide) .pj-ix-item[data-type=Episode]:not(.pj-ix-miss)').dataset.id);
-  await page.click(`${ix} .pj-ix-type[data-type=Episode]`); await wait(300);
-  await page.click(`${ix} [data-play=all]`); await wait(4000);
+  await page.click(`${ix} .pj-ix-type[data-type=Episode]`); await ready(page);
+  await page.click(`${ix} [data-play=all]`); await wait(4500);
   check('"Tout lire" plays the first episode of the list', played[0] === firstFile, `${played[0]} / ${firstFile}`);
   await leavePlayer();
   await go(page, `#/list?type=tag&tag=Montagne&serverId=${S}&n=5`); await ready(page);
@@ -204,20 +220,39 @@ try {
   const rib = await page.evaluate(() => { const r = document.querySelector('.page:not(.hide) .pj-ix-ribbon'), m = r.querySelector('.pj-ix-mini'); return { top: Math.round(r.getBoundingClientRect().top), mini: getComputedStyle(m).display !== 'none' && m.textContent }; });
   check('scrolled: ribbon stuck under the bar, with the filter', rib.top >= 0 && rib.top <= 60 && rib.mini === 'Montagne', JSON.stringify(rib));
 
-  // ---------- the library entry ----------
-  for (const [name, hash, type] of [['series tab', `#/tv?topParentId=${tv.Id}&collectionType=tvshows`, 'Series'], ['episodes tab', `#/tv?topParentId=${tv.Id}&collectionType=tvshows&tab=5`, 'Episode'], ['movies', `#/movies?topParentId=${movies.Id}&collectionType=movies`, 'Movie']]) {
-    await go(page, hash); await wait(3500);
-    const entry = page.locator('.pj-ix-entry:visible');
-    check(`library ${name}: one "Tous les filtres" entry`, await entry.count() === 1, await entry.count());
-    if (!await entry.count()) continue;
-    await shot(page, `entry-${type}-1440`);
-    await entry.first().click(); await ready(page);
+  // ---------- the library screens (experimental layout: the view is in the address) ----------
+  const tvAddress = `#/tv?topParentId=${tv.Id}&collectionType=tvshows`, movieAddress = `#/movies?topParentId=${movies.Id}&collectionType=movies`;
+  const libraryCount = (lib, type, extra = {}) => apiCount({ ParentId: lib.Id, IncludeItemTypes: type, ...extra });
+  for (const [name, hash, type, lib] of [['series view', tvAddress, 'Series', tv], ['episodes view', `${tvAddress}&tab=5`, 'Episode', tv], ['films', movieAddress, 'Movie', movies]]) {
+    await go(page, hash); await wait(600); await ready(page);
     s = await state(page);
-    const lib = type === 'Movie' ? movies : tv;
-    const n = await apiCount({ ParentId: lib.Id, IncludeItemTypes: type });
-    check(`library ${name}: the index of that library`, s.types[type] === n && s.terms.length === 0, `${s.title} — ${s.types[type]} / ${n}`);
+    const n = await libraryCount(lib, type);
+    check(`library ${name}: the library is the title`, s.title.replace('+', '') === lib.Name && s.terms.length === 0, s.title);
+    check(`library ${name}: count matches the server`, (s.types[type] ?? s.cards) === n && s.cards === Math.min(60, n), `${s.types[type]} / ${n}, ${s.cards} cards`);
+    check(`library ${name}: stock view hidden`, s.stockShown === 0, s.stockShown);
     await shot(page, `library-${type}-1440`);
   }
+  // sorted by name, the letter column filters like jellyfin-web's
+  await go(page, tvAddress); await wait(600); await ready(page);
+  await page.click(`${ix} .pj-ix-alphaletter[data-v=L]`); await ready(page);
+  s = await state(page);
+  const withL = await libraryCount(tv, 'Series', { NameStartsWith: 'L' });
+  check('library: a letter keeps the series starting with it', s.types.Series === withL && s.names.every(n => n.startsWith('Les') || n.startsWith('L')), `${s.types.Series} / ${withL}: ${s.names.join(' | ')}`);
+  await page.click(`${ix} .pj-ix-term[data-v=L]`); await ready(page);
+  check('library: the letter is removed from the title', (await state(page)).terms.length === 0);
+  // a filter on the library, from the panel
+  await page.click(`${ix} .pj-ix-open`); await panelReady(page);
+  await page.click('.pj-ix-pbody [data-k=genres][data-v=Documentaire]'); await ready(page);
+  await page.keyboard.press('Escape'); await wait(300);
+  s = await state(page);
+  const docs = await libraryCount(tv, 'Series', { Genres: 'Documentaire' });
+  check('library: a genre narrows the library', s.terms.join() === 'Documentaire' && s.types.Series === docs, `${s.types.Series} / ${docs}`);
+  // the other views stay jellyfin-web's, and one comes back from them
+  await go(page, tvAddress + '&tab=0'); await wait(600); await ready(page);
+  await page.locator(`${ix} .pj-ix-views a`, { hasText: 'Suggestions' }).click(); await wait(2500);
+  check('library: "Suggestions" gives jellyfin-web its view back', await page.locator(ix).count() === 0 && await page.evaluate(() => document.querySelector('.page:not(.hide)').innerText.length > 0));
+  await go(page, tvAddress + '&tab=0&n=back'); await wait(600); await ready(page);
+  check('library: back to the series view', (await state(page))?.types.Series === await libraryCount(tv, 'Series'));
 
   // ---------- pages left alone ----------
   await go(page, `#/list?type=Movie&IsFavorite=true&serverId=${S}`); await wait(2500);
@@ -241,6 +276,48 @@ try {
     await o.page.click('.pj-ix-pfoot .pj-ix-go'); await wait(300);
     await o.page.evaluate(() => scrollTo(0, 600)); await wait(600); await shot(o.page, `scrolled-${tag}`);
     await o.ctx.close();
+  }
+
+  // ---------- the library screens (classic layout: the view is an open tab) ----------
+  {
+    const c = await open('desktop', 1440, 900);
+    await go(c.page, `#/tv?topParentId=${tv.Id}&collectionType=tvshows`); await wait(1500); await ready(c.page);
+    s = await state(c.page);
+    check('classic: the series tab holds the screen', s?.title.replace('+', '') === tv.Name && s.types.Series === await libraryCount(tv, 'Series') && s.stockShown === 0, `${s?.title} ${JSON.stringify(s?.types)}`);
+    await shot(c.page, 'library-classic-1440');
+    const tabButton = name => c.page.locator('.headerTabs .emby-tab-button:visible', { hasText: new RegExp(`^${name}$`) });
+    await tabButton('Suggestions').click(); await wait(2000);
+    check('classic: another tab is jellyfin-web\'s', await c.page.evaluate(`!(${shown})()`));
+    await tabButton('Épisodes').click(); await wait(1500);
+    // the series tab is still on screen while jellyfin-web slides to the next one
+    await c.page.waitForFunction(`(() => { const r = (${shown})(); return r && r.querySelector('.pj-ix-type[aria-pressed=true]')?.textContent.startsWith('Épisodes'); })()`, null, { timeout: 15000 }).catch(() => {});
+    await ready(c.page);
+    s = await state(c.page);
+    check('classic: the episodes tab', s.types.Episode === await libraryCount(tv, 'Episode') && s.pressed.startsWith('Épisodes'), `${s.pressed} ${JSON.stringify(s.types)}`);
+    await tabButton('Séries').click(); await wait(2000); await ready(c.page);
+    check('classic: back to the series tab', (await state(c.page)).pressed.startsWith('Séries'));
+    await go(c.page, `#/movies?topParentId=${movies.Id}&collectionType=movies`); await wait(1500); await ready(c.page);
+    s = await state(c.page);
+    check('classic: the films tab', s.title.replace('+', '') === movies.Name && s.cards === await libraryCount(movies, 'Movie'), `${s.title} ${s.cards}`);
+    await c.ctx.close();
+  }
+
+  // ---------- a user limited to the films ----------
+  {
+    const made = await (await fetch(`${J}/Users/New`, { method: 'POST', headers: H, body: JSON.stringify({ Name: 'index-limited', Password: 'limited' }) })).json();
+    try {
+      const films = (await get('/Library/VirtualFolders')).find(f => f.Name === movies.Name);
+      await fetch(`${J}/Users/${made.Id}/Policy`, { method: 'POST', headers: H, body: JSON.stringify({ ...made.Policy, EnableAllFolders: false, EnabledFolders: [films.ItemId] }) });
+      const login = await (await fetch(`${J}/Users/AuthenticateByName`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'MediaBrowser Client="t", Device="cli", DeviceId="index-limited", Version="1"' }, body: JSON.stringify({ Username: 'index-limited', Pw: 'limited' }) })).json();
+      const ask = async body => (await fetch(`${J}/CustomMetadata/Index`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `MediaBrowser Token="${login.AccessToken}"` }, body: JSON.stringify(body) })).json();
+      const all = await ask({ Summary: true, Limit: 60 }), series = await ask({ ParentId: tv.Id, Summary: true, Limit: 60 });
+      check('limited user: sees only the allowed library', all.Total === await libraryCount(movies, 'Movie') && Object.keys(all.Types).filter(t => t).join() === 'Movie', JSON.stringify(all.Types));
+      check('limited user: nothing from a library not allowed', series.Total === 0 && (series.Items || []).length === 0, series.Total);
+    } finally {
+      await fetch(`${J}/Users/${made.Id}`, { method: 'DELETE', headers: H });
+    }
+    const anonymous = await fetch(`${J}/CustomMetadata/Index`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    check('without a signed-in user: refused', anonymous.status === 401, anonymous.status);
   }
 
   // ---------- without the theme's stylesheet ----------
