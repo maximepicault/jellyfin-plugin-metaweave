@@ -145,15 +145,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         // Genre name → Jellyfin can open it. Jellyfin only creates a genre's own entry when something asks for it, and clicking a genre
-        // filters on that entry's id: without it the click finds no episode. Done once per name and process.
-        private static readonly ConcurrentDictionary<string, bool> Ensured = new ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
+        // filters on that entry's id: without it the click finds no episode. Asked again only when the entry is gone: Jellyfin deletes
+        // the genres no item uses any more.
+        private static readonly ConcurrentDictionary<string, (Guid Id, bool Ok)> Ensured = new ConcurrentDictionary<string, (Guid Id, bool Ok)>(StringComparer.Ordinal);
 
         /// <summary>Makes sure Jellyfin has an entry for each genre, and remembers the names it cannot open</summary>
         private void EnsureGenres(IEnumerable<string> names)
         {
             foreach (var name in (names ?? Array.Empty<string>()).Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).Distinct(StringComparer.Ordinal))
             {
-                if (Ensured.ContainsKey(name))
+                if (Ensured.TryGetValue(name, out var known) && known.Id != Guid.Empty && _library.GetItemById(known.Id) != null)
                 {
                     continue;
                 }
@@ -162,7 +163,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     var genre = _library.GetGenre(name);
                     var ok = genre != null && string.Equals(genre.Name, name, StringComparison.Ordinal);
-                    Ensured[name] = ok;
+                    Ensured[name] = (genre?.Id ?? Guid.Empty, ok);
                     if (!ok)
                     {
                         _logger.LogWarning("🏷️ [TAXONOMY] ⚠️ Jellyfin cannot open the genre '{Name}' (its entry is named '{Entry}'): clicking it will find nothing", name, genre?.Name);
@@ -275,7 +276,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 var fixedSpelling = term.ReplaceWith != null && TaxonomyStore.Key(term.ReplaceWith) == term.Key ? term.ReplaceWith.Trim() : null;
                 term.Name = fixedSpelling ?? (found.Count > 0 ? BySpelling(found).First().Key : term.Name);
                 term.Unopenable = term.Kind == TaxonomyStore.GenreKind
-                    && (found.Keys.Append(term.Name).Any(n => Ensured.TryGetValue(n, out var ok) && !ok));
+                    && (found.Keys.Append(term.Name).Any(n => Ensured.TryGetValue(n, out var known) && !known.Ok));
             }
 
             return byKey.Values.OrderBy(t => t.Kind, StringComparer.Ordinal).ThenByDescending(t => t.Items).ThenBy(t => t.Key, StringComparer.Ordinal).ToList();
