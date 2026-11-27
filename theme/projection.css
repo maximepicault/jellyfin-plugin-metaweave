@@ -1760,6 +1760,14 @@ html.pj-ix-art-on { --pj-bg: var(--pj-ix-bg) !important; --pj-veil: var(--pj-ix-
 @media (hover: hover) { .pj-ix .pj-ix-suggest:hover { background: var(--pj-raise-2); color: var(--pj-text); } }
 .pj-ix-suggest small { color: var(--pj-dim); font-size: .76rem; }
 .pj-ix-suggest .pj-ix-face-img { width: 1.4rem; height: 1.4rem; font-size: .6rem; }
+.pj-ix .pj-ix-missing {
+  display: inline-flex; flex: none; align-items: center; gap: .45rem; min-height: 2.5rem; margin-left: auto; padding: 0 .9rem;
+  border-radius: 99px; box-shadow: inset 0 0 0 1px var(--pj-line); color: var(--pj-dim); font-weight: 600; font-size: .88rem; white-space: nowrap;
+}
+.pj-ix-missing .material-icons { font-size: 1.15rem; }
+.pj-ix-missing small { font-weight: 400; }
+.pj-ix .pj-ix-missing[aria-pressed="true"] { background: var(--pj-text); box-shadow: none; color: var(--pj-bg); }
+@media (hover: hover) { .pj-ix .pj-ix-missing[aria-pressed="false"]:hover { background: var(--pj-raise-2); color: var(--pj-text); } }
 .pj-ix .pj-ix-open {
   display: inline-flex; flex: none; align-items: center; gap: .55rem; min-height: 2.5rem; margin-left: auto; padding: 0 .65rem 0 .9rem;
   border-radius: 99px; box-shadow: inset 0 0 0 1px var(--pj-amber); color: var(--pj-amber); font-weight: 700; font-size: .9rem; white-space: nowrap;
@@ -1768,6 +1776,7 @@ html.pj-ix-art-on { --pj-bg: var(--pj-ix-bg) !important; --pj-veil: var(--pj-ix-
 .pj-ix-open kbd { display: grid; place-items: center; min-width: 1.5rem; height: 1.5rem; border-radius: 5px; background: var(--pj-raise-2); color: var(--pj-text-2); font: 600 .74rem system-ui, sans-serif; }
 @media (hover: hover) { .pj-ix .pj-ix-open:hover { background: var(--pj-amber); color: var(--pj-amber-ink); } }
 @media (pointer: coarse) { .pj-ix-open kbd { display: none; } .pj-ix .pj-ix-open { padding-right: .9rem; } }
+.pj-ix .pj-ix-missing + .pj-ix-open { margin-left: 0; }
 .pj-ix-sort { flex: none; min-height: 2.25rem; padding: 0 .3rem; border: 0; border-radius: var(--pj-r-ui); background: var(--pj-bg); color: var(--pj-dim); font: inherit; font-size: .86rem; cursor: pointer; }
 .pj-ix-sort option { background: var(--pj-raise); color: var(--pj-text); }
 
@@ -1975,11 +1984,20 @@ html.pj-ix-libon .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-vi
 /* the results kept on screen while the next ones come */
 .pj-ix-busy .pj-ix-list, .pj-ix-pbody.pj-ix-busy { opacity: .55; transition: opacity .2s .15s; }
 
+/* a narrow desktop window: tighter, so that a refinement still shows between the types and the buttons */
+@media (min-width: 901px) and (max-width: 1150px) {
+  .pj-ix-ribbon { gap: .6rem; }
+  .pj-ix-open kbd { display: none; }
+  .pj-ix .pj-ix-open { padding-right: .9rem; }
+  .pj-ix .pj-ix-missing { padding: 0 .7rem; }
+  .pj-ix-missing .material-icons { display: none; }
+}
+
 @media (max-width: 900px) {
   .pj-ix-ribbon { position: static; flex-wrap: wrap; gap: .45rem; }
   .pj-ix-ribbon .pj-ix-mini { display: none !important; }
   .pj-ix-sugg { order: 3; flex-basis: 100%; }
-  .pj-ix .pj-ix-open { order: 4; margin-left: 0; }
+  .pj-ix .pj-ix-open, .pj-ix .pj-ix-missing { order: 4; margin-left: 0; }
   .pj-ix-sort { order: 5; margin-left: auto; }
   .pj-ix-pair { grid-template-columns: 1fr; gap: 1.35rem 0; }
   .pj-ix-overview .pj-ix-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }

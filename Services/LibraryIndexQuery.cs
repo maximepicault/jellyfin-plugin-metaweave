@@ -18,6 +18,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>Series, Movie, Season, Episode, Video; empty for all</summary>
         public string Type { get; set; }
 
+        /// <summary>Also show the missing (virtual) items: they are left out otherwise, unless the playback state "miss" is chosen</summary>
+        public bool Missing { get; set; }
+
         /// <summary>serie (default), name, date, oldest, added, rating, random</summary>
         public string Sort { get; set; }
 
@@ -54,6 +57,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         /// <summary>There is something to play under these filters</summary>
         public bool Playable { get; set; }
+
+        /// <summary>Missing items of this type under these filters, shown or not (with <see cref="IndexRequest.Summary"/>)</summary>
+        public int Missing { get; set; }
 
         public List<IndexRow> Items { get; set; }
 
@@ -125,7 +131,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     /// <summary>
     /// The filtering, counting, ordering and paging of the theme's lists, over what one user sees. Genres, tags, studios
     /// and people narrow each other (an item holds all the chosen ones); years, playback states and the letter widen
-    /// within their own kind.
+    /// within their own kind. Missing items are left out until asked for.
     /// </summary>
     public sealed class LibraryIndexQuery
     {
@@ -142,12 +148,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly Dictionary<Guid, string> _states = new();
         private readonly Dictionary<string, HashSet<string>> _chosen = new();
         private readonly string _type;
+        private readonly bool _showMissing;
 
         public LibraryIndexQuery(IReadOnlyList<IndexEntry> visible, IReadOnlyDictionary<Guid, IndexEntry> byId, Dictionary<Guid, bool> watched, IndexRequest request)
         {
             _entries = visible;
             _byId = byId;
             _type = request.Type ?? string.Empty;
+            _showMissing = request.Missing;
             foreach (var pair in request.Filters ?? new Dictionary<string, string[]>())
             {
                 var values = pair.Value?.Where(v => !string.IsNullOrEmpty(v)).ToList();
@@ -217,6 +225,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         private bool Passes(IndexEntry e, string skip = null)
         {
+            // the playback states are counted with the missing ones, so that "miss" can always be chosen
+            if (!_showMissing && skip != "state" && _states[e.Id] == "miss" && !IsChosen("state", "miss"))
+            {
+                return false;
+            }
+
             foreach (var (facet, wanted) in _chosen)
             {
                 if (facet == skip)
@@ -259,6 +273,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             return types;
         }
+
+        /// <summary>The missing items the other filters hold, whether they are shown or not.</summary>
+        public int Missing() => _entries.Count(e => OfType(e) && _states[e.Id] == "miss" && Passes(e, "state"));
 
         /// <summary>Value → the number of results one gets by choosing it; the chosen values are always listed.</summary>
         public Dictionary<string, int> Counts(string facet)

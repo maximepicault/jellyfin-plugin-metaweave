@@ -73,6 +73,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             if (request.Summary)
             {
                 response.Types = query.Types();
+                response.Missing = query.Missing();
                 response.Suggestions = query.Suggestions(results.Count);
                 response.Letters = query.Counts("letter");
                 people.UnionWith(response.Suggestions.Where(s => s.Facet == "people").Select(s => s.Value));

@@ -1,6 +1,6 @@
 // End-to-end test of the theme's "Index" (theme/projection-index.js and the plugin's CustomMetadata/Index) in the real
 // jellyfin-web: genre, tag, studio and person lists, adding and removing filters, paging, play and item menu, back
-// navigation, the library screens in both layouts, a user limited to one library, and the pages it must leave alone.
+// navigation, missing episodes (hidden until asked for), the library screens in both layouts, a user limited to one library, and the pages it must leave alone.
 // Counts are compared with Jellyfin's own answers.
 // Usage: node index-real.mjs <base_url> <out_dir>
 // Needs the theme script setting on (ui-test.sh container) and theme-seed.mjs run once (tags, genres, people).
@@ -25,7 +25,9 @@ const TYPES = 'Series,Season,Episode,Movie,Video,MusicVideo';
 // Jellyfin 12 has one layout for both settings, and draws the library toolbar in the app bar
 const version = (await get('/System/Info/Public')).Version;
 const legacy = version.startsWith('10.');
-const apiCount = async q => (await get(`/Items?userId=${U}&Recursive=true&${new URLSearchParams({ IncludeItemTypes: TYPES, ...q })}`)).Items.length;
+// the screens leave missing episodes out until asked for: counts are compared without them
+const rawCount = async q => (await get(`/Items?userId=${U}&Recursive=true&${new URLSearchParams({ IncludeItemTypes: TYPES, ...q })}`)).Items.length;
+const apiCount = q => rawCount({ ExcludeLocationTypes: 'Virtual', ...q });
 
 const views = (await get(`/UserViews?userId=${U}`)).Items;
 const tv = views.find(v => v.Name === 'Séries'), movies = views.find(v => v.CollectionType === 'movies');
@@ -74,6 +76,8 @@ const state = page => page.evaluate(`(${((find) => {
     types: Object.fromEntries([...r.querySelectorAll('.pj-ix-type')].map(b => [b.dataset.type || 'all', Number(b.querySelector('small').textContent)])),
     cards: r.querySelectorAll('.pj-ix-item').length, groups: [...r.querySelectorAll('.pj-ix-group h2')].map(t),
     names: [...r.querySelectorAll('.pj-ix-name')].map(t),
+    missing: r.querySelector('.pj-ix-missing') && { pressed: r.querySelector('.pj-ix-missing').getAttribute('aria-pressed'), count: Number(r.querySelector('.pj-ix-missing small').textContent) },
+    missCards: r.querySelectorAll('.pj-ix-miss').length,
     stockShown: [...r.parentElement.children].filter(c => c !== r && getComputedStyle(c).display !== 'none').length,
     sideways: document.documentElement.scrollWidth - innerWidth,
   };
@@ -293,6 +297,35 @@ try {
   check('library: "Suggestions" gives jellyfin-web its view back', await page.locator(ix).count() === 0 && await page.evaluate(() => document.querySelector('.page:not(.hide)').innerText.length > 0));
   await go(page, tvAddress + '&tab=0&n=back'); await wait(600); await ready(page);
   check('library: back to the series view', (await state(page))?.types.Series === await libraryCount(tv, 'Series'));
+
+  // ---------- missing episodes: hidden until asked for ----------
+  const episodes = `${tvAddress}&tab=5`;
+  const present = await libraryCount(tv, 'Episode'), all = await rawCount({ ParentId: tv.Id, IncludeItemTypes: 'Episode' });
+  await go(page, episodes + '&n=miss'); await wait(600); await ready(page);
+  s = await state(page);
+  check('missing: the bench has missing episodes', all > present, `${all - present}`);
+  check('missing: hidden by default', s.types.Episode === present && s.missCards === 0, `${s.types.Episode} / ${present}, ${s.missCards} missing cards`);
+  check('missing: the switch is off and counts them', s.missing?.pressed === 'false' && s.missing.count === all - present, JSON.stringify(s.missing));
+  await shot(page, 'missing-off-1440');
+  await page.click(`${ix} .pj-ix-missing`); await ready(page);
+  for (let i = 0; i < 12 && (await state(page)).cards < all; i++) { await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight)); await wait(900); }
+  s = await state(page);
+  check('missing: switched on, they join the others', s.types.Episode === all && s.cards === all && s.missCards === all - present && s.missing.pressed === 'true', `${s.types.Episode} / ${all}, ${s.missCards} missing cards`);
+  await page.evaluate(() => scrollTo(0, 0)); await wait(500); await shot(page, 'missing-on-1440');
+  await page.locator(`${ix} .pj-ix-item .pj-ix-name`).first().click(); await wait(2500);
+  await page.goBack(); await ready(page);
+  check('missing: "back" keeps the switch', (await state(page)).missing?.pressed === 'true');
+  await page.click(`${ix} .pj-ix-missing`); await ready(page);
+  s = await state(page);
+  check('missing: switched off, hidden again', s.types.Episode === present && s.missCards === 0, s.types.Episode);
+  await page.click(`${ix} .pj-ix-open`); await panelReady(page);
+  await page.click('.pj-ix-tab[data-tab=state]'); await wait(150); await panelReady(page);
+  await page.click('.pj-ix-pbody [data-k=state][data-v=miss]'); await ready(page);
+  await page.keyboard.press('Escape'); await wait(300);
+  s = await state(page);
+  check('missing: the playback state "Manquants" shows them alone, without the switch', s.types.Episode === all - present && s.missCards === s.cards && !s.missing, `${s.types.Episode}, ${s.missCards}/${s.cards}`);
+  await page.click(`${ix} .pj-ix-term[data-v=miss]`); await ready(page);
+  check('missing: removed from the title, hidden again', (await state(page)).types.Episode === present);
 
   // ---------- pages left alone ----------
   await go(page, `#/list?type=Movie&IsFavorite=true&serverId=${S}`); await wait(2500);

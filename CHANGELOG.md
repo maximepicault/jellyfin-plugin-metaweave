@@ -6,6 +6,7 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **Projection theme: missing episodes are hidden on the « Index » screens**: lists and library screens now leave them out of the results and counts; a « Manquants » button in the filter bar, with their number, shows them, and the « Manquants » playback state of the filter panel still shows them alone.
 - **Projection theme: the library screens take less room**: jellyfin-web's extra bar row with the view menu (Séries, Épisodes, Suggestions…) is gone and the picture moves up; the title offers the same views, and once a filter is on, a small button above it does.
 - **Projection theme: the « Index » screens show their picture like a series or episode page**: the whole picture, centred, no longer cut to a low strip across the screen; its colours light both sides and tint the page, and the title sits on its lower left.
 - **Fix: two pictures cut in half at the top of the « Index » screens**: with Jellyfin's « Backdrops » display setting on, its background picture showed behind the top bar, stopping where the screen's own picture began, and behind the posters too. These screens now show their own picture only.

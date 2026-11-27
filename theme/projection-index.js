@@ -14,6 +14,7 @@
  * - the index ("Tous les filtres" or "/"): every genre, tag, studio, person, year and playback state across the whole
  *   width, with one search field for all of them.
  * Genres, tags, studios and people narrow each other; years and playback states widen within their own kind.
+ * Missing episodes are left out until the ribbon's « Manquants » switch (or the « Manquants » playback state) asks for them.
  *
  * Nothing is filtered in the browser: the plugin (CustomMetadata/Index) answers one page of results and the filters on
  * offer, and the items of that page are then read from Jellyfin; the next page comes as one scrolls.
@@ -125,7 +126,7 @@
     }
     function query(ix, more) {
         var c = client();
-        var body = Object.assign({ ParentId: ix.route.parentId || null, Filters: filters(ix), Type: ix.type, Sort: ix.sort, Seed: ix.seed }, more);
+        var body = Object.assign({ ParentId: ix.route.parentId || null, Filters: filters(ix), Type: ix.type, Sort: ix.sort, Seed: ix.seed, Missing: ix.missing }, more);
         return c.ajax({ type: 'POST', url: c.getUrl('CustomMetadata/Index'), data: JSON.stringify(body), contentType: 'application/json', dataType: 'json' }).then(function (answer) {
             Object.keys(answer.People || {}).forEach(function (name) { ix.people.set(name, answer.People[name]); });
             return answer;
@@ -218,7 +219,7 @@
     function build(host, r) {
         if (host.__pjIx) { drop(host.__pjIx); }
         var root = h('div', { 'class': 'pj-ix' + (r.library ? ' pj-ix-library' : '') });
-        var ix = { host: host, route: r, hash: location.hash, key: visitKey(r), keyed: !!(history.state && history.state.key), root: root, run: 0, loaded: false, busy: true, rows: [], groups: {}, asked: 0, answer: null, ids: {}, people: new Map(), person: null, scope: null, sel: {}, type: r.type, sort: r.library && r.type !== 'Episode' ? 'name' : 'serie', seed: Math.floor(Math.random() * 100000), picture: null };
+        var ix = { host: host, route: r, hash: location.hash, key: visitKey(r), keyed: !!(history.state && history.state.key), root: root, run: 0, loaded: false, busy: true, rows: [], groups: {}, asked: 0, answer: null, ids: {}, people: new Map(), person: null, scope: null, sel: {}, type: r.type, sort: r.library && r.type !== 'Episode' ? 'name' : 'serie', seed: Math.floor(Math.random() * 100000), missing: false, picture: null };
         root.__pjIx = ix;
         ix.heroBox = root.appendChild(h('header', { 'class': 'pj-ix-hero' }));
         ix.picBox = ix.heroBox.appendChild(h('div', { 'class': 'pj-ix-pic', 'aria-hidden': 'true' }));
@@ -300,20 +301,20 @@
             var kept = memory.get(ix.key);
             if (kept) {
                 Object.keys(kept.sel).forEach(function (k) { ix.sel[k] = new Set(kept.sel[k]); });
-                ix.type = kept.type; ix.sort = kept.sort; ix.seed = kept.seed;
+                ix.type = kept.type; ix.sort = kept.sort; ix.seed = kept.seed; ix.missing = kept.missing;
             } else if (r.base) {
                 ix.sel[r.base.k] = new Set([r.base.v]);
             }
             return load(ix, kept && kept.shown).then(function () {
                 // nothing at all on arrival: not a list of videos
-                if (ix.host.__pjIx === ix && r.base && !kept && ix.answer && !ix.answer.Types['']) { throw new Error('no video in this list'); }
+                if (ix.host.__pjIx === ix && r.base && !kept && ix.answer && !ix.answer.Types[''] && !ix.answer.Missing) { throw new Error('no video in this list'); }
             });
         });
     }
     function remember(ix) {
         var sel = {};
         Object.keys(ix.sel).forEach(function (k) { sel[k] = Array.from(ix.sel[k]); });
-        memory.set(ix.key, { sel: sel, type: ix.type, sort: ix.sort, seed: ix.seed, shown: ix.rows.length });
+        memory.set(ix.key, { sel: sel, type: ix.type, sort: ix.sort, seed: ix.seed, missing: ix.missing, shown: ix.rows.length });
     }
 
     // ---------- header ----------
@@ -483,9 +484,12 @@
         var open = button('pj-ix-open', { 'data-open': 'all', 'aria-haspopup': 'dialog' }, [icon('tune'), 'Tous les filtres', h('kbd', { 'aria-hidden': 'true', text: '/' })]);
         var sort = h('select', { 'class': 'pj-ix-sort', 'aria-label': 'Trier' }, SORTS.filter(function (s) { return s[0] !== 'serie' || ix.type === '' || ix.type === 'Episode' || ix.type === 'Season' || ix.sort === 'serie' && !ix.route.library; }).map(function (s) { return h('option', { value: s[0], text: s[1] }); }));
         sort.value = ix.sort;
+        // missing episodes are left out until asked for; a chosen playback state decides by itself
+        var missing = !(ix.sel.state && ix.sel.state.size) && (ix.missing || answer.Missing) ? button('pj-ix-missing', { 'data-missing': true, 'aria-pressed': String(ix.missing), title: ix.missing ? 'Masquer les manquants' : 'Afficher aussi les manquants' }, [
+            icon(ix.missing ? 'visibility' : 'visibility_off'), 'Manquants', h('small', { text: nf(answer.Missing || 0) })]) : null;
         var focused = ix.ribbonBox.contains(document.activeElement) ? document.activeElement : null;
-        var again = focused && (focused.getAttribute('data-type') != null ? '[data-type="' + focused.getAttribute('data-type') + '"]' : focused.classList.contains('pj-ix-sort') ? '.pj-ix-sort' : focused.classList.contains('pj-ix-open') ? '.pj-ix-open' : null);
-        ix.ribbonBox.replaceChildren(mini, types, sugg, open, sort);
+        var again = focused && (focused.getAttribute('data-type') != null ? '[data-type="' + focused.getAttribute('data-type') + '"]' : focused.classList.contains('pj-ix-sort') ? '.pj-ix-sort' : focused.classList.contains('pj-ix-open') ? '.pj-ix-open' : focused.classList.contains('pj-ix-missing') ? '.pj-ix-missing' : null);
+        ix.ribbonBox.replaceChildren.apply(ix.ribbonBox, [mini, types, sugg, missing, open, sort].filter(Boolean));
         if (again) { var node = ix.ribbonBox.querySelector(again); if (node) { node.focus({ preventScroll: true }); } }
     }
     // a library sorted by name keeps jellyfin-web's letter column
@@ -544,7 +548,12 @@
     function drawResults(ix) {
         ix.list.replaceChildren();
         ix.sections = new Map();
-        if (!ix.rows.length) { ix.list.appendChild(h('p', { 'class': 'pj-ix-empty', text: chosen(ix).length ? 'Rien ne réunit tous ces filtres. Cliquez un mot du titre pour le retirer.' : 'Rien à afficher ici.' })); return; }
+        if (!ix.rows.length) {
+            var why = !ix.missing && ix.answer.Missing && !(ix.sel.state && ix.sel.state.size) ? 'Seuls des épisodes manquants correspondent : activez « Manquants » pour les voir.'
+                : chosen(ix).length ? 'Rien ne réunit tous ces filtres. Cliquez un mot du titre pour le retirer.' : 'Rien à afficher ici.';
+            ix.list.appendChild(h('p', { 'class': 'pj-ix-empty', text: why }));
+            return;
+        }
         append(ix, ix.rows);
     }
     // adds rows to their sections: one per type, and one per series for episodes sorted by series
@@ -592,6 +601,7 @@
             else if (ix.route.library && ix.type === 'Episode' && ix.sort === 'name') { ix.sort = 'serie'; }
             changed(ix);
         }
+        else if (b.hasAttribute('data-missing')) { ix.missing = !ix.missing; changed(ix); }
         else if (b.hasAttribute('data-k')) { ev.preventDefault(); toggle(ix, b.getAttribute('data-k'), b.getAttribute('data-v')); }
     }
 
