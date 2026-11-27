@@ -91,6 +91,10 @@ const PAGES = [
   ['person', fullPerson?.Id && `#/details?id=${fullPerson.Id}`],
   ['person-bare', barePerson?.Id && `#/details?id=${barePerson.Id}`],
   ['genre', genres[0] && `#/list?genreId=${genres[0].Id}&serverId=${auth.ServerId}`],
+  // the Index (theme/projection-index.js, when the theme script setting is on): a tag, a person's episodes, a library
+  ['tag-list', `#/list?type=tag&tag=Montagne&serverId=${auth.ServerId}`],
+  ['person-list', fullPerson?.Id && `#/list?type=Episode&personId=${fullPerson.Id}&serverId=${auth.ServerId}`],
+  ['library-index', tvLib && `#/list?parentId=${tvLib.Id}&type=Episode&pj=index&serverId=${auth.ServerId}`],
   ['search', '#/search?query=a'],
   ['menu', `#/details?id=${adv.Id}`, 'menu'],
   ['preferences', '#/mypreferencesmenu'],
@@ -175,7 +179,9 @@ const SCREEN_CHECKS = ({ mobile }) => {
   // candidates for the veil check: light text inside the page
   const lum = c => { const m = c.match(/[\d.]+/g); if (!m) return 0; const [r, g, b] = m.map(Number); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
   // what the fixed header bar covers is not seen: cut the text boxes below it
-  const barBottom = Math.max(0, ...[...document.querySelectorAll('.skinHeader, .MuiAppBar-root')].filter(b => shown(b) && CS(b).position === 'fixed').map(b => b.getBoundingClientRect()).filter(q => q.height > 20 && q.height < vh / 3 && q.top <= 0).map(q => q.bottom));
+  const headerBottom = Math.max(0, ...[...document.querySelectorAll('.skinHeader, .MuiAppBar-root')].filter(b => shown(b) && CS(b).position === 'fixed').map(b => b.getBoundingClientRect()).filter(q => q.height > 20 && q.height < vh / 3 && q.top <= 0).map(q => q.bottom));
+  // the Index's ribbon, once stuck under that bar, covers what scrolls behind it too
+  const barBottom = Math.max(headerBottom, ...[...document.querySelectorAll('.pj-ix-ribbon')].filter(b => shown(b) && CS(b).position === 'sticky').map(b => b.getBoundingClientRect()).filter(q => q.height > 20 && q.top <= headerBottom + 1).map(q => q.bottom));
   const veil = texts.filter(t => t.inPage && !t.fixed && lum(CS(t.e).color) > 0.45).slice(0, 500).map(t => ({ el: sel(t.e), text: label(t.e), boxes: t.ls.slice(0, 6).filter(l => Math.min(vh, l.bottom) - Math.max(barBottom, l.top) > 0.6 * (l.bottom - l.top)).map(l => [Math.max(0, l.left), Math.max(barBottom, l.top), Math.min(vw, l.right), Math.min(vh, l.bottom)]) }));   // a line mostly under the bar is not read
   return { out, veil };
 };
