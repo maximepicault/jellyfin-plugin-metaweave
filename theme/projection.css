@@ -1665,6 +1665,11 @@ html.layout-desktop:not(.pj-person-bd):has(.itemDetailPage:not(.hide) :is(#itemB
    when it finds the mark below (an older copy of this file leaves stock lists). */
 :root { --pj-index: 1; }
 
+/* the screen has its own picture: Jellyfin's backdrop (display setting) showed through the app bar, cut off by ours,
+   and behind the cards */
+html.pj-ix-shown .backdropContainer { display: none !important; }
+html.pj-ix-shown .backgroundContainer:not(.backgroundContainer-transparent) { background: var(--pj-bg) !important; }
+
 .page.pj-ix-on { padding-top: 0 !important; }
 .page.pj-ix-on > :not(.pj-ix) { display: none !important; }
 .pj-ix { display: block; text-align: left; padding-bottom: 5rem; }
@@ -1680,12 +1685,13 @@ html.layout-desktop:not(.pj-person-bd):has(.itemDetailPage:not(.hide) :is(#itemB
   min-height: clamp(15rem, 40vh, 26rem); padding: 2rem var(--pj-gutter) 1.6rem;
 }
 .pj-ix-under .pj-ix-hero { padding-top: calc(var(--pj-ix-covered, 3rem) + 2rem); }
-.pj-ix-pic { position: absolute; inset: 0; z-index: -2; overflow: hidden; }
+/* the picture and its veil go up to the top of the screen, behind the app bar (--pj-ix-lift, set by the script) */
+.pj-ix-pic { position: absolute; inset: calc(-1 * var(--pj-ix-lift, 0px)) 0 0; z-index: -2; overflow: hidden; }
 .pj-ix-pic img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
 .pj-ix-bare .pj-ix-pic { background: radial-gradient(ellipse 70% 100% at 20% 0, #1d2e31, var(--pj-bg) 75%); }
 /* veiled only where something is written: under the title, its left side, under the bar */
 .pj-ix-hero::after {
-  content: ""; position: absolute; inset: 0; z-index: -1;
+  content: ""; position: absolute; inset: calc(-1 * var(--pj-ix-lift, 0px)) 0 0; z-index: -1;
   background:
     linear-gradient(to top, var(--pj-bg) 1%, rgba(var(--pj-veil), .74) 34%, rgba(var(--pj-veil), 0) 78%),
     linear-gradient(to right, rgba(var(--pj-veil), .68), rgba(var(--pj-veil), 0) 62%),

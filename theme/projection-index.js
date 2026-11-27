@@ -259,19 +259,21 @@
         ix.host.classList.remove('pj-ix-on');
         ix.host.__pjIx = null;
     }
-    // where the header ends, and how much of the screen it covers: it may start under the header (jellyfin-web 10.11's
-    // see-through bar, where the picture goes up to the top) or already below it (its classic header, Jellyfin 12)
+    // where the header ends, how much of the screen it covers, and how far below the top the screen starts: Jellyfin 12
+    // starts pages under its see-through app bar, so the picture is lifted by that much to go up to the top
     function place(ix) {
         var mui = document.querySelector('.MuiAppBar-root');
         var bar = mui || document.querySelector('.skinHeader');
         var height = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
         var start = ix.root.offsetParent ? Math.round(ix.root.getBoundingClientRect().top + window.scrollY) : 0;
         var covered = Math.max(0, height - start);
-        var wanted = height + 'px|' + covered + 'px';
+        var lift = mui ? Math.max(0, start) : 0;
+        var wanted = height + 'px|' + covered + 'px|' + lift + 'px';
         if (ix.placed !== wanted) {
             ix.placed = wanted;
             ix.root.style.setProperty('--pj-ix-top', height + 'px');
             ix.root.style.setProperty('--pj-ix-covered', covered + 'px');
+            ix.root.style.setProperty('--pj-ix-lift', lift + 'px');
         }
         ix.root.classList.toggle('pj-ix-under', !!mui && covered > 0);
     }
@@ -783,10 +785,11 @@
         for (var i = 0; i < roots.length; i++) { if (roots[i].offsetParent !== null) { return roots[i].__pjIx; } }
         return null;
     }
-    // while a library screen shows: its stock controls leave the app bar (CSS), and the screen makes room for the bar
-    // as it now is (jellyfin-web fills it after the page)
+    // while a screen shows: Jellyfin's own backdrop leaves the page, a library's stock controls leave the app bar (both
+    // CSS), and the screen makes room for the bar as it now is (jellyfin-web fills it after the page)
     function followBar() {
         var ix = shownIndex();
+        document.documentElement.classList.toggle('pj-ix-shown', !!ix);
         document.documentElement.classList.toggle('pj-ix-libon', !!(ix && ix.route.library));
         if (!ix) { return; }
         var menu = !!barViewMenu();

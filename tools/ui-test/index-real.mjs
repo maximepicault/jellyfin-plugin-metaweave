@@ -52,7 +52,8 @@ async function open(layout, w, h, mobile = false) {
   await page.fill('#txtManualName', 'admin'); await page.fill('#txtManualPassword', 'admin');
   await page.click('.manualLoginForm button[type=submit]');
   await page.waitForFunction(() => !location.hash.includes('login'));
-  await page.evaluate(l => localStorage.setItem('layout', l), layout);
+  // with Jellyfin's backdrops on (a display setting, per browser): the screen must not let them show
+  await page.evaluate(([l, u]) => { localStorage.setItem('layout', l); localStorage.setItem(`${u}-enableBackdrops`, 'true'); }, [layout, U]);
   await page.reload(); await wait(2500);
   return { ctx, page };
 }
@@ -78,6 +79,9 @@ const state = page => page.evaluate(`(${((find) => {
   };
 }).toString()})(${shown})`);
 const shot = (page, name) => page.screenshot({ path: `${outDir}/${name}.png` });
+// one picture from the top of the screen, behind the app bar, and none of Jellyfin's behind the screen
+const ownPicture = page => page.evaluate(`(() => { scrollTo(0, 0); const r = (${shown})(), back = document.querySelector('.backdropContainer'); return { top: Math.round(r.querySelector('.pj-ix-pic').getBoundingClientRect().top), veil: Math.round(parseFloat(getComputedStyle(r.querySelector('.pj-ix-hero'), '::after').top) + r.querySelector('.pj-ix-hero').getBoundingClientRect().top), theirs: !!back && getComputedStyle(back).display !== 'none' }; })()`);
+const checkPicture = async (name, page) => { const p = await ownPicture(page); check(`${name}: the picture starts at the top of the screen, Jellyfin's backdrop hidden`, p.top <= 0 && p.veil <= 0 && !p.theirs, JSON.stringify(p)); };
 
 try {
   await setCss(THEME);
@@ -90,6 +94,7 @@ try {
   check('tag list: stock list hidden', s.stockShown === 0, s.stockShown);
   check('tag list: every video item with the tag', s.types.all === await apiCount({ Tags: 'Montagne' }), s.types.all);
   check('tag list: no sideways scroll', s.sideways <= 0, s.sideways);
+  await checkPicture('tag list', page);
   await shot(page, 'tag-1440');
 
   await go(page, `#/list?genreId=${genre.Id}&serverId=${S}`); await ready(page);
@@ -244,6 +249,7 @@ try {
     check(`library ${name}: the header covers neither title nor ribbon`, await page.evaluate(`(() => { const r = (${shown})(), b = document.querySelector('.MuiAppBar-root').getBoundingClientRect().bottom; return r.querySelector('h1').getBoundingClientRect().top >= b && parseFloat(getComputedStyle(r.querySelector('.pj-ix-ribbon')).top) >= b - 1; })()`));
     const room = await page.evaluate(`(() => { const r = (${shown})(), bar = document.querySelector('.MuiAppBar-root').getBoundingClientRect().bottom; return Math.round(r.querySelector('.pj-ix-hero').getBoundingClientRect().height + r.getBoundingClientRect().top - bar); })()`);
     check(`library ${name}: the header takes no extra room`, room <= 300, `${room}px below the bar`);
+    await checkPicture(`library ${name}`, page);
     await shot(page, `library-${type}-1440`);
   }
   // sorted by name, the letter column filters like jellyfin-web's
@@ -279,6 +285,7 @@ try {
   check('a favourites list stays jellyfin-web\'s', await page.locator(ix).count() === 0);
   await go(page, `#/details?id=${person.Id}&serverId=${S}`); await wait(3000);
   check('a detail page gets no index', await page.locator(ix).count() === 0);
+  check('away from the screens, Jellyfin\'s backdrop is left alone', await page.evaluate(() => !document.documentElement.classList.contains('pj-ix-shown')));
   await ctx.close();
 
   // ---------- other screens ----------

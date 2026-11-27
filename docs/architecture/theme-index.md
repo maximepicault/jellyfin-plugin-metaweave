@@ -34,6 +34,7 @@ Why a server search: the screens need counts for every filter, genres and tags t
 - **Actions** go through jellyfin-web: cards sit in an `emby-itemscontainer`, so `itemAction` buttons (`resume`, `menu`) and right click work; « Tout lire » / « Aléatoire » click a hidden `playallfromhere` queue built from the server's ids. The cards carry `.pj-ix-item` / `.pj-ix-frame`, which `projection.js`'s hover preview accepts.
 - **Panel** (« Tous les filtres » or `/`): appended to `body`; it takes the keyboard at window capture (as the preview viewer does), so Enter and Escape are handled there. People come 240 at a time (600 at most), then by search.
 - Library names, tags and people are only ever written as text nodes, never as HTML.
+- **One picture**: while a screen shows (`html.pj-ix-shown`), jellyfin-web's own backdrop (« Backdrops » display setting) is hidden and the background is solid. `place()` sets `--pj-ix-lift` (where the screen starts under the top) so the header picture and its veil go up behind the app bar.
 
 ## Jellyfin 12
 
