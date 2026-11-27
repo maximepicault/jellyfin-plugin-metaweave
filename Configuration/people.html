@@ -426,7 +426,7 @@
                 if (!value) { return ''; }
                 if (value.indexOf('local://img/') === 0) {
                     var file = value.substring(value.lastIndexOf('/') + 1);
-                    return ApiClient.getUrl('CustomMetadata/Local/' + IMAGES_ID + '/Image/' + file, { api_key: ApiClient.accessToken() });
+                    return ApiClient.getUrl('CustomMetadata/Local/' + IMAGES_ID + '/Image/' + file, { ApiKey: ApiClient.accessToken() });
                 }
                 return value;
             }
@@ -575,7 +575,7 @@
                 if (file.size > 8 * 1024 * 1024) { Dashboard.alert('Image trop lourde : 8 Mo au maximum.'); return; }
                 fetch(ApiClient.getUrl('CustomMetadata/Local/' + IMAGES_ID + '/Image', { node: person.Id }), {
                     method: 'POST',
-                    headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() },
+                    headers: { 'Content-Type': file.type || 'application/octet-stream', Authorization: 'MediaBrowser Token="' + ApiClient.accessToken() + '"' },
                     body: file
                 }).then(function(response) {
                     if (!response.ok) { throw new Error('HTTP ' + response.status); }
@@ -664,7 +664,7 @@
                 if (!file) { return; }
                 if (file.size > 256 * 1024) { netImgMsg(i, 'Image trop lourde : 256 Ko au maximum.'); return; }
                 netImgMsg(i, 'Envoi…');
-                fetch(ApiClient.getUrl('CustomMetadata/People/Networks/Icon'), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() }, body: file })
+                fetch(ApiClient.getUrl('CustomMetadata/People/Networks/Icon'), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', Authorization: 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }, body: file })
                     .then(function(r) { return r.ok ? r.json() : r.text().then(function(t) { throw new Error(t.replace(/^"|"$/g, '') || 'Image refusée'); }); })
                     .then(function(r) { networks[i].IconFile = r.File; netChanged(); renderNets(); }, function(err) { netImgMsg(i, err.message || 'Image refusée.'); });
             });
@@ -858,7 +858,7 @@
                 if (label) { label.textContent = 'Envoi…'; }
                 fetch(ApiClient.getUrl('CustomMetadata/Local/' + IMAGES_ID + '/Image', { node: person.Id }), {
                     method: 'POST',
-                    headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() },
+                    headers: { 'Content-Type': file.type || 'application/octet-stream', Authorization: 'MediaBrowser Token="' + ApiClient.accessToken() + '"' },
                     body: file
                 }).then(function(response) {
                     if (!response.ok) { throw new Error('HTTP ' + response.status); }

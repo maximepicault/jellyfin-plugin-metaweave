@@ -4,7 +4,7 @@ A Jellyfin plugin that enriches your media (movies, series, seasons, episodes) f
 
 A file or folder whose name carries a `{prefix-ID}` tag (for example `{dm-1234}`) is sent to the source that owns that prefix. Files without a tag are left alone: Jellyfin's other providers keep handling them.
 
-> **Status: alpha (`0.0.x`).** The plugin is built against **Jellyfin 10.11.6** (see [Compatibility](#compatibility)). The plugin's user interface is currently in **French**; the screen names below give the French label in quotes.
+> **Status: alpha (`0.0.x`).** The plugin is built for **Jellyfin 12.4** (see [Compatibility](#compatibility)). The plugin's user interface is currently in **French**; the screen names below give the French label in quotes.
 
 ## What it does
 
@@ -38,11 +38,11 @@ For automatic updates from the releases, see [`deploy/README.md`](deploy/README.
 
 ### From source
 
-Requires the .NET 9 SDK.
+Requires the .NET 10 SDK.
 
 ```bash
 ./build.sh        # cleans, then builds in Release mode
-# → bin/Release/net9.0/Jellyfin.Plugin.CustomMetadata.dll
+# → bin/Release/net10.0/Jellyfin.Plugin.CustomMetadata.dll
 ```
 
 ## Getting started
@@ -101,7 +101,7 @@ If you used the separate « Episode Gallery » plugin, uninstall it: your folder
 
 ## Web theme (optional)
 
-`theme/projection.css` is a dark theme for jellyfin-web 10.11, usable with or without the plugin: detail pages whose header adapts to the item (with a backdrop, a band of about half a screen shows the picture and the title and synopsis sit on its lower edge; without one, a compact header with no empty band), a series' seasons as a wall of large posters where watched seasons shrink in place (made for series with dozens of seasons), episodes as a grid of 16:9 cards (rows on phones), missing episodes shown as empty frames. Put one of these lines in Dashboard → General → Custom CSS code:
+`theme/projection.css` is a dark theme for jellyfin-web, usable with or without the plugin: detail pages whose header adapts to the item (with a backdrop, a band of about half a screen shows the picture and the title and synopsis sit on its lower edge; without one, a compact header with no empty band), a series' seasons as a wall of large posters where watched seasons shrink in place (made for series with dozens of seasons), episodes as a grid of 16:9 cards (rows on phones), missing episodes shown as empty frames. Put one of these lines in Dashboard → General → Custom CSS code:
 
 - **With the plugin installed** (recommended): the plugin serves the theme it was built with, so it changes when the plugin is updated, with no cache to wait for. The relative path also works when Jellyfin runs under a base URL.
 
@@ -128,13 +128,13 @@ The French labels it adds (for example "Manquant" on missing episodes, a label j
 
 ## Compatibility
 
-The plugin is compiled against `Jellyfin.Controller` / `Jellyfin.Model` **10.11.6**, targets **.NET 9**, and uses the SkiaSharp version shipped with that server. Building against a newer version than the server's can prevent the plugin from loading. For another 10.11.x server, align the versions in [`Jellyfin.Plugin.CustomMetadata.csproj`](Jellyfin.Plugin.CustomMetadata.csproj).
+The plugin is compiled against `Jellyfin.Controller` / `Jellyfin.Model` **12.4.0**, targets **.NET 10**, and uses the SkiaSharp version shipped with that server. **Jellyfin 10.11 is no longer supported**: this build does not load on it (version 0.0.8 and earlier were built for 10.11.6). Building against a newer version than the server's can prevent the plugin from loading. For another 12.x server, align the versions in [`Jellyfin.Plugin.CustomMetadata.csproj`](Jellyfin.Plugin.CustomMetadata.csproj).
 
 ## Development
 
 - Branching, commit, changelog and release rules: [`CONTRIBUTING.md`](CONTRIBUTING.md).
-- Architecture, conventions and pitfalls (jellyfin-web 10.11, cache, tags, cast…): [`CLAUDE.md`](CLAUDE.md).
-- **Test bench**: `tools/ui-test/ui-test.sh` builds the plugin, starts a Jellyfin 10.11.6 in Docker (http://localhost:8097, `admin`/`admin`) with a fake API and demo media, then takes screenshots. The `tools/ui-test/*.mjs` scripts drive the interface in Chrome (`config-local-ui.mjs` runs without Docker, against a fake server).
+- Architecture, conventions and pitfalls (jellyfin-web, cache, tags, cast…): [`CLAUDE.md`](CLAUDE.md).
+- **Test bench**: `tools/ui-test/ui-test.sh` builds the plugin, starts a Jellyfin 12.4 in Docker (http://localhost:8097, `admin`/`admin`) with a fake API and demo media, then takes screenshots. The `tools/ui-test/*.mjs` scripts drive the interface in Chrome (`config-local-ui.mjs` runs without Docker, against a fake server).
 - There is no unit-test suite: verification is done with the test bench and by reading the logs.
 
 ## License

@@ -10,7 +10,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 {
     /// <summary>
     /// Video preview of missing episodes.
-    /// No RemoteTrailers: jellyfin-web 10.11 only plays an external URL if it is youtube.com.
+    /// No RemoteTrailers: jellyfin-web only plays an external URL if it is youtube.com.
     /// The preview is created as a LOCAL trailer (a Trailer whose Path is the URL), played through the server
     /// (proxy / transcoding) on every client. See MissingEpisodeService.SyncPreviewAsync.
     /// </summary>
@@ -24,18 +24,20 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public const string ProviderKey = "customPreview";
 
         /// <summary>
-        /// Previews (Trailers) created by the plugin for this episode, through its ExtraIds.
+        /// Previews (Trailers) created by the plugin for this episode: the items it owns (OwnerId, Jellyfin 12 has no ExtraIds).
         /// Identified WITHOUT relying on ProviderIds: a trailer extra of THIS episode whose path is a URL
         /// (a virtual episode has no file, hence no extra other than ours).
         /// </summary>
         public static List<Trailer> GetPreviewTrailers(Episode episode, ILibraryManager libraryManager)
         {
-            return episode.ExtraIds
-                .Select(id => libraryManager.GetItemById(id))
+            // A database query: callers must filter out the items that are not virtual episodes first
+            return libraryManager.GetItemList(new InternalItemsQuery
+                {
+                    OwnerIds = new[] { episode.Id },
+                    ExtraTypes = new[] { ExtraType.Trailer }
+                })
                 .OfType<Trailer>()
-                .Where(t => t.ExtraType == ExtraType.Trailer
-                    && t.OwnerId.Equals(episode.Id)
-                    && t.Path != null
+                .Where(t => t.Path != null
                     && (t.Path.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
                         || t.Path.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
                 .ToList();

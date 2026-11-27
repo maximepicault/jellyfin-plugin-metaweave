@@ -19,7 +19,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     /// The preview video of a real episode (its source's preview.url), streamed through the server for the Projection theme's
     /// hover preview: the source's headers (API key, custom headers) stay on the server, an http source plays on an https
     /// Jellyfin, a local source's uploaded video (a loopback address) is reachable, and Range requests are forwarded so the
-    /// browser can seek. Any signed-in user (the browser passes api_key in the URL, a video tag sends no header).
+    /// browser can seek. Any signed-in user (the browser passes ApiKey in the URL, a video tag sends no header).
     /// </summary>
     [ApiController]
     [Route("CustomMetadata/Preview")]

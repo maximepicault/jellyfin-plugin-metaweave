@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Visual test bench of the plugin: Jellyfin 10.11.6 in Docker + fake API + screenshots of the missing-episodes screen.
+# Visual test bench of the plugin: Jellyfin 12.4 in Docker + fake API + screenshots of the missing-episodes screen.
 #
 #   ./ui-test.sh            build + deploy + "Tout retraiter" analysis + screenshots
 #   ./ui-test.sh --no-build redeploys the DLL already built
@@ -15,14 +15,14 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 WORK="${CM_UI_WORK:-$HOME/.cache/cm-ui-test}"
-# another server version beside the main bench: CM_UI_IMAGE, CM_UI_NAME, CM_UI_PORT and CM_UI_WORK together
+# a second bench beside the main one (another server version): CM_UI_IMAGE, CM_UI_NAME, CM_UI_PORT and CM_UI_WORK together
 NAME="${CM_UI_NAME:-cm-uitest}"
 PORT="${CM_UI_PORT:-8097}"
 API_PORT=8765
 API_HOST=172.17.0.1            # docker0 gateway: the host as seen from the container
 J="http://localhost:$PORT"
 DOTNET="${DOTNET:-$HOME/.dotnet/dotnet}"
-IMAGE="${CM_UI_IMAGE:-jellyfin/jellyfin:10.11.6}"
+IMAGE="${CM_UI_IMAGE:-jellyfin/jellyfin:12.4}"
 
 log() { printf '\n▶ %s\n' "$*"; }
 wait_for() {
@@ -39,6 +39,14 @@ if [ "${1:-}" = "--stop" ]; then
   rm -f "$WORK/api.pid"; echo "stopped"; exit 0
 fi
 
+# A container of another server version would load neither this DLL nor, later, this configuration: say so instead of reusing it
+RUNNING="$(docker inspect -f '{{.Config.Image}}' "$NAME" 2>/dev/null || true)"
+if [ -n "$RUNNING" ] && [ "$RUNNING" != "$IMAGE" ]; then
+  echo "Container $NAME runs $RUNNING, not $IMAGE. Remove it (docker rm -f $NAME) and use an empty work folder (now: $WORK),"
+  echo "or run a second bench with CM_UI_NAME, CM_UI_PORT and CM_UI_WORK."
+  exit 1
+fi
+
 mkdir -p "$WORK"/{config/plugins/CustomMetadata,config/plugins/configurations,cache,shots}
 
 if [ "${1:-}" != "--no-build" ]; then
@@ -46,7 +54,7 @@ if [ "${1:-}" != "--no-build" ]; then
   rsync -a --delete --exclude bin --exclude obj --exclude tools "$REPO/" "$WORK/build/"
   (cd "$WORK/build" && DOTNET_CLI_HOME="$WORK/.dotnet-home" NUGET_PACKAGES="$WORK/.nuget" "$DOTNET" build -c Release 2>&1 | grep -E " error |réussi|succeeded|Avertissement|Warn" | tail -3)
 fi
-DLL="$WORK/build/bin/Release/net9.0/Jellyfin.Plugin.CustomMetadata.dll"
+DLL="$WORK/build/bin/Release/net10.0/Jellyfin.Plugin.CustomMetadata.dll"
 [ -f "$DLL" ] || { echo "DLL introuvable : $DLL"; exit 1; }
 
 # --fast: the quickest way to try a change. The test data, the fake API and the library are already there from a previous full run.

@@ -36,9 +36,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         {
             // Called on every playback of any item: exit immediately if it is not one of ours
             // (no ProviderIds test: GetPreviewTrailers identifies our previews by OwnerId + URL)
-            if (item is not Episode episode
-                || !episode.IsVirtualItem
-                || episode.ExtraIds.Length == 0)
+            if (item is not Episode episode || !episode.IsVirtualItem)
             {
                 return Task.FromResult(Enumerable.Empty<MediaSourceInfo>());
             }

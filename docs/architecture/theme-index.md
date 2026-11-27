@@ -37,11 +37,10 @@ Why a server search: the screens need counts for every filter, genres and tags t
 
 ## Jellyfin 12
 
-The plugin is built for 10.11.6 (D001) and the screens also work on 12.4 (checked with the same test, `CM_UI_IMAGE=jellyfin/jellyfin:12.4` and its own `CM_UI_NAME`, `CM_UI_PORT`, `CM_UI_WORK` for `ui-test.sh`, then the theme script setting turned on, `theme-seed.mjs`, `index-real.mjs`).
+The plugin is built for 12.4 only (D026). Check these screens with `ui-test.sh`, the theme script setting turned on, `theme-seed.mjs`, then `index-real.mjs`.
 
-- `BaseItemEntity.PrimaryVersionId` changed type: it is read with `EF.Property<object>`. A typed access throws `MissingMethodException` at run time although it compiles against both.
+- `BaseItemEntity.PrimaryVersionId` changed type between 10.11 and 12: it is read with `EF.Property<object>`, which does not bind to the type (a build made for the other version threw `MissingMethodException` on a typed access, at run time only).
 - jellyfin-web 12 has one layout (the « classic » setting too), draws the library toolbar in the app bar (its view menu `[aria-controls="library-view-menu"]` stays, the rest is hidden under `html.pj-ix-libon`), starts pages below the bar (`--pj-ix-covered`) and makes every `.itemsContainer` a flex box.
-- Outside this screen, two parts of the plugin built for 10.11.6 do not resolve on 12.4: `BaseItem.ExtraIds` (preview trailers of missing episodes) and `IChapterManager.SaveChapters` (episode chapters).
 
 ## Depends on jellyfin-web
 

@@ -13,7 +13,7 @@ The user is French and reviews UI from screenshots, giving precise feedback (e.g
 - Design for the task, not for decoration. For each screen, write down what the user comes there to do, and make that the most prominent thing:
   - missing episodes → which series and sources are incomplete, then which files to add (hence the "copy file name" button).
 
-## 2. jellyfin-web 10.11 constraints (verified in a 10.11.6 container)
+## 2. jellyfin-web constraints (verified in a 10.11.6 container; the server is now 12.4: re-check on it when one matters)
 - **Put `<style>` inside the `data-role="page"` div.** jellyfin-web keeps only that div, so a `<head>` style is silently dropped.
 - **Jellyfin caps every `<form>` at ~800 px** (`max-width` ≈ 50 em). A multi-column layout inside a form is squeezed unless the page sets `form { max-width: none }`.
 - **`[data-role="content"]` has `overflow: hidden`**, which makes `position: sticky` a no-op for a save bar. Set `overflow: visible` on it, scoped under the page id. Offset sticky elements by about 72 px (Jellyfin's fixed header), and give scroll targets `scroll-margin-top`, or `scrollIntoView` hides the title under the header.
@@ -44,7 +44,7 @@ The user is French and reviews UI from screenshots, giving precise feedback (e.g
 - Tight loop: `ui-test.sh --fast` (build, swap the DLL, restart, nothing else), then the targeted script with `--quick` when it has one. Run the full scripts once, at the end, alone, in the background.
 
 ## 4. Build → screenshot → self-critique (mandatory before showing anything)
-1. `tools/ui-test/ui-test.sh`: build, deploy into a Jellyfin 10.11.6 container (http://localhost:8097, admin/admin), run a full missing-episodes analysis, and take screenshots in `~/.cache/cm-ui-test/shots` at 1440, 1920 and 412 px (mobile). Use `--no-build` to redeploy only. `--stop` stops everything.
+1. `tools/ui-test/ui-test.sh`: build, deploy into a Jellyfin 12.4 container (http://localhost:8097, admin/admin), run a full missing-episodes analysis, and take screenshots in `~/.cache/cm-ui-test/shots` at 1440, 1920 and 412 px (mobile). Use `--no-build` to redeploy only. `--stop` stops everything.
    - Never touch the container on port 8096: it belongs to another project.
    - If the screen you changed isn't covered by `tools/ui-test/shoot.mjs`, extend that scenario rather than taking ad-hoc screenshots.
 2. **Read every screenshot**, then go through this checklist, fix what fails and take the screenshots again:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A large library for timing the theme's Index: a second Jellyfin 10.11.6 (cm-uiperf, http://localhost:8099,
+# A large library for timing the theme's Index: a second Jellyfin 12.4 (cm-uiperf, http://localhost:8099,
 # admin/admin) with 12 000 episodes and 600 films whose genres, tags, studios and cast come from NFO files. The videos
 # are .strm files, so the scan does not probe 12 000 files.
 #
@@ -14,7 +14,7 @@ UI_WORK="${CM_UI_WORK:-$HOME/.cache/cm-ui-test}"
 NAME=cm-uiperf
 PORT=8099
 J="http://localhost:$PORT"
-IMAGE=jellyfin/jellyfin:10.11.6
+IMAGE=jellyfin/jellyfin:12.4
 H='Content-Type: application/json'
 
 log() { printf '\n▶ %s\n' "$*"; }
@@ -28,7 +28,7 @@ wait_for() {
 
 if [ "${1:-}" = "--stop" ]; then docker rm -f "$NAME" >/dev/null 2>&1 || true; echo "stopped"; exit 0; fi
 
-DLL="$UI_WORK/build/bin/Release/net9.0/Jellyfin.Plugin.CustomMetadata.dll"
+DLL="$UI_WORK/build/bin/Release/net10.0/Jellyfin.Plugin.CustomMetadata.dll"
 [ -f "$DLL" ] || { echo "DLL not found: run ui-test.sh once first"; exit 1; }
 mkdir -p "$WORK"/{config/plugins/CustomMetadata,config/plugins/configurations,cache,media}
 

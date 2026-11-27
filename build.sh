@@ -16,7 +16,7 @@ if [ $? -eq 0 ]; then
     echo "✅ Build succeeded!"
     echo ""
     echo "📦 The compiled plugin is in:"
-    echo "   bin/Release/net9.0/Jellyfin.Plugin.CustomMetadata.dll"
+    echo "   bin/Release/net10.0/Jellyfin.Plugin.CustomMetadata.dll"
     echo ""
     echo "📋 To install the plugin in Jellyfin:"
     echo "   1. Copy the DLL to /var/lib/jellyfin/plugins/CustomMetadata/"

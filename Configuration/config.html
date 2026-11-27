@@ -3496,7 +3496,7 @@
                 if (!value) { return ''; }
                 if (isLocalImage(value)) {
                     var parts = value.substring('local://img/'.length).split('/');
-                    return ApiClient.getUrl('CustomMetadata/Local/' + parts[0] + '/Image/' + parts[1], { api_key: ApiClient.accessToken() });
+                    return ApiClient.getUrl('CustomMetadata/Local/' + parts[0] + '/Image/' + parts[1], { ApiKey: ApiClient.accessToken() });
                 }
                 return value;
             }
@@ -4025,7 +4025,7 @@
                 // fetch and not ApiClient.ajax: jellyfin-web's ajax does not pass a raw file through as is
                 fetch(ApiClient.getUrl('CustomMetadata/Local/' + localDataId + '/Image', { node: hit.node.Id }), {
                     method: 'POST',
-                    headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() },
+                    headers: { 'Content-Type': file.type || 'application/octet-stream', Authorization: 'MediaBrowser Token="' + ApiClient.accessToken() + '"' },
                     body: file
                 }).then(function(response) {
                     if (!response.ok) { throw new Error('HTTP ' + response.status); }
@@ -4050,7 +4050,7 @@
                 if (button) { button.disabled = true; }
                 var request = new XMLHttpRequest();
                 request.open('POST', ApiClient.getUrl('CustomMetadata/Local/' + localDataId + '/Video', { node: hit.node.Id }));
-                request.setRequestHeader('X-Emby-Token', ApiClient.accessToken());
+                request.setRequestHeader('Authorization', 'MediaBrowser Token="' + ApiClient.accessToken() + '"');
                 request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
                 request.upload.onprogress = function(e) {
                     if (e.lengthComputable) { say('Envoi : ' + Math.round(e.loaded * 100 / e.total) + ' %'); }
@@ -4144,7 +4144,7 @@
                     (folderType || chosen !== 'auto' ? Promise.resolve(folderType || chosen) : detectGalleryType(file, allowed).then(function(t) { return t || allowed[0]; })).then(function(type) {
                     return fetch(ApiClient.getUrl('CustomMetadata/Local/' + localDataId + '/Image', { node: node.Id }), {
                         method: 'POST',
-                        headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Emby-Token': ApiClient.accessToken() },
+                        headers: { 'Content-Type': file.type || 'application/octet-stream', Authorization: 'MediaBrowser Token="' + ApiClient.accessToken() + '"' },
                         body: file
                     }).then(function(r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); }).then(function(result) {
                         var added = { Type: type, Url: result.Url };

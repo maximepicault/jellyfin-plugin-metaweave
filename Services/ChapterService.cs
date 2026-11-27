@@ -87,12 +87,19 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         {
             try
             {
-                var runtimeSeconds = episode.RunTimeTicks is long ticks && ticks > 0 ? ticks / (double)TimeSpan.TicksPerSecond : 0;
+                // Jellyfin drops every chapter that is not before the end of the video: while the length is unknown, saving would
+                // erase the chapters. The probe that finds it raises another update of the item
+                if (episode.RunTimeTicks is not long runtime || runtime <= 0)
+                {
+                    return;
+                }
+
+                var runtimeSeconds = runtime / (double)TimeSpan.TicksPerSecond;
                 // Jellyfin chapters have a start and no end: a chapter that ends before the next one (or the end of the video) is closed by an extra chapter
                 var wanted = ChapterParser.WithGaps(marks, runtimeSeconds)
                     .Select(m => new ChapterInfo { StartPositionTicks = (long)Math.Round(m.Seconds * TimeSpan.TicksPerSecond), Name = m.Title })
-                    // A time code past the end of the video cannot be shown; the length is known once the file was probed
-                    .Where(c => !(episode.RunTimeTicks is long runtime && runtime > 0 && c.StartPositionTicks >= runtime))
+                    // A time code past the end of the video cannot be shown
+                    .Where(c => c.StartPositionTicks < runtime)
                     .ToList();
                 if (wanted.Count == 0)
                 {

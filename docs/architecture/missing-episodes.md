@@ -2,17 +2,17 @@
 
 > Detail moved out of `CLAUDE.md` to keep the always-loaded file small. Read it when touching `MissingEpisodeService`, its cache, `missing.html`, virtual episodes, preview trailers. `CLAUDE.md` still holds the rules that apply everywhere.
 
-**Episode preview video (missing episodes only).** `EpisodeListMapping.PreviewUrl` (default `preview.url`) becomes a **local trailer**: a `Trailer` item with `Path` = URL, `ExtraType.Trailer`, `OwnerId` = the virtual episode, listed in `episode.ExtraIds`, `IsLocked`, and probed with `EnableRemoteContentProbe`. The server proxies or transcodes it on every client. This is done in `MissingEpisodeService.SyncPreviewAsync`.
-- Don't use `RemoteTrailers` for this. jellyfin-web 10.11 only plays non-server URL items through a player whose `canPlayUrl` accepts them, and only the YouTube player does (`youtube.com`). Any other URL fails.
+**Episode preview video (missing episodes only).** `EpisodeListMapping.PreviewUrl` (default `preview.url`) becomes a **local trailer**: a `Trailer` item with `Path` = URL, `ExtraType.Trailer`, `OwnerId` = the virtual episode (that is the only link: Jellyfin 12 has no `ExtraIds`; `PreviewMapper.GetPreviewTrailers` queries by `OwnerIds` + `ExtraTypes`), `IsLocked`, and probed with `EnableRemoteContentProbe`. The server proxies or transcodes it on every client. This is done in `MissingEpisodeService.SyncPreviewAsync`.
+- Don't use `RemoteTrailers` for this. jellyfin-web only plays non-server URL items through a player whose `canPlayUrl` accepts them, and only the YouTube player does (`youtube.com`). Any other URL fails.
 - Don't add preview trailers to real (file-backed) episodes either:
-  - `BaseItem.RefreshExtras` rebuilds `ExtraIds` from disk on every refresh and deletes extras it doesn't find.
+  - `BaseItem.RefreshExtras` compares the item's extras with the files on disk on a refresh and deletes those it doesn't find.
   - A `-trailer` file in a shared season folder attaches to every episode in it (`ExtraResolver.TryGetExtraTypeForOwner` same-folder rule).
 - Virtual episodes are safe because `RefreshedOwnedItems` requires `IsFileProtocol`.
 - A real episode's preview is still available, without a trailer: `EpisodePreviewService` looks its `PreviewUrl` up in the season's episode list on demand and `PreviewController` (`CustomMetadata/Preview/{itemId}`) streams it. Only the Projection theme script uses it (hover preview).
 - `Providers/PreviewMediaSourceProvider` (`IMediaSourceProvider`, auto-discovered) also returns the preview trailer's media sources as the **virtual episode's own** sources.
   - jellyfin-web's season episode list (`listview` with `imagePlayButton`) shows a play button on every episode thumbnail, virtual ones included.
   - `MediaSourceManager.GetPlaybackMediaSources` drops the virtual episode's `Placeholder` source and keeps dynamic ones, so that button plays the preview.
-  - This provider is called for every playback, so keep its early-exit check cheap.
+  - This provider is called for every playback: it leaves at once for anything but a virtual episode, because looking the previews up is a database query.
 - `CleanupLegacyRemoteTrailersAsync` strips the "Aperçu…" `RemoteTrailers` that an earlier version put on real episodes.
 
 **Missing episodes.** Each source can set an `EpisodeListEndpoint` with an `EpisodeListMapping`. The endpoint is called per season/source, and `{id}` is the season folder's tag ID.

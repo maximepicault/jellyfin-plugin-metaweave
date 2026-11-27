@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Jellyfin.Plugin.CustomMetadata</AssemblyName>
     <RootNamespace>Jellyfin.Plugin.CustomMetadata</RootNamespace>
     <Nullable>disable</Nullable>
@@ -16,20 +16,16 @@
 
   <ItemGroup>
     <!-- Jellyfin dependencies - ExcludeAssets runtime as per official template -->
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.6">
+    <PackageReference Include="Jellyfin.Controller" Version="12.4.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
-    <PackageReference Include="Jellyfin.Model" Version="10.11.6">
+    <PackageReference Include="Jellyfin.Model" Version="12.4.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     
-    <!-- Microsoft dependencies - version 9.0.11 required by Jellyfin 10.11.6 -->
-    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.11" />
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.11" />
-
-    <!-- SkiaSharp: provided by the Jellyfin server (10.11.6 → 3.116.1). Exactly the server's version,
+    <!-- SkiaSharp: provided by the Jellyfin server (12.4 → 3.119.4). Exactly the server's version,
          not shipped with the plugin (ExcludeAssets runtime): used by the image converters (portrait thumbs, landscape posters) -->
-    <PackageReference Include="SkiaSharp" Version="3.116.1">
+    <PackageReference Include="SkiaSharp" Version="3.119.4">
       <ExcludeAssets>runtime;native</ExcludeAssets>
     </PackageReference>
   </ItemGroup>

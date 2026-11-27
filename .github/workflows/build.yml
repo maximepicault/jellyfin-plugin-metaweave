@@ -20,7 +20,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Version
         id: version
@@ -40,7 +40,7 @@ jobs:
 
       - name: Empreinte SHA-256
         run: |
-          cd bin/Release/net9.0
+          cd bin/Release/net10.0
           sha256sum Jellyfin.Plugin.CustomMetadata.dll > SHA256SUMS
           cat SHA256SUMS
 
@@ -48,8 +48,8 @@ jobs:
         with:
           name: Jellyfin.Plugin.CustomMetadata-${{ steps.version.outputs.version }}
           path: |
-            bin/Release/net9.0/Jellyfin.Plugin.CustomMetadata.dll
-            bin/Release/net9.0/SHA256SUMS
+            bin/Release/net10.0/Jellyfin.Plugin.CustomMetadata.dll
+            bin/Release/net10.0/SHA256SUMS
 
   release:
     # Only on a version tag, never on a pull request

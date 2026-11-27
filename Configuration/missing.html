@@ -238,7 +238,7 @@
             overflow: hidden;
         }
         .me-chips { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
-        .me-chips > span { color: rgba(255, 255, 255, 0.82); }
+        .me-chips > span:not(.me-badge) { color: rgba(255, 255, 255, 0.82); }
 
         /* Source detail: header panel with the main action on the right */
         .me-detail-head {
@@ -1737,7 +1737,7 @@
                 return 'Reconnu par ressemblance : ' + r.MatchScore + ' %';
             }
 
-            function imageSrc(id) { return ApiClient.getUrl('CustomMetadata/Dump/Image', { prefix: state.prefix, id: id, api_key: ApiClient.accessToken() }); }
+            function imageSrc(id) { return ApiClient.getUrl('CustomMetadata/Dump/Image', { prefix: state.prefix, id: id, ApiKey: ApiClient.accessToken() }); }
 
             // ---- mode: series (the usual screen) or catalogues ----
             function setMode(next) {
@@ -2060,7 +2060,7 @@
                 var url = ApiClient.getUrl('CustomMetadata/Dump/Export', q);
                 var button = $('#dcExport');
                 button.disabled = true;
-                fetch(url, { headers: { 'X-Emby-Token': ApiClient.accessToken() } }).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.blob(); }).then(function (blob) {
+                fetch(url, { headers: { Authorization: 'MediaBrowser Token="' + ApiClient.accessToken() + '"' } }).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.blob(); }).then(function (blob) {
                     var a = document.createElement('a');
                     a.href = URL.createObjectURL(blob); a.download = state.prefix + '-dump.csv';
                     document.body.appendChild(a); a.click(); document.body.removeChild(a);

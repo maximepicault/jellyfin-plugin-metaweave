@@ -604,7 +604,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         {
             try
             {
-                // Extras are not deleted together with their owner
+                // Deleting the owner removes its extras from the database but not from the library cache: delete them first
                 foreach (var preview in GetOurPreviews(episode))
                 {
                     _libraryManager.DeleteItem(preview, new DeleteOptions { DeleteFileLocation = false });
@@ -1064,20 +1064,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         /// <summary>
         /// Video preview of the virtual episode = LOCAL trailer (Trailer, ExtraType.Trailer) whose Path
-        /// is the preview URL, attached through ExtraIds/OwnerId. Played through the server (HTTP proxy,
+        /// is the preview URL, attached through OwnerId. Played through the server (HTTP proxy,
         /// transcoding if needed): works on web as well as Android, unlike RemoteTrailers.
         /// Only possible for virtual episodes: with no file, Jellyfin does not recompute their
         /// extras (RefreshedOwnedItems requires IsFileProtocol) and therefore does not delete this Trailer.
         /// </summary>
         private async Task SyncPreviewAsync(Episode episode, EpisodeListItem item, SourceConfiguration source, CancellationToken cancellationToken)
         {
-            var changed = false;
-
             // Remote trailers set by a previous version (unplayable in jellyfin-web)
             if (episode.RemoteTrailers.Any(PreviewMapper.IsLegacyRemoteTrailer))
             {
                 episode.RemoteTrailers = episode.RemoteTrailers.Where(t => !PreviewMapper.IsLegacyRemoteTrailer(t)).ToArray();
-                changed = true;
+                await episode.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken);
             }
 
             var url = PreviewMapper.ResolveUrl(item.PreviewUrl, source.BaseUrl);
@@ -1088,7 +1086,6 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             foreach (var old in existing.Where(t => t != upToDate))
             {
                 _logger.LogInformation("🎞️ [PREVIEW] Removing preview {Url} of '{Name}'", old.Path, episode.Name);
-                episode.ExtraIds = episode.ExtraIds.Where(id => !id.Equals(old.Id)).ToArray();
                 try
                 {
                     _libraryManager.DeleteItem(old, new DeleteOptions { DeleteFileLocation = false });
@@ -1097,8 +1094,6 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     _logger.LogWarning(ex, "🎞️ [PREVIEW] ⚠️ Could not remove preview {Url} of '{Name}': {Message}", old.Path, episode.Name, ex.Message);
                 }
-
-                changed = true;
             }
 
             if (url != null && upToDate == null)
@@ -1139,14 +1134,6 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     _logger.LogWarning(ex, "🎞️ [PREVIEW] Probe failed for {Url} (the preview may still play)", url);
                 }
-
-                episode.ExtraIds = episode.ExtraIds.Append(trailer.Id).ToArray();
-                changed = true;
-            }
-
-            if (changed)
-            {
-                await episode.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken);
             }
         }
 

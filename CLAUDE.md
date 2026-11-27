@@ -16,14 +16,14 @@ Jellyfin metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`) that 
 ## Build
 
 ```bash
-dotnet build --configuration Release      # output: bin/Release/net9.0/Jellyfin.Plugin.CustomMetadata.dll
+dotnet build --configuration Release      # output: bin/Release/net10.0/Jellyfin.Plugin.CustomMetadata.dll
 ./build.sh                                # clean + Release build
 ```
 
-- The target server is **Jellyfin 10.11.6**. The project targets **net9.0** against `Jellyfin.Controller`/`Jellyfin.Model` **10.11.6** (`ExcludeAssets=runtime`). Keep the package version equal to the server version: building against a newer 10.11.x than the server can break loading.
-- `Microsoft.Extensions.Http`/`Caching.Memory` must be ≥ the version Jellyfin pulls in transitively (9.0.11 for 10.11.6). Otherwise restore fails with NU1605.
+- The target server is **Jellyfin 12.4**, and only 12.x: 10.11 is no longer supported (D026). The project targets **net10.0** against `Jellyfin.Controller`/`Jellyfin.Model` **12.4.0** (`ExcludeAssets=runtime`). Keep the package version equal to the server version: building against a newer version than the server's can break loading.
+- `Microsoft.Extensions.*` (HTTP client, memory cache) come with the ASP.NET Core framework reference: don't add them as packages (NU1510). `SkiaSharp` must equal the server's version (3.119.4 for 12.4).
 - **Visual/end-to-end test bench: `tools/ui-test/ui-test.sh`.**
-  - It builds the plugin and starts a Jellyfin **10.11.6** container (`cm-uitest`, http://localhost:8097, admin/admin) with a mock API (`server.py`, port 8765), tagged demo media (`gen.py`) and source prefix `dm`.
+  - It builds the plugin and starts a Jellyfin **12.4** container (`cm-uitest`, http://localhost:8097, admin/admin) with a mock API (`server.py`, port 8765), tagged demo media (`gen.py`) and source prefix `dm`.
   - It then runs "Tout retraiter" and saves screenshots of the missing-episodes screen and of the config page (full page + source modal) in `~/.cache/cm-ui-test/shots`.
   - Options: `--no-build` redeploys the DLL already built (HTML pages are embedded in it, so use it only when no page changed), `--fast` builds, swaps the DLL and restarts the container only (no analysis, no screenshots: the inner loop), `--stop` stops everything.
   - Test scripts share the container and take a lock: run one at a time. `config-people-real.mjs … --quick` runs only the photo-cropper checks (~10 s). Pitfalls: skill `.claude/skills/jellyfin-ui` section 3b.
@@ -63,7 +63,13 @@ dotnet build --configuration Release      # output: bin/Release/net9.0/Jellyfin.
 
    The URL is built by `ResilientHttp.BuildUrl(BaseUrl, endpoint, id)`: exactly one `/` between base and endpoint whatever the user typed, and `{id}` URL-escaped.
 
-**Jellyfin 10.11 API constraints.** `People` no longer exists on items, and `EpisodeInfo.SeriesName`/`SeasonName` were removed. Cast goes through `MetadataResult<T>.AddPerson(new PersonInfo { Type = PersonKind.X })` instead, via `Services/CastMapper.cs`. Several French docs wrongly say `PersonInfo` was removed and that casting is impossible.
+**Jellyfin API constraints (10.11 and 12).** `People` no longer exists on items, and `EpisodeInfo.SeriesName`/`SeasonName` were removed. Cast goes through `MetadataResult<T>.AddPerson(new PersonInfo { Type = PersonKind.X })` instead, via `Services/CastMapper.cs`. Several French docs wrongly say `PersonInfo` was removed and that casting is impossible.
+
+**Jellyfin 12 constraints.**
+- `BaseItem.ExtraIds` is gone: extras are the items whose `OwnerId` is the item (`InternalItemsQuery { OwnerIds, ExtraTypes }`). Deleting an item removes its extras from the database.
+- The legacy authentication is off by default: never use the `X-Emby-Token` / `X-Emby-Authorization` headers or the `api_key` query parameter (401). Pages, scripts and tests send `Authorization: MediaBrowser Token="…"`, or `ApiKey` in the URL where no header is possible (`<img>`, `<video>`).
+- `IChapterManager.SaveChapters` silently drops every chapter of a video whose length is unknown.
+- A member can disappear or change type between server versions and still compile elsewhere: a plugin build only runs on the version it was compiled for.
 
 **Feature flags.** Each metadata provider returns early when `EnableMetadata` is off. `CustomImageProvider` checks `EnableImages`, and `CastMapper` checks `EnableCasting`. The season name falls back as follows: API title → folder name with the `{PREFIX-ID}` tag stripped → `DefaultSourceName`. All of these are editable in `config.html`.
 

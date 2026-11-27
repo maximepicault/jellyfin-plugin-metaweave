@@ -258,7 +258,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var items = db.BaseItems.AsNoTracking().Where(i => typeNames.Contains(i.Type));
 
             // extras (trailers, bonus videos) and alternate versions are not items of their own in a list.
-            // PrimaryVersionId is read by name: Jellyfin 12 changed its type, and a typed access throws there
+            // PrimaryVersionId is read by name: its type changed with Jellyfin 12, reading it this way does not bind to it
             var rows = items.Where(i => i.ExtraType == null && EF.Property<object>(i, "PrimaryVersionId") == null).Select(i => new
             {
                 i.Id, i.Type, i.Name, i.SortName, i.SeriesId, i.SeriesName, i.SeasonId, i.SeasonName, i.TopParentId, i.IndexNumber, i.ParentIndexNumber,

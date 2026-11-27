@@ -52,7 +52,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 using var target = new SKBitmap(new SKImageInfo(swap ? h : w, swap ? w : h, SKColorType.Rgba8888, SKAlphaType.Premul));
                 using (var canvas = new SKCanvas(target))
                 {
-                    canvas.SetMatrix(matrix);
+                    canvas.SetMatrix(in matrix);
                     canvas.DrawBitmap(source, 0, 0);
                 }
 

@@ -1071,8 +1071,8 @@
         };
         preview = { layer: layer, stop: stop };
     }
-    function sourcePreviewUrl(item) { return client().getUrl('CustomMetadata/Preview/' + item.Id, { api_key: token() }); }
-    function clipUrl(item) { return client().getUrl('CustomMetadata/Preview/' + item.Id + '/Clip', { api_key: token() }); }
+    function sourcePreviewUrl(item) { return client().getUrl('CustomMetadata/Preview/' + item.Id, { ApiKey: token() }); }
+    function clipUrl(item) { return client().getUrl('CustomMetadata/Preview/' + item.Id + '/Clip', { ApiKey: token() }); }
     // the file itself only when it is light: a Blu-ray or 4K file would cost tens or hundreds of MB per hover
     var MAX_PREVIEW_BITRATE = 12000000;
     // a narrow (portrait) preview: an ambient light around it, like YouTube's: no picture, only soft clouds of the
@@ -1108,7 +1108,7 @@
         var c = client(), source = (item.MediaSources || [])[0];
         if (!source || item.LocationType === 'Virtual' || !host.card.matches(':hover')) { return fallback(); }
         if (source.Bitrate && source.Bitrate > MAX_PREVIEW_BITRATE) { return fallback(); }
-        var src = c.getUrl('Videos/' + item.Id + '/stream', { static: true, MediaSourceId: source.Id, api_key: token() });
+        var src = c.getUrl('Videos/' + item.Id + '/stream', { static: true, MediaSourceId: source.Id, ApiKey: token() });
         videoPreview(host, src, [0.12, 0.3, 0.48, 0.66, 0.84], 'Fichier de l’épisode', fallback);
     }
     function trailerPreview(host, item, fallback) {
@@ -1117,7 +1117,7 @@
             var t = (trailers || [])[0];
             if (!host.card.matches(':hover')) { return; }
             if (!t) { return item.LocationType === 'Virtual' ? fallback() : filePreview(host, item, fallback); }
-            videoPreview(host, c.getUrl('Videos/' + t.Id + '/stream', { static: true, api_key: token() }), null, 'Aperçu de la source', fallback);
+            videoPreview(host, c.getUrl('Videos/' + t.Id + '/stream', { static: true, ApiKey: token() }), null, 'Aperçu de la source', fallback);
         });
     }
     // trickplay: picture by picture, so the progress is shown as steps, not as a running line
@@ -1144,7 +1144,7 @@
             var i = (n * stride) % info.ThumbnailCount;
             var tile = Math.floor(i / perTile), inTile = i % perTile;
             var col = inTile % info.TileWidth, row = Math.floor(inTile / info.TileWidth);
-            pic.style.backgroundImage = 'url("' + c.getUrl('Videos/' + item.Id + '/Trickplay/' + w + '/' + tile + '.jpg', { MediaSourceId: msId, api_key: token() }) + '")';
+            pic.style.backgroundImage = 'url("' + c.getUrl('Videos/' + item.Id + '/Trickplay/' + w + '/' + tile + '.jpg', { MediaSourceId: msId, ApiKey: token() }) + '")';
             pic.style.backgroundSize = (info.TileWidth * 100) + '% ' + (info.TileHeight * 100) + '%';
             pic.style.backgroundPosition = (info.TileWidth > 1 ? col * 100 / (info.TileWidth - 1) : 0) + '% ' + (info.TileHeight > 1 ? row * 100 / (info.TileHeight - 1) : 0) + '%';
             var at = Math.min(count - 1, Math.floor(i / info.ThumbnailCount * count));
