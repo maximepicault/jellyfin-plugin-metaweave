@@ -1668,7 +1668,7 @@ html.layout-desktop:not(.pj-person-bd):has(.itemDetailPage:not(.hide) :is(#itemB
 .page.pj-ix-on { padding-top: 0 !important; }
 .page.pj-ix-on > :not(.pj-ix) { display: none !important; }
 .pj-ix { display: block; text-align: left; padding-bottom: 5rem; }
-.pj-ix:not(.pj-ix-under) { padding-top: var(--pj-ix-top, 0); }   /* the classic header is solid */
+.pj-ix:not(.pj-ix-under) { padding-top: var(--pj-ix-covered, 0); }   /* the classic header is solid */
 :where(.pj-ix, .pj-ix-panelbox) button {
   background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; text-align: inherit;
 }
@@ -1679,7 +1679,7 @@ html.layout-desktop:not(.pj-person-bd):has(.itemDetailPage:not(.hide) :is(#itemB
   position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: flex-end;
   min-height: clamp(15rem, 40vh, 26rem); padding: 2rem var(--pj-gutter) 1.6rem;
 }
-.pj-ix-under .pj-ix-hero { padding-top: calc(var(--pj-ix-top, 3rem) + 2rem); }
+.pj-ix-under .pj-ix-hero { padding-top: calc(var(--pj-ix-covered, 3rem) + 2rem); }
 .pj-ix-pic { position: absolute; inset: 0; z-index: -2; overflow: hidden; }
 .pj-ix-pic img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
 .pj-ix-bare .pj-ix-pic { background: radial-gradient(ellipse 70% 100% at 20% 0, #1d2e31, var(--pj-bg) 75%); }
@@ -1763,7 +1763,7 @@ html.layout-desktop:not(.pj-person-bd):has(.itemDetailPage:not(.hide) :is(#itemB
 .pj-ix-sort option { background: var(--pj-raise); color: var(--pj-text); }
 
 /* --- the results --- */
-.pj-ix-list { display: block; min-height: 50vh; padding: .4rem var(--pj-gutter) 0; }
+.pj-ix .pj-ix-list { display: block; min-height: 50vh; margin: 0; padding: .4rem var(--pj-gutter) 0; }   /* Jellyfin 12 makes every .itemsContainer a flex box */
 .pj-ix-group { padding-top: 1.6rem; }
 .pj-ix .pj-ix-group h2 { display: flex; align-items: baseline; gap: .6rem; margin-bottom: .8rem; font: 700 1.35rem var(--pj-serif); }
 .pj-ix-group h2 a { color: inherit; text-decoration: none; }
@@ -1929,8 +1929,6 @@ html.pj-ix-locked, html.pj-ix-locked body { overflow: hidden !important; }
     linear-gradient(to right, rgba(var(--pj-veil), .6), rgba(var(--pj-veil), 0) 70%),
     linear-gradient(to bottom, rgba(var(--pj-veil), .55), rgba(var(--pj-veil), 0) 5rem);
 }
-/* the classic layout holds it inside the open tab, already under the header and its tabs */
-.pj-ix.pj-ix-intab { padding-top: 0; }
 .pageTabContent.pj-ix-on > :not(.pj-ix) { display: none !important; }
 /* the stock views left to jellyfin-web, which its view menu offered */
 .pj-ix-views { display: flex; flex-wrap: wrap; gap: .2rem; margin-left: auto; }
@@ -1940,7 +1938,7 @@ html.pj-ix-locked, html.pj-ix-locked body { overflow: hidden !important; }
 .pj-ix-hasletters .pj-ix-results { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
 .pj-ix-alpha { display: none; position: sticky; top: calc(var(--pj-ix-top, 0px) + 4.2rem); flex-direction: column; margin: 1.2rem .35rem 0 0; height: min(40rem, calc(100vh - var(--pj-ix-top, 0px) - 5rem)); }
 .pj-ix-hasletters .pj-ix-alpha { display: flex; }
-.pj-ix-hasletters .pj-ix-list { padding-right: .6rem; }
+.pj-ix.pj-ix-hasletters .pj-ix-list { min-width: 0; padding-right: .6rem; }
 .pj-ix .pj-ix-alphaletter { flex: 1 1 0; min-height: 0; width: 1.5rem; border-radius: 4px; color: var(--pj-dim); font: 600 min(.74rem, 1.8vh)/1 system-ui, sans-serif; text-align: center; }
 .pj-ix .pj-ix-alphaletter:hover:not(:disabled) { background: var(--pj-raise-2); color: var(--pj-text); }
 .pj-ix .pj-ix-alphaletter[aria-pressed="true"] { background: var(--pj-amber); color: var(--pj-amber-ink); }
@@ -1948,8 +1946,10 @@ html.pj-ix-locked, html.pj-ix-locked body { overflow: hidden !important; }
 @media (max-width: 900px), (max-height: 520px) {
   .pj-ix-hasletters .pj-ix-results { display: block; }
   .pj-ix-hasletters .pj-ix-alpha { display: none; }
-  .pj-ix-hasletters .pj-ix-list { padding-right: var(--pj-gutter); }
+  .pj-ix.pj-ix-hasletters .pj-ix-list { padding-right: var(--pj-gutter); }
 }
+/* Jellyfin 12 keeps the library's toolbar in the app bar: its view menu stays, the controls of the hidden list go */
+html.pj-ix-libon .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-view-menu"]) > :not([aria-controls="library-view-menu"]) { display: none !important; }
 /* the results kept on screen while the next ones come */
 .pj-ix-busy .pj-ix-list, .pj-ix-pbody.pj-ix-busy { opacity: .55; transition: opacity .2s .15s; }
 

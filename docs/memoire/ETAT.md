@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-27 (D025 server-side Index and library screens, P024/P025; b35cfca deployed; D024 theme « Index » lists, P021–P023; D023 person page, P019/P020; D022 episode photo gallery, P015–P018; D021 preview viewer « Salle », P013/P014; D020 hover preview of real episodes; D019 optional theme script; D018 theme served by the plugin; D017 Projection theme direction C; earlier: memory audit, D010–D016, code map in docs/architecture/code-map.md)
+Dernière mise à jour : 2026-11-27 (D025 server-side Index and library screens, P024/P025; 7ec9ff7 deployed; D024 theme « Index » lists, P021–P023; D023 person page, P019/P020; D022 episode photo gallery, P015–P018; D021 preview viewer « Salle », P013/P014; D020 hover preview of real episodes; D019 optional theme script; D018 theme served by the plugin; D017 Projection theme direction C; earlier: memory audit, D010–D016, code map in docs/architecture/code-map.md)
 
 ## Objectif
 Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -13,7 +13,7 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Recent work (2026-11-20/21): CLAUDE.md split into docs/architecture/, project skills and memory agents, folder upload to a gallery, photo cropper for people, test bench fast mode. Then (2026-11-21/23): missing-episode video downloads, landscape poster crop, Projection web theme (`theme/projection.css`), gallery typed by shape + multi-selection, people networks/backdrops, paginated dump APIs and dump seasons analysed like API seasons, missing-episode numbering (D009, committed in 41544ee).
 
 ## Déployé
-- Last successful deployment: b35cfca, develop, 2026-11-27
+- Last successful deployment: 7ec9ff7, develop, 2026-11-27
 
 ## En cours
 - Projection theme moved to the compact sheet + wall of season posters (D017), committed on develop (19f6bfd) on 2026-11-25 with the `tools/ui-test/theme-*.mjs` seed and audit (a33c721); not on `main` yet. Header adapted to the backdrop committed in 164e57b.
@@ -23,10 +23,10 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Episode photo gallery (D022, merge of the « Episode Gallery » plugin): committed on develop (92c2ed2), pushed and deployed (46c2177) on 2026-11-26. Tests reported passing on cm-uitest (`photos-real.mjs`, `config-local-ui.mjs`, `local-gallery-real.mjs`, `local-folder-images-real.mjs`); real server and library not verified. See `docs/architecture/episode-photos.md`.
 - Person page « Fiche d'artiste » (D023, 2026-11-27): committed on develop (bf4b8fb, tests 9172584), pushed and deployed (702de1c) on 2026-11-27 (`theme/projection.css` 9d, `theme/projection.js`, `theme-seed.mjs`, `theme-audit.mjs`, CHANGELOG). Audit reported 0 FAIL on the person screens (cm-uitest); not verified: network image icons on the link chips, TV layout, Firefox/Safari, real server.
 - Theme « Index » for genre / tag / studio / person lists (D024, 2026-11-27): committed on develop (dcf1dbb, tests 48fb309), pushed and deployed (b35cfca) on 2026-11-27 (`theme/projection-index.js`, `projection.css` 18, `projection.js`, `ThemeController`, `ThemeScriptMiddleware`, csproj, docs incl. `docs/architecture/theme-index.md`, `index-real.mjs`, `theme-audit.mjs`). Reported on cm-uitest: `index-real.mjs` 55/55, `config-local-ui.mjs` 168 pass, audit 0 FAIL but one intentionally faded chip on mobile; not verified: real server and library, TV layout, Firefox/Safari, server request time on a large library. Never commit `theme/previews/`.
-- Index searched on the server + library screens (D025, amends D024): committed on develop (2b772f5, tests 177f66f), **not pushed, not deployed** (new `Api/LibraryIndexController.cs`, `Services/LibraryIndexService.cs`, `LibraryIndexQuery.cs`, `tools/ui-test/big-library.sh`, `index-perf.mjs`; modified theme, docs, tests). Reported: `index-real.mjs` 74/74, `config-local-ui.mjs` 168 pass, large test library screens 0.3 to 1.8 s; not verified: real server and library, TV layout, Firefox/Safari, grouped library views, memory use.
+- Index searched on the server + library screens (D025, amends D024): committed on develop (2b772f5, tests 177f66f), pushed and deployed (7ec9ff7) on 2026-11-27 (new `Api/LibraryIndexController.cs`, `Services/LibraryIndexService.cs`, `LibraryIndexQuery.cs`, `tools/ui-test/big-library.sh`, `index-perf.mjs`; modified theme, docs, tests). Reported: `index-real.mjs` 74/74, `config-local-ui.mjs` 168 pass, large test library screens 0.3 to 1.8 s; not verified: real server and library, TV layout, Firefox/Safari, grouped library views, memory use.
 
 ## Prochaines étapes
-- D025: push and deploy only when the maintainer asks; then check on the real server and library (screen times, memory use, a user with limited access).
+- D025: then check on the real server and library (screen times, memory use, a user with limited access).
 - D022, remaining for the maintainer: turn on « Galerie photos des épisodes » (Settings tab), reload with Ctrl+F5 and uninstall the old « Episode Gallery » plugin.
 
 ## Pièges découverts

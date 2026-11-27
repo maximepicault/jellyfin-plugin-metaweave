@@ -61,6 +61,8 @@
     function plain(s) { return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
     function byName(a, b) { return String(a).localeCompare(String(b), 'fr', { numeric: true }); }
     // not in the TV layout: jellyfin-web's own list is made for a remote control
+    // Jellyfin 12 draws the library's toolbar in the app bar (10.11 draws it in the page, which the screen hides)
+    function barViewMenu() { return document.querySelector('.MuiAppBar-root [aria-controls="library-view-menu"]'); }
     function themed() { var root = document.documentElement; return !root.classList.contains('layout-tv') && getComputedStyle(root).getPropertyValue('--pj-index').trim() === '1'; }
     function currentPage() { return document.querySelector('.page:not(.hide)'); }
     function serverId() { var c = client(); return c && c.serverId ? c.serverId() : ''; }
@@ -213,7 +215,7 @@
 
     function build(host, r) {
         if (host.__pjIx) { drop(host.__pjIx); }
-        var root = h('div', { 'class': 'pj-ix' + (r.library ? ' pj-ix-library' : '') + (r.tabbed ? ' pj-ix-intab' : '') });
+        var root = h('div', { 'class': 'pj-ix' + (r.library ? ' pj-ix-library' : '') });
         var ix = { host: host, route: r, hash: location.hash, key: visitKey(r), keyed: !!(history.state && history.state.key), root: root, run: 0, loaded: false, busy: true, rows: [], groups: {}, asked: 0, answer: null, ids: {}, people: new Map(), person: null, scope: null, sel: {}, type: r.type, sort: r.library && r.type !== 'Episode' ? 'name' : 'serie', seed: Math.floor(Math.random() * 100000), picture: null };
         root.__pjIx = ix;
         ix.heroBox = root.appendChild(h('header', { 'class': 'pj-ix-hero' }));
@@ -257,13 +259,21 @@
         ix.host.classList.remove('pj-ix-on');
         ix.host.__pjIx = null;
     }
-    // under the experimental layout's see-through bar the picture goes up to the top; the classic header is solid
+    // where the header ends, and how much of the screen it covers: it may start under the header (jellyfin-web 10.11's
+    // see-through bar, where the picture goes up to the top) or already below it (its classic header, Jellyfin 12)
     function place(ix) {
         var mui = document.querySelector('.MuiAppBar-root');
         var bar = mui || document.querySelector('.skinHeader');
         var height = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
-        ix.root.style.setProperty('--pj-ix-top', height + 'px');
-        ix.root.classList.toggle('pj-ix-under', !!mui);
+        var start = ix.root.offsetParent ? Math.round(ix.root.getBoundingClientRect().top + window.scrollY) : 0;
+        var covered = Math.max(0, height - start);
+        var wanted = height + 'px|' + covered + 'px';
+        if (ix.placed !== wanted) {
+            ix.placed = wanted;
+            ix.root.style.setProperty('--pj-ix-top', height + 'px');
+            ix.root.style.setProperty('--pj-ix-covered', covered + 'px');
+        }
+        ix.root.classList.toggle('pj-ix-under', !!mui && covered > 0);
     }
     var ignored = new Set();   // screens left to jellyfin-web: a list with no video, or one that could not be built
     function failed(ix, error) {
@@ -343,7 +353,7 @@
         }
         under.appendChild(h('p', { 'aria-live': 'polite', text: sum }));
         // the library's other views, which the stock page offered in a menu this screen takes the place of
-        if (ix.route.library && !ix.route.tabbed) {
+        if (ix.route.library && !ix.route.tabbed && !barViewMenu()) {
             var collection = ix.route.library === 'tv' ? 'tvshows' : 'movies';
             under.appendChild(h('nav', { 'class': 'pj-ix-views', 'aria-label': 'Autres vues de la bibliothèque' }, VIEWS[ix.route.library].map(function (v) {
                 return h('a', { href: '#/' + ix.route.library + '?topParentId=' + ix.route.parentId + '&collectionType=' + collection + '&tab=' + v[1], text: v[0] });
@@ -773,9 +783,22 @@
         for (var i = 0; i < roots.length; i++) { if (roots[i].offsetParent !== null) { return roots[i].__pjIx; } }
         return null;
     }
+    // while a library screen shows: its stock controls leave the app bar (CSS), and the screen makes room for the bar
+    // as it now is (jellyfin-web fills it after the page)
+    function followBar() {
+        var ix = shownIndex();
+        document.documentElement.classList.toggle('pj-ix-libon', !!(ix && ix.route.library));
+        if (!ix) { return; }
+        var menu = !!barViewMenu();
+        if (ix.route.library && ix.barMenu !== menu) { ix.barMenu = menu; header(ix); }
+        place(ix);
+    }
     function run() {
         scheduled = null;
         if (!client() || !themed()) { return; }
+        try { views(); } finally { followBar(); }
+    }
+    function views() {
         var page = currentPage();
         if (panel && panel.ix.hash !== location.hash) { closePanel(); }
         if (!page) { return; }

@@ -35,6 +35,14 @@ Why a server search: the screens need counts for every filter, genres and tags t
 - **Panel** (« Tous les filtres » or `/`): appended to `body`; it takes the keyboard at window capture (as the preview viewer does), so Enter and Escape are handled there. People come 240 at a time (600 at most), then by search.
 - Library names, tags and people are only ever written as text nodes, never as HTML.
 
+## Jellyfin 12
+
+The plugin is built for 10.11.6 (D001) and the screens also work on 12.4 (checked with the same test, `CM_UI_IMAGE=jellyfin/jellyfin:12.4` and its own `CM_UI_NAME`, `CM_UI_PORT`, `CM_UI_WORK` for `ui-test.sh`, then the theme script setting turned on, `theme-seed.mjs`, `index-real.mjs`).
+
+- `BaseItemEntity.PrimaryVersionId` changed type: it is read with `EF.Property<object>`. A typed access throws `MissingMethodException` at run time although it compiles against both.
+- jellyfin-web 12 has one layout (the « classic » setting too), draws the library toolbar in the app bar (its view menu `[aria-controls="library-view-menu"]` stays, the rest is hidden under `html.pj-ix-libon`), starts pages below the bar (`--pj-ix-covered`) and makes every `.itemsContainer` a flex box.
+- Outside this screen, two parts of the plugin built for 10.11.6 do not resolve on 12.4: `BaseItem.ExtraIds` (preview trailers of missing episodes) and `IChapterManager.SaveChapters` (episode chapters).
+
 ## Depends on jellyfin-web
 
 `.alphaPicker` (marks the list page), `viewshow`, `itemShortcuts` data attributes, `#tvshowsPage` / `#moviesPage` and `.MuiButtonGroup-root` (experimental library), the tab ids (classic), `.MuiAppBar-root` / `.skinHeader` (ribbon offset). The stock page under the screen still loads its own first items. Re-run `index-real.mjs` after a server upgrade.

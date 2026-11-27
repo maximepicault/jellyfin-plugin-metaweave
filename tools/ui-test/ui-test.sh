@@ -15,13 +15,14 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 WORK="${CM_UI_WORK:-$HOME/.cache/cm-ui-test}"
-NAME=cm-uitest
-PORT=8097
+# another server version beside the main bench: CM_UI_IMAGE, CM_UI_NAME, CM_UI_PORT and CM_UI_WORK together
+NAME="${CM_UI_NAME:-cm-uitest}"
+PORT="${CM_UI_PORT:-8097}"
 API_PORT=8765
 API_HOST=172.17.0.1            # docker0 gateway: the host as seen from the container
 J="http://localhost:$PORT"
 DOTNET="${DOTNET:-$HOME/.dotnet/dotnet}"
-IMAGE=jellyfin/jellyfin:10.11.6
+IMAGE="${CM_UI_IMAGE:-jellyfin/jellyfin:10.11.6}"
 
 log() { printf '\n▶ %s\n' "$*"; }
 wait_for() {

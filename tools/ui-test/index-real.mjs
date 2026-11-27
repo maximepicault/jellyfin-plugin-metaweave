@@ -22,6 +22,9 @@ const U = auth.User.Id, S = auth.ServerId;
 const H = { 'Content-Type': 'application/json', Authorization: `MediaBrowser Token="${auth.AccessToken}"` };
 const get = url => fetch(J + url, { headers: H }).then(r => r.json());
 const TYPES = 'Series,Season,Episode,Movie,Video,MusicVideo';
+// Jellyfin 12 has one layout for both settings, and draws the library toolbar in the app bar
+const version = (await get('/System/Info/Public')).Version;
+const legacy = version.startsWith('10.');
 const apiCount = async q => (await get(`/Items?userId=${U}&Recursive=true&${new URLSearchParams({ IncludeItemTypes: TYPES, ...q })}`)).Items.length;
 
 const views = (await get(`/UserViews?userId=${U}`)).Items;
@@ -111,12 +114,16 @@ try {
 
   // the real way in: the links of an episode's page
   const tagged = (await get(`/Items?userId=${U}&Recursive=true&IncludeItemTypes=Episode&Tags=Montagne&Genres=Aventure&Limit=1`)).Items[0];
-  for (const [name, selector, term] of [['tag', '.itemTags a', null], ['genre', '.genresGroup a, .itemGenres a, .genres a', null]]) {
+  for (const [name, selector, term] of [['tag', '.itemTags a', null], ['genre', '.genresGroup a, .itemGenres a, .genres a, a[href*="genreId="]', null]]) {
     await go(page, `#/details?id=${tagged.Id}&serverId=${S}`); await wait(3000);
     const link = page.locator(`.page:not(.hide) :is(${selector})`).filter({ visible: true }).first();
-    if (!await link.count()) { check(`episode page: a ${name} link to follow`, false); continue; }
-    const wantedTerm = term || (await link.innerText()).trim();
-    await link.click(); await ready(page);
+    // on 12 the genre links of an episode's page are not on screen: their address is followed as it is
+    const hidden = !await link.count();
+    const any = page.locator(`.page:not(.hide) :is(${selector})`).first();
+    if (hidden && (legacy || !await any.count())) { check(`episode page: a ${name} link to follow`, false); continue; }
+    const wantedTerm = term || (await (hidden ? any.textContent() : link.innerText())).trim();
+    if (hidden) { await go(page, await any.getAttribute('href')); } else { await link.click(); }
+    await ready(page);
     s = await state(page);
     check(`episode page → ${name} link: the index of "${wantedTerm}", with episodes`, s?.terms.join() === wantedTerm && (s.types.Episode || 0) > 0, `${s?.title} ${JSON.stringify(s?.types)}`);
   }
@@ -230,6 +237,13 @@ try {
     check(`library ${name}: the library is the title`, s.title.replace('+', '') === lib.Name && s.terms.length === 0, s.title);
     check(`library ${name}: count matches the server`, (s.types[type] ?? s.cards) === n && s.cards === Math.min(60, n), `${s.types[type]} / ${n}, ${s.cards} cards`);
     check(`library ${name}: stock view hidden`, s.stockShown === 0, s.stockShown);
+    const columns = await page.evaluate(`new Set([...(${shown})().querySelector('.pj-ix-grid').children].map(c => Math.round(c.getBoundingClientRect().left))).size`);
+    check(`library ${name}: cards side by side`, columns >= Math.min(2, await page.evaluate(`(${shown})().querySelector('.pj-ix-grid').children.length`)), columns);
+    const bar = await page.evaluate(() => [...document.querySelectorAll('.MuiAppBar-root .MuiToolbar-root:nth-of-type(2) button')].filter(b => b.offsetParent !== null).map(b => b.innerText.trim() || b.getAttribute('aria-label') || b.title));
+    check(`library ${name}: no stock control left in the header`, bar.length === (legacy ? 0 : 1), bar.join(' | '));
+    check(`library ${name}: the header covers neither title nor ribbon`, await page.evaluate(`(() => { const r = (${shown})(), b = document.querySelector('.MuiAppBar-root').getBoundingClientRect().bottom; return r.querySelector('h1').getBoundingClientRect().top >= b && parseFloat(getComputedStyle(r.querySelector('.pj-ix-ribbon')).top) >= b - 1; })()`));
+    const room = await page.evaluate(`(() => { const r = (${shown})(), bar = document.querySelector('.MuiAppBar-root').getBoundingClientRect().bottom; return Math.round(r.querySelector('.pj-ix-hero').getBoundingClientRect().height + r.getBoundingClientRect().top - bar); })()`);
+    check(`library ${name}: the header takes no extra room`, room <= 300, `${room}px below the bar`);
     await shot(page, `library-${type}-1440`);
   }
   // sorted by name, the letter column filters like jellyfin-web's
@@ -249,7 +263,13 @@ try {
   check('library: a genre narrows the library', s.terms.join() === 'Documentaire' && s.types.Series === docs, `${s.types.Series} / ${docs}`);
   // the other views stay jellyfin-web's, and one comes back from them
   await go(page, tvAddress + '&tab=0'); await wait(600); await ready(page);
-  await page.locator(`${ix} .pj-ix-views a`, { hasText: 'Suggestions' }).click(); await wait(2500);
+  if (legacy) {
+    await page.locator(`${ix} .pj-ix-views a`, { hasText: 'Suggestions' }).click(); await wait(2500);
+  } else {
+    await page.locator('.MuiAppBar-root [aria-controls="library-view-menu"]').click(); await wait(600);
+    await page.locator('[role=menuitem]:visible, .MuiMenu-paper a:visible', { hasText: /^Suggestions$/ }).first().click(); await wait(2500);
+    check('library: leaving it, the header has jellyfin-web\'s controls again', await page.evaluate(() => !document.documentElement.classList.contains('pj-ix-libon')));
+  }
   check('library: "Suggestions" gives jellyfin-web its view back', await page.locator(ix).count() === 0 && await page.evaluate(() => document.querySelector('.page:not(.hide)').innerText.length > 0));
   await go(page, tvAddress + '&tab=0&n=back'); await wait(600); await ready(page);
   check('library: back to the series view', (await state(page))?.types.Series === await libraryCount(tv, 'Series'));
@@ -278,8 +298,8 @@ try {
     await o.ctx.close();
   }
 
-  // ---------- the library screens (classic layout: the view is an open tab) ----------
-  {
+  // ---------- the library screens (classic layout: the view is an open tab; 10.11 only) ----------
+  if (legacy) {
     const c = await open('desktop', 1440, 900);
     await go(c.page, `#/tv?topParentId=${tv.Id}&collectionType=tvshows`); await wait(1500); await ready(c.page);
     s = await state(c.page);
