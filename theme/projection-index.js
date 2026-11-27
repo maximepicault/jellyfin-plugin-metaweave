@@ -259,23 +259,19 @@
         ix.host.classList.remove('pj-ix-on');
         ix.host.__pjIx = null;
     }
-    // where the header ends, how much of the screen it covers, and how far below the top the screen starts: Jellyfin 12
-    // starts pages under its see-through app bar, so the picture is lifted by that much to go up to the top
+    // where the header ends, and how much of the screen it covers (Jellyfin 12 starts pages below its app bar: nothing)
     function place(ix) {
         var mui = document.querySelector('.MuiAppBar-root');
         var bar = mui || document.querySelector('.skinHeader');
         var height = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
         var start = ix.root.offsetParent ? Math.round(ix.root.getBoundingClientRect().top + window.scrollY) : 0;
         var covered = Math.max(0, height - start);
-        var lift = mui ? Math.max(0, start) : 0;
-        var wanted = height + 'px|' + covered + 'px|' + lift + 'px';
+        var wanted = height + 'px|' + covered + 'px';
         if (ix.placed !== wanted) {
             ix.placed = wanted;
             ix.root.style.setProperty('--pj-ix-top', height + 'px');
             ix.root.style.setProperty('--pj-ix-covered', covered + 'px');
-            ix.root.style.setProperty('--pj-ix-lift', lift + 'px');
         }
-        ix.root.classList.toggle('pj-ix-under', !!mui && covered > 0);
     }
     var ignored = new Set();   // screens left to jellyfin-web: a list with no video, or one that could not be built
     function failed(ix, error) {
@@ -387,19 +383,36 @@
         var next = function (k) {
             var c = candidates[k];
             if (turn !== ix.pictureTurn) { return; }
-            if (!c || k > 7) { ix.picture = null; ix.picBox.replaceChildren(); ix.heroBox.classList.add('pj-ix-bare'); return; }
+            if (!c || k > 7) { ix.picture = null; ix.picBox.replaceChildren(); ix.heroBox.classList.add('pj-ix-bare'); paint(ix, null); return; }
             var img = new Image();
             img.alt = '';
             img.onload = function () {
                 if (turn !== ix.pictureTurn) { return; }
                 // never a portrait or square picture stretched across the screen
                 if (img.naturalWidth / img.naturalHeight < 1.25) { next(k + 1); return; }
-                ix.picture = c.key; ix.picBox.replaceChildren(img); ix.heroBox.classList.remove('pj-ix-bare');
+                ix.picture = c.key; ix.heroBox.classList.remove('pj-ix-bare'); paint(ix, img);
             };
             img.onerror = function () { next(k + 1); };
             img.src = image(c.id, c.type, c.tag, Math.min(1920, Math.round(window.innerWidth * (window.devicePixelRatio || 1))));
         };
         next(0);
+    }
+
+    // the header of a detail page, around the results' picture: the picture whole in the middle, the ambient light of its
+    // own colours on both sides, and the page's ground in its deep shade (projection.js reads the colours)
+    function paint(ix, img) {
+        var colours = null;
+        try { colours = img && window.__projectionColours ? window.__projectionColours(img) : null; } catch (e) { warn('colours', e); }
+        ix.art = colours;
+        ix.picBox.removeAttribute('style');
+        if (img) {
+            ix.heroBox.style.setProperty('--pj-ix-ratio', String(img.naturalWidth / img.naturalHeight));
+            Object.keys(colours || {}).forEach(function (name) { if (name.indexOf('--pj-amb-') === 0) { ix.picBox.style.setProperty(name, colours[name]); } });
+            ix.picBox.replaceChildren(h('div', { 'class': 'pj-aff-fill pj-aff-fill-l' }), h('div', { 'class': 'pj-aff-fill pj-aff-fill-r' }), h('div', { 'class': 'pj-ix-art' }, img));
+        } else {
+            ix.heroBox.style.removeProperty('--pj-ix-ratio');
+        }
+        followBar();
     }
 
     // ---------- ribbon and letters ----------
@@ -789,7 +802,12 @@
     // CSS), and the screen makes room for the bar as it now is (jellyfin-web fills it after the page)
     function followBar() {
         var ix = shownIndex();
-        document.documentElement.classList.toggle('pj-ix-shown', !!ix);
+        var root = document.documentElement;
+        root.classList.toggle('pj-ix-shown', !!ix);
+        // the picture's ground, under names of our own: a detail page's colours are never overwritten
+        var art = ix && ix.art;
+        if (art) { root.style.setProperty('--pj-ix-bg', art['--pj-bg']); root.style.setProperty('--pj-ix-veil', art['--pj-veil']); }
+        root.classList.toggle('pj-ix-art-on', !!art);
         document.documentElement.classList.toggle('pj-ix-libon', !!(ix && ix.route.library));
         if (!ix) { return; }
         var menu = !!barViewMenu();

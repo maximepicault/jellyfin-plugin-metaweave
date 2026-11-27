@@ -362,28 +362,35 @@
     }
     // the colours the page takes from the picture: its edges (the margins), its bottom (the ground), its dark (the scrim)
     function paintColours(img) {
-        var root = document.documentElement;
+        var root = document.documentElement, all = pictureColours(img);
+        Object.keys(all).forEach(function (name) { root.style.setProperty(name, all[name]); });
+    }
+    function pictureColours(img) {
+        var all = {}, set = function (name, value) { all[name] = value; };
         var left = sample(img, 0.015, 0, 0.04, 1), bottom = sample(img, 0, 0.9, 1, 0.1), lowLeft = sample(img, 0, 0.6, 0.5, 0.4);
         var ground = deep(bottom, 0.028), scrim = deep(lowLeft, 0.02);
-        root.style.setProperty('--pj-img-ratio', String(img.naturalWidth / img.naturalHeight));
-        root.style.setProperty('--pj-edge-l', left.map(Math.round).join(', '));
+        set('--pj-img-ratio', String(img.naturalWidth / img.naturalHeight));
+        set('--pj-edge-l', left.map(Math.round).join(', '));
         // the margin continues the picture's left edge as it goes down (sky, horizon, ground), band by band
         var stops = [];
         for (var k = 0; k < 10; k++) { stops.push('rgb(' + sample(img, 0, k / 10, 0.08, 0.1).map(Math.round).join(', ') + ') ' + (k * 10 + 5) + '%'); }
-        root.style.setProperty('--pj-edge-grad', 'linear-gradient(to bottom, ' + stops.join(', ') + ')');
+        set('--pj-edge-grad', 'linear-gradient(to bottom, ' + stops.join(', ') + ')');
         var stopsR = [];
         for (var q = 0; q < 10; q++) { stopsR.push('rgb(' + sample(img, 0.92, q / 10, 0.08, 0.1).map(Math.round).join(', ') + ') ' + (q * 10 + 5) + '%'); }
-        root.style.setProperty('--pj-edge-grad-r', 'linear-gradient(to bottom, ' + stopsR.join(', ') + ')');
+        set('--pj-edge-grad-r', 'linear-gradient(to bottom, ' + stopsR.join(', ') + ')');
         // the ambient light beside the poster's frame: the picture's side thirds, top, middle and bottom
         [['l', 0], ['r', 0.7]].forEach(function (side) {
-            [0, 0.3, 0.65].forEach(function (y, k) { root.style.setProperty('--pj-amb-' + side[0] + (k + 1), 'rgb(' + sample(img, side[1], y, 0.3, 0.35).map(Math.round).join(', ') + ')'); });
+            [0, 0.3, 0.65].forEach(function (y, k) { set('--pj-amb-' + side[0] + (k + 1), 'rgb(' + sample(img, side[1], y, 0.3, 0.35).map(Math.round).join(', ') + ')'); });
         });
-        root.style.setProperty('--pj-edge-b', bottom.map(Math.round).join(', '));
-        root.style.setProperty('--pj-scrim', scrim.join(', '));
+        set('--pj-edge-b', bottom.map(Math.round).join(', '));
+        set('--pj-scrim', scrim.join(', '));
         // the whole theme's ink takes the picture's deep shade on this page
-        root.style.setProperty('--pj-bg', 'rgb(' + ground.join(', ') + ')');
-        root.style.setProperty('--pj-veil', ground.join(', '));
+        set('--pj-bg', 'rgb(' + ground.join(', ') + ')');
+        set('--pj-veil', ground.join(', '));
+        return all;
     }
+    // the Index screens (projection-index.js) build the same header around their picture
+    window.__projectionColours = pictureColours;
     // the item's other backdrops take turns in the poster's frame, cross-fading every 9 s; the page's colours follow
     var slideTimer = null;
     function slideshow(own, urls, frameSelector) {

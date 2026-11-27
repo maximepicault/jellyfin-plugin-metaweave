@@ -79,9 +79,20 @@ const state = page => page.evaluate(`(${((find) => {
   };
 }).toString()})(${shown})`);
 const shot = (page, name) => page.screenshot({ path: `${outDir}/${name}.png` });
-// one picture from the top of the screen, behind the app bar, and none of Jellyfin's behind the screen
-const ownPicture = page => page.evaluate(`(() => { scrollTo(0, 0); const r = (${shown})(), back = document.querySelector('.backdropContainer'); return { top: Math.round(r.querySelector('.pj-ix-pic').getBoundingClientRect().top), veil: Math.round(parseFloat(getComputedStyle(r.querySelector('.pj-ix-hero'), '::after').top) + r.querySelector('.pj-ix-hero').getBoundingClientRect().top), theirs: !!back && getComputedStyle(back).display !== 'none' }; })()`);
-const checkPicture = async (name, page) => { const p = await ownPicture(page); check(`${name}: the picture starts at the top of the screen, Jellyfin's backdrop hidden`, p.top <= 0 && p.veil <= 0 && !p.theirs, JSON.stringify(p)); };
+// the header of a detail page: the results' picture whole, below the app bar (nothing hides it), and none of Jellyfin's
+const ownPicture = page => page.evaluate(`(() => { scrollTo(0, 0); const r = (${shown})(), pic = r.querySelector('.pj-ix-pic'), img = pic.querySelector('img'), back = document.querySelector('.backdropContainer');
+  const bar = document.querySelector('.MuiAppBar-root').getBoundingClientRect().bottom, theirs = !!back && getComputedStyle(back).display !== 'none';
+  if (!img) return { img: false, theirs };
+  const b = img.getBoundingClientRect(), first = r.querySelector('.pj-ix-item');
+  return { img: true, theirs, under: Math.round(bar - b.top), whole: getComputedStyle(img).objectFit === 'contain' && b.left >= -1 && b.right <= innerWidth + 1 && b.height <= pic.getBoundingClientRect().height + 1,
+    height: Math.round(b.height / innerHeight * 100), art: document.documentElement.classList.contains('pj-ix-art-on'), ground: getComputedStyle(document.documentElement).getPropertyValue('--pj-veil').trim(),
+    cards: first ? Math.round(first.getBoundingClientRect().top / innerHeight * 100) : 0 }; })()`);
+const checkPicture = async (name, page) => {
+  await page.waitForFunction(`(() => { const r = (${shown})(); return r && (r.querySelector('.pj-ix-pic img') || r.querySelector('.pj-ix-bare')); })()`, null, { timeout: 10000 });
+  const p = await ownPicture(page);
+  check(`${name}: the picture whole, below the app bar, Jellyfin's backdrop hidden`, !p.theirs && (!p.img || (p.whole && p.under <= 1 && p.height <= 57)), JSON.stringify(p));
+  check(`${name}: the page takes the picture's colours, the results start on the first screen`, !p.img || (p.art && p.ground !== '13, 20, 21' && p.cards < 90), JSON.stringify(p));
+};
 
 try {
   await setCss(THEME);
@@ -247,8 +258,6 @@ try {
     const bar = await page.evaluate(() => [...document.querySelectorAll('.MuiAppBar-root .MuiToolbar-root:nth-of-type(2) button')].filter(b => b.offsetParent !== null).map(b => b.innerText.trim() || b.getAttribute('aria-label') || b.title));
     check(`library ${name}: no stock control left in the header`, bar.length === (legacy ? 0 : 1), bar.join(' | '));
     check(`library ${name}: the header covers neither title nor ribbon`, await page.evaluate(`(() => { const r = (${shown})(), b = document.querySelector('.MuiAppBar-root').getBoundingClientRect().bottom; return r.querySelector('h1').getBoundingClientRect().top >= b && parseFloat(getComputedStyle(r.querySelector('.pj-ix-ribbon')).top) >= b - 1; })()`));
-    const room = await page.evaluate(`(() => { const r = (${shown})(), bar = document.querySelector('.MuiAppBar-root').getBoundingClientRect().bottom; return Math.round(r.querySelector('.pj-ix-hero').getBoundingClientRect().height + r.getBoundingClientRect().top - bar); })()`);
-    check(`library ${name}: the header takes no extra room`, room <= 300, `${room}px below the bar`);
     await checkPicture(`library ${name}`, page);
     await shot(page, `library-${type}-1440`);
   }
@@ -285,7 +294,7 @@ try {
   check('a favourites list stays jellyfin-web\'s', await page.locator(ix).count() === 0);
   await go(page, `#/details?id=${person.Id}&serverId=${S}`); await wait(3000);
   check('a detail page gets no index', await page.locator(ix).count() === 0);
-  check('away from the screens, Jellyfin\'s backdrop is left alone', await page.evaluate(() => !document.documentElement.classList.contains('pj-ix-shown')));
+  check('away from the screens, Jellyfin\'s backdrop and colours are left alone', await page.evaluate(() => !document.documentElement.matches('.pj-ix-shown, .pj-ix-art-on')));
   await ctx.close();
 
   // ---------- other screens ----------

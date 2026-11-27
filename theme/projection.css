@@ -1075,9 +1075,11 @@ html.pj-affiche-on { transition: --pj-amb-l1 1.6s ease, --pj-amb-l2 1.6s ease, -
     radial-gradient(ellipse 115% 55% at 0% 50%, var(--pj-amb-r2), var(--pj-amb-r2) 16%, color-mix(in srgb, var(--pj-amb-r2) 60%, transparent) 36%, color-mix(in srgb, var(--pj-amb-r2) 25%, transparent) 58%, color-mix(in srgb, var(--pj-amb-r2) 7%, transparent) 78%, transparent 95%),
     radial-gradient(ellipse 100% 50% at 0% 84%, var(--pj-amb-r3), var(--pj-amb-r3) 16%, color-mix(in srgb, var(--pj-amb-r3) 60%, transparent) 36%, color-mix(in srgb, var(--pj-amb-r3) 25%, transparent) 58%, color-mix(in srgb, var(--pj-amb-r3) 7%, transparent) 78%, transparent 95%);
 }
-.pj-aff-frame {
+.pj-aff-frame, .pj-ix-art {
   /* eased, not linear: a straight ramp leaves a visible line where it meets the ambient light */
   --pj-aff-side-mask: linear-gradient(to right, transparent 0, rgba(0, 0, 0, .1) 3%, rgba(0, 0, 0, .35) 7%, rgba(0, 0, 0, .7) 11%, rgba(0, 0, 0, .92) 14%, #000 17%, #000 83%, rgba(0, 0, 0, .92) 86%, rgba(0, 0, 0, .7) 89%, rgba(0, 0, 0, .35) 93%, rgba(0, 0, 0, .1) 97%, transparent 100%);
+}
+.pj-aff-frame {
   position: relative; width: min(100%, calc(64vh * var(--pj-img-ratio, 1.5))); }   /* 64% of the screen: the billing and the play button stay on the first screen */
 .pj-aff-img {
   /* above the side panels, below the stage's veil (the frame is no stacking context: its title goes above the veil) */
@@ -1669,33 +1671,34 @@ html.layout-desktop:not(.pj-person-bd):has(.itemDetailPage:not(.hide) :is(#itemB
    and behind the cards */
 html.pj-ix-shown .backdropContainer { display: none !important; }
 html.pj-ix-shown .backgroundContainer:not(.backgroundContainer-transparent) { background: var(--pj-bg) !important; }
+/* as on a detail page, the whole screen takes the deep shade of its picture */
+html.pj-ix-art-on { --pj-bg: var(--pj-ix-bg) !important; --pj-veil: var(--pj-ix-veil) !important; }
 
 .page.pj-ix-on { padding-top: 0 !important; }
 .page.pj-ix-on > :not(.pj-ix) { display: none !important; }
-.pj-ix { display: block; text-align: left; padding-bottom: 5rem; }
-.pj-ix:not(.pj-ix-under) { padding-top: var(--pj-ix-covered, 0); }   /* the classic header is solid */
+.pj-ix { display: block; text-align: left; padding: var(--pj-ix-covered, 0) 0 5rem; }
 :where(.pj-ix, .pj-ix-panelbox) button {
   background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; text-align: inherit;
 }
 :where(.pj-ix, .pj-ix-panelbox) :where(h1, h2, h3, h4, p) { margin: 0; padding: 0; }
 
-/* --- the header: a picture of the results, the filter written as its title --- */
+/* --- the header: the detail pages' "Affiche" (section 8) around a picture of the results: the picture whole in the
+   middle, never cropped, its own colours glowing beside it, the filter written as its title on its lower left, in line
+   with the ribbon and the results --- */
 .pj-ix-hero {
-  position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: flex-end;
-  min-height: clamp(15rem, 40vh, 26rem); padding: 2rem var(--pj-gutter) 1.6rem;
+  --pj-ix-ph: min(56vh, calc(100vw / var(--pj-ix-ratio, 1.78)));   /* the picture's height */
+  position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: flex-end; box-sizing: border-box;
+  min-height: var(--pj-ix-ph); padding: calc(var(--pj-ix-ph) * .58) var(--pj-gutter) 1.2rem;
 }
-.pj-ix-under .pj-ix-hero { padding-top: calc(var(--pj-ix-covered, 3rem) + 2rem); }
-/* the picture and its veil go up to the top of the screen, behind the app bar (--pj-ix-lift, set by the script) */
-.pj-ix-pic { position: absolute; inset: calc(-1 * var(--pj-ix-lift, 0px)) 0 0; z-index: -2; overflow: hidden; }
-.pj-ix-pic img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
+.pj-ix-pic { position: absolute; z-index: -2; top: 0; left: 0; right: 0; height: var(--pj-ix-ph); overflow: hidden; }
+.pj-ix-art { position: relative; width: min(100%, calc(var(--pj-ix-ph) * var(--pj-ix-ratio, 1.78))); height: 100%; margin: 0 auto; }
+.pj-ix-art img { display: block; width: 100%; height: 100%; object-fit: contain; -webkit-mask-image: var(--pj-aff-side-mask); mask-image: var(--pj-aff-side-mask); }
+.pj-ix-pic .pj-aff-fill { width: calc((100% - min(100%, var(--pj-ix-ph) * var(--pj-ix-ratio, 1.78))) / 2 + 14%); }
 .pj-ix-bare .pj-ix-pic { background: radial-gradient(ellipse 70% 100% at 20% 0, #1d2e31, var(--pj-bg) 75%); }
-/* veiled only where something is written: under the title, its left side, under the bar */
+/* one veil over the whole width, under the title, ending on the page's ground */
 .pj-ix-hero::after {
-  content: ""; position: absolute; inset: calc(-1 * var(--pj-ix-lift, 0px)) 0 0; z-index: -1;
-  background:
-    linear-gradient(to top, var(--pj-bg) 1%, rgba(var(--pj-veil), .74) 34%, rgba(var(--pj-veil), 0) 78%),
-    linear-gradient(to right, rgba(var(--pj-veil), .68), rgba(var(--pj-veil), 0) 62%),
-    linear-gradient(to bottom, rgba(var(--pj-veil), .5), rgba(var(--pj-veil), 0) 5rem);
+  content: ""; position: absolute; z-index: -1; top: 0; left: 0; right: 0; height: var(--pj-ix-ph); pointer-events: none;
+  background: linear-gradient(to bottom, rgba(var(--pj-veil), 0) 52%, rgba(var(--pj-veil), .55) 72%, rgba(var(--pj-veil), .86) 88%, rgb(var(--pj-veil)) 100%);
 }
 .pj-ix-title { display: flex; flex-direction: column; align-items: flex-start; gap: .9rem; }
 .pj-ix .pj-ix-h1 {
@@ -1926,15 +1929,10 @@ html.pj-ix-locked, html.pj-ix-locked body { overflow: hidden !important; }
 .pj-ix-overview > .pj-ix-sec:last-child, .pj-ix-pair .pj-ix-sec { margin-bottom: 0; }
 
 /* --- a library's own screen (series, episodes, films) --- */
-/* no filter yet: a lower header, the posters come up */
-.pj-ix-hero.pj-ix-plain { min-height: clamp(11rem, 26vh, 18rem); }
-/* shorter, its text sits higher on the picture: the veil goes up with it */
-.pj-ix-hero.pj-ix-plain::after {
-  background:
-    linear-gradient(to top, var(--pj-bg) 2%, rgba(var(--pj-veil), .84) 55%, rgba(var(--pj-veil), .15) 92%),
-    linear-gradient(to right, rgba(var(--pj-veil), .6), rgba(var(--pj-veil), 0) 70%),
-    linear-gradient(to bottom, rgba(var(--pj-veil), .55), rgba(var(--pj-veil), 0) 5rem);
-}
+/* no filter yet: a slightly lower picture, the posters come up */
+.pj-ix-hero.pj-ix-plain { --pj-ix-ph: min(50vh, calc(100vw / var(--pj-ix-ratio, 1.78))); }
+/* no picture to show: no empty band either */
+.pj-ix-hero.pj-ix-bare { --pj-ix-ph: 14rem; padding-top: 3.5rem; }
 .pageTabContent.pj-ix-on > :not(.pj-ix) { display: none !important; }
 /* the stock views left to jellyfin-web, which its view menu offered */
 .pj-ix-views { display: flex; flex-wrap: wrap; gap: .2rem; margin-left: auto; }
@@ -1969,7 +1967,8 @@ html.pj-ix-libon .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-vi
   .pj-ix-overview .pj-ix-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 600px) {
-  .pj-ix-hero { min-height: 18rem; }
+  .pj-ix-art img { -webkit-mask-image: none; mask-image: none; }   /* the picture fills a phone: nothing to melt into */
+  .pj-ix-hero { padding-top: calc(var(--pj-ix-ph) * .75); }   /* a small picture: the title lower on it */
   .pj-ix .pj-ix-h1 { font-size: clamp(2rem, 10vw, 2.8rem); }
   .pj-ix .pj-ix-h1.pj-ix-long { font-size: clamp(1.6rem, 7vw, 2.1rem); }
   .pj-ix-wide { --pj-ix-card: 100%; }

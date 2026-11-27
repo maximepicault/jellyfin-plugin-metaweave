@@ -34,7 +34,7 @@ Why a server search: the screens need counts for every filter, genres and tags t
 - **Actions** go through jellyfin-web: cards sit in an `emby-itemscontainer`, so `itemAction` buttons (`resume`, `menu`) and right click work; « Tout lire » / « Aléatoire » click a hidden `playallfromhere` queue built from the server's ids. The cards carry `.pj-ix-item` / `.pj-ix-frame`, which `projection.js`'s hover preview accepts.
 - **Panel** (« Tous les filtres » or `/`): appended to `body`; it takes the keyboard at window capture (as the preview viewer does), so Enter and Escape are handled there. People come 240 at a time (600 at most), then by search.
 - Library names, tags and people are only ever written as text nodes, never as HTML.
-- **One picture**: while a screen shows (`html.pj-ix-shown`), jellyfin-web's own backdrop (« Backdrops » display setting) is hidden and the background is solid. `place()` sets `--pj-ix-lift` (where the screen starts under the top) so the header picture and its veil go up behind the app bar.
+- **Header**: the detail pages' « Affiche » (section 8 of the CSS) around a picture of the results: whole (`contain`, `--pj-ix-ph` high, below the app bar), the picture's ambient light on both sides (`.pj-aff-fill`), the title on the veiled lower left. `projection.js` exposes its colour reading as `window.__projectionColours`; `paint()` keeps the result and `followBar()` gives the page that ground (`html.pj-ix-art-on`, variables `--pj-ix-bg` / `--pj-ix-veil`, so a detail page's own colours are never touched). Without `projection.js` the screen keeps the theme's ink. While a screen shows (`html.pj-ix-shown`), jellyfin-web's own backdrop (« Backdrops » display setting) is hidden.
 
 ## Jellyfin 12
 
