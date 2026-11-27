@@ -42,9 +42,10 @@
   <ItemGroup>
     <!-- Configuration web page -->
     <EmbeddedResource Include="Configuration\*.html" />
-    <!-- Projection web theme, served by Api/ThemeController (CustomMetadata/Theme/projection.css, projection.js) -->
+    <!-- Projection web theme, served by Api/ThemeController (CustomMetadata/Theme/projection.css, projection.js, projection-index.js) -->
     <EmbeddedResource Include="theme\projection.css" LogicalName="Jellyfin.Plugin.CustomMetadata.theme.projection.css" />
     <EmbeddedResource Include="theme\projection.js" LogicalName="Jellyfin.Plugin.CustomMetadata.theme.projection.js" />
+    <EmbeddedResource Include="theme\projection-index.js" LogicalName="Jellyfin.Plugin.CustomMetadata.theme.projection-index.js" />
     <!-- Episode photo gallery script, served by Api/PhotosController (CustomMetadata/Photos/gallery.js) -->
     <EmbeddedResource Include="web\gallery.js" LogicalName="Jellyfin.Plugin.CustomMetadata.web.gallery.js" />
   </ItemGroup>

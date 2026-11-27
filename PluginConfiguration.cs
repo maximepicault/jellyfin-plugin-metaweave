@@ -105,8 +105,9 @@ namespace Jellyfin.Plugin.CustomMetadata
         public bool EnableCasting { get; set; } = true;
 
         /// <summary>
-        /// Adds the Projection theme's script (theme/projection.js, served by ThemeController) to jellyfin-web's
-        /// index.html through ThemeScriptMiddleware: hover previews, episode numbers, previous/next, progress counts.
+        /// Adds the Projection theme's scripts (theme/projection.js and projection-index.js, served by ThemeController)
+        /// to jellyfin-web's index.html through ThemeScriptMiddleware: hover previews, episode numbers, previous/next,
+        /// progress counts, the filtered lists ("Index").
         /// Off by default: it changes every page of jellyfin-web; the theme's CSS works without it.
         /// </summary>
         public bool EnableThemeScript { get; set; } = false;

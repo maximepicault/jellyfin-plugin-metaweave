@@ -991,11 +991,11 @@
     var hoverTimer = null, preview = null;
     function previewHost(target) {
         // an episode card (rows, next up, continue watching) or a row of a season page
-        var card = target.closest && target.closest('.card[data-type="Episode"][data-id], .listItem[data-type="Episode"][data-id], .' + NS + 'aff-still[data-id]');
+        var card = target.closest && target.closest('.card[data-type="Episode"][data-id], .listItem[data-type="Episode"][data-id], .' + NS + 'aff-still[data-id], .' + NS + 'ix-item[data-type="Episode"][data-id]');
         if (!card) { return null; }
         // an episode page's still, under the series' backdrop: the still itself is the frame
         if (card.classList.contains(NS + 'aff-still')) { return { id: card.getAttribute('data-id'), card: card, frame: card }; }
-        var frame = card.querySelector('.cardScalable, .listItemImage');
+        var frame = card.querySelector('.cardScalable, .listItemImage, .' + NS + 'ix-frame');
         return frame ? { id: card.getAttribute('data-id'), card: card, frame: frame } : null;
     }
     function stopPreview() {

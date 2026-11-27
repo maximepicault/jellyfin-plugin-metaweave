@@ -27,7 +27,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
     /// <summary>
     /// Adds the plugin's scripts to jellyfin-web's index.html as it is served: the Projection theme's
-    /// (<c>EnableThemeScript</c>, CustomMetadata/Theme/projection.js) and the episode photo gallery's
+    /// (<c>EnableThemeScript</c>, CustomMetadata/Theme/projection.js and projection-index.js) and the episode photo gallery's
     /// (<c>EnableEpisodePhotos</c>, CustomMetadata/Photos/gallery.js). Nothing is written to the server's web folder
     /// (often read-only, and replaced by every Jellyfin update); turning a setting off restores the stock page at the
     /// next load. The relative paths work under a base URL.
@@ -84,6 +84,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 if (theme && !html.Contains(ThemeMarker, StringComparison.Ordinal))
                 {
                     tags.Append("<script defer " + ThemeMarker + " src=\"../CustomMetadata/Theme/projection.js?v=" + ThemeAssets.ScriptVersion + "\"></script>");
+                    tags.Append("<script defer " + ThemeMarker + " src=\"../CustomMetadata/Theme/projection-index.js?v=" + ThemeAssets.IndexScriptVersion + "\"></script>");
                 }
 
                 if (gallery && !html.Contains(GalleryMarker, StringComparison.Ordinal))
