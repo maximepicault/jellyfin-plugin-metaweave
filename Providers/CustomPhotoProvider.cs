@@ -13,31 +13,39 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.CustomMetadata.Providers
 {
     /// <summary>
-    /// Metadata of one photo. A custom provider with a late order: it runs AFTER Jellyfin's "Embedded Information" provider (the
-    /// file's EXIF, which rewrites the fields at each of its runs), so what the source gives wins and what it leaves empty keeps the
-    /// file's value. Forced, to run each time that provider does. A locked item or field is left alone.
+    /// Metadata of one photo or video of an album. A custom provider with a late order: it runs AFTER Jellyfin's own reading of
+    /// the file (the EXIF of a photo, the probe of a video), which rewrites fields at each of its runs, so what the source gives
+    /// wins and what it leaves empty keeps the file's value. Forced, to run each time those do. A locked item or field is left
+    /// alone. Both are identified the same way (PhotoLibraryService): their own tag, else their file name in their album.
     /// </summary>
-    public class CustomPhotoProvider : ICustomMetadataProvider<Photo>, IHasOrder, IForcedProvider
+    public abstract class AlbumMediaProviderBase<T> : ICustomMetadataProvider<T>, IHasOrder, IForcedProvider
+        where T : BaseItem
     {
         private readonly PhotoLibraryService _photos;
-        private readonly ILogger<CustomPhotoProvider> _logger;
+        private readonly AlbumCastService _cast;
+        private readonly ILogger _logger;
 
-        public CustomPhotoProvider(PhotoLibraryService photos, ILogger<CustomPhotoProvider> logger)
+        protected AlbumMediaProviderBase(PhotoLibraryService photos, AlbumCastService cast, ILogger logger)
         {
+            _cast = cast;
             _photos = photos;
             _logger = logger;
         }
 
         public string Name => "Custom Metadata Provider";
 
-        public int Order => 100;
+        public abstract int Order { get; }
 
-        public async Task<ItemUpdateType> FetchAsync(Photo item, MetadataRefreshOptions options, CancellationToken cancellationToken)
+        public async Task<ItemUpdateType> FetchAsync(T item, MetadataRefreshOptions options, CancellationToken cancellationToken)
         {
-            if (item.IsLocked || !(Plugin.Instance?.Configuration.EnableMetadata ?? true))
+            // A video of an album only: never a film or an episode (types of their own), nor an extra or a trailer
+            if (!SourceRefreshService.IsAlbumMedia(item) || item.IsLocked || !(Plugin.Instance?.Configuration.EnableMetadata ?? true))
             {
                 return ItemUpdateType.None;
             }
+
+            // People: from the file's entry, the People screen or an album above, even when the source says nothing else of it
+            await _cast.ApplyAsync(item, cancellationToken);
 
             try
             {
@@ -62,7 +70,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
                 if (Free(MetadataField.Tags))
                 {
-                    // The album's tags are added to the photo's own: the source's, else the file's
+                    // The album's tags are added to the file's own: the source's, else those read in the file
                     var tags = TaxonomyStore.Tags(data.Tags);
                     if (data.InheritedTags?.Count > 0)
                     {
@@ -88,5 +96,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
                 return ItemUpdateType.None;
             }
         }
+    }
+
+    /// <summary>One photo, after Jellyfin's "Embedded Information" (EXIF)</summary>
+    public class CustomPhotoProvider : AlbumMediaProviderBase<Photo>
+    {
+        public CustomPhotoProvider(PhotoLibraryService photos, AlbumCastService cast, ILogger<CustomPhotoProvider> logger)
+            : base(photos, cast, logger)
+        {
+        }
+
+        public override int Order => 100;
+    }
+
+    /// <summary>One video of an album (a plain Video of a library of home videos and photos), after Jellyfin has probed the file</summary>
+    public class CustomAlbumVideoProvider : AlbumMediaProviderBase<Video>
+    {
+        public CustomAlbumVideoProvider(PhotoLibraryService photos, AlbumCastService cast, ILogger<CustomAlbumVideoProvider> logger)
+            : base(photos, cast, logger)
+        {
+        }
+
+        public override int Order => 1000;
     }
 }

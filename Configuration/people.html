@@ -281,7 +281,7 @@
                 </div>
 
                 <div id="ppTabEpisodes" hidden>
-                    <p class="pp-lead" style="margin-bottom: 16px;">Ajoutez une distribution aux épisodes qui viennent d'une source API (ceux d'une source locale se règlent dans la source). L'API n'est pas modifiée : la distribution est rattachée au tag de l'épisode et s'ajoute à son casting éventuel, sans doublon.</p>
+                    <p class="pp-lead" style="margin-bottom: 16px;">Ajoutez une distribution aux épisodes qui viennent d'une source API (ceux d'une source locale se règlent dans la source). L'API n'est pas modifiée : la distribution est rattachée au tag de l'épisode et s'ajoute à son casting éventuel, sans doublon. Un album photo, une photo ou une vidéo d'album s'ajoute avec « Par identifiant ».</p>
                     <div class="pp-layout">
                         <div class="pp-list">
                             <div class="inputContainer"><input is="emby-input" type="search" id="ppEpSearch" placeholder="Rechercher (série, saison, identifiant)" aria-label="Rechercher une série, une saison ou un identifiant" /></div>
@@ -985,7 +985,7 @@
             var childrenCache = {};   // typed key -> seasons / episodes below it (preview of the cascade)
             var acIndex = -1;         // highlighted suggestion
             var epSeries = null;      // Id of the displayed series (its own cast)
-            var TYPE_LABELS = { series: 'Série', season: 'Saison', episode: 'Épisode' };
+            var TYPE_LABELS = { series: 'Série', season: 'Saison', episode: 'Épisode', album: 'Album', media: 'Photo ou vidéo' };
 
             // An element WITHOUT any {prefix-id} tag gets a fallback key "jf-<Jellyfin id>": no tag to show, and its cast
             // is written straight into Jellyfin instead of going through a provider
@@ -1092,7 +1092,12 @@
             // inherits the cast when it is enriched; the preview lists the tags it reaches, read for this one element only.
             function cascadeBox(tk) {
                 var type = typeOf(tk);
-                if (type === 'episode') { return ''; }
+                if (type === 'episode' || type === 'media') { return ''; }
+                // An album: its whole content, at any depth (no preview: its photos are not listed here)
+                if (type === 'album') {
+                    return '<label class="pp-cascade"><input type="checkbox" id="ppCascade"' + (cascadeMap[tk] ? ' checked' : '') + ' />'
+                        + '<span>Lier aussi ces personnes à tout le contenu de cet album : photos, vidéos et sous-albums.</span></label>';
+                }
                 var below = type === 'series' ? 'aux saisons et à tous les épisodes de cette série' : 'à tous les épisodes de cette saison';
                 return '<label class="pp-cascade"><input type="checkbox" id="ppCascade"' + (cascadeMap[tk] ? ' checked' : '') + ' />'
                     + '<span>Appliquer aussi cette distribution ' + below + '. Les personnes déjà présentes sur un épisode y restent, celles-ci s\'ajoutent.</span></label>'
@@ -1117,7 +1122,7 @@
             }
 
             function loadCascadePreview(tk) {
-                if (!tk || !cascadeMap[tk] || typeOf(tk) === 'episode') { return; }
+                if (!tk || !cascadeMap[tk] || (typeOf(tk) !== 'series' && typeOf(tk) !== 'season')) { return; }
                 if (childrenCache[tk]) { renderCascadePreview(tk, childrenCache[tk]); return; }
                 ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/Children', { type: typeOf(tk), key: keyOf(tk) })).then(function(data) {
                     childrenCache[tk] = data || { Found: false };
@@ -1136,13 +1141,13 @@
                     var search = qs('#ppEpSearch').value;
                     var keys = Object.keys(episodeCast).sort().filter(function(tk) { return !search || matchesWords(search, keyOf(tk) + ' ' + (TYPE_LABELS[typeOf(tk)] || '') + ' ' + (inLibrary[tk] || '')); });
                     html = '<div><h3>Par identifiant</h3><div class="pp-hint" style="margin:2px 0 0;">Rattachez des personnes à un élément en saisissant son tag, même s\'il n\'est pas (encore) dans la médiathèque. Le type fait partie de la clé : le même identifiant peut exister pour une série et pour un épisode.</div></div>'
-                        + '<div class="pp-add-row"><div class="selectContainer"><label class="selectLabel" for="ppIdType">Type d\'élément</label><select is="emby-select" id="ppIdType"><option value="episode">Épisode</option><option value="season">Saison</option><option value="series">Série</option></select></div>'
+                        + '<div class="pp-add-row"><div class="selectContainer"><label class="selectLabel" for="ppIdType">Type d\'élément</label><select is="emby-select" id="ppIdType"><option value="episode">Épisode</option><option value="season">Saison</option><option value="series">Série</option><option value="album">Album photo</option><option value="media">Photo ou vidéo</option></select></div>'
                         + '<div class="inputContainer"><label class="inputLabel" for="ppIdKey">Identifiant</label><input is="emby-input" type="text" id="ppIdKey" placeholder="{dv-1234}" /></div>'
                         + '<button is="emby-button" type="button" class="raised button-submit" id="ppIdAdd"><span>Ajouter</span></button></div><div class="pp-hint" id="ppIdMsg" role="status" style="margin:0;color:#f0c080;"></div><div class="pp-eps">';
                     keys.forEach(function(tk) {
                         var title = inLibrary[tk];
                         // Title known from the library first (it is what is recognised), the tag as a landmark
-                        html += elementRow(tk, title || keyTag(keyOf(tk)), title ? keyTag(keyOf(tk)) : (isSynthetic(keyOf(tk)) ? 'élément sans identifiant pas encore chargé : « Parcourir la médiathèque »' : 'pas dans la médiathèque pour le moment'), { typeBadge: true, removable: true, hideNum: true });
+                        html += elementRow(tk, title || keyTag(keyOf(tk)), title ? keyTag(keyOf(tk)) : (typeOf(tk) === 'album' || typeOf(tk) === 'media' ? 'tag saisi à la main : les albums et leurs fichiers ne sont pas listés ici' : (isSynthetic(keyOf(tk)) ? 'élément sans identifiant pas encore chargé : « Parcourir la médiathèque »' : 'pas dans la médiathèque pour le moment')), { typeBadge: true, removable: true, hideNum: true });
                     });
                     box.innerHTML = html + (keys.length ? '' : '<div class="pp-empty">Aucun élément pour le moment.</div>') + '</div>';
                     return;
@@ -1551,9 +1556,9 @@
                     type: 'POST', url: ApiClient.getUrl('CustomMetadata/People/Apply'),
                     data: JSON.stringify((function() {
                         var keys = Object.keys(changedKeys), pick = function(type) { return keys.filter(function(k) { return typeOf(k) === type; }).map(keyOf); };
-                        return { PersonIds: Object.keys(changedPersons), EpisodeKeys: pick('episode'), SeasonKeys: pick('season'), SeriesKeys: pick('series'), Prefixes: [],
+                        return { PersonIds: Object.keys(changedPersons), EpisodeKeys: pick('episode'), SeasonKeys: pick('season'), SeriesKeys: pick('series'), AlbumKeys: pick('album'), MediaKeys: pick('media'), Prefixes: [],
                             // children are refreshed for a series / season that cascades, or that did before this change (turned off)
-                            ExpandKeys: keys.filter(function(k) { return typeOf(k) !== 'episode' && (cascadeMap[k] || cascadeWas[k]); }) };
+                            ExpandKeys: keys.filter(function(k) { return (typeOf(k) === 'series' || typeOf(k) === 'season') && (cascadeMap[k] || cascadeWas[k]); }) };
                     })()),
                     contentType: 'application/json', dataType: 'json'
                 }).then(function(result) {

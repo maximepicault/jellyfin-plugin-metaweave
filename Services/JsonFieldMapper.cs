@@ -920,7 +920,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             if (value.ValueKind == JsonValueKind.Array)
             {
                 return value.EnumerateArray()
-                    .Select(castElement => new CastMember
+                    // A list of plain names is a cast too
+                    .Select(castElement => castElement.ValueKind == JsonValueKind.String ? new CastMember { Name = castElement.GetString()?.Trim() } : new CastMember
                     {
                         Name = GetStringValue(castElement, config.CastName),
                         Role = GetStringValue(castElement, config.CastRole),

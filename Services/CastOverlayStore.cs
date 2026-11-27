@@ -13,13 +13,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     /// </summary>
     public class EpisodeCastEntry
     {
-        /// <summary>"series", "season" or "episode" (default: episode)</summary>
+        /// <summary>"series", "season", "episode" (default), "album" (a photo album folder) or "media" (a photo or video with its own tag)</summary>
         public string Type { get; set; } = "episode";
 
         public string Key { get; set; }
 
         /// <summary>
-        /// Series and seasons only: the cast also applies to every season / episode below (inherited live when they are enriched;
+        /// Series, seasons and albums only: the cast also applies to every season / episode below (inherited live when they are enriched;
         /// the episodes' own cast is kept and comes first).
         /// </summary>
         public bool Cascade { get; set; }
@@ -63,7 +63,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public static string NormalizeType(string type)
         {
             var t = (type ?? string.Empty).Trim().ToLowerInvariant();
-            return t == "series" || t == "season" ? t : "episode";
+            return t == "series" || t == "season" || t == "album" || t == "media" ? t : "episode";
         }
 
         /// <summary>Index key: "episode:dm-a1v1"</summary>
@@ -116,7 +116,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     Type = NormalizeType(g.First().Type),
                     Key = NormalizeKey(g.First().Key),
-                    Cascade = NormalizeType(g.First().Type) != "episode" && g.Any(e => e.Cascade),
+                    Cascade = NormalizeType(g.First().Type) is "series" or "season" or "album" && g.Any(e => e.Cascade),
                     Cast = LocalSourceStore.NormalizeCast(g.SelectMany(e => e.Cast ?? new List<LocalCastEntry>()))
                 })
                 .Where(e => e.Cast.Count > 0)

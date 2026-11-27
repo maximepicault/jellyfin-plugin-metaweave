@@ -31,10 +31,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
         /// <inheritdoc />
         public bool Supports(IHasProviderIds item)
         {
-            // Supports movies, series, seasons, episodes, photo albums (a plain folder holds sub-albums) and photos
+            // Supports movies, series, seasons, episodes, photo albums (a plain folder holds sub-albums), their photos and videos
             return item is Movie || item is Series || item is Season || item is Episode
                 || item is MediaBrowser.Controller.Entities.PhotoAlbum || item is MediaBrowser.Controller.Entities.Photo
-                || item?.GetType() == typeof(MediaBrowser.Controller.Entities.Folder);
+                || item?.GetType() == typeof(MediaBrowser.Controller.Entities.Folder)
+                || item?.GetType() == typeof(MediaBrowser.Controller.Entities.Video);
         }
     }
 }

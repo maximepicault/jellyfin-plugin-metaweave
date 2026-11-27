@@ -38,8 +38,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         }
 
         /// <summary>
-        /// The photos of the library folder(s) carrying this album tag ("loc-k3f9qa"), for the editor to describe them by file
-        /// name. Found = false when no album of the library carries the tag yet (folder not renamed, or not scanned).
+        /// The photos and videos of the library folder(s) carrying this album tag ("loc-k3f9qa"), for the editor to describe
+        /// them by file name. Found = false when no album of the library carries the tag yet (folder not renamed, or not scanned).
         /// </summary>
         [HttpGet("LibraryPhotos")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -52,9 +52,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     .Where(i => SourceRefreshService.IsAlbum(i) && SourceRefreshService.TagsOf(i).Any(t => string.Equals(t, tag, System.StringComparison.OrdinalIgnoreCase)))
                     .ToList();
             var photos = albums
-                .SelectMany(a => _library.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Photo }, ParentId = a.Id }))
-                .Where(p => !string.IsNullOrEmpty(p.Path))
-                .Select(p => new LibraryPhoto { File = Path.GetFileName(p.Path), ItemId = p.Id.ToString("N") })
+                .SelectMany(a => _library.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Photo, BaseItemKind.Video }, ParentId = a.Id }))
+                .Where(p => !string.IsNullOrEmpty(p.Path) && SourceRefreshService.IsAlbumMedia(p))
+                .Select(p => new LibraryPhoto { File = Path.GetFileName(p.Path), ItemId = p.Id.ToString("N"), IsVideo = p is not Photo })
                 .GroupBy(p => p.File, System.StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())
                 .OrderBy(p => p.File, System.StringComparer.OrdinalIgnoreCase)
@@ -276,5 +276,6 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     {
         public string File { get; set; }
         public string ItemId { get; set; }
+        public bool IsVideo { get; set; }
     }
 }

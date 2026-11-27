@@ -79,7 +79,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         }
 
         /// <summary>What the sources say about the photo at this path, album tags included when the source asks for it; null = leave it alone</summary>
-        public async Task<PhotoMatch> GetPhotoAsync(string path, IReadOnlyDictionary<string, string> providerIds, CancellationToken cancellationToken)
+        public async Task<PhotoMatch> GetPhotoAsync(string path, IReadOnlyDictionary<string, string> providerIds, CancellationToken cancellationToken, Action unanswered = null)
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -124,7 +124,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var ownTag = OwnTag(path) ?? CustomId.Get(providerIds);
             if (Resolve(ownTag) is { } own && !own.Source.IsLocal && !string.IsNullOrWhiteSpace(own.Source.PhotoEndpoint))
             {
-                var data = await _api.GetMetadataAsync(own.Id, "photo", own.Source, cancellationToken, bypassCache: true);
+                var data = await _api.GetMetadataAsync(own.Id, "photo", own.Source, cancellationToken, bypassCache: true, unanswered: unanswered);
                 if (data != null)
                 {
                     data.InheritedTags = (await FromAlbum()).AlbumTags;
@@ -142,6 +142,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var found = entry?.Data ?? new CustomMetadataResponse();
             found.InheritedTags = albumTags;
             return new PhotoMatch(found, null);
+        }
+
+        /// <summary>What an API source says of an album, from the answer kept for its photos</summary>
+        public async Task<CustomMetadataResponse> ReadAlbumAsync(SourceConfiguration source, string id, CancellationToken cancellationToken)
+        {
+            var json = await AlbumJson(source, id, cancellationToken);
+            if (json == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(json);
+                return _mapper.MapToMetadata(document, source.IsLocal ? new FieldMapping() : source.AlbumFieldMappings ?? new FieldMapping(), true);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning("📸 [ALBUM] ⚠️ The answer of album {Id} is not valid JSON: {Message}", id, ex.Message);
+                return null;
+            }
         }
 
         private static string Key(SourceConfiguration source, string id) => $"{source.Prefix}|{source.BaseUrl}|{id}";

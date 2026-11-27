@@ -23,6 +23,10 @@ function picture(file, color, size = '1200x800') {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${color}:s=${size}`, '-frames:v', '1', file]);
 }
+function video(file) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=640x360:d=3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', file]);
+}
 fs.rmSync(ROOT, { recursive: true, force: true });
 const API_TOP = 'Voyage {al-v}', API_SUB = 'Bretagne {al-b}';
 picture(`${ROOT}/${API_TOP}/${API_SUB}/phare.jpg`, 'teal');
@@ -32,6 +36,10 @@ picture(`${ROOT}/Racine {lt-racine}/accueil.jpg`, 'navy');
 picture(`${ROOT}/Racine {lt-racine}/Jour {lt-jour}/jetee.jpg`, 'purple');
 picture(`${ROOT}/Racine {lt-racine}/Jour {lt-jour}/port.jpg`, 'gray');
 picture(`${ROOT}/Sans identifiant/libre.jpg`, 'black');
+video(`${ROOT}/${API_TOP}/${API_SUB}/clip.mp4`);
+video(`${ROOT}/${API_TOP}/${API_SUB}/film {al-p2}.mp4`);
+video(`${ROOT}/Racine {lt-racine}/Jour {lt-jour}/sortie.mp4`);
+video(`${ROOT}/Sans identifiant/brut.mp4`);
 for (const file of [`${ROOT}/${API_TOP}/${API_SUB}/inconnue.jpg`, `${ROOT}/${API_TOP}/${API_SUB}/phare.jpg`]) {
     execFileSync('exiftool', ['-q', '-overwrite_original', '-XMP-dc:Title=Titre EXIF', '-XMP-dc:Description=Légende EXIF', '-XMP-dc:Subject=mot-exif', '-DateTimeOriginal=2019:03:02 10:11:12', file]);
 }
@@ -45,7 +53,8 @@ const server = http.createServer((req, res) => {
     const send = body => { res.writeHead(body ? 200 : 404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body || {})); };
     const album = (title, extra = {}) => ({ title: `${title} v${version}`, overview: `Résumé ${title}`, premiereDate: '2025-07-14', tags: ['voyage'], genres: ['Paysage'], studio: 'Atelier', communityRating: 8, ...extra });
     if (p === '/albums/v') return send(album('Grand voyage'));
-    if (p === '/albums/b') return send(album('La Bretagne', { tags: ['mer'], photos: [{ file: 'PHARE.JPG', title: `Le phare v${version}`, overview: 'Au couchant', premiereDate: '2025-07-15', tags: ['phare'], genres: ['Nuit'] }, { file: 'absente.jpg', title: 'Pas de fichier' }] }));
+    if (p === '/albums/b') return send(album('La Bretagne', { tags: ['mer'], photos: [{ file: 'PHARE.JPG', title: `Le phare v${version}`, overview: 'Au couchant', premiereDate: '2025-07-15', tags: ['phare'], genres: ['Nuit'] }, { file: 'absente.jpg', title: 'Pas de fichier' }, { file: 'clip.mp4', title: `Le clip v${version}`, overview: 'Filmé du haut', tags: ['film'] }] }));
+    if (p === '/photos/p2') return send({ title: `Le film v${version}`, tags: ['bobine'] });
     if (p === '/photos/p1') return send({ title: `La plage v${version}`, overview: 'Venue de /photos', tags: ['sable'] });
     send(null);
 });
@@ -72,14 +81,14 @@ async function refreshDone() {
     for (let i = 0; i < 90; i++) { await sleep(1500); const st = await api('GET', '/CustomMetadata/Refresh/Status'); if (!st.Running) return st; }
     throw new Error('targeted refresh never ended');
 }
-const items = async () => (await api('GET', `/Items?userId=${login.User.Id}&Recursive=true&IncludeItemTypes=PhotoAlbum,Photo,Folder&Fields=Path,Overview,Genres,Tags,Studios,ProviderIds`)).Items.filter(i => (i.Path || '').includes('/albums-test/'));
+const items = async () => (await api('GET', `/Items?userId=${login.User.Id}&Recursive=true&IncludeItemTypes=PhotoAlbum,Photo,Folder,Video&Fields=Path,Overview,Genres,Tags,Studios,ProviderIds`)).Items.filter(i => (i.Path || '').includes('/albums-test/'));
 const byEnd = (list, end) => list.find(i => i.Path.endsWith(end)) || {};
 
 const plugin = (await api('GET', '/Plugins')).find(p => /custom ?metadata/i.test(p.Name));
 const saved = await api('GET', `/Plugins/${plugin.Id}/Configuration`);
 const localContent = {
     Albums: [{ Id: 'racine', Title: 'Racine locale', Overview: 'Saisi dans le plugin', Studio: 'Maison', Tags: ['local'], PremiereDate: '2024-05-01', CommunityRating: 7.5, Photos: [],
-        Albums: [{ Id: 'jour', Title: 'Premier jour', Tags: ['jour'], Albums: [], Photos: [{ File: 'jetee.jpg', Title: 'La jetée', Overview: 'Tôt le matin', Tags: ['aube'], Genres: ['Calme'] }, { File: 'port.jpg' }] }] }],
+        Albums: [{ Id: 'jour', Title: 'Premier jour', Tags: ['jour'], Albums: [], Photos: [{ File: 'jetee.jpg', Title: 'La jetée', Overview: 'Tôt le matin', Tags: ['aube'], Genres: ['Calme'] }, { File: 'port.jpg' }, { File: 'sortie.mp4', Title: 'La sortie en mer', Tags: ['bateau'] }] }] }],
     Series: []
 };
 
@@ -92,7 +101,7 @@ try {
     config.EnableMetadata = true; config.EnableImages = true; config.EnableCache = false;
     await api('POST', `/Plugins/${plugin.Id}/Configuration`, config);
     const stored = await api('PUT', `/CustomMetadata/Local/${DATA_ID}`, localContent);
-    check('local content: nested albums and photos are stored', stored.Albums?.[0]?.Albums?.[0]?.Photos?.length === 2, stored);
+    check('local content: nested albums and photos are stored', stored.Albums?.[0]?.Albums?.[0]?.Photos?.length === 3, stored);
 
     try { await api('DELETE', `/Library/VirtualFolders?name=${encodeURIComponent(LIBRARY)}&refreshLibrary=true`); await idle(); } catch { /* not there */ }
     await api('POST', `/Library/VirtualFolders?name=${encodeURIComponent(LIBRARY)}&collectionType=homevideos&refreshLibrary=true`, { LibraryOptions: { EnablePhotos: true, EnableRealtimeMonitor: false, PathInfos: [{ Path: '/media/albums-test' }] } });
@@ -117,14 +126,20 @@ try {
     check('local: a described photo', jetee.Name === 'La jetée' && jetee.Overview === 'Tôt le matin' && jetee.Genres?.includes('Calme'), jetee);
     check('local: a photo listed without information is left alone', byEnd(list, 'port.jpg').Name === 'port', byEnd(list, 'port.jpg'));
 
+    const clip = byEnd(list, 'clip.mp4'), film = byEnd(list, '{al-p2}.mp4'), outing = byEnd(list, 'sortie.mp4');
+    check('API: a video listed by its album gets the source, plus the album tags', clip.Type === 'Video' && clip.Name === 'Le clip v1' && clip.Overview === 'Filmé du haut' && clip.Tags?.includes('film') && clip.Tags?.includes('mer'), clip);
+    check('API: a video with its own tag uses /photos/{id}', film.Name === 'Le film v1' && film.Tags?.includes('bobine') && hits['/photos/p2'] > 0, film);
+    check('local: a described video', outing.Name === 'La sortie en mer' && outing.Tags?.includes('bateau'), outing);
+    check('a video of an untagged folder is left alone', byEnd(list, 'brut.mp4').Name === 'brut', byEnd(list, 'brut.mp4'));
+
     const before = hits['/albums/b'];
     version = 2;
     let started = await api('POST', '/CustomMetadata/Refresh', { Prefix: 'al', ReplaceImages: true });
-    check('targeted refresh of an albums source counts albums and photos', started.Albums === 2 && started.Photos === 3, started);
+    check('targeted refresh of an albums source counts albums, photos and videos', started.Albums === 2 && started.Photos === 3 && started.Videos === 2, started);
     let done = await refreshDone();
     check('targeted refresh ends without failure', done.Failed === 0 && done.Done === done.Total, done);
     list = await items();
-    check('API: new values after the targeted refresh', byEnd(list, API_SUB).Name === 'La Bretagne v2' && byEnd(list, 'phare.jpg').Name === 'Le phare v2' && byEnd(list, '{al-p1}.jpg').Name === 'La plage v2', byEnd(list, 'phare.jpg').Name);
+    check('API: new values after the targeted refresh', byEnd(list, API_SUB).Name === 'La Bretagne v2' && byEnd(list, 'phare.jpg').Name === 'Le phare v2' && byEnd(list, '{al-p1}.jpg').Name === 'La plage v2' && byEnd(list, 'clip.mp4').Name === 'Le clip v2' && byEnd(list, '{al-p2}.mp4').Name === 'Le film v2', [byEnd(list, 'phare.jpg').Name, byEnd(list, 'clip.mp4').Name]);
     check('API: a refresh asks for an album only a few times, not once per photo', hits['/albums/b'] - before <= 5, hits['/albums/b'] - before);
 
     localContent.Albums[0].Title = 'Racine corrigée';
@@ -136,13 +151,13 @@ try {
     check('local: "Appliquer" updates the album, its sub-album and their photos', byEnd(list, 'Racine {lt-racine}').Name === 'Racine corrigée' && byEnd(list, 'port.jpg').Name === 'Le port', [byEnd(list, 'Racine {lt-racine}').Name, byEnd(list, 'port.jpg').Name]);
 
     const photos = await api('GET', '/CustomMetadata/Local/LibraryPhotos?tag=lt-jour');
-    check('LibraryPhotos lists the files of the album folder', photos.Found && photos.Photos.map(p => p.File).join() === 'jetee.jpg,port.jpg', photos);
+    check('LibraryPhotos lists the photos and videos of the album folder', photos.Found && photos.Photos.map(p => `${p.File}:${p.IsVideo}`).join() === 'jetee.jpg:false,port.jpg:false,sortie.mp4:true', photos);
     check('LibraryPhotos says when no folder carries the tag', (await api('GET', '/CustomMetadata/Local/LibraryPhotos?tag=lt-rien')).Found === false);
     const source = (await api('GET', `/Plugins/${plugin.Id}/Configuration`)).Sources.find(s => s.Prefix === 'al');
     const testAlbum = await api('POST', '/CustomMetadata/TestSource', { Source: source, ItemType: 'album', Id: 'b' });
     check('source test: an album', testAlbum.Success && testAlbum.Metadata?.Title === 'La Bretagne v2', testAlbum.Error);
     const testList = await api('POST', '/CustomMetadata/TestSource', { Source: source, ItemType: 'albumphotos', Id: 'b' });
-    check('source test: the photos of an album', testList.Success && testList.PhotoCount === 2 && testList.Photos[0].File === 'PHARE.JPG', testList);
+    check('source test: the photos of an album', testList.Success && testList.PhotoCount === 3 && testList.Photos[0].File === 'PHARE.JPG', testList);
 
     // ---- configuration page ----------------------------------------------------------------------------------------
     fs.mkdirSync(out, { recursive: true });
@@ -176,7 +191,7 @@ try {
         await page.click(`${root} .cm-subitem[data-go="album"]`);
         await page.selectOption(`${root} #testItemType`, 'albumphotos'); await page.fill(`${root} #testItemId`, 'b'); await page.click(`${root} #btnTestSource`);
         await page.waitForSelector(`${root} .cm-photo-list li`, { timeout: 15000 });
-        check('page: the test lists the photos of the album', (await page.locator(`${root} .cm-photo-list li`).count()) === 2);
+        check('page: the test lists the files of the album', (await page.locator(`${root} .cm-photo-list li`).count()) === 3);
         await shot('A3-album-test-1440');
 
         await openSource('Albums locaux (test)');
@@ -189,7 +204,7 @@ try {
         await page.click(`${root} [data-ltab-btn="photos"]`);
         await page.click(`${root} [data-photos-read]`);
         await page.waitForSelector(`${root} .cm-photo img`, { timeout: 15000 });
-        check('page: reading the folder keeps one card per photo', (await page.locator(`${root} .cm-photo`).count()) === 2);
+        check('page: reading the folder keeps one card per file', (await page.locator(`${root} .cm-photo`).count()) === 3);
         await page.click(`${root} [data-photo="1"]`);
         await page.fill(`${root} #lp-Overview`, 'Écrit depuis la page');
         await page.waitForTimeout(800);

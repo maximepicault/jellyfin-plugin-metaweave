@@ -306,6 +306,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                     }
                 }
 
+                // Albums and their photos and videos
+                foreach (var (_, cast) in LocalSourceStore.AlbumCasts(content))
+                {
+                    if (Rename(cast))
+                    {
+                        changed = true;
+                        result.Casts++;
+                    }
+                }
+
                 if (changed)
                 {
                     _images.Save(source.LocalDataId, content);

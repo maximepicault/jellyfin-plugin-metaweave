@@ -10,12 +10,13 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.CustomMetadata.Services
 {
-    /// <summary>The Projection theme's files, embedded in the DLL (theme/projection.css, projection.js, projection-index.js).</summary>
+    /// <summary>The Projection theme's files, embedded in the DLL (theme/projection.css, projection.js, projection-index.js, projection-photos.js).</summary>
     public static class ThemeAssets
     {
         private static readonly Lazy<(byte[] Data, string ETag)> CssFile = new(() => Load("theme.projection.css"));
         private static readonly Lazy<(byte[] Data, string ETag)> JsFile = new(() => Load("theme.projection.js"));
         private static readonly Lazy<(byte[] Data, string ETag)> IndexJsFile = new(() => Load("theme.projection-index.js"));
+        private static readonly Lazy<(byte[] Data, string ETag)> PhotosJsFile = new(() => Load("theme.projection-photos.js"));
         private static readonly Lazy<(byte[] Data, string ETag)> GalleryFile = new(() => Load("web.gallery.js"));
 
         public static (byte[] Data, string ETag) Css => CssFile.Value;
@@ -25,6 +26,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>The theme's second script: the filtered lists ("Index"), served by ThemeController</summary>
         public static (byte[] Data, string ETag) IndexJs => IndexJsFile.Value;
 
+        /// <summary>The theme's third script: the photo libraries and their albums, served by ThemeController</summary>
+        public static (byte[] Data, string ETag) PhotosJs => PhotosJsFile.Value;
+
         /// <summary>The episode photo gallery's script (web/gallery.js), served by PhotosController</summary>
         public static (byte[] Data, string ETag) Gallery => GalleryFile.Value;
 
@@ -32,6 +36,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public static string ScriptVersion => Version(JsFile.Value);
 
         public static string IndexScriptVersion => Version(IndexJsFile.Value);
+
+        public static string PhotosScriptVersion => Version(PhotosJsFile.Value);
 
         public static string GalleryVersion => Version(GalleryFile.Value);
 
@@ -60,7 +66,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     /// Serves the Projection web theme from the server itself:
     /// - projection.css, for the Custom CSS: <c>@import url("../CustomMetadata/Theme/projection.css");</c> (the theme then
     ///   follows the plugin version installed, without a CDN cache or a Git branch to follow);
-    /// - projection.js and projection-index.js, added to jellyfin-web's page by ThemeScriptMiddleware when
+    /// - projection.js, projection-index.js and projection-photos.js, added to jellyfin-web's page by ThemeScriptMiddleware when
     ///   "EnableThemeScript" is on.
     /// ANONYMOUS, like the people photos: the browser fetches an @import or a script tag without Jellyfin's token. These
     /// files are public in the repository anyway.
@@ -99,6 +105,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         [ProducesResponseType(StatusCodes.Status304NotModified)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public IActionResult IndexScript() => Serve(ThemeAssets.IndexJs, "text/javascript; charset=utf-8", "projection-index.js");
+
+        /// <summary>The theme's photo libraries script (text/javascript). 304 when the browser already has this version.</summary>
+        [HttpGet("projection-photos.js")]
+        [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status304NotModified)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public IActionResult PhotosScript() => Serve(ThemeAssets.PhotosJs, "text/javascript; charset=utf-8", "projection-photos.js");
 
         private IActionResult Serve((byte[] Data, string ETag) file, string contentType, string name)
         {

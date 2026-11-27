@@ -57,6 +57,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         /// <summary>Albums: add the tags of the photo's own album to the photo</summary>
         public bool PhotoInheritAlbumTags { get; set; }
 
+        /// <summary>Albums: the people of an album apply to its whole content (photos, videos, sub-albums)</summary>
+        public bool PhotoInheritAlbumCast { get; set; }
+
         /// <summary>
         /// Local source: stable identifier of the content file (independent of the prefix, which can be renamed)
         /// </summary>

@@ -50,6 +50,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public int Episodes { get; set; }
         public int Albums { get; set; }
         public int Photos { get; set; }
+
+        /// <summary>Videos of albums (refreshed with their photos)</summary>
+        public int Videos { get; set; }
         public int Movies { get; set; }
 
         /// <summary>Dump sources: "scan" (looking for the files the dump recognises) then "refresh"; empty for the other sources</summary>
@@ -110,7 +113,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private static SourceRefreshStatus Copy(SourceRefreshStatus s) => new SourceRefreshStatus
         {
             Running = s.Running, Prefix = s.Prefix, Total = s.Total, Done = s.Done, Failed = s.Failed,
-            Series = s.Series, Seasons = s.Seasons, Episodes = s.Episodes, Albums = s.Albums, Photos = s.Photos, Movies = s.Movies, Phase = s.Phase, Scanned = s.Scanned, Matched = s.Matched, StartedAt = s.StartedAt, FinishedAt = s.FinishedAt, Message = s.Message, LocalFilesKept = s.LocalFilesKept
+            Series = s.Series, Seasons = s.Seasons, Episodes = s.Episodes, Albums = s.Albums, Photos = s.Photos, Videos = s.Videos, Movies = s.Movies, Phase = s.Phase, Scanned = s.Scanned, Matched = s.Matched, StartedAt = s.StartedAt, FinishedAt = s.FinishedAt, Message = s.Message, LocalFilesKept = s.LocalFilesKept
         };
 
         /// <summary>Finds the items, then refreshes them in the background. Returns at once with the counts.</summary>
@@ -162,7 +165,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     Running = items.Count > 0, Prefix = prefix, Total = items.Count,
                     Series = items.Count(i => i is Series), Seasons = items.Count(i => i is Season), Episodes = items.Count(i => i is Episode),
-                    Albums = items.Count(IsAlbum), Photos = items.Count(i => i is Photo),
+                    Albums = items.Count(IsAlbum), Photos = items.Count(i => i is Photo), Videos = items.Count(i => i.GetType() == typeof(Video)),
                     StartedAt = DateTime.UtcNow, FinishedAt = items.Count > 0 ? null : DateTime.UtcNow
                 };
             }
@@ -175,8 +178,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             var replaceImages = request.ReplaceImages;
-            _logger.LogInformation("🔁 [SOURCE REFRESH] Refreshing {Total} item(s) of prefix '{Prefix}' ({Series} series, {Seasons} seasons, {Episodes} episodes, {Albums} albums, {Photos} photos), {Images}",
-                items.Count, prefix, Status().Series, Status().Seasons, Status().Episodes, Status().Albums, Status().Photos, replaceImages ? "metadata and images" : "metadata only");
+            _logger.LogInformation("🔁 [SOURCE REFRESH] Refreshing {Total} item(s) of prefix '{Prefix}' ({Series} series, {Seasons} seasons, {Episodes} episodes, {Albums} albums, {Photos} photos, {Videos} videos), {Images}",
+                items.Count, prefix, Status().Series, Status().Seasons, Status().Episodes, Status().Albums, Status().Photos, Status().Videos, replaceImages ? "metadata and images" : "metadata only");
             _ = Task.Run(async () =>
             {
                 try
@@ -207,8 +210,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 try
                 {
-                    // A photo's image is its own file: never replaced
-                    var replaceImages = replaceImagesWanted && item is not Photo;
+                    // A photo's image is its own file, a video's comes from its frames: the source gives none, nothing is replaced
+                    var replaceImages = replaceImagesWanted && !IsAlbumMedia(item);
                     var watch = System.Diagnostics.Stopwatch.StartNew();
                     long jellyfinMs, imagesMs = 0;
                     var imagesBefore = replaceImages ? ImageSignature(item) : null;
@@ -763,7 +766,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 return new List<BaseItem>();
             }
 
-            // Photos are mostly known by their file name in their album: they come with their album, or by their own tag
+            // Photos and videos are mostly known by their file name in their album: they come with their album, or by their own tag
             List<BaseItem> WithPhotos(List<BaseItem> found, bool exact)
             {
                 if (!photos)
@@ -771,7 +774,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     return found;
                 }
 
-                var all = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Photo }, Recursive = true });
+                var all = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Photo, BaseItemKind.Video }, Recursive = true })
+                    .Where(IsAlbumMedia);
                 var albums = found.Where(IsAlbum).Select(a => a.Id).ToHashSet();
                 return found.Concat(all.Where(p => albums.Contains(p.ParentId) || (!exact && TagsOf(p).Any(t => HasPrefix(t, prefix))))).ToList();
             }
@@ -809,6 +813,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         /// <summary>A photo album, or a plain folder (an album holding only sub-albums): never a series, a season or a library</summary>
         internal static bool IsAlbum(BaseItem item) => item is PhotoAlbum || item?.GetType() == typeof(Folder);
+
+        /// <summary>What an album holds besides sub-albums: a photo, or a plain video (not a film or an episode, which are types of their own, nor an extra)</summary>
+        internal static bool IsAlbumMedia(BaseItem item)
+            => item is Photo || (item?.GetType() == typeof(Video) && item.OwnerId == Guid.Empty && item.ExtraType == null);
 
         private static List<string> DefaultTypes(string prefix)
         {

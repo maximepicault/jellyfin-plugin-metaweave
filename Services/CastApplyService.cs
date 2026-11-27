@@ -29,6 +29,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         /// <summary>Series whose cast changed (folder tags "dm-serie")</summary>
         public List<string> SeriesKeys { get; set; } = new List<string>();
 
+        /// <summary>Photo albums whose people changed (folder tags)</summary>
+        public List<string> AlbumKeys { get; set; } = new List<string>();
+
+        /// <summary>Photos and videos with their own tag whose people changed</summary>
+        public List<string> MediaKeys { get; set; } = new List<string>();
+
         /// <summary>
         /// Typed keys ("series:dm-x", "season:dm-a1") whose children must be refreshed even if the element is not (or no longer)
         /// marked "cascade": the screen sends the ones whose cascade was on before or after the change, so that turning it off cleans the children.
@@ -64,7 +70,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         private readonly ILogger<CastApplyService> _logger;
         private readonly IProviderManager _providerManager;
 
+        private readonly AlbumCastService _albumCast;
+
         public CastApplyService(
+            AlbumCastService albumCast,
             IProviderManager providerManager,
             ILibraryManager libraryManager,
             IFileSystem fileSystem,
@@ -75,6 +84,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             SourceResolver resolver,
             ILogger<CastApplyService> logger)
         {
+            _albumCast = albumCast;
             _providerManager = providerManager;
             _people = people;
             _resolver = resolver;
@@ -94,7 +104,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             var keys = new HashSet<string>(
                 (request.EpisodeKeys ?? new List<string>()).Select(k => CastOverlayStore.TypedKey("episode", k))
                     .Concat((request.SeasonKeys ?? new List<string>()).Select(k => CastOverlayStore.TypedKey("season", k)))
-                    .Concat((request.SeriesKeys ?? new List<string>()).Select(k => CastOverlayStore.TypedKey("series", k))),
+                    .Concat((request.SeriesKeys ?? new List<string>()).Select(k => CastOverlayStore.TypedKey("series", k)))
+                    .Concat((request.AlbumKeys ?? new List<string>()).Select(k => CastOverlayStore.TypedKey("album", k)))
+                    .Concat((request.MediaKeys ?? new List<string>()).Select(k => CastOverlayStore.TypedKey("media", k))),
                 StringComparer.OrdinalIgnoreCase);
             var prefixes = new HashSet<string>((request.Prefixes ?? new List<string>()).Select(p => p.Trim().ToLowerInvariant()), StringComparer.OrdinalIgnoreCase);
             var everything = persons.Count == 0 && keys.Count == 0 && prefixes.Count == 0;
@@ -123,6 +135,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 var prefix = (source.Prefix ?? string.Empty).Trim().ToLowerInvariant();
                 var wholeSource = everything || prefixes.Contains(prefix);
+                foreach (var (album, cast) in LocalSourceStore.AlbumCasts(_local.Load(source.LocalDataId)))
+                {
+                    if (cast != null && cast.Count > 0 && (wholeSource || Touches(cast)))
+                    {
+                        result.Add(CastOverlayStore.TypedKey("album", $"{prefix}-{album.Id}"));
+                    }
+                }
+
                 foreach (var episode in _local.Load(source.LocalDataId).Series.SelectMany(s => s.Seasons).SelectMany(s => s.Episodes))
                 {
                     if (episode.Cast != null && episode.Cast.Count > 0 && (wholeSource || Touches(episode.Cast)))
@@ -186,8 +206,21 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 }
             }
 
-            result.Queued = episodes.Count + direct.Count;
+            var albumItems = AlbumItems(wanted);
+            result.Queued = episodes.Count + direct.Count + albumItems.Count;
             result.Missing = episodes.Count(e => e.IsVirtualItem);
+            if (albumItems.Count > 0)
+            {
+                // Only the links change: no enrichment is restarted
+                _ = System.Threading.Tasks.Task.Run(async () =>
+                {
+                    foreach (var item in albumItems)
+                    {
+                        await _albumCast.ApplyAsync(item, System.Threading.CancellationToken.None);
+                    }
+                });
+            }
+
             if (episodes.Count > 0 || direct.Count > 0)
             {
                 _ = System.Threading.Tasks.Task.Run(async () =>
@@ -199,6 +232,22 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             _logger.LogInformation("👥 [CAST APPLY] {Queued} episodes queued for refresh ({Missing} missing, {Keys} keys wanted)", result.Queued, result.Missing, wanted.Count);
             return result;
+        }
+
+        /// <summary>The albums, photos and videos a changed album or media tag reaches: the tagged element and everything below it</summary>
+        private List<BaseItem> AlbumItems(HashSet<string> wanted)
+        {
+            var tags = wanted.Where(k => k.StartsWith("album:", StringComparison.Ordinal) || k.StartsWith("media:", StringComparison.Ordinal))
+                .Select(k => "{" + k.Substring(k.IndexOf(':') + 1) + "}").ToList();
+            if (tags.Count == 0)
+            {
+                return new List<BaseItem>();
+            }
+
+            return _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.PhotoAlbum, BaseItemKind.Folder, BaseItemKind.Photo, BaseItemKind.Video }, Recursive = true })
+                .Where(i => (SourceRefreshService.IsAlbum(i) || SourceRefreshService.IsAlbumMedia(i))
+                    && !string.IsNullOrEmpty(i.Path) && tags.Any(t => i.Path.Contains(t, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
         }
 
         /// <summary>

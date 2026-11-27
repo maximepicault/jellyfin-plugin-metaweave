@@ -23,6 +23,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
     public class LocalAlbum : LocalNode
     {
         public string Studio { get; set; }
+
+        /// <summary>People of the directory linked to the album (LocalCastEntry.All: also to its whole content)</summary>
+        public List<LocalCastEntry> Cast { get; set; } = new List<LocalCastEntry>();
         public List<LocalAlbum> Albums { get; set; } = new List<LocalAlbum>();
         public List<LocalPhoto> Photos { get; set; } = new List<LocalPhoto>();
     }
@@ -40,6 +43,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public string Studio { get; set; }
         public List<string> Tags { get; set; } = new List<string>();
         public List<string> Genres { get; set; } = new List<string>();
+
+        /// <summary>People of the directory in this photo or video</summary>
+        public List<LocalCastEntry> Cast { get; set; } = new List<LocalCastEntry>();
     }
 
     /// <summary>Fields shared by series, seasons and episodes (the names follow the default mappings)</summary>
@@ -135,6 +141,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         /// <summary>Nom d'un PersonKind de Jellyfin : Actor, GuestStar, Director, Writer, Producer, Composer…</summary>
         public string Type { get; set; } = "Actor";
+
+        /// <summary>On an album: the person is also linked to its photos, videos and sub-albums</summary>
+        public bool All { get; set; }
     }
 
     /// <summary>
@@ -502,6 +511,14 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
         }
 
+        /// <summary>The album of a local source with this id (the part after the prefix, or the full "prefix-id" typed as id)</summary>
+        public LocalAlbum FindAlbum(SourceConfiguration source, string id)
+            => AllAlbums(Load(source?.LocalDataId).Albums).FirstOrDefault(a => IdEquals(a.Id, id) || IdEquals(a.Id, $"{source.Prefix}-{id}"));
+
+        /// <summary>Every cast list of the albums of a content (albums and their files), with the album it belongs to</summary>
+        public static IEnumerable<(LocalAlbum Album, List<LocalCastEntry> Cast)> AlbumCasts(LocalContent content)
+            => AllAlbums(content?.Albums).SelectMany(a => new[] { (a, a.Cast) }.Concat((a.Photos ?? new List<LocalPhoto>()).Select(p => (a, p.Cast))));
+
         /// <summary>The albums and, below each one, its sub-albums</summary>
         private static IEnumerable<LocalAlbum> AllAlbums(IEnumerable<LocalAlbum> albums)
         {
@@ -643,6 +660,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             {
                 NormalizeNode(album, used);
                 album.Studio = Clean(HtmlText.Decode(album.Studio));
+                album.Cast = NormalizeCast(album.Cast);
                 album.Photos = NormalizePhotos(album.Photos);
                 album.Albums = NormalizeAlbums(album.Albums, used, depth + 1);
             }
@@ -670,6 +688,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 photo.Studio = Clean(HtmlText.Decode(photo.Studio));
                 photo.Tags = CleanList(photo.Tags);
                 photo.Genres = CleanList(photo.Genres);
+                photo.Cast = NormalizeCast(photo.Cast);
                 result.Add(photo);
             }
 
@@ -764,7 +783,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     PersonId = g.First().PersonId.Trim(),
                     Role = Clean(HtmlText.Decode(g.First().Role)),
-                    Type = NormalizeCastType(g.First().Type)
+                    Type = NormalizeCastType(g.First().Type),
+                    All = g.Any(c => c.All)
                 })
                 .ToList();
         }

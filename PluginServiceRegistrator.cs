@@ -72,6 +72,18 @@ namespace Jellyfin.Plugin.CustomMetadata
                 sp.GetRequiredService<SourceResolver>(),
                 sp.GetRequiredService<ILogger<PhotoLibraryService>>()));
 
+            // People of albums, photos and videos: Jellyfin keeps none on the first two
+            serviceCollection.AddSingleton(sp => new AlbumCastStore(sp.GetRequiredService<ILogger<AlbumCastStore>>()));
+            serviceCollection.AddSingleton(sp => new AlbumCastService(
+                sp.GetRequiredService<PhotoLibraryService>(),
+                sp.GetRequiredService<SourceResolver>(),
+                sp.GetRequiredService<LocalSourceStore>(),
+                sp.GetRequiredService<CastOverlayStore>(),
+                sp.GetRequiredService<PeopleStore>(),
+                sp.GetRequiredService<AlbumCastStore>(),
+                sp.GetRequiredService<MediaBrowser.Controller.Library.ILibraryManager>(),
+                sp.GetRequiredService<ILogger<AlbumCastService>>()));
+
             // Rules on genres and tags: also reachable as TaxonomyStore.Current by the providers and static helpers
             serviceCollection.AddSingleton(sp => new TaxonomyStore(sp.GetRequiredService<ILogger<TaxonomyStore>>()));
             serviceCollection.AddHostedService(sp => sp.GetRequiredService<TaxonomyStore>());

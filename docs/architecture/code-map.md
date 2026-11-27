@@ -17,7 +17,7 @@
 | `tools/ui-test/` | Test bench (Docker Jellyfin 12.4 on 8097, mock API `server.py`, demo data `data.py`/`gen.py`, CDP/Playwright scripts) |
 | `deploy/` | Server-side updater (systemd timer) and its sandbox test |
 | `web/gallery.js` | Episode photo gallery script, embedded in the DLL, added to jellyfin-web’s page by `ThemeScriptMiddleware` when `EnableEpisodePhotos` is on |
-| `theme/projection.css`, `theme/projection.js`, `theme/projection-index.js` | Optional jellyfin-web theme (D013) and its optional scripts (the second: filtered lists, `theme-index.md`), embedded in the DLL and served by `ThemeController`; `Services/ThemeScriptMiddleware.cs` adds the scripts to jellyfin-web's page |
+| `theme/projection.css`, `theme/projection.js`, `theme/projection-index.js`, `theme/projection-photos.js` | Optional jellyfin-web theme (D013) and its optional scripts (filtered lists, `theme-index.md`; photo libraries, `photo-albums.md`), embedded in the DLL and served by `ThemeController`; `Services/ThemeScriptMiddleware.cs` adds the scripts to jellyfin-web's page |
 
 ## 2. Wiring
 
@@ -46,6 +46,7 @@
 | `PeopleStore` | `LocalSourceStore` | providers (cast), `CastApplyService`, `MissingEpisodeService`, People controller |
 | `EpisodePhotoService`, `EpisodePhotoThumbnails`, `EpisodePhotoLinks` (+ `EpisodePhotoDownloadStartupFilter`) | library, users, `LocalSourceStore`, app paths | Photos controller, `EpisodePhotoImageProvider` (resolved through `IServiceProvider`) |
 | `PhotoLibraryService` | `CustomApiClient`, `SourceResolver` | album and photo providers (`PhotoList` reads an album's photos) |
+| `AlbumCastStore`, `AlbumCastService` | photo library service, resolver, local / overlay / people stores, library | album, photo and video providers, `CastApplyService`, AlbumCast controller (`photo-albums.md`) |
 | `PersonNetworkStore` (+ hosted `PersonNetworkReadyService`) | — | person link slots, People controller |
 | `DumpStore` | `IHttpClientFactory` | `CustomApiClient`, `ResilientHttp`, episode/movie/image providers, `SourceRefreshService`, Dump/SourceTest controllers |
 | `CustomApiClient` (owns its `JsonFieldMapper` and `ResilientHttp`) | cache, `LocalSourceStore`, `DumpStore` | every provider and most services |
@@ -125,6 +126,7 @@ All under the plugin's `DataFolderPath` unless noted (a temp-folder fallback exi
 | `people.json`, photos under data id `people-directory` | `PeopleStore` |
 | `person-networks.json`, `network-icons/` | `PersonNetworkStore` |
 | `episode-cast.json` | `CastOverlayStore` |
+| `album-cast.json` | `AlbumCastStore` |
 | `cast-backdrops.json`, `cast-inherited.json` | `CastApplyService` |
 | `missing-episodes.json` (report), `missing-ignored.json` | `MissingEpisodeService` |
 | `missing-episodes-cache/{seasonId}.json` | `MissingEpisodeCache` |
@@ -147,6 +149,7 @@ All under the plugin's `DataFolderPath` unless noted (a temp-folder fallback exi
 | `Theme/projection.css` (anonymous GET, ETag, revalidated on every load) | `ThemeController` → `theme/projection.css` embedded in the DLL | the server's Custom CSS (`@import url("../CustomMetadata/Theme/projection.css")`) |
 | `Theme/projection.js` (anonymous GET, ETag, revalidated on every load) | `ThemeController` → `theme/projection.js` embedded in the DLL (`ThemeAssets`) | jellyfin-web's index.html, where `ThemeScriptMiddleware` (an `IStartupFilter` registered by `PluginServiceRegistrator`) inserts the script tag when `EnableThemeScript` is on |
 | `Theme/projection-index.js` (same as `projection.js`) | `ThemeController` → `theme/projection-index.js` | inserted with `projection.js`; the « Index » screens (`theme-index.md`) |
+| `Theme/projection-photos.js` (same) | `ThemeController` → `theme/projection-photos.js` | inserted with `projection.js`; the photo library screens (`photo-albums.md`) |
 | `Index` (POST, any signed-in user, over what that user sees) | `LibraryIndexController` → `LibraryIndexService` (in-memory snapshot of the library read from Jellyfin's database, read only), `LibraryIndexQuery` | the theme's « Index » screens: a page of ids, counts, filters on offer |
 | `Preview/{itemId}` (any signed-in user, `api_key` in the URL; Range forwarded) | `PreviewController` → `EpisodePreviewService` (first a local episode's own preview, `LocalSourceStore.FindEpisodePreview`, read live; else the season episode list, 30 min cache) | the theme script's hover preview of a real episode: its source's `preview.url`, streamed with the source's headers |
 | `Preview/{itemId}/Clip` (same access; Range) | `PreviewController` → `PreviewClipService` ({DataFolderPath}/episode-previews, built by `ScheduledTasks/PreviewClipsTask` with ffmpeg) | the theme script's hover preview when the source has no preview |
@@ -154,6 +157,7 @@ All under the plugin's `DataFolderPath` unless noted (a temp-folder fallback exi
 | `MissingEpisodes`, `/Analyze`, `/Ignore` | `MissingEpisodesController` → `MissingEpisodeService`, task manager | `missing.html`, `config.html` |
 | `Dump/Test`, `Reload`, `Sources`, `Coverage`, `Series`, `Export`, `Image` | `DumpController` → `DumpStore`, `DumpCoverageService` | `config.html`, `missing.html` (Catalogues) |
 | `People`, `Networks/*`, `EpisodeCast`, `Merge`, `Apply`, `Children`, `Library`, `Fetch`, `Photo/{file}` | `PeopleController` → `PeopleStore`, `PersonNetworkStore`, `CastOverlayStore`, `CastCatalog`, `CastApplyService` | `people.html`, `config.html` |
+| `AlbumCast/Item/{id}`, `People`, `Items` (any signed-in user, over what that user sees) | `AlbumCastController` → `AlbumCastStore` | theme photo screens |
 | `Taxonomy`, `Names`, `Impact`, `Apply`, `Apply/Status` | `TaxonomyController` → `TaxonomyStore`, `TaxonomyService` | `taxonomy.html`, `config.html` (term suggestions) |
 | `Downloads`, `/Cancel`, `/Retry`, `/Clear` | `DownloadsController` → `VideoDownloadService` | `downloads.html` |
 
@@ -199,7 +203,7 @@ The tab bar and the in-page confirmation are copied in several pages (no shared 
 | Missing episodes | `missing-number-real.mjs` (D009), `episode-number-real.mjs`, `download-real.mjs`, `download-parallel-real.mjs`, `downloads-real.mjs`, `local-preview-video-real.mjs`, `chapters-real.mjs` |
 | People and cast | `config-people-real.mjs` (`--quick`: cropper), `config-people-episodes-real.mjs` |
 | Dump | `dump-real.mjs` |
-| Photo albums | `albums-real.mjs <url> <out_dir> <host_media_dir>` |
+| Photo albums | `albums-real.mjs`, `photos-library-real.mjs` (theme screens), `album-people-real.mjs` (linked people): `<url> <out_dir> <host_media_dir>` |
 | Taxonomy | `taxonomy-real.mjs`, `taxonomy-shots.mjs` |
 | Shared UI | `diagnostic-real.mjs`, `improvements-real.mjs`, `shoot.mjs` |
 | Harness | `ui-test.sh`, `server.py`, `data.py`, `gen.py`, `chrome-session.mjs` (lock + Chrome cleanup), `quiet.mjs` |

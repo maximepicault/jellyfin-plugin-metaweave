@@ -152,9 +152,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             string itemType,
             SourceConfiguration source,
             CancellationToken cancellationToken,
-            bool bypassCache = false)
+            bool bypassCache = false,
+            Action unanswered = null)
         {
-            var api = await GetApiMetadataAsync(itemId, itemType, source, cancellationToken, bypassCache);
+            var api = await GetApiMetadataAsync(itemId, itemType, source, cancellationToken, bypassCache, unanswered);
 
             // A local series/season may take over the one of this API element: applied here, after the (cached) API
             // answer, so a change typed in the plugin shows up at once
@@ -238,7 +239,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             string itemType,
             SourceConfiguration source,
             CancellationToken cancellationToken,
-            bool bypassCache)
+            bool bypassCache,
+            Action unanswered)
         {
             if (source == null)
             {
@@ -254,7 +256,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             // typed in the plugin is taken into account immediately, without waiting for expiry
             if (source.IsLocal || source.IsDump)
             {
-                return await FetchMetadataFromApiAsync(itemId, itemType, source, cancellationToken);
+                return await FetchMetadataFromApiAsync(itemId, itemType, source, cancellationToken, unanswered);
             }
 
             if (bypassCache && IsCacheEnabled())
@@ -268,13 +270,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             // If the cache is disabled, call the API directly
             if (!IsCacheEnabled())
             {
-                return await FetchMetadataFromApiAsync(itemId, itemType, source, cancellationToken);
+                return await FetchMetadataFromApiAsync(itemId, itemType, source, cancellationToken, unanswered);
             }
 
             // Use the cache
             return await _cacheService.GetOrCreateAsync(
                 cacheKey,
-                () => FetchMetadataFromApiAsync(itemId, itemType, source, cancellationToken),
+                () => FetchMetadataFromApiAsync(itemId, itemType, source, cancellationToken, unanswered),
                 cancellationToken
             );
         }
@@ -310,7 +312,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             string itemId,
             string itemType,
             SourceConfiguration source,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Action unanswered = null)
         {
             try
             {
@@ -357,6 +360,11 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 
                 if (!fetch.IsSuccess)
                 {
+                    if (!IsUnknownElement(fetch.StatusCode))
+                    {
+                        unanswered?.Invoke();
+                    }
+
                     if (fetch.StatusCode.HasValue)
                     {
                         _logger.LogWarning("⚠️ [API RESPONSE] Status {StatusCode} for {Url}", (HttpStatusCode)fetch.StatusCode.Value, url);
@@ -386,6 +394,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ [API ERROR] Error fetching metadata for {ItemType} {ItemId}", itemType, itemId);
+                unanswered?.Invoke();
                 return null;
             }
         }
@@ -528,8 +537,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             }
         }
 
+        /// <summary>The source answered that it does not know the element: an answer, unlike a failure</summary>
+        private static bool IsUnknownElement(int? status) => status == (int)HttpStatusCode.NotFound || status == (int)HttpStatusCode.Gone;
+
         /// <summary>
-        /// The raw answer of an album, for its list of photos. Null when the source is not configured or does not answer.
+        /// The raw answer of an album, for its list of photos: "{}" when the source does not know it, null when the source is not
+        /// configured or does not answer.
         /// </summary>
         public async Task<string> GetAlbumJsonAsync(string itemId, SourceConfiguration source, CancellationToken cancellationToken)
         {
@@ -545,7 +558,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             if (!fetch.IsSuccess)
             {
                 _logger.LogWarning("📸 [ALBUM FETCH] ⚠️ {Error} for album {ItemId}", fetch.Error, itemId);
-                return null;
+                return IsUnknownElement(fetch.StatusCode) ? "{}" : null;
             }
 
             return fetch.Content;
