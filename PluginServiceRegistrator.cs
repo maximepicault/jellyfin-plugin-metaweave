@@ -37,6 +37,10 @@ namespace Jellyfin.Plugin.CustomMetadata
             // Projection theme: adds its script to jellyfin-web's page when EnableThemeScript is on (ThemeScriptMiddleware)
             serviceCollection.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, ThemeScriptStartupFilter>();
 
+            // Projection theme's filtered lists: filtering, counts and paging on the server (LibraryIndexController)
+            serviceCollection.AddSingleton<LibraryIndexService>();
+            serviceCollection.AddHostedService(sp => sp.GetRequiredService<LibraryIndexService>());
+
             // Episode photo gallery: numbered folders and local "Photo" images, thumbnails, signed links for the image search
             serviceCollection.AddSingleton<EpisodePhotoService>();
             serviceCollection.AddSingleton<EpisodePhotoThumbnails>();

@@ -58,6 +58,7 @@
 | `ChapterService` (hosted) | `IChapterManager` | fed by `CustomEpisodeProvider` through static `ChapterService.Remember` |
 | `DumpCoverageCache` (hosted), `DumpCoverageService` | library, `DumpStore` | Dump controller, `MissingEpisodeService` (dump seasons) |
 | `DiagnosticService` | library, `CustomApiClient` | Diagnostic controller |
+| `LibraryIndexService` (hosted) | Jellyfin's database context (read only), library | LibraryIndex controller (`theme-index.md`) |
 
 Helpers get a non-generic `ILogger` from the registrator, so their log lines carry their own category (CLAUDE.md, logging).
 
@@ -142,7 +143,8 @@ All under the plugin's `DataFolderPath` unless noted (a temp-folder fallback exi
 | `Photos/{itemId}`, `/Image/{key}`, `/Thumb/{key}` (any signed-in user who sees the item); `Photos/Remote/{itemId}/{key}` (anonymous, signed); `Photos/gallery.js` (anonymous) | `PhotosController` → `EpisodePhotoService`, `EpisodePhotoThumbnails`, `EpisodePhotoLinks` | `web/gallery.js`, Jellyfin image search (`episode-photos.md`) |
 | `Theme/projection.css` (anonymous GET, ETag, revalidated on every load) | `ThemeController` → `theme/projection.css` embedded in the DLL | the server's Custom CSS (`@import url("../CustomMetadata/Theme/projection.css")`) |
 | `Theme/projection.js` (anonymous GET, ETag, revalidated on every load) | `ThemeController` → `theme/projection.js` embedded in the DLL (`ThemeAssets`) | jellyfin-web's index.html, where `ThemeScriptMiddleware` (an `IStartupFilter` registered by `PluginServiceRegistrator`) inserts the script tag when `EnableThemeScript` is on |
-| `Theme/projection-index.js` (same as `projection.js`) | `ThemeController` → `theme/projection-index.js` | inserted with `projection.js`; the « Index » lists (`theme-index.md`) |
+| `Theme/projection-index.js` (same as `projection.js`) | `ThemeController` → `theme/projection-index.js` | inserted with `projection.js`; the « Index » screens (`theme-index.md`) |
+| `Index` (POST, any signed-in user, over what that user sees) | `LibraryIndexController` → `LibraryIndexService` (in-memory snapshot of the library read from Jellyfin's database, read only), `LibraryIndexQuery` | the theme's « Index » screens: a page of ids, counts, filters on offer |
 | `Preview/{itemId}` (any signed-in user, `api_key` in the URL; Range forwarded) | `PreviewController` → `EpisodePreviewService` (first a local episode's own preview, `LocalSourceStore.FindEpisodePreview`, read live; else the season episode list, 30 min cache) | the theme script's hover preview of a real episode: its source's `preview.url`, streamed with the source's headers |
 | `Preview/{itemId}/Clip` (same access; Range) | `PreviewController` → `PreviewClipService` ({DataFolderPath}/episode-previews, built by `ScheduledTasks/PreviewClipsTask` with ffmpeg) | the theme script's hover preview when the source has no preview |
 | `Preview/{itemId}/Info` (same access) | `PreviewController` → `{ Source, Clip }` | the theme script's « Aperçu » button (episode page, season rows) |
