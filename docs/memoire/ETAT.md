@@ -1,8 +1,8 @@
 # État du projet
-Dernière mise à jour : 2026-11-27 (D025 server-side Index and library screens, P024/P025; 7ec9ff7 deployed; D024 theme « Index » lists, P021–P023; D023 person page, P019/P020; D022 episode photo gallery, P015–P018; D021 preview viewer « Salle », P013/P014; D020 hover preview of real episodes; D019 optional theme script; D018 theme served by the plugin; D017 Projection theme direction C; earlier: memory audit, D010–D016, code map in docs/architecture/code-map.md)
+Dernière mise à jour : 2026-11-27 (D026 Jellyfin 12.4 only, replaces D001, P026; D025 server-side Index and library screens, P024/P025; 7ec9ff7 deployed; D024 theme « Index » lists, P021–P023; D023 person page, P019/P020; D022 episode photo gallery, P015–P018; D021 preview viewer « Salle », P013/P014; D020 hover preview of real episodes; D019 optional theme script; D018 theme served by the plugin; D017 Projection theme direction C; earlier: memory audit, D010–D016, code map in docs/architecture/code-map.md)
 
 ## Objectif
-Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
+Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
 
 ## Fait
 - Providers for movies, series, seasons, episodes, images; multi-source config, multi-tag episode files (D002, D003).
@@ -16,6 +16,7 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Last successful deployment: 7ec9ff7, develop, 2026-11-27
 
 ## En cours
+- Move to Jellyfin 12.4 only (D026, 2026-11-27): committed on develop (392163f, e5a0330, 510e9bd, tests 6e2c0b9), **not pushed, not deployed** (keep `theme/previews/` out of Git). Reported on a 12.4 bench (`cm-uitest12`, port 8098): build 0 warnings, all 27 plugin scripts of tools/ui-test and `test-updater.sh` 17/0 pass (detail in D026); not verified: real server and library, upgrade of a 10.11 database with the plugin's data and previews, TV layout, Firefox/Safari, `big-library.sh` / `index-perf.mjs`, CI on GitHub.
 - Projection theme moved to the compact sheet + wall of season posters (D017), committed on develop (19f6bfd) on 2026-11-25 with the `tools/ui-test/theme-*.mjs` seed and audit (a33c721); not on `main` yet. Header adapted to the backdrop committed in 164e57b.
 - Served theme route (D018): Custom CSS `@import url("../CustomMetadata/Theme/projection.css")`. Header « Affiche » for series and movies (backdrop + poster, poster only, typographic) and the picture-built header for seasons and episodes added on 2026-11-26 (see D017 note).
 - Theme script (D019) + backdrop at its own ratio: committed (17fdd9c) and deployed (49b9351) on 2026-11-25 (`Services/ThemeScriptMiddleware.cs`, `theme/projection.js`, `EnableThemeScript`, CSS 9c). Remaining for the maintainer: turn on « Améliorations du thème Projection » (Settings tab) and reload with Ctrl+F5. Untested: trailer hover preview, real base URL. Source-preview hover of real episodes (D020) committed (5bc22c8); its amendment (ffmpeg preview clips `Services/PreviewClipService.cs` + `ScheduledTasks/PreviewClipsTask.cs`, route `Preview/{itemId}/Clip`, ambient light) committed (10c9e1d); second amendment (no 4 s give-up, wider lookup, colour-cloud light, P012) committed (0423885). Later theme work is on develop up to 4e31727.
@@ -26,10 +27,16 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - Index searched on the server + library screens (D025, amends D024): committed on develop (2b772f5, tests 177f66f), pushed and deployed (7ec9ff7) on 2026-11-27 (new `Api/LibraryIndexController.cs`, `Services/LibraryIndexService.cs`, `LibraryIndexQuery.cs`, `tools/ui-test/big-library.sh`, `index-perf.mjs`; modified theme, docs, tests). Reported: `index-real.mjs` 74/74, `config-local-ui.mjs` 168 pass, large test library screens 0.3 to 1.8 s; not verified: real server and library, TV layout, Firefox/Safari, grouped library views, memory use.
 
 ## Prochaines étapes
+- D026, before any deployment: install the .NET 10 SDK on the server (or check it is there), change the DLL path of the private deploy repository's playbook from bin/Release/net9.0 to net10.0 (otherwise the deployment fails before stopping Jellyfin), confirm the server's exact version; then check on the real server and library.
 - D025: then check on the real server and library (screen times, memory use, a user with limited access).
 - D022, remaining for the maintainer: turn on « Galerie photos des épisodes » (Settings tab), reload with Ctrl+F5 and uninstall the old « Episode Gallery » plugin.
 
 ## Pièges découverts
+- Jellyfin 12: `BaseItem.ExtraIds` is gone, extras are linked by `OwnerId` only (`Services/PreviewMapper.cs` queries `OwnerIds` + `ExtraTypes`); deleting an item removes its extras from the database (D026).
+- Jellyfin 12: legacy authentication is off by default (`X-Emby-Token`, `X-Emby-Authorization`, `api_key` get 401): use `Authorization: MediaBrowser Token="…"` or `ApiKey` in the URL. It compiles and only fails at run time (D026).
+- Jellyfin 12: `IChapterManager.SaveChapters` drops every chapter while the video length is unknown (`Services/ChapterService.cs` now waits).
+- Genres: Jellyfin keeps one spelling of a genre term per item and deletes genres no item uses; the per-process « genre already ensured » cache then made genre clicks find nothing (fixed in `Services/TaxonomyService.cs`; not known to be specific to 12).
+- Test bench: a script interrupted halfway can leave « Importer le casting » off, so later cast tests fail (`config-people-real.mjs` now turns it back on at start).
 - Server code: the plugin has its own class `Person` (`Services/PeopleStore.cs`), so `typeof(Person)` there is not Jellyfin's; `InternalItemsQuery.ParentId` set to a library (`CollectionFolder`) returns nothing in `GetItemIds`, filter by its physical folders (`TopParentId`) (D025).
 - Library pages (10.11.6): the experimental layout changes view without firing `viewshow`; the classic layout keeps one address for all the tabs of a library (D025).
 - Theme scripts: a `window` capture `keydown` listener that calls `stopPropagation` (preview viewer, Index panel) also silences the target's own `keydown` handlers, so Enter must be handled inside that listener (D024).
@@ -39,12 +46,13 @@ Jellyfin 10.11.6 metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata
 - A numbered folder of photos becomes an empty season (in a series folder) or a folder item (in a season) unless `ImageFolderIgnoreRule` keeps it out, which it does only with the photo gallery on (D022).
 - An old `poster.jpg`/`backdrop.jpg` left in the media folder wins again at the next scan.
 - A forced "replace all images" series refresh wipes virtual episodes' thumbnails until a reprocess.
-- Test container on port 8096 belongs to another project; use 8097 only.
+- Test container on port 8096 belongs to another project; use 8097 (a second bench: `CM_UI_IMAGE`, `CM_UI_NAME`, `CM_UI_PORT`, `CM_UI_WORK` together).
 - The `UNIQUE constraint … UserData` scan error is not a plugin bug: see D005 before suggesting causes.
 - Jellyfin's series refresh deletes a virtual episode whose number a real episode of the same season-number group holds; all unnumbered seasons share one group (D009).
 - Cast changes and renames do not reach already-enriched episodes by themselves: "Analyser" and "Appliquer aux épisodes" (background task, not QueueRefresh) propagate them (D007).
 
 ## Questions ouvertes
+- D026: exact version of the maintainer's server? Facts read or tested on 10.11 (D005, D009 internals, « Library pages » pitfall below) are not reported as re-checked in the 12 source.
 - Index (D025): only the Series, Episodes and Films views of a library are replaced, the other views stay stock (assistant's implementation, not confirmed by the maintainer). Known limits: an edit can take up to 20 s to show in counts; the hidden stock page still loads its own first items.
 - Not built: cast on local-source series/seasons (API series/seasons get the cast overlay), real merge of two people, series/season ordering, Diagnostic replay of a dump name match, targeted refresh of API-source movies (dump movies are covered since 3bcfb36).
 - `theme/projection.css` is not on `main` yet: the public `@main` import (README, file header) works only after the release pull request; the maintainer's server may import `@develop` meanwhile (D013).
