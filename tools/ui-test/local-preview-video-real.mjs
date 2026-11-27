@@ -159,6 +159,42 @@ try {
   await page.$eval(`${C} .cm-vidfield`, e => e.scrollIntoView({ block: 'center' })); await shot('V3-editor-mobile');
   await page.evaluate(() => { window.__cmdAnswer = 'ok'; new MutationObserver(() => { const b = document.querySelector('.cmd-backdrop [data-cmd=ok]'); if (b) b.click(); }).observe(document.documentElement, { childList: true, subtree: true }); });
   await page.click(`${C} #btnCancelEdit`);
+
+  // ---- the preview's life: kept by a new analysis and a library scan, replaced with the address, removed with it
+  if (entry && trailer) {
+    const episodeId = pick(entry, 'EpisodeId');
+    const trailersOf = async () => (await api('GET', `/Users/${auth.User.Id}/Items/${episodeId}/LocalTrailers`)).json || [];
+    const exists = async id => ((await api('GET', `/Items?userId=${auth.User.Id}&Ids=${id}`)).json?.Items || []).length > 0;
+    const ids = list => list.map(t => t.Id).join(',');
+    await analyze();
+    let now = await trailersOf();
+    check('life: a second full analysis keeps the same single preview', ids(now) === trailer.Id, ids(now));
+    await api('POST', '/Library/Refresh');
+    for (let i = 0; i < 120; i++) { await wait(2000); const tasks = (await api('GET', '/ScheduledTasks?isHidden=false')).json || []; if (!tasks.some(t => t.State === 'Running')) { break; } }
+    now = await trailersOf();
+    check('life: a library scan keeps it', ids(now) === trailer.Id && await exists(trailer.Id), ids(now));
+    const seed = preview => api('PUT', `/CustomMetadata/Local/${DATA}`, { Version: 1, Series: [{ Id: 'dm-aventuriers', Title: 'Les Aventuriers', Seasons: [{ Id: 'dm-a1', Title: 'Saison 2024',
+      Episodes: [{ Id: 'pv1', Title: 'Épisode avec aperçu', IndexNumber: 9, PreviewUrl: preview }] }] }] });
+    const other = 'http://172.17.0.1:8765/previews/a3v1.mp4';   // the mock API's preview video
+    await seed(other); await analyze();
+    now = await trailersOf();
+    check('life: a changed address replaces the preview', now.length === 1 && now[0].Path === other && now[0].Id !== trailer.Id, JSON.stringify(now.map(t => t.Path)));
+    check('life: the old preview item is deleted', !(await exists(trailer.Id)));
+    const second = now[0]?.Id;
+    await seed(''); await analyze();
+    now = await trailersOf();
+    check('life: no address, no preview left', now.length === 0 && !!second && !(await exists(second)), ids(now));
+    const none = (await api('GET', `/Items/${episodeId}/PlaybackInfo?userId=${auth.User.Id}`)).json;
+    check('life: the episode no longer offers a video source', !(pick(none, 'MediaSources') || []).some(m => m.Name === 'Aperçu'), JSON.stringify(pick(none, 'MediaSources'))?.slice(0, 160));
+    await seed(url); await analyze();
+    const last = (await trailersOf())[0]?.Id;
+    // another episode takes its place (an EMPTY list removes nothing: it is not trusted)
+    await api('PUT', `/CustomMetadata/Local/${DATA}`, { Version: 1, Series: [{ Id: 'dm-aventuriers', Title: 'Les Aventuriers', Seasons: [{ Id: 'dm-a1', Title: 'Saison 2024',
+      Episodes: [{ Id: 'pv2', Title: 'Épisode de remplacement', IndexNumber: 10 }] }] }] });
+    await analyze();
+    const left = [await exists(episodeId), !!last && await exists(last)];
+    check('life: the episode removed from the source takes its preview with it', !!last && !left[0] && !left[1], `episode still there: ${left[0]}, preview ${last} still there: ${left[1]}`);
+  }
 } catch (e) {
   console.log('ERROR', e.message.split('\n').slice(0, 3).join(' | ')); fail++;
 } finally {

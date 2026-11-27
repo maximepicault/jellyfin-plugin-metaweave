@@ -67,7 +67,7 @@ try {
   await api('POST', `/Plugins/${PLUGIN}/Configuration`, config);
 
   const file = backdrop.split('/').pop();
-  const editorCopy = await bytes(`/CustomMetadata/Local/${DATA}/Image/${file}?api_key=${auth.AccessToken}`);
+  const editorCopy = await bytes(`/CustomMetadata/Local/${DATA}/Image/${file}?ApiKey=${auth.AccessToken}`);
   check('the uploaded file is untouched (editor preview: Orientation 6)', orientation(editorCopy) === 6, String(orientation(editorCopy)));
   const served = await bytes(`/CustomMetadata/Local/${DATA}/Public/${file}`);
   check('the address Jellyfin downloads serves the pixels turned (48x32, no tag)', size(served) === '48x32' && orientation(served) === 0, size(served) + ' ' + orientation(served));
@@ -84,7 +84,7 @@ try {
   for (let i = 0; i < 60; i++) { await wait(1000); if (!pick((await api('GET', '/CustomMetadata/Refresh/Status')).json, 'Running')) break; }
   const after = (await api('GET', `/Items/${series.Id}?userId=${auth.User.Id}`)).json;
   check('apply images: one backdrop and a poster', (after.BackdropImageTags || []).length === 1 && !!(after.ImageTags || {}).Primary, JSON.stringify([after.BackdropImageTags, after.ImageTags]));
-  const token = `api_key=${auth.AccessToken}`;
+  const token = `ApiKey=${auth.AccessToken}`;
   const back = await bytes(`/Items/${series.Id}/Images/Backdrop/0?${token}`), post = await bytes(`/Items/${series.Id}/Images/Primary?${token}`);
   check('apply images: the stored backdrop is turned (48x32, no tag)', size(back) === '48x32' && orientation(back) === 0, size(back) + ' ' + orientation(back));
   check('apply images: the stored poster is turned too', size(post) === '48x32' && orientation(post) === 0, size(post) + ' ' + orientation(post));

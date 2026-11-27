@@ -20,7 +20,9 @@ for (let i = 0; i < 50 && !targets.length; i++) { try { targets = await (await f
 const ws = new WebSocket(targets.find(t => t.type === 'page').webSocketDebuggerUrl);
 await new Promise(r => (ws.onopen = r));
 let id = 0; const pending = {};
-ws.onmessage = m => { const d = JSON.parse(m.data); if (d.id && pending[d.id]) { pending[d.id](d); delete pending[d.id]; } };
+ws.onmessage = m => { const d = JSON.parse(m.data); if (d.id && pending[d.id]) { pending[d.id](d); delete pending[d.id]; }
+  // "Leave the page?" (unsaved changes) blocks every later call until it is answered: leave
+  if (d.method === 'Page.javascriptDialogOpening') { ws.send(JSON.stringify({ id: ++id, method: 'Page.handleJavaScriptDialog', params: { accept: true } })); } };
 // A call that never answers (page navigating under a pending evaluation, ...) used to hang the whole run for ever: give up after 30 s and say which one
 const send = (method, params = {}) => new Promise(r => {
   const i = ++id; pending[i] = r; ws.send(JSON.stringify({ id: i, method, params }));
@@ -49,7 +51,7 @@ const SEED = `(async function(){
   cfg.Sources.push({ Name: 'Personnes images en liste', Prefix: 'pg', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-images/{id}', PersonMappings: { Name: '[0].name', Photo: '[0].images[0].file_path', PhotoBaseUrl: 'http://172.17.0.1:8765/img', Bio: '[0].bio' }, Enabled: true, SendOriginReferer: false });
   cfg.Sources.push({ Name: 'Personnes chemin sans base', Prefix: 'pn', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people-path/{id}', PersonMappings: { Name: 'name', Photo: 'profile_path', Bio: 'bio' }, Enabled: true, SendOriginReferer: false });
   await ApiClient.updatePluginConfiguration(pid, cfg);
-  async function put(path, body) { await fetch(ApiClient.getUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Emby-Token': tok }, body: JSON.stringify(body) }); }
+  async function put(path, body) { await fetch(ApiClient.getUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'MediaBrowser Token="' + tok + '"' }, body: JSON.stringify(body) }); }
   await put('CustomMetadata/People', { Version: 1, People: [
     { Id: 'pers01', Name: 'Camille Durand', Photo: 'http://172.17.0.1:8765/img/p1.jpg', Bio: 'Comédienne.', Links: [{ Prefix: 'pe', ExternalId: 'p1' }] },
     { Id: 'manu01', Name: 'Invité Maison', Photo: '', Bio: 'Saisi à la main.', Links: [] },
@@ -61,7 +63,7 @@ const RESTORE = `(async function(){
   var cfg = await ApiClient.getPluginConfiguration(pid);
   cfg.Sources = (cfg.Sources || []).filter(function(s){ return s.SourceType !== 'People' && s.SourceType !== 'Local'; });
   await ApiClient.updatePluginConfiguration(pid, cfg);
-  async function put(path, body) { await fetch(ApiClient.getUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Emby-Token': tok }, body: JSON.stringify(body) }); }
+  async function put(path, body) { await fetch(ApiClient.getUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'MediaBrowser Token="' + tok + '"' }, body: JSON.stringify(body) }); }
   await put('CustomMetadata/People', { Version: 1, People: [] });
   await put('CustomMetadata/People/EpisodeCast', { Version: 1, Episodes: [] });
   return true; })()`;
@@ -70,7 +72,7 @@ let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { if (ok) { pass++; console.log('PASS', name); } else { fail++; console.log('FAIL', name, detail); } };
 const click = sel => evalJs(`(function(){var e=document.querySelector(${JSON.stringify(sel)}); if(!e) return false; e.click(); return true;})()`);
 const type = (sel, v) => evalJs(`(function(){var e=document.querySelector(${JSON.stringify(sel)}); e.value=${JSON.stringify(v)}; e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
-const api = async (path, init = {}) => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl(${JSON.stringify(path)}),{headers:{'X-Emby-Token':ApiClient.accessToken()}}); return JSON.stringify(await r.json());})()`);
+const api = async (path, init = {}) => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl(${JSON.stringify(path)}),{headers:{Authorization:'MediaBrowser Token="'+ApiClient.accessToken()+'"'}}); return JSON.stringify(await r.json());})()`);
 const cropperChecks = async () => {
   await evalJs(`(async function(){
     var c=document.createElement('canvas'); c.width=300; c.height=300; var g=c.getContext('2d'); g.fillStyle='#8a5cd0'; g.fillRect(0,0,300,300); g.fillStyle='#fff'; g.font='120px sans-serif'; g.fillText('É',100,190);
@@ -120,9 +122,9 @@ try {
   }
 
   // A people source whose answer is a LIST (search url with the identifier as a parameter): paths with a position, "[0]"
-  const fetchPerson = prefix => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl('CustomMetadata/People/Fetch'),{method:'POST',headers:{'Content-Type':'application/json','X-Emby-Token':ApiClient.accessToken()},body:JSON.stringify({Prefix:${JSON.stringify(prefix)},ExternalId:'p1'})}); return JSON.stringify(await r.json());})()`).then(JSON.parse);
+  const fetchPerson = prefix => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl('CustomMetadata/People/Fetch'),{method:'POST',headers:{'Content-Type':'application/json',Authorization:'MediaBrowser Token="'+ApiClient.accessToken()+'"'},body:JSON.stringify({Prefix:${JSON.stringify(prefix)},ExternalId:'p1'})}); return JSON.stringify(await r.json());})()`).then(JSON.parse);
   // Fallback between fields: "a || b" uses the first one that exists and is not null / empty / blank
-  const testSource = (mappings, type = 'video') => evalJs(`(async function(){var src={Name:'t',Prefix:'fb',SourceType:'Api',BaseUrl:'http://172.17.0.1:8765',VideoEndpoint:'/fallback/{id}',SourceEndpoint:'/fallback/{id}',SeriesEndpoint:'/fallback/{id}',VideoFieldMappings:${JSON.stringify(mappings)},Enabled:true,SendOriginReferer:false}; var r=await fetch(ApiClient.getUrl('CustomMetadata/TestSource'),{method:'POST',headers:{'Content-Type':'application/json','X-Emby-Token':ApiClient.accessToken()},body:JSON.stringify({Source:src,ItemType:${JSON.stringify(type)},Id:'x'})}); return JSON.stringify(await r.json());})()`).then(JSON.parse);
+  const testSource = (mappings, type = 'video') => evalJs(`(async function(){var src={Name:'t',Prefix:'fb',SourceType:'Api',BaseUrl:'http://172.17.0.1:8765',VideoEndpoint:'/fallback/{id}',SourceEndpoint:'/fallback/{id}',SeriesEndpoint:'/fallback/{id}',VideoFieldMappings:${JSON.stringify(mappings)},Enabled:true,SendOriginReferer:false}; var r=await fetch(ApiClient.getUrl('CustomMetadata/TestSource'),{method:'POST',headers:{'Content-Type':'application/json',Authorization:'MediaBrowser Token="'+ApiClient.accessToken()+'"'},body:JSON.stringify({Source:src,ItemType:${JSON.stringify(type)},Id:'x'})}); return JSON.stringify(await r.json());})()`).then(JSON.parse);
   const fb = await testSource({ Title: 'title || name', Overview: 'overview || summary', Tags: 'tags || categories[].label', Genres: 'missing.path || genres_csv' });
   const md = fb.Metadata || {};
   check('fallback: null field -> next one (title || name)', md.Title === 'Nom de repli', JSON.stringify(fb).slice(0, 400));

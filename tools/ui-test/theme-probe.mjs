@@ -32,8 +32,8 @@ const send = (method, params = {}) => new Promise(r => { const i = ++id; pending
 const evalJs = async expr => { const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); return r.result?.exceptionDetails ? 'ERR ' + r.result.exceptionDetails.exception?.description : r.result?.result?.value; };
 const until = async (expr, ms = 20000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await evalJs(expr)) return true; await wait(300); } return false; };
 
-const auth = await (await fetch(`${J}/Users/AuthenticateByName`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Emby-Authorization': 'MediaBrowser Client="theme-probe", Device="cli", DeviceId="theme-probe", Version="1"' }, body: JSON.stringify({ Username: 'admin', Pw: 'admin' }) })).json();
-const H = { 'Content-Type': 'application/json', 'X-Emby-Token': auth.AccessToken };
+const auth = await (await fetch(`${J}/Users/AuthenticateByName`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'MediaBrowser Client="theme-probe", Device="cli", DeviceId="theme-probe", Version="1"' }, body: JSON.stringify({ Username: 'admin', Pw: 'admin' }) })).json();
+const H = { 'Content-Type': 'application/json', Authorization: `MediaBrowser Token="${auth.AccessToken}"` };
 const before = await (await fetch(`${J}/System/Configuration/branding`, { headers: H })).json();
 await fetch(`${J}/System/Configuration/branding`, { method: 'POST', headers: H, body: JSON.stringify({ ...before, CustomCss: args.includes('--no-css') ? '' : args.includes('--served') ? '@import url("../CustomMetadata/Theme/projection.css");' : css }) });
 try {

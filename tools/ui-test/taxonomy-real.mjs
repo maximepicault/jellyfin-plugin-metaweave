@@ -140,7 +140,8 @@ try {
   await page.evaluate(() => { window.__cmdAnswer = 'ok'; new MutationObserver(() => { const b = document.querySelector('.cmd-backdrop [data-cmd=ok]'); if (b) b.click(); }).observe(document.documentElement, { childList: true, subtree: true }); });
   const row = key => `${T} .tx-row[data-key="${key}"]`;
   check('screen: the genres of the library are listed with their use', (await page.$$eval(`${T} .tx-row[data-key]`, els => els.map(e => e.getAttribute('data-key')))).includes('docu') && (await page.$eval(row('docu'), e => e.querySelector('.tx-counts').textContent)).startsWith('2 éléments'));
-  check('screen: Jellyfin\'s separate spellings of a term are shown together, with how to unify them', (await page.$eval(row('docu'), e => e.querySelector('.tx-variants')?.textContent || '')).includes('DOCU') && !!(await page.$(`${row('docu')} [data-unify]`)));
+  // Jellyfin 12 keeps one spelling of a term on each item (["docu", "DOCU"] is saved as one); two items may still differ
+  check('screen: Jellyfin\'s separate spellings of a term are shown together, with how to unify them', (await page.$eval(row('docu'), e => e.querySelector('.tx-variants')?.textContent || '')).includes('docu') && !!(await page.$(`${row('docu')} [data-unify]`)), (await page.$eval(row('docu'), e => e.innerText)).replace(/\s+/g, ' '));
   await shot('X1-genres-1440');
 
   await page.fill(`${T} #txAddName`, 'Zeste');

@@ -433,7 +433,7 @@ try {
     await card.locator('button:has-text("Modifier")').click();
     await page.waitForSelector(`${C} #editorView`, { state: 'visible' });
     const nav = await page.$$eval(`${C} .cm-nav-item`, els => els.filter(e => e.offsetParent !== null).map(e => e.firstChild.textContent.trim()));
-    check('editor: the sections of a dump (Général, Catalogue, Vidéo / épisode, Réseau, Miniatures)', nav.join('|') === 'Général|Catalogue|Vidéo / épisode|Réseau|Miniatures', nav.join('|'));
+    check('editor: the sections of a dump (Général, Catalogue, Vidéo / épisode, Réseau, Miniatures et posters)', nav.join('|') === 'Général|Catalogue|Vidéo / épisode|Réseau|Miniatures et posters', nav.join('|'));
     check('editor: the URL field is labelled for a dump', (await page.locator(`${C} #lblBaseUrl`).innerText()) === 'URL du dump *');
     await page.screenshot({ path: path.join(outDir, 'D2-editor-general-1440.png') });
     await page.click(`${C} .cm-nav-item[data-go="dump"]`);
@@ -457,7 +457,7 @@ try {
     // saving keeps the dump settings
     await page.click(`${C} .cm-nav-item[data-go="dump"]`);
     await page.fill(`${C} #srcDumpCache`, '45');
-    await page.click(`${C} #sourceForm button[type=submit]`);
+    await page.click(`${C} #btnSaveQuit`);
     await page.waitForSelector(`${C} #listView`, { state: 'visible' });
     await wait(1500);
     const saved = (await api('GET', `/Plugins/${PLUGIN}/Configuration`)).json.Sources.find(s => s.Prefix === 'dp');
@@ -621,7 +621,7 @@ try {
     await page.waitForTimeout(400);
     const axe = await new AxeBuilder({ page }).include(`${M} #dumpView`).analyze();
     const serious = axe.violations.filter(v => ['serious', 'critical'].includes(v.impact));
-    check('axe: no serious accessibility violation on the catalogue view', serious.length === 0, serious.map(v => `${v.id} (${v.nodes.length})`).join(', '));
+    check('axe: no serious accessibility violation on the catalogue view', serious.length === 0, serious.map(v => `${v.id} (${v.nodes.length}): ${v.nodes.slice(0, 3).map(n => `${n.target.join(' ')} ${n.any[0]?.message || ''}`).join(' ; ')}`).join(', '));
   } finally {
     await browser.close();
   }
@@ -648,7 +648,7 @@ try {
   check('episode with no tag: "Épisode démo 10 S01E01" → the dump entry 1010 (id stored, title from the dump)', !!byName('Épisode démo 10') && Object.values(byName('Épisode démo 10').ProviderIds || {}).includes('dp-1010'), JSON.stringify(eps.map(e => [e.Name, e.ProviderIds])));
   check('episode with no tag: "Épisode démo 11 S01E02" → 1011', !!byName('Épisode démo 11') && Object.values(byName('Épisode démo 11').ProviderIds || {}).includes('dp-1011'), JSON.stringify(eps.map(e => [e.Name, e.ProviderIds])));
   let log = '';
-  try { log = execSync('docker logs cm-uitest 2>&1', { maxBuffer: 256 * 1024 * 1024 }).toString(); } catch (e) { log = String(e.stdout || ''); }
+  try { log = execSync(`docker logs ${process.env.CM_UI_NAME || 'cm-uitest'} 2>&1`, { maxBuffer: 256 * 1024 * 1024 }).toString(); } catch (e) { log = String(e.stdout || ''); }
   check('the server log says it: "EPISODE PROVIDER ... Matched in the dump" for each file', (log.match(/EPISODE PROVIDER\] 📦 Matched in the dump/g) || []).length >= 2, 'none found');
   check('the server log also says when nothing matches (Information level, not Debug)', /\[DUMP\] ❔ No match for 'Documentaire inconnu sans rapport/.test(log));
   // ---- 9. targeted refresh of a dump: files with NO tag, chosen libraries
@@ -674,7 +674,7 @@ try {
   check('dump refresh, the series library: its 2 untagged episodes are found by name', pick(stSeries, 'Scanned') === 2 && pick(stSeries, 'Matched') === 2 && pick(stSeries, 'Done') === 2, JSON.stringify(stSeries));
   const stNone = await runRefresh({ Prefix: 'dp', Types: ['movie'], ReplaceImages: false, LibraryIds: [libId('DumpSeries')] });
   check('dump refresh: a type with no file in the chosen library says nothing to do', pick(stNone, 'Total') === 0 && !pick(stNone, 'Running'), JSON.stringify(stNone));
-  log = ''; try { log = execSync('docker logs cm-uitest 2>&1', { maxBuffer: 256 * 1024 * 1024 }).toString(); } catch (e) { log = String(e.stdout || ''); }
+  log = ''; try { log = execSync(`docker logs ${process.env.CM_UI_NAME || 'cm-uitest'} 2>&1`, { maxBuffer: 256 * 1024 * 1024 }).toString(); } catch (e) { log = String(e.stdout || ''); }
   check('the log of a dump entry says it is read from memory (no request to the dump\'s site)', /\[DUMP\] Entry \d+ of 'Démo dump' read from the catalogue in memory/.test(log), 'old wording still there');
   check('the log gives the time of each item, written directly from the dump (no Jellyfin refresh)', /SOURCE REFRESH\] ⏱️ '[^']+': \d+ ms, written directly from the dump \(metadata \d+ ms, images not replaced\)/.test(log), 'no timing line');
   check('the log tells the refresh: files looked at, files recognised, done', /SOURCE REFRESH\] 📦 Dump 'Démo dump' \(prefix 'dp'\): looking at 7 file/.test(log) && /6 of 7 file\(s\) recognised/.test(log) && /Done for dump prefix 'dp': 6\/6/.test(log));

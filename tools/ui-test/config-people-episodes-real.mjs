@@ -35,7 +35,7 @@ const SEED = `(async function(){
   cfg.Sources = (cfg.Sources || []).filter(function(s){ return s.SourceType !== 'People'; });
   cfg.Sources.push({ Name: 'Personnes démo', Prefix: 'pe', SourceType: 'People', BaseUrl: 'http://172.17.0.1:8765', PersonEndpoint: '/people/{id}', PersonMappings: { Name: 'name', Photo: 'photo', Bio: 'bio' }, Enabled: true, SendOriginReferer: false });
   await ApiClient.updatePluginConfiguration(pid, cfg);
-  async function put(path, body) { await fetch(ApiClient.getUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Emby-Token': tok }, body: JSON.stringify(body) }); }
+  async function put(path, body) { await fetch(ApiClient.getUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'MediaBrowser Token="' + tok + '"' }, body: JSON.stringify(body) }); }
   await put('CustomMetadata/People', { Version: 1, People: [
     { Id: 'pers01', Name: 'Camille Durand', Photo: 'http://172.17.0.1:8765/img/p1.jpg', Bio: 'Comédienne.', Links: [{ Prefix: 'pe', ExternalId: 'p1' }] },
     { Id: 'manu01', Name: 'Invité Maison', Photo: '', Bio: 'Saisi à la main.', Links: [] },
@@ -47,7 +47,7 @@ const RESTORE = `(async function(){
   var cfg = await ApiClient.getPluginConfiguration(pid);
   cfg.Sources = (cfg.Sources || []).filter(function(s){ return s.SourceType !== 'People' && s.SourceType !== 'Local'; });
   await ApiClient.updatePluginConfiguration(pid, cfg);
-  async function put(path, body) { await fetch(ApiClient.getUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Emby-Token': tok }, body: JSON.stringify(body) }); }
+  async function put(path, body) { await fetch(ApiClient.getUrl(path), { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'MediaBrowser Token="' + tok + '"' }, body: JSON.stringify(body) }); }
   await put('CustomMetadata/People', { Version: 1, People: [] });
   await put('CustomMetadata/People/EpisodeCast', { Version: 1, Episodes: [] });
   return true; })()`;
@@ -56,7 +56,7 @@ let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { if (ok) { pass++; console.log('PASS', name); } else { fail++; console.log('FAIL', name, detail); } };
 const click = sel => evalJs(`(function(){var e=document.querySelector(${JSON.stringify(sel)}); if(!e) return false; e.click(); return true;})()`);
 const type = (sel, v) => evalJs(`(function(){var e=document.querySelector(${JSON.stringify(sel)}); e.value=${JSON.stringify(v)}; e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
-const api = async path => JSON.parse(await evalJs(`(async function(){var r=await fetch(ApiClient.getUrl(${JSON.stringify(path)}),{headers:{'X-Emby-Token':ApiClient.accessToken()}}); return JSON.stringify(await r.json());})()`));
+const api = async path => JSON.parse(await evalJs(`(async function(){var r=await fetch(ApiClient.getUrl(${JSON.stringify(path)}),{headers:{Authorization:'MediaBrowser Token="'+ApiClient.accessToken()+'"'}}); return JSON.stringify(await r.json());})()`));
 try {
   await send('Page.enable'); await send('Runtime.enable');
   await size(1440, 1000);
@@ -198,7 +198,7 @@ try {
   await evalJs(`window.scrollTo(0,0); true`); await shot('E3-episodes-mobile');
   await size(1440, 1000);
   // Server side: a person who is Actor on the series (cascade) and Director on an episode keeps BOTH jobs on that episode
-  const jsonCall = (method, path, body) => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl(${JSON.stringify(path)}),{method:${JSON.stringify(method)},headers:{'Content-Type':'application/json','X-Emby-Token':ApiClient.accessToken()},body:${JSON.stringify(JSON.stringify(body))}}); return r.status;})()`);
+  const jsonCall = (method, path, body) => evalJs(`(async function(){var r=await fetch(ApiClient.getUrl(${JSON.stringify(path)}),{method:${JSON.stringify(method)},headers:{'Content-Type':'application/json',Authorization:'MediaBrowser Token="'+ApiClient.accessToken()+'"'},body:${JSON.stringify(JSON.stringify(body))}}); return r.status;})()`);
   await jsonCall('PUT', 'CustomMetadata/People/EpisodeCast', { Version: 1, Episodes: [
     { Type: 'series', Key: 'dm-aventuriers', Cascade: true, Cast: [{ PersonId: 'pers01', Role: 'Rôle série', Type: 'Actor' }] },
     { Type: 'episode', Key: 'dm-a1v1', Cast: [{ PersonId: 'pers01', Role: 'Rôle épisode', Type: 'Director' }] }] });

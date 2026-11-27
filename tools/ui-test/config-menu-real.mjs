@@ -40,7 +40,7 @@ try {
     await until(`!location.hash.includes('login')`); await wait(1500);
   }
   await send('Page.navigate', { url: `${J}/web/#/dashboard` });
-  await until(`Array.from(document.querySelectorAll('a')).some(function(a){return a.textContent.trim()==='Personnes';})`, 20000); await wait(800);
+  await until(`!!document.querySelector('a[href*="name=CustomMetadataPeople"]')`, 20000); await wait(800);
   const links = await evalJs(`JSON.stringify(Array.from(document.querySelectorAll('.MuiDrawer-root a, nav a')).map(function(a){return a.textContent.trim()+' -> '+a.getAttribute('href');}).filter(function(t){return /Custom|Personnes|manquants|Extensions/i.test(t);}))`);
   console.log('menu :', links);
   check('raccourci « Custom Metadata »', links.includes('Custom Metadata'));
@@ -50,14 +50,14 @@ try {
 
   // The plugin's "Settings" page must stay the configuration. jellyfin-web (findBestConfigurationPage) takes the FIRST page flagged
   // EnableInMainMenu in the order returned by the server: we check that order.
-  const pages = JSON.parse(await evalJs(`(async function(){var r=await fetch(ApiClient.getUrl('web/ConfigurationPages'),{headers:{'X-Emby-Token':ApiClient.accessToken()}}); return JSON.stringify((await r.json()).filter(function(p){return p.PluginId.replace(/-/g,'')==='12345678123412341234123456789abc';}).map(function(p){return {n:p.Name,m:p.EnableInMainMenu};}));})()`));
+  const pages = JSON.parse(await evalJs(`(async function(){var r=await fetch(ApiClient.getUrl('web/ConfigurationPages'),{headers:{Authorization:'MediaBrowser Token="'+ApiClient.accessToken()+'"'}}); return JSON.stringify((await r.json()).filter(function(p){return p.PluginId.replace(/-/g,'')==='12345678123412341234123456789abc';}).map(function(p){return {n:p.Name,m:p.EnableInMainMenu};}));})()`));
   console.log('plugin pages, in the server order:', pages.map(p => p.n + (p.m ? ' (menu)' : '')).join(' | '));
   const first = pages.find(p => p.m);
   check('the first page flagged "menu" is the configuration', first && first.n === 'Custom Metadata Provider', JSON.stringify(first));
   // a menu shortcut does open the targeted page
   await send('Page.navigate', { url: `${J}/web/#/dashboard` });
-  await until(`Array.from(document.querySelectorAll('a')).some(function(a){return a.textContent.trim()==='Personnes';})`, 20000);
-  await evalJs(`Array.from(document.querySelectorAll('a')).find(function(a){return a.textContent.trim()==='Personnes';}).click(); true`); await wait(2500);
+  await until(`!!document.querySelector('a[href*="name=CustomMetadataPeople"]')`, 20000);
+  await evalJs(`document.querySelector('a[href*="name=CustomMetadataPeople"]').click(); true`); await wait(2500);
   check('the "Personnes" shortcut opens the People screen', (await evalJs(`location.hash`)).includes('CustomMetadataPeople') && (await evalJs(`!!document.querySelector('#CustomMetadataPeoplePage')`)) === true);
   await shot('M3-people-from-menu-1440');
   console.log(`\n${pass} PASS, ${fail} FAIL`);

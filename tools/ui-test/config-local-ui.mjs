@@ -20,7 +20,7 @@ window.__mock = { refresh: {}, calls: [], alerts: [], local: {}, people: [{ Id: 
 var clone = function (o) { return JSON.parse(JSON.stringify(o)); };
 var rid = function () { return Math.random().toString(36).slice(2, 8); };
 window.ApiClient = {
-  getUrl: function (p, q) { if (p.indexOf('/Image/') > 0) { return 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7#/' + p + '?api_key=' + (q && q.api_key); } return '/' + p + (q ? '?' + Object.keys(q).map(function (k) { return k + '=' + q[k]; }).join('&') : ''); },
+  getUrl: function (p, q) { if (p.indexOf('/Image/') > 0) { return 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7#/' + p + '?ApiKey=' + (q && q.ApiKey); } return '/' + p + (q ? '?' + Object.keys(q).map(function (k) { return k + '=' + q[k]; }).join('&') : ''); },
   accessToken: function () { return 'TOKEN'; },
   getPluginConfiguration: function () { return Promise.resolve(clone(__mock.config)); },
   updatePluginConfiguration: function (id, c) { __mock.config = clone(c); __mock.calls.push('PLUGIN'); return Promise.resolve({}); },
@@ -60,7 +60,7 @@ window.ApiClient = {
 window.fetch = function (url, o) {
   if (o && o.method === 'POST' && url.indexOf('/Image') >= 0) {
     var id = url.match(/CustomMetadata\\/Local\\/([^/]+)\\/Image/)[1];
-    __mock.calls.push('UPLOAD ' + url + ' ' + o.headers['Content-Type'] + ' ' + o.headers['X-Emby-Token'] + ' ' + (o.body && o.body.size));
+    __mock.calls.push('UPLOAD ' + url + ' ' + o.headers['Content-Type'] + ' ' + o.headers['Authorization'] + ' ' + (o.body && o.body.size));
     return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ Url: 'local://img/' + id + '/ep-' + rid() + '.jpg' }); } });
   }
   return Promise.reject(new Error('fetch inattendu'));
@@ -154,7 +154,7 @@ try {
   check('image: file sent to the server', (await ev(`__mock.calls.filter(function(c){return c.indexOf('UPLOAD')===0;}).length`)) === 1);
   const uploadCall = await ev(`__mock.calls.filter(function(c){return c.indexOf('UPLOAD')===0;})[0]`);
   check('image: upload with the element id and the file type', /\/Image\?node=[a-z0-9]{6}/.test(uploadCall) && uploadCall.includes('image/jpeg') && uploadCall.includes('TOKEN'), uploadCall);
-  check('image: the address field is greyed out and the preview goes through the plugin', (await ev(`document.querySelector('#lf-Thumb').disabled`)) === true && (await ev(`document.querySelector('.cm-imgprev img').src`)).includes('/Image/') && (await ev(`document.querySelector('.cm-imgprev img').src`)).includes('api_key=TOKEN'));
+  check('image: the address field is greyed out and the preview goes through the plugin', (await ev(`document.querySelector('#lf-Thumb').disabled`)) === true && (await ev(`document.querySelector('.cm-imgprev img').src`)).includes('/Image/') && (await ev(`document.querySelector('.cm-imgprev img').src`)).includes('ApiKey=TOKEN'));
   await shot('L3b-image-uploaded-1440');
   // Gallery: extra images by type, offered in Jellyfin's image picker
   await ltab('images');

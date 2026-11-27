@@ -159,7 +159,7 @@ try {
         ...(mobile ? { userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36' } : {}) });
       const page = await context.newPage();
       const errors = [];
-      page.on('pageerror', e => errors.push(e.message));
+      page.on('pageerror', e => errors.push(process.env.CM_UI_STACK ? e.stack : e.message));
       page.on('console', m => { if (m.text().includes('[photos]')) { errors.push(m.text()); } });
       await page.goto(`${J}/web/#/login`);
       await page.fill('#txtManualName', 'admin');
@@ -214,7 +214,8 @@ try {
       await page.goto(`${J}/web/#/details?id=${bare.Id}`);
       await wait(3000);
       check(`${tag}: no button on an episode without photos`, await page.locator('.itemDetailPage:not(.hide) .eg-btn').count() === 0);
-      check(`${tag}: no script error`, errors.filter(e => !/player cannot be null/.test(e)).length === 0, errors.join(' | '));
+      // Errors of jellyfin-web itself are left out: its player, and (12) its home tabs when the page is left before they are built
+      check(`${tag}: no script error`, errors.filter(e => !/player cannot be null|reading 'selectedIndex'/.test(e)).length === 0, errors.join(' | '));
       await context.close();
     }
   }

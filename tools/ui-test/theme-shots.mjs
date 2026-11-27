@@ -58,8 +58,8 @@ const shot = async (name, full = true) => {
 };
 
 // token for the API calls made from Node (branding)
-const auth = await (await fetch(`${J}/Users/AuthenticateByName`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Emby-Authorization': 'MediaBrowser Client="theme-shots", Device="cli", DeviceId="theme-shots", Version="1"' }, body: JSON.stringify({ Username: 'admin', Pw: 'admin' }) })).json();
-const H = { 'Content-Type': 'application/json', 'X-Emby-Token': auth.AccessToken };
+const auth = await (await fetch(`${J}/Users/AuthenticateByName`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'MediaBrowser Client="theme-shots", Device="cli", DeviceId="theme-shots", Version="1"' }, body: JSON.stringify({ Username: 'admin', Pw: 'admin' }) })).json();
+const H = { 'Content-Type': 'application/json', Authorization: `MediaBrowser Token="${auth.AccessToken}"` };
 const brandingBefore = await (await fetch(`${J}/System/Configuration/branding`, { headers: H })).json();
 await fetch(`${J}/System/Configuration/branding`, { method: 'POST', headers: H, body: JSON.stringify({ ...brandingBefore, CustomCss: css }) });
 

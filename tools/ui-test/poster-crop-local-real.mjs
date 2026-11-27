@@ -34,7 +34,8 @@ const size = async id => {
   fs.unlinkSync(file);
   return { w, h };
 };
-const findSeries = async fragment => (await api('GET', '/Items?IncludeItemTypes=Series&Recursive=true')).Items.find(i => i.Name.includes(fragment));
+// by folder or by name: the title may already be the source's one
+const findSeries = async fragment => (await api('GET', '/Items?IncludeItemTypes=Series&Recursive=true&Fields=Path')).Items.find(i => (i.Path || '').includes(fragment) || i.Name.includes(fragment));
 const upload = async (dataId, node, file) => pick(await api('POST', `/CustomMetadata/Local/${dataId}/Image?node=${encodeURIComponent(node)}`, fs.readFileSync(file), true), 'Url');
 
 const wide = path.join(os.tmpdir(), 'cm-wide-poster.jpg');
