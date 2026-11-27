@@ -623,7 +623,8 @@ html.layout-desktop:has(.backgroundContainer.withBackdrop) .itemDetailPage .deta
 }
 /* empty stock blocks leave dead space above the content */
 .detailSectionContent > p:empty, .overview-controls:not(:has(> :not(.hide))),
-.itemDetailsGroup:not(:has(> .detailsGroupItem:not(.hide))) { display: none; }
+/* (descendant, not child: Jellyfin 12 wraps each info row in a block of its own) */
+.itemDetailsGroup:not(:has(.detailsGroupItem:not(.hide))) { display: none; }
 
 .mediaInfoOfficialRating, .mediaInfoTimerIcon {
   border: 1px solid var(--pj-line-2) !important; background: transparent; padding: 0 .5em; border-radius: 3px; color: var(--pj-text);
