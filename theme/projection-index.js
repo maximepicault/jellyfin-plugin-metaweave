@@ -131,24 +131,36 @@
     function query(ix, more) {
         var c = client();
         var body = Object.assign({ ParentId: ix.route.parentId || null, Filters: filters(ix), Type: ix.type, Sort: ix.sort, Seed: ix.seed, Missing: ix.missing }, more);
+        if (body.Limit) { body.Details = true; }
         return c.ajax({ type: 'POST', url: c.getUrl('CustomMetadata/Index'), data: JSON.stringify(body), contentType: 'application/json', dataType: 'json' }).then(function (answer) {
             Object.keys(answer.People || {}).forEach(function (name) { ix.people.set(name, answer.People[name]); });
             return answer;
         });
     }
-    // the items of a page of results, from Jellyfin, in the page's order (asked in small groups: the ids go in the address)
-    function details(rows) {
-        var c = client(), waits = [];
-        for (var i = 0; i < rows.length; i += PAGE) {
-            waits.push(c.getItems(c.getCurrentUserId(), { Ids: rows.slice(i, i + PAGE).map(function (r) { return r.Id; }).join(','), Fields: 'Tags,DateCreated', EnableImageTypes: 'Primary,Backdrop,Thumb', ImageTypeLimit: 1 }));
-        }
-        return Promise.all(waits).then(function (answers) {
-            var byId = new Map();
-            answers.forEach(function (a) { (a.Items || []).forEach(function (it) { byId.set(it.Id.replace(/-/g, ''), it); }); });
-            return rows.map(function (r) { return { group: r.Group, raw: byId.get(r.Id.replace(/-/g, '')) }; }).filter(function (r) { return r.raw; });
-        });
+    // the items of a page of results, sent with it, in the page's order (one the user may no longer read is not among them)
+    function details(answer) {
+        var byId = new Map();
+        (answer.Details || []).forEach(function (it) { byId.set(it.Id.replace(/-/g, ''), it); });
+        return (answer.Items || []).map(function (r) { return { group: r.Group, raw: byId.get(r.Id.replace(/-/g, '')) }; }).filter(function (r) { return r.raw; });
     }
-    function signature(rows) { return rows.map(function (r) { var u = r.raw.UserData || {}; return r.raw.Id + (u.Played ? 'v' : '') + (u.PlaybackPositionTicks || 0); }).join(); }
+    function signature(rows) { return JSON.stringify(rows); }
+
+    // ---------- seen before ----------
+    // a screen shown again draws at once what it showed last (kept in memory only), then asks again and redraws what changed
+    var SEEN_MAX = 30, seen = new Map(), headings = new Map();
+    function hold(map, key, value) { map.delete(key); map.set(key, value); if (map.size > SEEN_MAX) { map.delete(map.keys().next().value); } }
+    function seenKey(ix, wanted) {
+        var r = ix.route;
+        return JSON.stringify([client().getCurrentUserId(), r.parentId, r.library, r.base && r.base.k, filters(ix), ix.type, ix.sort, ix.sort === 'random' ? ix.seed : 0, ix.missing, wanted]);
+    }
+    // an item the header names: the one already read at once, read again for the next time
+    function heading(id) {
+        var key = client().getCurrentUserId() + ' ' + id, had = headings.get(key);
+        var asked = item(id).then(function (it) { hold(headings, key, it); return it; });
+        if (!had) { return asked; }
+        asked.catch(function () { headings.delete(key); });
+        return Promise.resolve(had);
+    }
 
     // asks for the first page under the current filters. `keep`: as many results as are shown (back on a screen);
     // `quiet`: the screen is only redrawn if something changed
@@ -157,44 +169,60 @@
         var run = ++ix.run, alive = function () { return run === ix.run && ix.host.__pjIx === ix; };
         var wanted = keep ? Math.min(MAX_PAGE, Math.max(PAGE, keep)) : PAGE;
         ix.growing = false;   // a next page on its way no longer belongs here
+        ix.refreshing = false;
+        var had = named && seen.get(seenKey(ix, wanted));
+        if (had) {
+            return named.then(function () {
+                if (!alive()) { return null; }
+                show(ix, had.answer, had.rows, had.asked, true);
+                var again = load(ix, wanted, true);
+                ix.refreshing = true;   // no next page until the first ones are checked
+                return again.catch(function (e) {
+                    // no longer allowed or gone: nothing kept may stay on screen; a passing failure leaves it there
+                    if (e && [401, 403, 404].indexOf(e.status) >= 0) { seen.clear(); throw e; }
+                    ix.refreshing = false;
+                    warn('refresh', e);
+                });
+            });
+        }
         if (!quiet) { ix.busy = true; ix.root.classList.add('pj-ix-busy'); header(ix); ribbon(ix); }
         return Promise.all([query(ix, { Summary: true, StartIndex: 0, Limit: wanted }), named]).then(function (both) {
             var answer = both[0];
             if (!alive()) { return null; }
             // a type with nothing left under these filters: show everything (a library keeps its type)
             if (ix.type && !answer.Total && answer.Types[''] && !ix.route.library) { ix.type = ''; return load(ix, keep, quiet); }
-            return details(answer.Items || []).then(function (rows) {
-                if (!alive()) { return; }
-                var changed = !quiet || signature(rows) !== signature(ix.rows) || answer.Total !== ix.answer.Total;
-                ix.answer = answer; ix.rows = rows; ix.groups = answer.Groups || {}; ix.asked = (answer.Items || []).length;
-                ix.busy = false; ix.loaded = true; ix.root.classList.remove('pj-ix-busy');
-                header(ix); ribbon(ix); letters(ix);
-                if (changed) { drawResults(ix); }
-                remember(ix);
-                if (panel && panel.ix === ix) { refreshPanel(); }
-            });
+            var rows = details(answer);
+            var changed = !quiet || signature(rows) !== signature(ix.rows) || answer.Total !== ix.answer.Total;
+            show(ix, answer, rows, (answer.Items || []).length, changed);
         });
+    }
+    function show(ix, answer, rows, asked, redraw) {
+        ix.answer = answer; ix.rows = rows.slice(); ix.groups = Object.assign({}, answer.Groups); ix.asked = asked;
+        ix.busy = false; ix.loaded = true; ix.refreshing = false; ix.root.classList.remove('pj-ix-busy');
+        header(ix); ribbon(ix); letters(ix);
+        if (redraw) { drawResults(ix); }
+        remember(ix);
+        if (panel && panel.ix === ix) { refreshPanel(); }
+        // the end may be in view already: watch again
+        if (ix.watch) { ix.watch.unobserve(ix.more); ix.watch.observe(ix.more); }
     }
     // the next page, appended
     function grow(ix) {
-        if (ix.busy || ix.growing || !ix.loaded || ix.asked >= ix.answer.Total) { return; }
+        if (ix.busy || ix.growing || ix.refreshing || !ix.loaded || ix.asked >= ix.answer.Total) { return; }
         var run = ix.run, alive = function () { return run === ix.run && ix.host.__pjIx === ix; };
         ix.growing = true;
         query(ix, { StartIndex: ix.asked, Limit: PAGE }).then(function (answer) {
-            if (!alive()) { return null; }
-            var asked = (answer.Items || []).length;
-            return details(answer.Items || []).then(function (rows) {
-                if (!alive()) { return; }
-                // an empty page: nothing more to ask for, whatever the total said
-                ix.asked = asked ? ix.asked + asked : ix.answer.Total;
-                Object.assign(ix.groups, answer.Groups || {});
-                ix.rows = ix.rows.concat(rows);
-                append(ix, rows);
-                remember(ix);
-                ix.growing = false;
-                // still in view after this page: watch again
-                if (ix.watch) { ix.watch.unobserve(ix.more); ix.watch.observe(ix.more); }
-            });
+            if (!alive()) { return; }
+            var asked = (answer.Items || []).length, rows = details(answer);
+            // an empty page: nothing more to ask for, whatever the total said
+            ix.asked = asked ? ix.asked + asked : ix.answer.Total;
+            Object.assign(ix.groups, answer.Groups || {});
+            ix.rows = ix.rows.concat(rows);
+            append(ix, rows);
+            remember(ix);
+            ix.growing = false;
+            // still in view after this page: watch again
+            if (ix.watch) { ix.watch.unobserve(ix.more); ix.watch.observe(ix.more); }
         }).catch(function (e) { warn('next page', e); }).then(function () { if (run === ix.run) { ix.growing = false; } });
     }
 
@@ -294,14 +322,14 @@
     function start(ix) {
         var r = ix.route, waits = [];
         if (r.base && r.base.id) {
-            waits.push(item(r.base.id).then(function (it) {
+            waits.push(heading(r.base.id).then(function (it) {
                 if (/^Music/.test(it.Type)) { throw new Error('music list'); }
                 r.base.v = it.Name;
                 if (r.base.k === 'people') { ix.person = it; ix.people.set(it.Name, { Id: it.Id, HasImage: !!(it.ImageTags && it.ImageTags.Primary) }); }
             }));
         }
         if (r.parentId) {
-            waits.push(item(r.parentId).then(function (it) { ix.scope = it.Name; }).catch(function () { /* unnamed */ }));
+            waits.push(heading(r.parentId).then(function (it) { ix.scope = it.Name; }).catch(function () { /* unnamed */ }));
         }
         var named = Promise.all(waits);
         var search = function () {
@@ -325,6 +353,9 @@
         var sel = {};
         Object.keys(ix.sel).forEach(function (k) { sel[k] = Array.from(ix.sel[k]); });
         memory.set(ix.key, { sel: sel, type: ix.type, sort: ix.sort, seed: ix.seed, missing: ix.missing, shown: ix.rows.length });
+        if (ix.answer && !ix.busy && ix.rows.length <= MAX_PAGE) {
+            hold(seen, seenKey(ix, Math.max(PAGE, ix.rows.length)), { answer: Object.assign({}, ix.answer, { Groups: Object.assign({}, ix.groups) }), rows: ix.rows.slice(), asked: ix.asked });
+        }
     }
 
     // ---------- header ----------

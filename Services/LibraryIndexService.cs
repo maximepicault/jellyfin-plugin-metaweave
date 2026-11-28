@@ -9,10 +9,14 @@ using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations;
 using Jellyfin.Database.Implementations.Entities;
+using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Querying;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -79,16 +83,18 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         private readonly IDbContextFactory<JellyfinDbContext> _database;
         private readonly ILibraryManager _library;
+        private readonly IDtoService _dtos;
         private readonly ILogger<LibraryIndexService> _logger;
         private readonly ConcurrentDictionary<(Guid User, Guid Parent), (HashSet<Guid> Ids, long Version, DateTime BuiltUtc)> _access = new();
         private readonly object _building = new();
         private IndexSnapshot _snapshot;
         private long _version;
 
-        public LibraryIndexService(IDbContextFactory<JellyfinDbContext> database, ILibraryManager library, ILogger<LibraryIndexService> logger)
+        public LibraryIndexService(IDbContextFactory<JellyfinDbContext> database, ILibraryManager library, IDtoService dtos, ILogger<LibraryIndexService> logger)
         {
             _database = database;
             _library = library;
+            _dtos = dtos;
             _logger = logger;
         }
 
@@ -186,6 +192,23 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
             _access[key] = (ids, snapshot.Version, DateTime.UtcNow);
             return ids;
+        }
+
+        /// <summary>
+        /// The items of a page of results, as <c>/Items?Ids=</c> would answer them. Rights are asked again for each item,
+        /// at this very request, by Jellyfin's own check: the ids the search worked on may be a minute old, and a query by
+        /// ids would not apply the user's libraries by itself.
+        /// </summary>
+        public IReadOnlyList<BaseItemDto> Details(User user, IEnumerable<Guid> ids)
+        {
+            var items = ids.Select(id => _library.GetItemById<BaseItem>(id, user)).Where(item => item != null).ToList();
+            var options = new DtoOptions(false)
+            {
+                Fields = new[] { ItemFields.Tags, ItemFields.DateCreated },
+                ImageTypes = new[] { ImageType.Primary, ImageType.Backdrop, ImageType.Thumb },
+                ImageTypeLimit = 1
+            };
+            return _dtos.GetBaseItemDtos(items, options, user);
         }
 
         /// <summary>The items the user finished (true) or started (false); the others are untouched.</summary>

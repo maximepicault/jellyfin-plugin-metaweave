@@ -6,6 +6,7 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **Projection theme: back on a library, its screen shows at once** with what it showed last, then updates itself if something changed. The series, film and list screens get a page's items with the search (one request less, rights checked for each item), and a photo library shows its albums as soon as they arrive.
 - **Projection theme: its screens appear sooner**: they are built as soon as jellyfin-web's page arrives, the series, film and list screens search while the names of their header load, and a photo library already visited in this browser shows at once, with a lighter check.
 - **Fix: Projection theme: jellyfin-web's own page showed for a moment before the theme's screens** (series, film and photo libraries, albums and genre lists): it now stays unseen until the screen is there, and a library opened without a view in its address no longer waits for the stock cards to load.
 - **Fix: Sources tab: a choice of « Actualiser » left unticked looked chosen** (it took the fill of the tag chips, bluer than a ticked one): it is now grey and hollow, and a choice keeps its size either way.

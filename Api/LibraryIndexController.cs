@@ -11,8 +11,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
 {
     /// <summary>
     /// The theme's filtered lists (« Index ») ask here for one page of results and the filters on offer, so that a big
-    /// library is never sent to the browser. Any signed-in user, over the items that user may see. The items themselves
-    /// are then read by the browser from Jellyfin's own API.
+    /// library is never sent to the browser. Any signed-in user, over the items that user may see. The items of a page come
+    /// with it when asked for, as Jellyfin's own API would answer them, their rights checked at that request.
     /// </summary>
     [ApiController]
     [Route("CustomMetadata/Index")]
@@ -68,6 +68,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             {
                 var ordered = query.Ordered(results, request.Sort, request.Seed);
                 (response.Items, response.Groups) = LibraryIndexQuery.Page(ordered, request.Sort, request.StartIndex, request.Limit);
+                if (request.Details)
+                {
+                    response.Details = _index.Details(user, response.Items.Select(row => row.Id));
+                }
             }
 
             if (request.Summary)

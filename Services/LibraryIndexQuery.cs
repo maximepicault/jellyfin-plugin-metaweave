@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using MediaBrowser.Model.Dto;
 
 namespace Jellyfin.Plugin.CustomMetadata.Services
 {
@@ -46,6 +47,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         /// <summary>"all" or "shuffle": the ids to play</summary>
         public string Play { get; set; }
+
+        /// <summary>Also the page's items themselves, as Jellyfin's own API would answer them: one request less for the screen</summary>
+        public bool Details { get; set; }
     }
 
     public class IndexResponse
@@ -62,6 +66,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
         public int Missing { get; set; }
 
         public List<IndexRow> Items { get; set; }
+
+        /// <summary>The items of the page the user may read now (asked for with <see cref="IndexRequest.Details"/>)</summary>
+        public IReadOnlyList<BaseItemDto> Details { get; set; }
 
         /// <summary>The sections of the rows of this page, by key</summary>
         public Dictionary<string, IndexGroup> Groups { get; set; }

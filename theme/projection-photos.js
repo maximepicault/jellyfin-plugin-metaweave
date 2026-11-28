@@ -79,7 +79,44 @@
     // priority 'high': ahead of the thumbnails the browser is still waiting for
     function fetchImage(url, priority) { var img = new Image(); img.fetchPriority = priority; img.src = url; return img; }
     function stopImage(img) { if (img && !img.complete) { img.onload = img.onerror = null; img.removeAttribute('src'); } }
-    function get(path, query) { var c = client(); return c.getJSON(c.getUrl(path, Object.assign({ userId: c.getCurrentUserId() }, query || {}))); }
+    // ---------- seen before ----------
+    // the answers a screen was drawn from are kept in memory: shown again, it draws at once from them, then asks again and
+    // is drawn again only if one changed
+    var SEEN_MAX = 300, seen = new Map(), replay = null;   // replay: the screen being drawn, with what it took from memory
+    function key(url) { return client().getCurrentUserId() + ' ' + url; }
+    function ask(url) {
+        var k = key(url);
+        return client().getJSON(url).then(function (answer) {
+            seen.delete(k); seen.set(k, JSON.stringify(answer));
+            if (seen.size > SEEN_MAX) { seen.delete(seen.keys().next().value); }
+            return answer;
+        });
+    }
+    function read(url) {
+        var had = replay && seen.get(key(url));
+        if (!had) { return ask(url); }
+        replay.add(url);
+        return Promise.resolve(JSON.parse(had));
+    }
+    function get(path, query) { var c = client(); return read(c.getUrl(path, Object.assign({ userId: c.getCurrentUserId() }, query || {}))); }
+    // asks again for what a screen took from memory; draws it again if an answer changed and nobody is using it yet
+    function check(s, taken) {
+        if (!taken.size || !alive(s)) { return; }
+        Promise.all(Array.from(taken, function (url) {
+            var k = key(url), before = seen.get(k);
+            return ask(url).then(function () { return seen.get(k) !== before; }, function (e) {
+                // no longer allowed or gone: forgotten, and the screen drawn from what Jellyfin says now
+                if (e && [401, 403, 404].indexOf(e.status) >= 0) { seen.delete(k); return true; }
+                warn('refresh', e);
+                return false;
+            });
+        })).then(function (changed) {
+            var busy = s.turn > 1 || s.loaded > PAGE || viewer || (document.activeElement && document.activeElement.tagName === 'INPUT' && s.root.contains(document.activeElement));
+            if (!changed.some(Boolean) || !alive(s) || s.hash !== location.hash || busy) { return; }
+            var top = window.scrollY;
+            build(s.host, s.route, true).then(function () { window.scrollTo(0, top); });
+        });
+    }
     function list(query) {
         return get('Items', Object.assign({ Fields: 'Overview,Tags,Genres,Studios,ChildCount,PrimaryImageAspectRatio,Width,Height', EnableImageTypes: 'Primary,Backdrop', ImageTypeLimit: 1 }, query));
     }
@@ -110,7 +147,7 @@
     }
 
     // ---------- people ----------
-    function cast(path, query) { var c = client(); return c.getJSON(c.getUrl('CustomMetadata/AlbumCast/' + path, query || {})); }
+    function cast(path, query) { return read(client().getUrl('CustomMetadata/AlbumCast/' + path, query || {})); }
     // a person as a chip (their photo when there is one): a link to their albums and photos in the library, or a button
     function personChip(person, attrs, extra) {
         var picture = person.Image ? (/^https?:/i.test(person.Image) ? person.Image : client().getUrl(person.Image)) : null;
@@ -150,7 +187,8 @@
 
     // ---------- a screen ----------
     var ignored = new Set();     // screens left to jellyfin-web: not a photo library, or one that could not be built
-    function build(host, r) {
+    // `again`: drawn a second time, from answers just checked
+    function build(host, r, again) {
         if (host.__pjPh) { drop(host.__pjPh); }
         var root = h('div', { 'class': 'pj-ph pj-ph-' + r.kind });
         var s = { host: host, route: r, hash: location.hash, root: root, run: 0, sort: 'name', photos: [], total: 0, tag: r.tag || null, genre: null, person: r.person || null, people: [], search: '' };
@@ -159,8 +197,14 @@
         root.hidden = true;
         root.appendChild(h('p', { 'class': 'pj-ph-note', text: 'Chargement…' }));
         host.appendChild(root);
+        var taken = replay = new Set();
+        var done = function () { if (replay === taken) { replay = null; } };
         if (r.kind === 'library' && known().indexOf(r.id) >= 0) { reveal(s); }
-        (r.kind === 'library' ? library(s) : album(s)).catch(function (error) {
+        return (r.kind === 'library' ? library(s) : album(s)).then(function () {
+            done();
+            if (!again) { check(s, taken); }
+        }, function (error) {
+            done();
             warn('load', error);
             ignored.add(s.hash);
             drop(s);
@@ -211,7 +255,8 @@
             h('span', { 'class': 'pj-ph-cap', text: it.Name })];
         if (video) { inside.push(icon('play_arrow'), h('span', { 'class': 'pj-ph-length', text: length(it.RunTimeTicks) })); }
         var tile = button('pj-ph-tile' + (video ? ' pj-ph-video' : ''), { 'aria-label': (video ? 'Vidéo : ' : '') + it.Name }, inside);
-        tile.addEventListener('click', function () { openViewer(s, s.media.indexOf(it), tile, false); });
+        // a tile of the results being replaced no longer opens anything
+        tile.addEventListener('click', function () { var at = s.media.indexOf(it); if (at >= 0) { openViewer(s, at, tile, false); } });
         tile.style.setProperty('--r', String(ratio));
         return tile;
     }
@@ -252,6 +297,8 @@
         // the tags and the people take longer to gather on a large library: the screen does not wait for them
         var filtersAsked = get('Items/Filters', { ParentId: id, IncludeItemTypes: ALBUM_TYPES + ',Photo' }).catch(function () { return {}; });
         var peopleAsked = cast('People', { parentId: id }).catch(function (e) { warn('people', e); return []; });
+        // the library's own level is asked for while it is checked
+        var early = s.tag || s.person ? null : request(s, { ParentId: id, Recursive: false });
         return Promise.all([
             get('Items/' + id),
             anyPhoto(id)
@@ -285,7 +332,7 @@
                 ribbon(s);
             });
             peopleAsked.then(function (people) { if (alive(s)) { s.people = people || []; peopleRibbon(s); } });
-            return results(s);
+            return results(s, early);
         });
     }
     function ribbon(s) {
@@ -344,7 +391,14 @@
         });
     }
     // the library's own level, or, once something is searched or chosen, everything that matches, at any depth
-    function results(s) {
+    // the albums of a result and its number of videos
+    function request(s, query) {
+        var albums = list(Object.assign({ IncludeItemTypes: ALBUM_TYPES, Limit: 600 }, query, ORDER[s.sort]));
+        albums.catch(function () { /* handled by whoever shows them */ });
+        return { albums: albums, videos: howMany(query).catch(function (e) { warn('videos', e); return 0; }) };
+    }
+    // `early`: the library's own level, already asked for
+    function results(s, early) {
         var id = s.route.id, filtered = !!(s.search || s.tag || s.genre);
         var query = { ParentId: id, Recursive: filtered };
         if (s.search) { query.SearchTerm = s.search; }
@@ -353,17 +407,20 @@
         var turn = s.turn = (s.turn || 0) + 1;
         // a person is a filter of its own: a search or a tag chosen afterwards leaves it
         if (s.person && !s.search && !s.tag && !s.genre) { return personResults(s, turn); }
-        var counting = howMany(query).catch(function (e) { warn('videos', e); return 0; });   // beside the albums
-        return list(Object.assign({ IncludeItemTypes: ALBUM_TYPES, Limit: 600 }, query, ORDER[s.sort])).then(function (albums) {
+        var asked = early || request(s, query);
+        // the first photos are asked for beside the albums, which show as soon as they arrive
+        var media = mediaWall(s, Object.assign({ IncludeItemTypes: MEDIA_TYPES }, query, ORDER[s.sort]));
+        return asked.albums.then(function (albums) {
             if (!alive(s) || turn !== s.turn) { return null; }
-            var media = mediaWall(s, Object.assign({ IncludeItemTypes: MEDIA_TYPES }, query, ORDER[s.sort]));
-            return Promise.all([counting, media.first]).then(function (counted) {
+            var shelf = albums.Items.length ? section(filtered ? 'Albums' : null, h('div', { 'class': 'pj-ph-albums' }, albums.Items.map(albumCard))) : null;
+            var line = albums.TotalRecordCount ? count(albums.TotalRecordCount, 'album', 'albums') : '';
+            if (shelf) { s.countLine.textContent = line; s.resultsBox.replaceChildren(shelf, media.box); }
+            return Promise.all([asked.videos, media.first]).then(function (counted) {
                 if (!alive(s) || turn !== s.turn) { return; }
                 var videos = counted[0];
-                s.countLine.textContent = [albums.TotalRecordCount ? count(albums.TotalRecordCount, 'album', 'albums') : ''].concat(mediaCounts(s.total, videos)).filter(Boolean).join(' · ') || 'Aucun résultat';
-                var parts = [];
-                if (albums.Items.length) { parts.push(section(filtered ? 'Albums' : null, h('div', { 'class': 'pj-ph-albums' }, albums.Items.map(albumCard)))); }
-                if (s.total) { parts.push(section(filtered || albums.Items.length ? mediaTitle(s.total, videos) : null, media.box)); }
+                s.countLine.textContent = [line].concat(mediaCounts(s.total, videos)).filter(Boolean).join(' · ') || 'Aucun résultat';
+                var parts = shelf ? [shelf] : [];
+                if (s.total) { parts.push(section(filtered || shelf ? mediaTitle(s.total, videos) : null, media.box)); }
                 if (!parts.length) { parts.push(h('p', { 'class': 'pj-ph-note', text: filtered ? 'Rien ne correspond. Essayez un autre mot, ou « Tout ».' : 'Cette médiathèque est vide.' })); }
                 s.resultsBox.replaceChildren.apply(s.resultsBox, parts);
             });
