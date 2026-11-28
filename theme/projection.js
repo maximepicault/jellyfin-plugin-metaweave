@@ -270,7 +270,9 @@
     }
     function candidates(item) {
         var c = client(), out = [];
-        var add = function (id, type, tag, index) { if (id && tag) { var u = new String(c.getImageUrl(id, { type: type, tag: tag, index: index, maxWidth: 2400, quality: 90 })); u.backdrop = type === 'Backdrop'; u.still = item.Type === 'Episode' && type === 'Primary' && id === item.Id; out.push(u); } };
+        // as wide as the screen shows, in a few steps: the server then has less to make, and what it made serves again
+        var wide = Math.min(2400, Math.max(1280, Math.ceil(window.innerWidth * (window.devicePixelRatio || 1) / 640) * 640));
+        var add = function (id, type, tag, index) { if (id && tag) { var u = new String(c.getImageUrl(id, { type: type, tag: tag, index: index, maxWidth: wide, quality: 90 })); u.backdrop = type === 'Backdrop'; u.still = item.Type === 'Episode' && type === 'Primary' && id === item.Id; out.push(u); } };
         // an episode's own still first: it is what tells one episode from the next (the series' backdrop is the same on
         // all of them); then the backdrops (all of them: they take turns, like jellyfin-web's backdrop slideshow): the
         // item's own, else its parent's (a season's or an episode's series); then the thumbnails

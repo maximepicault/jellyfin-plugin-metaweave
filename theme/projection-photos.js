@@ -61,10 +61,25 @@
     function href(path, id) { return '#/' + path + '=' + id + (serverId() ? '&serverId=' + serverId() : ''); }
     function albumHref(id) { return href('list?parentId', id); }
     function detailsHref(id) { return href('details?id', id); }
-    function image(id, type, tag, width) { var o = { type: type, maxWidth: width, quality: 90 }; if (tag) { o.tag = tag; } return client().getImageUrl(id, o); }
+    function image(id, type, tag, width, height) {
+        var o = { type: type, maxWidth: width, quality: 90 };
+        if (height) { o.maxHeight = height; }
+        if (tag) { o.tag = tag; }
+        return client().getImageUrl(id, o);
+    }
+    // The server makes each size from the original file, which takes seconds on a large photo: large pictures are asked in a
+    // few fixed sizes (what it made then serves again) and no larger than the screen shows.
+    var SIZES = [640, 960, 1280, 1440, 1920, 2560];
+    function size(shown, most) {
+        var wanted = shown * Math.min(window.devicePixelRatio || 1, 2);
+        return Math.min(SIZES.filter(function (x) { return x >= wanted; })[0] || 2560, most || 2560);
+    }
+    // priority 'high': ahead of the thumbnails the browser is still waiting for
+    function fetchImage(url, priority) { var img = new Image(); img.fetchPriority = priority; img.src = url; return img; }
+    function stopImage(img) { if (img && !img.complete) { img.onload = img.onerror = null; img.removeAttribute('src'); } }
     function get(path, query) { var c = client(); return c.getJSON(c.getUrl(path, Object.assign({ userId: c.getCurrentUserId() }, query || {}))); }
     function list(query) {
-        return get('Items', Object.assign({ Fields: 'Overview,Tags,Genres,Studios,ChildCount,PrimaryImageAspectRatio', EnableImageTypes: 'Primary,Backdrop', ImageTypeLimit: 1 }, query));
+        return get('Items', Object.assign({ Fields: 'Overview,Tags,Genres,Studios,ChildCount,PrimaryImageAspectRatio,Width,Height', EnableImageTypes: 'Primary,Backdrop', ImageTypeLimit: 1 }, query));
     }
     function isAlbum(it) { return it.Type === 'PhotoAlbum' || it.Type === 'Folder'; }
     function ratioOf(it) { var r = it.PrimaryImageAspectRatio || (it.Width && it.Height ? it.Width / it.Height : 0); return r > 0.2 && r < 5 ? r : (it.Type === 'Video' ? 16 / 9 : 1.5); }
@@ -164,16 +179,18 @@
     }
     function albumCard(it) {
         var tag = it.ImageTags && it.ImageTags.Primary;
-        var frame = h('span', { 'class': 'pj-ph-frame' }, tag ? h('img', { alt: '', loading: 'lazy', src: image(it.Id, 'Primary', tag, 640) }) : icon('photo_library'));
+        var frame = h('span', { 'class': 'pj-ph-frame' }, tag ? h('img', { alt: '', loading: 'lazy', fetchpriority: 'low', src: image(it.Id, 'Primary', tag, 640) }) : icon('photo_library'));
         if (!tag) {
-            firstPhoto(it.Id).then(function (c) { if (c) { frame.replaceChildren(h('img', { alt: '', loading: 'lazy', src: image(c.id, c.type, c.tag, 640) })); } }, function (e) { warn('cover', e); });
+            firstPhoto(it.Id).then(function (c) { if (c) { frame.replaceChildren(h('img', { alt: '', loading: 'lazy', fetchpriority: 'low', src: image(c.id, c.type, c.tag, 640) })); } }, function (e) { warn('cover', e); });
         }
         var meta = [it.ChildCount != null ? count(it.ChildCount, 'élément', 'éléments') : '', it.ProductionYear ? String(it.ProductionYear) : ''].filter(Boolean).join(' · ');
         return h('a', { 'class': 'pj-ph-card', href: albumHref(it.Id) }, [h('span', { 'class': 'pj-ph-stack' }, frame), h('strong', { text: it.Name }), h('span', { 'class': 'pj-ph-meta', text: meta })]);
     }
+    // the wall's thumbnail of a photo or video, also what the viewer shows while the large picture is on its way
+    function thumbnail(it) { return image(it.Id, 'Primary', it.ImageTags && it.ImageTags.Primary, Math.round(360 * Math.max(1, ratioOf(it)))); }
     function mediaTile(s, it) {
         var tag = it.ImageTags && it.ImageTags.Primary, ratio = ratioOf(it), video = it.Type === 'Video';
-        var inside = [tag ? h('img', { alt: '', loading: 'lazy', src: image(it.Id, 'Primary', tag, Math.round(360 * Math.max(1, ratio))) }) : icon(video ? 'movie' : 'photo'),
+        var inside = [tag ? h('img', { alt: '', loading: 'lazy', fetchpriority: 'low', src: thumbnail(it) }) : icon(video ? 'movie' : 'photo'),
             h('span', { 'class': 'pj-ph-cap', text: it.Name })];
         if (video) { inside.push(icon('play_arrow'), h('span', { 'class': 'pj-ph-length', text: length(it.RunTimeTicks) })); }
         var tile = button('pj-ph-tile' + (video ? ' pj-ph-video' : ''), { 'aria-label': (video ? 'Vidéo : ' : '') + it.Name }, inside);
@@ -215,20 +232,19 @@
     // ---------- the library: a wall of albums ----------
     function library(s) {
         var id = s.route.id;
+        // the tags and the people take longer to gather on a large library: the screen does not wait for them
+        var filtersAsked = get('Items/Filters', { ParentId: id, IncludeItemTypes: ALBUM_TYPES + ',Photo' }).catch(function () { return {}; });
+        var peopleAsked = cast('People', { parentId: id }).catch(function (e) { warn('people', e); return []; });
         return Promise.all([
             get('Items/' + id),
-            list(Object.assign({ ParentId: id, IncludeItemTypes: ALBUM_TYPES, Limit: 1 }, ORDER.name)),
-            list({ ParentId: id, Recursive: true, IncludeItemTypes: 'Photo', Limit: 1 }),
-            get('Items/Filters', { ParentId: id, IncludeItemTypes: ALBUM_TYPES + ',Photo' }).catch(function () { return {}; }),
-            cast('People', { parentId: id }).catch(function (e) { warn('people', e); return []; })
+            list({ ParentId: id, Recursive: true, IncludeItemTypes: 'Photo', Limit: 1 })
         ]).then(function (answers) {
             if (!alive(s)) { return; }
-            var item = answers[0], filters = answers[3] || {};
+            var item = answers[0];
             s.homeId = id;
-            if (item.CollectionType !== 'homevideos' || !answers[2].TotalRecordCount) { throw new Error('not a photo library'); }
+            if (item.CollectionType !== 'homevideos' || !answers[1].TotalRecordCount) { throw new Error('not a photo library'); }
             reveal(s);
-            s.people = answers[4] || [];
-            s.terms = (filters.Tags || []).map(function (t) { return ['tag', t]; }).concat((filters.Genres || []).map(function (g) { return ['genre', g]; }));
+            s.terms = [];
             s.countLine = h('span', { 'class': 'pj-ph-meta' });
             var search = h('input', { 'class': 'pj-ph-search', type: 'search', placeholder: 'Chercher un album, une photo…', 'aria-label': 'Chercher un album ou une photo' });
             var timer = null;
@@ -244,6 +260,12 @@
             s.root.replaceChildren(h('header', { 'class': 'pj-ph-libhead' }, [h('div', {}, [views, h('h1', { text: item.Name }), s.countLine]), search, sort]), s.ribbonBox, s.peopleBox, s.resultsBox);
             ribbon(s);
             peopleRibbon(s);
+            filtersAsked.then(function (filters) {
+                if (!alive(s)) { return; }
+                s.terms = ((filters || {}).Tags || []).map(function (t) { return ['tag', t]; }).concat(((filters || {}).Genres || []).map(function (g) { return ['genre', g]; }));
+                ribbon(s);
+            });
+            peopleAsked.then(function (people) { if (alive(s)) { s.people = people || []; peopleRibbon(s); } });
             return results(s);
         });
     }
@@ -333,19 +355,23 @@
         var id = s.route.id;
         var self = get('Items/' + id).then(function (item) {
             // Jellyfin only makes a PhotoAlbum in a photo library: that screen is ours at once
-            if (alive(s) && item.Type === 'PhotoAlbum') { reveal(s); }
+            if (alive(s) && item.Type === 'PhotoAlbum') {
+                reveal(s);
+                // its head picture is asked for before the wall's thumbnails
+                var own = ownPictures(item)[0];
+                if (own) { fetchImage(headImage(own), 'high'); }
+            }
             return item;
         });
+        var peopleAsked = cast('Item/' + id).catch(function (e) { warn('people', e); return []; });
         return Promise.all([
             self,
             get('Items/' + id + '/Ancestors'),
-            list(Object.assign({ ParentId: id, IncludeItemTypes: ALBUM_TYPES }, ORDER.name)),
-            cast('Item/' + id).catch(function (e) { warn('people', e); return []; })
+            list(Object.assign({ ParentId: id, IncludeItemTypes: ALBUM_TYPES }, ORDER.name))
         ]).then(function (answers) {
             if (!alive(s)) { return null; }
             var item = answers[0], ancestors = answers[1] || [], albums = answers[2].Items;
             var home = ancestors.filter(function (a) { return a.CollectionType === 'homevideos'; })[0];
-            var people = answers[3] || [];
             s.homeId = home && home.Id;
             if (!isAlbum(item) || !home) { throw new Error('not a photo album'); }
             // a library of home videos without any photo keeps jellyfin-web's own screens
@@ -381,12 +407,17 @@
                 var words = (item.Tags || []).map(function (t) { return h('a', { 'class': 'pj-ph-chip', href: href('homevideos?topParentId', home.Id) + '&pjtag=' + encodeURIComponent(t), text: t }); })
                     .concat((item.Genres || []).map(function (g) { return h('span', { 'class': 'pj-ph-chip', text: g }); }));
                 var picture = h('div', { 'class': 'pj-ph-pic', 'aria-hidden': 'true' });
-                var hero = h('header', { 'class': 'pj-ph-hero pj-ph-bare' }, [picture, h('div', { 'class': 'pj-ph-under' }, [
+                var wordsRow = words.length ? h('div', { 'class': 'pj-ph-words' }, words) : null;
+                var under = h('div', { 'class': 'pj-ph-under' }, [
                     crumbs, h('h1', { text: item.Name }), h('p', { 'class': 'pj-ph-meta', text: meta }), actions,
                     item.Overview ? overview(item.Overview) : null,
-                    people.length ? h('div', { 'class': 'pj-ph-people', 'aria-label': 'Personnes' }, once(people).map(function (p) { return personChip(p, { href: personHref(home.Id, p.Name) }); })) : null,
-                    words.length ? h('div', { 'class': 'pj-ph-words' }, words) : null
-                ])]);
+                    wordsRow
+                ]);
+                var hero = h('header', { 'class': 'pj-ph-hero pj-ph-bare' }, [picture, under]);
+                peopleAsked.then(function (people) {
+                    if (!alive(s) || !people || !people.length) { return; }
+                    under.insertBefore(h('div', { 'class': 'pj-ph-people', 'aria-label': 'Personnes' }, once(people).map(function (p) { return personChip(p, { href: personHref(home.Id, p.Name) }); })), wordsRow);
+                });
                 var parts = [hero];
                 if (albums.length) { parts.push(section('Albums', h('div', { 'class': 'pj-ph-albums' }, albums.map(albumCard)))); }
                 if (s.total) { parts.push(section(mediaTitle(s.total, videos), media.box)); }
@@ -411,11 +442,18 @@
         if (window.ResizeObserver) { new ResizeObserver(measure).observe(words); } else { requestAnimationFrame(measure); }
         return h('div', { 'class': 'pj-ph-text' }, [words, more]);
     }
+    // an album's own pictures for its head: its backdrop, else its cover
+    function ownPictures(item) {
+        var out = [], add = function (type, tag) { if (tag) { out.push({ id: item.Id, type: type, tag: tag }); } };
+        add('Backdrop', item.BackdropImageTags && item.BackdropImageTags[0]);
+        add('Primary', item.ImageTags && item.ImageTags.Primary);
+        return out;
+    }
+    // shown under 60 % of the window's height: an upright picture needs no more
+    function headImage(c) { return image(c.id, c.type, c.tag, size(window.innerWidth, 1920), size(window.innerHeight * 0.6, 1920)); }
     // the picture at the head: the album's backdrop, else its cover, else its first photo or its first sub-album's cover
     function headPicture(s, hero, box, albums) {
-        var candidates = [], add = function (it, type, tag) { if (tag) { candidates.push({ id: it.Id, type: type, tag: tag }); } };
-        add(s.item, 'Backdrop', s.item.BackdropImageTags && s.item.BackdropImageTags[0]);
-        add(s.item, 'Primary', s.item.ImageTags && s.item.ImageTags.Primary);
+        var candidates = ownPictures(s.item), add = function (it, type, tag) { if (tag) { candidates.push({ id: it.Id, type: type, tag: tag }); } };
         // a photo before a video's frame
         var photo = s.media.filter(function (it) { return it.Type === 'Photo'; })[0] || s.media[0];
         [photo].concat(albums.slice(0, 1)).forEach(function (it) { if (it) { add(it, 'Primary', it.ImageTags && it.ImageTags.Primary); } });
@@ -428,9 +466,10 @@
                 if (!deeper) { deeper = true; firstPhoto(s.item.Id).then(function (found) { if (found) { candidates.push(found); next(k); } }, function (e) { warn('picture', e); }); }
                 return;
             }
-            var img = new Image();
-            img.alt = '';
-            img.onload = function () {
+            // the card's size first (the browser often has it already from the library), then the screen's
+            var full = fetchImage(headImage(c), 'high'), small = fetchImage(image(c.id, c.type, c.tag, 640), 'high'), done = false;
+            full.alt = small.alt = '';
+            var place = function (img) {
                 if (!alive(s)) { return; }
                 var colours = null;
                 try { colours = window.__projectionColours ? window.__projectionColours(img) : null; } catch (e) { warn('colours', e); }
@@ -443,8 +482,9 @@
                 if (colours) { s.root.style.setProperty('--pj-bg', colours['--pj-bg']); s.root.style.setProperty('--pj-veil', colours['--pj-veil']); }
                 box.replaceChildren(h('div', { 'class': 'pj-aff-fill pj-aff-fill-l' }), h('div', { 'class': 'pj-aff-fill pj-aff-fill-r' }), h('div', { 'class': 'pj-ph-art' }, img));
             };
-            img.onerror = function () { next(k + 1); };
-            img.src = image(c.id, c.type, c.tag, Math.min(1920, Math.round(window.innerWidth * (window.devicePixelRatio || 1))));
+            full.onload = function () { done = true; place(full); };
+            small.onload = function () { if (!done) { place(small); } };
+            full.onerror = function () { next(k + 1); };
         };
         next(0);
     }
@@ -471,7 +511,7 @@
     var viewer = null;
     function openViewer(s, index, opener, playing, own) {
         closeViewer();
-        var v = viewer = { s: s, own: own || null, index: Math.max(0, index), opener: opener, hash: location.hash, details: new Map(), people: new Map(), timer: null };
+        var v = viewer = { s: s, own: own || null, index: Math.max(0, index), opener: opener, hash: location.hash, details: new Map(), people: new Map(), timer: null, loading: null, ahead: new Map() };
         v.counter = h('span', { 'class': 'pj-ph-counter' });
         v.favourite = h('span', {});
         v.playButton = button('pj-ph-btn pj-ph-round', { 'aria-label': 'Diaporama', title: 'Diaporama (espace)' }, icon('play_arrow'));
@@ -509,6 +549,8 @@
         viewer = null;
         clearInterval(v.timer);
         stopVideo(v);
+        stopImage(v.loading);
+        v.ahead.forEach(stopImage);
         v.box.remove();
         document.documentElement.classList.remove('pj-ph-locked');
         if (v.opener && v.opener.isConnected) { v.opener.focus(); }
@@ -541,9 +583,8 @@
         if (!it) { closeViewer(); return; }
         var total = v.own ? media.length : Math.max(media.length, v.s.total);
         v.counter.textContent = (v.s.item ? v.s.item.Name + ' · ' : '') + nf(v.index + 1) + ' / ' + nf(total);
-        var tag = it.ImageTags && it.ImageTags.Primary, width = Math.min(2560, Math.round(window.innerWidth * (window.devicePixelRatio || 1)));
         stopVideo(v);
-        v.stage.replaceChildren(it.Type === 'Video' ? player(v, it, tag, width) : h('img', { alt: it.Name, draggable: 'false', src: image(it.Id, 'Primary', tag, width) }));
+        if (it.Type === 'Video') { stopImage(v.loading); v.loading = null; v.stage.replaceChildren(player(v, it)); } else { photo(v, it); }
         v.favourite.replaceChildren(favouriteButton(it));
         describe(it);
         if (!v.people.has(it.Id)) {
@@ -559,10 +600,49 @@
             }, function (e) { warn('photo', e); });
         }
     }
+    function largeImage(v, it) {
+        var box = v.stage.getBoundingClientRect();
+        return image(it.Id, 'Primary', it.ImageTags && it.ImageTags.Primary, size(box.width), size(box.height));
+    }
+    // a picture already asked for, unless it was stopped or refused on the way (complete and empty): that one is asked again
+    function asked(v, url) { var img = v.ahead.get(url); return img && !(img.complete && !img.naturalWidth) ? img : null; }
+    // a photo: its thumbnail at once, the screen-sized picture in its place as soon as the server has made it
+    function photo(v, it) {
+        var url = largeImage(v, it), full = asked(v, url) || fetchImage(url, 'high');
+        if (v.loading !== full) { stopImage(v.loading); }
+        v.loading = full;
+        v.ahead.set(url, full);
+        full.alt = it.Name;
+        full.draggable = false;
+        var ready = function () {
+            if (viewer !== v || v.loading !== full) { return; }
+            v.stage.replaceChildren(full);
+            lookAhead(v, url);
+        };
+        if (full.complete && full.naturalWidth) { ready(); return; }
+        // never larger than the photo itself: a small one does not grow, then shrink when the large picture arrives
+        var most = it.Width && it.Height ? 'max-width: min(100%, ' + it.Width + 'px); max-height: min(100%, ' + it.Height + 'px)' : null;
+        v.stage.replaceChildren(h('img', { 'class': 'pj-ph-low', alt: it.Name, draggable: 'false', fetchpriority: 'high', style: most, src: thumbnail(it) }));
+        full.onload = ready;
+        full.onerror = function () { v.ahead.delete(url); };
+    }
+    // once the photo shown is there, its neighbours are asked for: the arrows and the slideshow then wait for nothing
+    function lookAhead(v, url) {
+        var media = mediaOf(v), keep = new Map([[url, v.loading]]);
+        [1, -1].forEach(function (by) {
+            var it = media[(v.index + by + media.length) % media.length];
+            if (!it || it === media[v.index] || it.Type === 'Video') { return; }
+            var near = largeImage(v, it);
+            if (!keep.has(near)) { keep.set(near, asked(v, near) || fetchImage(near, 'low')); }
+        });
+        // the pictures further away are let go: a long slideshow does not hold them all
+        v.ahead.forEach(function (img, key) { if (!keep.has(key)) { stopImage(img); } });
+        v.ahead = keep;
+    }
     // the file itself, as it is (no transcoding): a format the browser cannot read is left to jellyfin-web's player
-    function player(v, it, tag, width) {
-        var c = client();
-        var video = h('video', { controls: true, playsinline: true, preload: 'metadata', 'aria-label': it.Name, poster: tag ? image(it.Id, 'Primary', tag, width) : null,
+    function player(v, it) {
+        var c = client(), tag = it.ImageTags && it.ImageTags.Primary, box = v.stage.getBoundingClientRect();
+        var video = h('video', { controls: true, playsinline: true, preload: 'metadata', 'aria-label': it.Name, poster: tag ? image(it.Id, 'Primary', tag, size(box.width), size(box.height)) : null,
             src: c.getUrl('Videos/' + it.Id + '/stream', { static: true, mediaSourceId: it.Id, ApiKey: c.accessToken() }) });
         video.addEventListener('ended', function () { if (viewer === v && v.timer) { step(1); } });
         video.addEventListener('error', function () {

@@ -187,6 +187,31 @@ try {
         check('album: the favourite button is stored', item?.UserData?.IsFavorite === true, item?.UserData);
         await favourite.click(); await page.waitForTimeout(800);
 
+        // a server slow to make the large picture: the thumbnail holds its place, and the neighbours are asked for after it
+        const large = u => /\/Images\/Primary/.test(u.pathname) && u.searchParams.has('maxHeight');
+        const asked = new Set();
+        await page.route(large, async route => { asked.add(route.request().url()); await new Promise(r => setTimeout(r, 2500)); await route.continue().catch(() => {}); });
+        await page.locator(`${P} .pj-ph-tile`, { hasText: 'Le phare au couchant' }).click();
+        const box = () => page.$eval('.pj-ph-viewer .pj-ph-stage img', i => { const r = i.getBoundingClientRect(), k = Math.min(r.width / i.naturalWidth, r.height / i.naturalHeight); return { low: i.classList.contains('pj-ph-low'), ready: i.complete && i.naturalWidth > 0, w: Math.round(i.naturalWidth * k), h: Math.round(i.naturalHeight * k) }; });
+        await page.waitForSelector('.pj-ph-viewer .pj-ph-stage img.pj-ph-low', { timeout: 2000 });
+        await page.waitForTimeout(600);
+        const waiting = await box();
+        check('viewer: the thumbnail shows while the large picture is on its way', waiting.low && waiting.ready && asked.size === 1, [waiting, asked.size]);
+        const arrived = await page.waitForSelector('.pj-ph-viewer .pj-ph-stage img:not(.pj-ph-low)', { timeout: 10000 }).then(() => true, () => false);
+        const sharp = await box();
+        check('viewer: the large picture takes its place, at the same size', arrived && sharp.ready && Math.abs(sharp.w - waiting.w) <= 3 && Math.abs(sharp.h - waiting.h) <= 3, [waiting, sharp]);
+        await page.waitForTimeout(500);
+        check('viewer: the neighbouring photos are asked for in advance', asked.size >= 2, [...asked].map(u => u.split('/Items/')[1]));
+        // leaving a photo before its large picture is there, then coming back to it
+        // leaving a photo before its large picture is there, then coming back to it (a smaller window: sizes never asked yet)
+        await page.keyboard.press('Escape'); await page.setViewportSize({ width: 900, height: 700 }); await page.waitForTimeout(600);
+        await page.locator(`${P} .pj-ph-tile`, { hasText: 'Le phare au couchant' }).click();
+        const held = await page.waitForSelector('.pj-ph-viewer .pj-ph-stage img.pj-ph-low', { timeout: 2000 }).then(() => true, () => false);
+        await page.waitForTimeout(300); await page.keyboard.press('ArrowRight'); await page.waitForTimeout(300); await page.keyboard.press('ArrowLeft');
+        const back = await page.waitForSelector('.pj-ph-viewer .pj-ph-stage img:not(.pj-ph-low)', { timeout: 10000 }).then(() => true, () => false);
+        check('viewer: a photo left before it arrived still arrives on the way back', held && back, [held, back]);
+        await page.unroute(large);
+        await page.keyboard.press('Escape'); await page.setViewportSize({ width: 1440, height: 900 }); await page.waitForTimeout(600);
         await page.locator(`${P} .pj-ph-tile`, { hasText: 'Le phare au couchant' }).click();
         await page.waitForSelector('.pj-ph-viewer .pj-ph-stage img');
         await page.waitForTimeout(1500);
