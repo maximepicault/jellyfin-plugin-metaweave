@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-28 (D031 photo pictures prepared in advance: developed, in the working tree, not committed; last deployment recorded: 04bab89)
+Dernière mise à jour : 2026-11-28 (D031 photo pictures prepared in advance: committed (dd2523c), pushed and deployed; last deployment recorded: 50b403d)
 
 ## Objectif
 Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -15,17 +15,17 @@ Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (
 - Test results and what was not verified: see each decision.
 
 ## Déployé
-- Last successful deployment: 04bab89, develop, 2026-11-28
+- Last successful deployment: 50b403d, develop, 2026-11-28
 - e585b7a includes D027 (f265ba3) and 0cd0284 (missing episodes hidden by default on the Index screens): both are on the server since that deployment (Check and Deploy reported successful, backup /var/backups/metaweave/20261128-003546). Plugin loading in the server log not checked.
 - 04bab89 (`perf(theme)`, pictures show sooner; `docs/architecture/photo-albums.md` « Pictures sooner »): gain not measured on the real server; a first visit still waited for the server (follow-up: D031).
 
 ## En cours
-- D031 (maintainer: « Oui, développe-la »): in the working tree on develop, NOT committed, not deployed; includes the new untracked files `Services/ImagePreparationService.cs` and `ScheduledTasks/ImagePreparationTask.cs`. Reported on a 12.4 bench: build 0 warnings, `photos-library-real` 52/0, `album-people-real` 51/0, `albums-real` 37/0, `config-local-ui` 171/0.
+- D031 (maintainer: « Oui, développe-la »): committed (dd2523c), pushed and deployed on 2026-11-28 (Check and Deploy reported successful, backup /var/backups/metaweave/20261128-084514); the setting is off by default and not yet tried on the real server. Reported on a 12.4 bench: build 0 warnings, `photos-library-real` 52/0, `album-people-real` 51/0, `albums-real` 37/0, `config-local-ui` 171/0.
 - Not re-run since the D030 fixes (passed before): `config-people-*`, `local-*`, `dump-real`, `diagnostic-real`, `index-real`; `theme-audit.mjs` not re-run (partial before D029: 44 to 52 FAIL, see D028).
 - Never commit `theme/previews/` (untracked mockups and screenshots); `.claude/hooks/` is also untracked, its origin was not reported.
 
 ## Prochaines étapes
-- D031: commit and push only when the maintainer asks; after deployment turn on « Préparer les images des photothèques » (needs « Améliorations du thème Projection »; plus « grands écrans » above 1920×1080), run the task, measure duration, cache size and picture times on the real server.
+- D031: turn on « Préparer les images des photothèques » (needs « Améliorations du thème Projection »; plus « grands écrans » above 1920×1080), run the task, measure duration, cache size and picture times on the real server.
 - Re-run the scripts listed under « En cours » and the full `theme-audit.mjs`.
 - D027 to D030: check on the real server and library (a source with « Albums photo » ticked, photo screens and people with the theme script on, scan cost on a large photo library).
 - D026: check on the real server and library: plugin loaded and active, screens, previews of missing episodes, chapters.
