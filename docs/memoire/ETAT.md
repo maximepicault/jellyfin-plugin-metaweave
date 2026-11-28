@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-28 (D032 screens shown sooner: committed and deployed, 20bac11; to be tried on the real server)
+Dernière mise à jour : 2026-11-28 (D034 episode photos from the albums with the same identifier: committed on develop in 0849d91, not pushed or deployed; D033 deployed in 95f27c8)
 
 ## Objectif
 Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -15,17 +15,19 @@ Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (
 - Test results and what was not verified: see each decision.
 
 ## Déployé
-- Last successful deployment: 20bac11, develop, 2026-11-28
+- Last successful deployment: 95f27c8, develop, 2026-11-28
 - e585b7a includes D027 (f265ba3) and 0cd0284 (missing episodes hidden by default on the Index screens): both are on the server since that deployment (Check and Deploy reported successful, backup /var/backups/metaweave/20261128-003546). Plugin loading in the server log not checked.
 - 04bab89 (`perf(theme)`, pictures show sooner; `docs/architecture/photo-albums.md` « Pictures sooner »): gain not measured on the real server; a first visit still waited for the server (follow-up: D031).
 
 ## En cours
+- D034 (maintainer: « Oui, ajoute-le »; per-source setting « Photos des albums sur les épisodes », off by default): committed on develop in 0849d91, NOT pushed, NOT deployed. Reported: build 0 warnings, `episode-albums-real` 31/0 and `photos-real` all pass (12.4 bench), `config-local-ui` 173/0.
 - D032 (no stock page before the theme's screens, screens sooner): committed on develop (a346c26, 8d0c71f, b87edab); the maintainer asked to push and deploy it, to test on their server. Reported on cm-uitest12 (port 8098): `index-real` 99/99, `photos-library-real` 52/52, `album-people-real` 51/51.
 - D031 (maintainer: « Oui, développe-la »): committed (dd2523c), pushed and deployed on 2026-11-28 (Check and Deploy reported successful, backup /var/backups/metaweave/20261128-084514); the setting is off by default and not yet tried on the real server. Reported on a 12.4 bench: build 0 warnings, `photos-library-real` 52/0, `album-people-real` 51/0, `albums-real` 37/0, `config-local-ui` 171/0.
 - Not re-run since the D030 fixes (passed before): `config-people-*`, `local-*`, `dump-real`, `diagnostic-real` (`index-real` since re-run, see D032); `theme-audit.mjs` not re-run (partial before D029: 44 to 52 FAIL, see D028).
 - Never commit `theme/previews/` (untracked mockups and screenshots); `.claude/hooks/` is also untracked, its origin was not reported.
 
 ## Prochaines étapes
+- D034: push and deploy when the maintainer asks; then, on the real server, turn on « Galerie photos des épisodes » and, in the source's editor, « Photos des albums sur les épisodes » (only if videos and albums share their numbering), and time the « Photos » list on the large library.
 - D032: once deployed (scripts and stylesheet together), check on the real server and a large library that no stock page shows and how long screens take; if still slow, reconsider lead 3 (requests sent when the header button is hovered; proposed, not asked for).
 - D031: turn on « Préparer les images des photothèques » (needs « Améliorations du thème Projection »; plus « grands écrans » above 1920×1080), run the task, measure duration, cache size and picture times on the real server.
 - Re-run the scripts listed under « En cours » and the full `theme-audit.mjs`.
@@ -35,6 +37,7 @@ Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (
 - D019/D022, remaining for the maintainer: turn on « Améliorations du thème Projection » and « Galerie photos des épisodes » (Settings tab), reload with Ctrl+F5, uninstall the old « Episode Gallery » plugin.
 
 ## Pièges découverts
+- Dev machine (2026-11-28): main disk nearly full (about 2 GB free, 98-99 %); Jellyfin 12.4 refuses to start under 2 GiB free in its data folder, so a new bench under `~/.cache` failed [supposé: reported]; one with `CM_UI_WORK` on tmpfs worked. Old `~/.cache/cm-ui-test*` folders take about 6 GB (untouched, the maintainer's call).
 - An `InternalItemsQuery` by ids does not apply the user's libraries by itself: check each item with `ILibraryManager.GetItemById(id, user)` (D032) [supposé: reported, not re-tested].
 - Jellyfin's « Clean Cache Directory » deletes old cached images (12.4 bench: 40 days old removed, 25 kept), and prepared pictures only serve if size, quality and format match the browser's request (D031).
 - Photos (D027): Jellyfin's EXIF reader rewrites a photo's fields at each of its runs, so a user « search missing metadata » overwrites a typed value on an unlocked photo (only the item lock keeps it); a library scan alone does not apply a source change (targeted refresh needed).
@@ -60,6 +63,7 @@ Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (
 - Cast changes and renames do not reach already-enriched episodes by themselves: "Analyser" and "Appliquer aux épisodes" (background task, not QueueRefresh) propagate them (D007).
 
 ## Questions ouvertes
+- D034, not verified: real server and library, large libraries (every folder and album item is read at each list request, no cache), Firefox/Safari. HEIC/TIFF/BMP album photos are not shown. The manual workaround (copy or hard link into the numbered folder) is untested.
 - D032, assistant's implementation choices not confirmed by the maintainer (the late update on a return was stated when lead 1 was chosen). Not verified: real server, large library, Firefox/Safari, mobile outside `index-real`.
 - D031, assistant's choices not confirmed by the maintainer (list in the decision). The size and time figures in the setting's hint and the README are estimates, not measured on real photos [supposé]. Not verified: real server and library, 1440p/4K screen, Safari/Firefox, very large libraries.
 - D028 to D030, not verified: real server and library, large libraries, TV, Firefox/Safari, stock apps, limited user, video formats beyond H.264 MP4 and MPEG-4 AVI.
