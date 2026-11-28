@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-28 (D028 photo displays, D029 album videos and D030 people on albums, photos and videos committed on develop (e756db8, cf3efa4), not pushed; D027 pushed; last deployment recorded: f9f0a21)
+Dernière mise à jour : 2026-11-28 (D028 photo displays, D029 album videos and D030 people on albums, photos and videos pushed on develop (e756db8, cf3efa4) and deployed; last deployment recorded: e585b7a)
 
 ## Objectif
 Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -14,17 +14,17 @@ Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (
 - Test results and what was not verified: see each decision.
 
 ## Déployé
-- Last successful deployment: f9f0a21, develop, 2026-11-27
-- f265ba3: Semaphore check reported signature verified and CI green, deploy command refused by the app's auto mode (not deployed by that session); whether the maintainer ran it is unknown. 0cd0284 (missing episodes hidden by default on the Index screens): no deployment recorded.
+- Last successful deployment: e585b7a, develop, 2026-11-28
+- e585b7a includes D027 (f265ba3) and 0cd0284 (missing episodes hidden by default on the Index screens): both are on the server since that deployment (Check and Deploy reported successful, backup /var/backups/metaweave/20261128-003546). Plugin loading in the server log not checked.
 
 ## En cours
-- D028 (theme photo screens `theme/projection-photos.js` + section 19 of `projection.css`, editor menu, « Actualiser » blocks), D029 (album videos) and D030 (people on albums, photos, videos; `docs/architecture/photo-albums.md` « People »): committed on develop on 2026-11-28 (`e756db8` editor menu and « Actualiser » blocks, `cf3efa4` the rest), not pushed.
+- D028 (theme photo screens `theme/projection-photos.js` + section 19 of `projection.css`, editor menu, « Actualiser » blocks), D029 (album videos) and D030 (people on albums, photos, videos; `docs/architecture/photo-albums.md` « People »): committed on develop on 2026-11-28 (`e756db8` editor menu and « Actualiser » blocks, `cf3efa4` the rest), pushed and deployed on 2026-11-28.
 - D030's four open defects fixed (2026-11-28: lock, casting off, typed person on a video, source not answering; see its amendment). Reported on a 12.4 bench after the fixes: build 0 warnings, `album-people-real.mjs` 51/0, `albums-real.mjs` 37/0, `photos-library-real.mjs` 43/0; `config-local-ui` 171/0 (before the commit, alone on `e756db8` too); not re-run since (passed before): `config-people-*`, `local-*`, `dump-real`, `diagnostic-real`, `index-real`; `theme-audit.mjs` not re-run (partial before D029: 44 to 52 FAIL, see D028). Not verified: real server and library, large libraries, TV, Firefox/Safari, stock apps, limited user, video formats beyond H.264 MP4 and MPEG-4 AVI.
 - Never commit `theme/previews/` (untracked mockups and screenshots); `.claude/hooks/` is also untracked, its origin was not reported.
 
 ## Prochaines étapes
 - D028/D029/D030: re-run the scripts not run since the D030 fixes (list under « En cours ») and the full `theme-audit.mjs`; push only when the maintainer asks.
-- D027 to D030: find out whether f265ba3 was deployed; check on the real server and library (a source with « Albums photo » ticked, photo screens and people with the theme script on, scan cost on a large photo library).
+- D027 to D030: check on the real server and library (a source with « Albums photo » ticked, photo screens and people with the theme script on, scan cost on a large photo library).
 - D026: check on the real server and library: plugin loaded and active, screens, previews of missing episodes, chapters.
 - D025: then check screen times, memory use, a user with limited access.
 - D019/D022, remaining for the maintainer: turn on « Améliorations du thème Projection » and « Galerie photos des épisodes » (Settings tab), reload with Ctrl+F5, uninstall the old « Episode Gallery » plugin.
