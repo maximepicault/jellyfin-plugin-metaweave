@@ -73,10 +73,10 @@ try {
   await evalJs(`window.__cmdAnswer='ok'; if(!window.__cmdAuto){window.__cmdAuto=new MutationObserver(function(){var b=document.querySelector('.cmd-backdrop [data-cmd='+window.__cmdAnswer+']'); if(b){b.click();}}); window.__cmdAuto.observe(document.documentElement,{childList:true,subtree:true});} true`);   // a real dialog would block the driving
   check('Episodes tab hidden at the start', (await evalJs(`document.querySelector('${P} #ppTabEpisodes').hidden`)) === true);
   await click(`${P} [data-pp-tab="episodes"]`);
-  // The slow library listing is NOT loaded automatically: only "By identifier" and a button are offered
+  // The slow library listing is NOT loaded automatically: only a button is offered
   check('library not loaded by default', await until(`!!document.querySelector('${P} [data-library-load]')`, 15000));
   check('library not loaded: no season in the tree', (await evalJs(`document.querySelectorAll('${P} [data-ep-season]').length`)) === 0);
-  check('"By identifier" is the default view', (await evalJs(`!!document.querySelector('${P} #ppIdAdd')`)) === true);
+  check('"Séries" is the default view', (await evalJs(`document.querySelector('${P} [data-pp-kind="series"]').getAttribute('aria-pressed')`)) === 'true');
   await click(`${P} [data-library-load]`);
   check('tree loaded (series and seasons)', await until(`document.querySelectorAll('${P} [data-ep-season]').length >= 4`, 15000));
   check('series listed', (await evalJs(`document.querySelector('${P} #ppEpTree').textContent`)).includes('Les Aventuriers'));
@@ -142,7 +142,7 @@ try {
   check('cascade preview lists the season and episode tags', await until(`(function(){var t=(document.querySelector('${P} #ppCascadePreview')||{}).textContent||''; return t.indexOf('{dm-a1}')>=0 && t.indexOf('{dm-a1v3}')>=0;})()`, 10000), await evalJs(`(document.querySelector('${P} #ppCascadePreview')||{}).textContent`));
   check('cascade preview says how many episodes', (await evalJs(`document.querySelector('${P} #ppCascadePreview').textContent`)).includes('épisode'));
   await shot('E3-autocomplete-cascade-1440');
-  await click(`${P} [data-ep-mode="ids"]`); await wait(300);
+  await click(`${P} [data-pp-kind="ids"]`); await wait(300);
   await type(`${P} #ppIdKey`, 'pas un identifiant'); await click(`${P} #ppIdAdd`); await wait(200);
   check('invalid identifier refused', (await evalJs(`document.querySelector('${P} #ppIdMsg').textContent`)).includes('Format attendu'));
   await evalJs(`(function(){var s=document.querySelector('${P} #ppIdType'); s.value='episode'; s.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);

@@ -15,6 +15,9 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         /// <summary>Videos only: the "name|type" keys written into Jellyfin's own cast, to take back only those</summary>
         public List<string> Written { get; set; } = new List<string>();
+
+        /// <summary>The "name|type" keys of the members a source links (the People screen shows them read-only)</summary>
+        public List<string> FromSource { get; set; } = new List<string>();
     }
 
     /// <summary>

@@ -26,12 +26,13 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         private readonly LocalSourceStore _images;
         private readonly CastOverlayStore _overlay;
         private readonly CastCatalog _catalog;
+        private readonly AlbumCatalog _albums;
         private readonly CastApplyService _apply;
         private readonly PersonNetworkStore _networks;
         private readonly System.Net.Http.IHttpClientFactory _httpClientFactory;
         private readonly Microsoft.Extensions.Logging.ILogger<PeopleController> _logger;
 
-        public PeopleController(System.Net.Http.IHttpClientFactory httpClientFactory, PersonNetworkStore networks, Microsoft.Extensions.Logging.ILogger<PeopleController> logger, PeopleStore people, CustomApiClient apiClient, LocalSourceStore images, CastOverlayStore overlay, CastCatalog catalog, CastApplyService apply)
+        public PeopleController(System.Net.Http.IHttpClientFactory httpClientFactory, PersonNetworkStore networks, Microsoft.Extensions.Logging.ILogger<PeopleController> logger, PeopleStore people, CustomApiClient apiClient, LocalSourceStore images, CastOverlayStore overlay, CastCatalog catalog, CastApplyService apply, AlbumCatalog albums)
         {
             _apply = apply;
             _networks = networks;
@@ -42,6 +43,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             _images = images;
             _overlay = overlay;
             _catalog = catalog;
+            _albums = albums;
         }
 
         [HttpGet]
@@ -338,6 +340,16 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
         [HttpGet("Children")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public ActionResult<CastChildren> GetChildren([FromQuery] string type, [FromQuery] string key) => Ok(_catalog.Children(type, key));
+
+        /// <summary>Every album of the photo libraries, with who the sources link to each</summary>
+        [HttpGet("Albums")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public ActionResult<System.Collections.Generic.List<CastCatalogAlbum>> GetAlbums() => Ok(_albums.Albums());
+
+        /// <summary>The photos and videos directly in one album, a page at a time</summary>
+        [HttpGet("Albums/{albumId}/Files")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public ActionResult<CastCatalogFiles> GetAlbumFiles(System.Guid albumId, [FromQuery] int start = 0, [FromQuery] int limit = 120) => Ok(_albums.Files(albumId, start, limit));
 
         /// <summary>Series, seasons and episodes of the library that carry an API source tag</summary>
         [HttpGet("Library")]

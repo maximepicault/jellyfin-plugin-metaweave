@@ -108,6 +108,7 @@ namespace Jellyfin.Plugin.CustomMetadata
                 sp.GetRequiredService<DumpStore>()));
 
             serviceCollection.AddSingleton<CastCatalog>();
+            serviceCollection.AddSingleton<AlbumCatalog>();
             serviceCollection.AddSingleton<CastInheritance>();
             serviceCollection.AddSingleton<CastApplyService>();
 

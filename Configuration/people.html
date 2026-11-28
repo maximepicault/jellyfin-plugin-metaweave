@@ -169,6 +169,76 @@
         #CustomMetadataPeoplePage .pp-chip.missing { border-style: dashed; }
         #CustomMetadataPeoplePage .pp-library-box { padding: 10px; border: 1px dashed var(--pp-border); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
         @container (max-width: 700px) { #CustomMetadataPeoplePage .pp-cast-row { grid-template-columns: 40px minmax(0, 1fr) auto; } #CustomMetadataPeoplePage .pp-cast-row .pp-cast-role, #CustomMetadataPeoplePage .pp-cast-row .pp-cast-type { grid-column: 2 / -1; } }
+        /* Distribution tab: toolbar, then series (list and detail) or photo albums */
+        #CustomMetadataPeoplePage .pp-castbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; max-width: 1340px; margin: 0 0 16px; }
+        #CustomMetadataPeoplePage .pp-castbar .pp-search { flex: 1 1 240px; min-width: 0; min-height: 42px; box-sizing: border-box; padding: 0 12px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; border: 1px solid transparent; border-radius: 6px; }
+        #CustomMetadataPeoplePage .pp-castbar .pp-search:focus { outline: none; border-color: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-seg { display: flex; }
+        #CustomMetadataPeoplePage .pp-seg button { min-height: 42px; padding: 0 20px; border: 1px solid var(--pp-border); background: var(--pp-surface); color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+        #CustomMetadataPeoplePage .pp-seg button:first-child { border-radius: 6px 0 0 6px; }
+        #CustomMetadataPeoplePage .pp-seg button:last-child { border-left: 0; border-radius: 0 6px 6px 0; }
+        #CustomMetadataPeoplePage .pp-seg button[aria-pressed="true"], #CustomMetadataPeoplePage .pp-filter button[aria-pressed="true"] { background: #00779f; border-color: #00779f; color: #fff; }
+        #CustomMetadataPeoplePage .pp-castbar .pp-linkbtn[aria-pressed="true"] { text-decoration: underline; color: #fff; }
+        #CustomMetadataPeoplePage .pp-layout.pp-solo { grid-template-columns: minmax(0, 980px); }
+        #CustomMetadataPeoplePage .pp-layout.pp-solo .pp-list { display: none; }
+        #CustomMetadataPeoplePage .pp-layout[hidden], #CustomMetadataPeoplePage .pp-ph[hidden] { display: none; }
+        #CustomMetadataPeoplePage .pp-ph { max-width: 1340px; display: flex; flex-direction: column; gap: 16px; }
+        #CustomMetadataPeoplePage .pp-filter { display: flex; flex-wrap: wrap; gap: 8px; }
+        #CustomMetadataPeoplePage .pp-filter button { min-height: 36px; padding: 0 14px; border: 1px solid var(--pp-border); border-radius: 18px; background: var(--pp-surface); color: inherit; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+        #CustomMetadataPeoplePage .pp-ph h4 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+        #CustomMetadataPeoplePage .pp-card { display: flex; flex-direction: column; min-width: 0; padding: 0; overflow: hidden; border: 1px solid var(--pp-border); border-radius: 10px; background: var(--pp-surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #CustomMetadataPeoplePage .pp-card:hover, #CustomMetadataPeoplePage .pp-card:focus-visible { border-color: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-pic { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 16 / 9; width: 100%; overflow: hidden; background: rgba(255, 255, 255, 0.07); color: var(--pp-muted); font-size: 12px; }
+        #CustomMetadataPeoplePage .pp-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        #CustomMetadataPeoplePage .pp-card-text { display: flex; flex-direction: column; gap: 3px; padding: 9px 11px 11px; }
+        #CustomMetadataPeoplePage .pp-card-text strong { overflow-wrap: anywhere; }
+        #CustomMetadataPeoplePage .pp-card-text small { font-size: 12px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-stack { display: flex; align-items: center; min-height: 28px; }
+        #CustomMetadataPeoplePage .pp-stack .pp-avatar { flex: 0 0 26px; width: 26px; height: 26px; margin-right: -7px; border: 2px solid #1c1c1c; background: #3a4046; color: #fff; font-size: 11px; font-weight: 700; }
+        #CustomMetadataPeoplePage .pp-stack em { margin-left: 14px; font-style: normal; font-size: 12px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-stack em:first-child { margin-left: 0; }
+        #CustomMetadataPeoplePage .pp-crumb { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-ph-head h3 { margin: 0; font-size: 20px; font-weight: 600; overflow-wrap: anywhere; }
+        #CustomMetadataPeoplePage .pp-panel { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--pp-border); border-radius: 10px; background: var(--pp-surface); }
+        #CustomMetadataPeoplePage .pp-pchips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        #CustomMetadataPeoplePage .pp-pchip { display: inline-flex; align-items: center; max-width: 100%; border: 1px solid var(--pp-border); border-radius: 20px; background: rgba(255, 255, 255, 0.08); }
+        #CustomMetadataPeoplePage .pp-pchip > button, #CustomMetadataPeoplePage .pp-pchip > span:not(.pp-avatar) { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; min-width: 0; padding: 3px 8px 3px 4px; border: 0; border-radius: 20px; background: none; color: inherit; font: inherit; text-align: left; }
+        #CustomMetadataPeoplePage .pp-pchip > button { cursor: pointer; }
+        #CustomMetadataPeoplePage .pp-pchip > button:hover { background: rgba(255, 255, 255, 0.08); }
+        #CustomMetadataPeoplePage .pp-pchip > .pp-pchip-x { padding: 3px 12px 3px 6px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-pchip .pp-avatar { flex: 0 0 28px; width: 28px; height: 28px; font-size: 12px; }
+        #CustomMetadataPeoplePage .pp-pchip small { font-size: 12px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-pchip.ro { border-style: dashed; background: none; }
+        #CustomMetadataPeoplePage .pp-pchip.ro > span:not(.pp-avatar) { padding-right: 14px; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-pchip.on { border-color: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-ph-add { position: relative; flex: 0 1 280px; min-width: 200px; }
+        #CustomMetadataPeoplePage .pp-ph-add input, #CustomMetadataPeoplePage .pp-editrow input, #CustomMetadataPeoplePage .pp-editrow select { width: 100%; min-height: 40px; box-sizing: border-box; padding: 0 12px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; border: 1px solid transparent; border-radius: 4px; }
+        #CustomMetadataPeoplePage .pp-editrow select option { color: #000; }
+        #CustomMetadataPeoplePage .pp-editrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+        #CustomMetadataPeoplePage .pp-editrow input { flex: 1 1 200px; width: auto; }
+        #CustomMetadataPeoplePage .pp-editrow select { flex: 0 1 160px; }
+        #CustomMetadataPeoplePage .pp-ph-note { margin: 0; font-size: 13px; line-height: 1.45; color: var(--pp-muted); }
+        #CustomMetadataPeoplePage .pp-ph-note.warn { color: #f3c88a; }
+        #CustomMetadataPeoplePage .pp-ph-fileshead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+        #CustomMetadataPeoplePage .pp-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+        #CustomMetadataPeoplePage .pp-file { position: relative; min-width: 0; padding: 0; overflow: hidden; border: 2px solid transparent; border-radius: 6px; background: none; color: #fff; font: inherit; cursor: pointer; user-select: none; }
+        #CustomMetadataPeoplePage .pp-file .pp-pic { aspect-ratio: 3 / 2; }
+        #CustomMetadataPeoplePage .pp-file[aria-pressed="true"] { border-color: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-file:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+        #CustomMetadataPeoplePage .pp-tick { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border: 2px solid #fff; border-radius: 50%; background: rgba(0, 0, 0, 0.55); font-size: 13px; line-height: 22px; text-align: center; }
+        #CustomMetadataPeoplePage .pp-file[aria-pressed="true"] .pp-tick { border-color: var(--pp-accent); background: var(--pp-accent); }
+        #CustomMetadataPeoplePage .pp-file[aria-pressed="true"] .pp-tick::after { content: "\2713"; }
+        #CustomMetadataPeoplePage .pp-file .pp-stack { position: absolute; left: 6px; bottom: 22px; }
+        #CustomMetadataPeoplePage .pp-file-name { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 6px 3px; overflow: hidden; background: linear-gradient(transparent, rgba(0, 0, 0, 0.8)); font-size: 11px; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+        #CustomMetadataPeoplePage .pp-video { position: absolute; top: 6px; right: 6px; padding: 1px 7px; border-radius: 10px; background: rgba(0, 0, 0, 0.65); font-size: 11px; font-weight: 700; }
+        #CustomMetadataPeoplePage .pp-dock { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; max-width: 1040px; box-sizing: border-box; margin: 0 auto 10px; padding: 12px 16px; border: 1px solid var(--pp-accent); border-radius: 12px; background: #1d2a30; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7); }
+        #CustomMetadataPeoplePage .pp-dock[hidden] { display: none; }
+        #CustomMetadataPeoplePage .pp-dock-head { display: flex; flex: 1 1 100%; justify-content: space-between; align-items: center; gap: 12px; }
+        #CustomMetadataPeoplePage .pp-dock .pp-pchips { max-height: 124px; overflow: auto; }
+        #CustomMetadataPeoplePage .pp-dock .pp-editrow { flex: 1 1 100%; }
+        #CustomMetadataPeoplePage .pp-dock .pp-ac-list { top: auto; bottom: calc(100% + 4px); }
+        @container (max-width: 700px) { #CustomMetadataPeoplePage .pp-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } #CustomMetadataPeoplePage .pp-wall { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 4px; } #CustomMetadataPeoplePage .pp-ph-add { flex: 1 1 100%; } #CustomMetadataPeoplePage .pp-dock { margin: 0 8px 8px; padding: 10px 12px; } }
         #CustomMetadataPeoplePage .pp-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(240, 160, 64, 0.55); border-radius: 8px; background: rgba(240, 160, 64, 0.1); color: #f3c88a; line-height: 1.5; }
         #CustomMetadataPeoplePage .pp-warn span { flex: 1 1 320px; }
         #CustomMetadataPeoplePage .pp-group-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -177,10 +247,11 @@
         #CustomMetadataPeoplePage .pp-group-btn::before { content: "▸"; color: var(--pp-accent); margin-right: 2px; }
         #CustomMetadataPeoplePage .pp-item.pp-sub { margin-left: 14px; }
         #CustomMetadataPeoplePage .pp-group-sub { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--pp-muted); }
-        #CustomMetadataPeoplePage .pp-apply { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(63, 178, 127, 0.5); border-radius: 8px; background: rgba(63, 178, 127, 0.1); line-height: 1.5; }
+        #CustomMetadataPeoplePage .pp-apply { scroll-margin-top: 84px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 18px; padding: 12px 16px; border: 1px solid rgba(63, 178, 127, 0.5); border-radius: 8px; background: rgba(63, 178, 127, 0.1); line-height: 1.5; }
         #CustomMetadataPeoplePage .pp-apply span { flex: 1 1 320px; }
         #CustomMetadataPeoplePage .pp-apply .emby-button { margin: 0; }
-        #CustomMetadataPeoplePage .pp-savebar { position: sticky; bottom: 0; z-index: 5; margin: 24px -16px 0; padding: 12px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; border-top: 1px solid var(--pp-border); background: #181818; }
+        #CustomMetadataPeoplePage .pp-bottom { position: sticky; bottom: 0; z-index: 5; margin: 24px -0.93em 0; }
+        #CustomMetadataPeoplePage .pp-savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px 16px; border-top: 1px solid var(--pp-border); background: #181818; }
         #CustomMetadataPeoplePage .pp-savebar .emby-button { margin: 0; justify-content: center; text-align: center; }
         #CustomMetadataPeoplePage .pp-narrow { display: none; }
         #CustomMetadataPeoplePage .pp-item-ids.pp-plain { font-family: inherit; }
@@ -217,7 +288,7 @@
                     <a class="cmn-tab" href="#/configurationpage?name=CustomMetadataTaxonomy">Genres et tags <span class="cmn-count" data-cmn-count="taxonomy"></span></a>
                 </nav>
                 <h2>Personnes</h2>
-                <p class="pp-lead">L'annuaire du casting, commun à toutes les sources. Chaque personne peut venir d'une ou plusieurs API (un identifiant par source) ou être saisie à la main. Elles s'ajoutent ensuite à la distribution des épisodes : dans la source pour une source locale, dans l'onglet « Distribution des épisodes d'API » pour une source API.</p>
+                <p class="pp-lead">L'annuaire du casting, commun à toutes les sources. Chaque personne peut venir d'une ou plusieurs API (un identifiant par source) ou être saisie à la main. Elles se relient ensuite à vos séries et à vos photos dans l'onglet « Distribution » (ou dans la source, pour une source locale), en plus de celles des sources.</p>
 
                 <div class="pp-warn" id="ppCastOff" role="alert" hidden>
                     <span>Le casting est <strong>désactivé</strong> dans les réglages du plugin : les personnes et les distributions ne sont pas envoyées à Jellyfin tant que « Importer le casting » est coupé.</span>
@@ -232,7 +303,7 @@
 
                 <div class="pp-tabs" role="tablist" aria-label="Sections">
                     <button type="button" class="pp-tab" role="tab" id="ppTabBtnDir" data-pp-tab="directory" aria-selected="true">Annuaire</button>
-                    <button type="button" class="pp-tab" role="tab" id="ppTabBtnEp" data-pp-tab="episodes" aria-selected="false">Distribution des épisodes d'API</button>
+                    <button type="button" class="pp-tab" role="tab" id="ppTabBtnEp" data-pp-tab="episodes" aria-selected="false">Distribution</button>
                     <button type="button" class="pp-tab" role="tab" id="ppTabBtnNet" data-pp-tab="networks" aria-selected="false">Réseaux</button>
                 </div>
 
@@ -281,22 +352,32 @@
                 </div>
 
                 <div id="ppTabEpisodes" hidden>
-                    <p class="pp-lead" style="margin-bottom: 16px;">Ajoutez une distribution aux épisodes qui viennent d'une source API (ceux d'une source locale se règlent dans la source). L'API n'est pas modifiée : la distribution est rattachée au tag de l'épisode et s'ajoute à son casting éventuel, sans doublon. Un album photo, une photo ou une vidéo d'album s'ajoute avec « Par identifiant ».</p>
-                    <div class="pp-layout">
+                    <div class="pp-castbar">
+                        <div class="pp-seg" role="group" aria-label="Ce qu'il faut relier">
+                            <button type="button" data-pp-kind="series" aria-pressed="true">Séries</button>
+                            <button type="button" data-pp-kind="photos" aria-pressed="false">Photos</button>
+                        </div>
+                        <input class="pp-search" type="search" id="ppEpSearch" aria-label="Rechercher" />
+                        <button type="button" class="pp-linkbtn" data-pp-kind="ids" aria-pressed="false">Ajouter par identifiant</button>
+                    </div>
+                    <div class="pp-layout" id="ppEpLayout">
                         <div class="pp-list">
-                            <div class="inputContainer"><input is="emby-input" type="search" id="ppEpSearch" placeholder="Rechercher (série, saison, identifiant)" aria-label="Rechercher une série, une saison ou un identifiant" /></div>
                             <div class="pp-items" id="ppEpTree"></div>
                         </div>
                         <div class="pp-detail" id="ppEpDetail" aria-live="polite"></div>
                     </div>
+                    <div class="pp-ph" id="ppPhotos" hidden></div>
                 </div>
 
+                <div class="pp-bottom">
+                <div class="pp-dock" id="ppPhDock" role="region" aria-label="Fichiers sélectionnés" hidden></div>
                 <div class="pp-savebar" role="region" aria-label="Enregistrement">
                     <span class="pp-dirty" id="ppDirty">Aucune modification</span>
                     <div class="pp-actions">
                         <button is="emby-button" type="button" class="raised" id="ppCancel"><span class="pp-wide">Annuler les modifications</span><span class="pp-narrow">Annuler</span></button>
                         <button is="emby-button" type="button" class="raised button-submit" id="ppSave"><span>Enregistrer</span></button>
                     </div>
+                </div>
                 </div>
             </div>
         </div>
@@ -424,6 +505,7 @@
 
             function photoSrc(value) {
                 if (!value) { return ''; }
+                if (value.indexOf('CustomMetadata/') === 0) { return ApiClient.getUrl(value); }
                 if (value.indexOf('local://img/') === 0) {
                     var file = value.substring(value.lastIndexOf('/') + 1);
                     return ApiClient.getUrl('CustomMetadata/Local/' + IMAGES_ID + '/Image/' + file, { ApiKey: ApiClient.accessToken() });
@@ -977,7 +1059,8 @@
 
             // ---- Cast of API series, seasons and episodes (attached to their tag, API unmodified) ----
             // Typed keys: "episode:dm-a1v1", "season:dm-a1", "series:dm-aventuriers" (the same identifier can exist for several types)
-            var epMode = 'ids';       // 'library': series/seasons of the library (loaded on demand), 'ids': elements typed by identifier
+            var epMode = 'library';   // 'library': series/seasons of the library (loaded on demand), 'ids': elements typed by identifier
+            var castKind = 'series';  // what the tab shows: 'series', 'photos' or 'ids'
             var castLoaded = false;   // the small distribution file is loaded (fast); the library is NOT loaded until asked
             var libraryLoading = false;
             var cascadeMap = {};      // typed key (series / season) -> its distribution also applies to everything below it (saved)
@@ -1014,9 +1097,7 @@
                 var box = qs('#ppEpTree');
                 if (!castLoaded) { box.innerHTML = '<div class="pp-empty">Chargement…</div>'; return; }
                 var filter = qs('#ppEpSearch').value;
-                var idsCount = Object.keys(episodeCast).filter(function(k) { return castCount(k) > 0; }).length;
-                var html = '<button type="button" class="pp-item" data-ep-mode="ids"' + (epMode === 'ids' ? ' aria-current="true"' : '') + '><span class="pp-item-text"><span class="pp-item-name">Par identifiant</span><span class="pp-item-ids pp-plain">saisir un {préfixe-id}</span></span>'
-                    + (idsCount ? '<span class="pp-count" title="' + plural(idsCount, 'élément', 'éléments') + ' avec une distribution">' + idsCount + '</span>' : '') + '</button>';
+                var html = '';
                 if (!library) {
                     html += '<div class="pp-library-box">' + (libraryLoading
                         ? '<span class="pp-hint" style="margin:0;" role="status">Lecture de la médiathèque…</span>'
@@ -1137,17 +1218,20 @@
                 if (!castLoaded) { box.innerHTML = ''; return; }
                 var html = '';
                 if (epMode === 'ids') {
+                    if (!photoAlbums && !albumsState && Object.keys(episodeCast).some(isPhotoKey)) { loadAlbums(); }
                     var inLibrary = libraryKeys();
                     var search = qs('#ppEpSearch').value;
-                    var keys = Object.keys(episodeCast).sort().filter(function(tk) { return !search || matchesWords(search, keyOf(tk) + ' ' + (TYPE_LABELS[typeOf(tk)] || '') + ' ' + (inLibrary[tk] || '')); });
+                    // Albums and files without identifier are handled in « Photos »: their key says nothing here
+                    var albumTitles = albumKeyTitles();
+                    var keys = Object.keys(episodeCast).sort().filter(function(tk) { return !(isPhotoKey(tk) && isSynthetic(keyOf(tk))); }).filter(function(tk) { return !search || matchesWords(search, keyOf(tk) + ' ' + (TYPE_LABELS[typeOf(tk)] || '') + ' ' + (inLibrary[tk] || '')); });
                     html = '<div><h3>Par identifiant</h3><div class="pp-hint" style="margin:2px 0 0;">Rattachez des personnes à un élément en saisissant son tag, même s\'il n\'est pas (encore) dans la médiathèque. Le type fait partie de la clé : le même identifiant peut exister pour une série et pour un épisode.</div></div>'
                         + '<div class="pp-add-row"><div class="selectContainer"><label class="selectLabel" for="ppIdType">Type d\'élément</label><select is="emby-select" id="ppIdType"><option value="episode">Épisode</option><option value="season">Saison</option><option value="series">Série</option><option value="album">Album photo</option><option value="media">Photo ou vidéo</option></select></div>'
                         + '<div class="inputContainer"><label class="inputLabel" for="ppIdKey">Identifiant</label><input is="emby-input" type="text" id="ppIdKey" placeholder="{dv-1234}" /></div>'
                         + '<button is="emby-button" type="button" class="raised button-submit" id="ppIdAdd"><span>Ajouter</span></button></div><div class="pp-hint" id="ppIdMsg" role="status" style="margin:0;color:#f0c080;"></div><div class="pp-eps">';
                     keys.forEach(function(tk) {
-                        var title = inLibrary[tk];
+                        var title = inLibrary[tk] || albumTitles[tk];
                         // Title known from the library first (it is what is recognised), the tag as a landmark
-                        html += elementRow(tk, title || keyTag(keyOf(tk)), title ? keyTag(keyOf(tk)) : (typeOf(tk) === 'album' || typeOf(tk) === 'media' ? 'tag saisi à la main : les albums et leurs fichiers ne sont pas listés ici' : (isSynthetic(keyOf(tk)) ? 'élément sans identifiant pas encore chargé : « Parcourir la médiathèque »' : 'pas dans la médiathèque pour le moment')), { typeBadge: true, removable: true, hideNum: true });
+                        html += elementRow(tk, title || keyTag(keyOf(tk)), title ? keyTag(keyOf(tk)) : (isPhotoKey(tk) ? 'tag saisi à la main' : (isSynthetic(keyOf(tk)) ? 'élément sans identifiant pas encore chargé : « Parcourir la médiathèque »' : 'pas dans la médiathèque pour le moment')), { typeBadge: true, removable: true, hideNum: true });
                     });
                     box.innerHTML = html + (keys.length ? '' : '<div class="pp-empty">Aucun élément pour le moment.</div>') + '</div>';
                     return;
@@ -1171,7 +1255,7 @@
                         + (seriesTk ? elementRow(seriesTk, 'Distribution de la série', keyTag(series.Key), {}) : '<div class="pp-hint" style="margin:0;">' + noTagNote() + '</div>') + '</div>';
                     return;
                 }
-                box.innerHTML = '<div class="pp-empty">' + (!library ? 'Choisissez « Par identifiant », ou parcourez la médiathèque depuis la liste.' : (library.length ? 'Choisissez une série, une saison, ou « Par identifiant ».' : 'Aucun élément portant un tag de source API dans la médiathèque : utilisez « Par identifiant ».')) + '</div>';
+                box.innerHTML = '<div class="pp-empty">' + (!library ? 'Parcourez la médiathèque depuis la liste, ou utilisez « Ajouter par identifiant ».' : (library.length ? 'Choisissez une série ou une saison dans la liste.' : 'Aucun élément portant un tag de source API dans la médiathèque : utilisez « Ajouter par identifiant ».')) + '</div>';
             }
 
             // The preview is filled after each render of the detail panel (the panel is rebuilt on every change)
@@ -1297,9 +1381,8 @@
                     cascadeWas = JSON.parse(JSON.stringify(cascadeMap));
                     childrenCache = {};
                     castLoaded = true;
-                    renderEpTree();
-                    renderEpDetail();
-                }, function() { qs('#ppEpTree').innerHTML = '<div class="pp-empty">La distribution n\'a pas pu être lue.</div>'; });
+                    renderCastView();
+                }, function() { qs('#ppEpTree').innerHTML = qs('#ppPhotos').innerHTML = '<div class="pp-empty">La distribution n\'a pas pu être lue.</div>'; });
             }
 
             function loadLibrary() {
@@ -1324,7 +1407,8 @@
                 qs('#ppTabEpisodes').hidden = name !== 'episodes';
                 qs('#ppTabNetworks').hidden = name !== 'networks';
                 if (name === 'networks') { renderNets(); }
-                if (name === 'episodes') { loadEpisodesTab(); renderEpDetail(); }
+                if (name === 'episodes') { loadEpisodesTab(); renderCastView(); }
+                renderDock();
             }
 
             page.addEventListener('click', function(e) {
@@ -1332,16 +1416,18 @@
                 if (tab) { showTab(tab.getAttribute('data-pp-tab')); }
             });
 
-            qs('#ppEpSearch').addEventListener('input', function() { renderEpTree(); if (epMode === 'ids') { renderEpDetail(); } });
+            qs('#ppEpSearch').addEventListener('input', function() {
+                if (castKind === 'photos') { searchAlbums(); return; }
+                renderEpTree();
+                if (epMode === 'ids') { renderEpDetail(); }
+            });
             qs('#ppEpTree').addEventListener('click', function(e) {
                 if (e.target.closest('[data-library-load]')) { loadLibrary(); return; }
-                var mode = e.target.closest('[data-ep-mode]');
                 var series = e.target.closest('[data-ep-series]');
                 var season = e.target.closest('[data-ep-season]');
-                if (!mode && !series && !season) { return; }
+                if (!series && !season) { return; }
                 epOpen = null;
-                if (mode) { epMode = 'ids'; epSeason = null; epSeries = null; }
-                else if (season) { epMode = 'library'; epSeason = season.getAttribute('data-ep-season'); var hit = findSeason(epSeason); epSeries = hit ? hit.series.SeriesId : null; }
+                if (season) { epMode = 'library'; epSeason = season.getAttribute('data-ep-season'); var hit = findSeason(epSeason); epSeries = hit ? hit.series.SeriesId : null; }
                 else { epMode = 'library'; epSeason = null; epSeries = series.getAttribute('data-ep-series'); }
                 renderEpTree();
                 renderEpDetail();
@@ -1398,6 +1484,535 @@
                 if (e.target.id === 'ppIdKey') { e.preventDefault(); addById(); }
             });
             qs('#ppEpDetail').addEventListener('error', function(e) { if (e.target.tagName === 'IMG') { e.target.parentNode.textContent = '?'; } }, true);
+
+            // ---- Distribution tab: which view ----
+            function isPhotoKey(tk) { return typeOf(tk) === 'album' || typeOf(tk) === 'media'; }
+
+            function renderCastView() {
+                var photos = castKind === 'photos';
+                qs('#ppEpLayout').hidden = photos;
+                qs('#ppEpLayout').classList.toggle('pp-solo', castKind === 'ids');
+                qs('#ppPhotos').hidden = !photos;
+                Array.prototype.forEach.call(page.querySelectorAll('[data-pp-kind]'), function(b) { b.setAttribute('aria-pressed', b.getAttribute('data-pp-kind') === castKind ? 'true' : 'false'); });
+                qs('#ppEpSearch').placeholder = photos ? 'Rechercher un album' : (castKind === 'ids' ? 'Rechercher un identifiant' : 'Rechercher une série ou une saison');
+                if (photos) {
+                    if (!photoAlbums && !albumsState) { loadAlbums(); }
+                    renderPhotos();
+                } else {
+                    renderEpTree();
+                    renderEpDetail();
+                }
+                renderDock();
+            }
+
+            function showKind(kind) {
+                if (kind === castKind) { return; }
+                castKind = kind;
+                epMode = kind === 'ids' ? 'ids' : 'library';
+                epOpen = null;
+                clearSelection();
+                phEdit = null;
+                qs('#ppEpSearch').value = '';
+                renderCastView();
+            }
+
+            // ---- Photos: albums of the photo libraries, then their photos and videos ----
+            var photoAlbums = null;   // every album (the whole tree), read when « Photos » is first shown
+            var albumsState = '';     // '', 'loading' or 'error'
+            var albumById = {};
+            var albumChildren = {};   // Id of an album ('' = the top) -> the albums directly below
+            var phAlbum = null;       // Id of the open album, null = the top
+            var phFilter = 'all';     // all, with, without
+            var phShown = 120;        // album cards shown at the top
+            var phFiles = { album: null, list: [], total: 0, loading: false, error: false };
+            var phSel = {};           // Id of a selected file -> the file
+            var phLast = null;        // index of the last file clicked (shift = a range)
+            var phEdit = null;        // index of the entry whose job and role are being edited (album, or the one selected file)
+            var phFileAlbum = {};     // "media:key" -> Id of the album that holds the file
+            var phLoad = 0;           // a late answer of an earlier reading is dropped
+            var PH_PAGE = 120;
+
+            function resetPhotos() {
+                photoAlbums = null; albumsState = ''; albumById = {}; albumChildren = {}; phFileAlbum = {};
+                phFiles = { album: null, list: [], total: 0, loading: false, error: false };
+                phSel = {}; phLast = null; phEdit = null; phLoad++;
+            }
+
+            function loadAlbums() {
+                albumsState = 'loading';
+                var load = ++phLoad;
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/Albums')).then(function(result) {
+                    if (load !== phLoad) { return; }
+                    photoAlbums = result || [];
+                    albumsState = '';
+                    albumById = {};
+                    albumChildren = {};
+                    photoAlbums.forEach(function(a) {
+                        albumById[a.Id] = a;
+                        (albumChildren[a.ParentId || ''] = albumChildren[a.ParentId || ''] || []).push(a);
+                        (a.LinkedFiles || []).forEach(function(k) { phFileAlbum[typedKey('media', k)] = a.Id; });
+                    });
+                    if (phAlbum && !albumById[phAlbum]) { phAlbum = null; }
+                    if (phAlbum) { loadFiles(false); }
+                    if (castKind === 'photos') { renderPhotos(); } else if (castKind === 'ids' && !qs('#ppEpDetail').contains(document.activeElement)) { renderEpDetail(); }
+                }, function() {
+                    if (load !== phLoad) { return; }
+                    albumsState = 'error';
+                    renderPhotos();
+                });
+            }
+
+            function loadFiles(more) {
+                var album = phAlbum;
+                if (!more) { phFiles = { album: album, list: [], total: 0, loading: false, error: false }; }
+                if (phFiles.loading || !albumById[album] || !albumById[album].Files) { return; }
+                phFiles.loading = true;
+                var load = phLoad, held = phFiles;
+                ApiClient.getJSON(ApiClient.getUrl('CustomMetadata/People/Albums/' + album + '/Files', { start: held.list.length, limit: PH_PAGE })).then(function(result) {
+                    if (load !== phLoad || held !== phFiles) { return; }
+                    held.loading = false;
+                    held.total = result.Total || 0;
+                    (result.Files || []).forEach(function(f) { held.list.push(f); phFileAlbum[typedKey('media', f.Key)] = album; });
+                    renderPhotos();
+                }, function() {
+                    if (load !== phLoad || held !== phFiles) { return; }
+                    held.loading = false;
+                    held.error = true;
+                    renderPhotos();
+                });
+            }
+
+            function albumKeyTitles() {
+                var map = {};
+                (photoAlbums || []).forEach(function(a) { if (a.Key) { map[typedKey('album', a.Key)] = a.Name; } });
+                return map;
+            }
+
+            // The album and every album above it
+            function albumChain(id) {
+                var chain = [], seen = {};
+                while (id && albumById[id] && !seen[id]) { seen[id] = true; chain.unshift(albumById[id]); id = albumById[id].ParentId; }
+                return chain;
+            }
+
+            function childAlbums(id) { return albumChildren[id || ''] || []; }
+
+            function ownEntries(tk) { return episodeCast[tk] || []; }
+
+            // People given to the whole content by the albums of `chain` (the People screen's own, unsaved changes included)
+            function inheritedFrom(chain) {
+                var out = [];
+                chain.forEach(function(a) {
+                    if (!a.Key || !cascadeMap[typedKey('album', a.Key)]) { return; }
+                    ownEntries(typedKey('album', a.Key)).forEach(function(entry) { out.push({ entry: entry, from: a.Name }); });
+                });
+                return out;
+            }
+
+            function personOf(entry) { return byId(entry.PersonId) || { Name: '(personne supprimée)' }; }
+            function sourcePerson(p) { return { Name: p.Name, Photo: p.Image }; }
+
+            function uniquePeople(list) {
+                var seen = {};
+                return list.filter(function(p) { var k = normalizeName(p.Name); if (seen[k]) { return false; } seen[k] = true; return true; });
+            }
+
+            function albumPeople(album) {
+                var tk = album.Key ? typedKey('album', album.Key) : null;
+                return uniquePeople((tk ? ownEntries(tk).map(personOf) : [])
+                    .concat(inheritedFrom(albumChain(album.ParentId)).map(function(x) { return personOf(x.entry); }))
+                    .concat((album.Source || []).map(sourcePerson)));
+            }
+
+            // People found only below the album: in its sub-albums or on files
+            function insidePeople(album) {
+                var below = {}, queue = [album], out = [];
+                while (queue.length) {
+                    var a = queue.pop();
+                    if (below[a.Id]) { continue; }
+                    below[a.Id] = true;
+                    if (a !== album && a.Key) { out = out.concat(ownEntries(typedKey('album', a.Key)).map(personOf)); }
+                    queue = queue.concat(childAlbums(a.Id));
+                }
+                Object.keys(phFileAlbum).forEach(function(tk) { if (below[phFileAlbum[tk]]) { out = out.concat(ownEntries(tk).map(personOf)); } });
+                return uniquePeople(out.concat((album.InsideSource || []).map(sourcePerson)));
+            }
+
+            function stack(list, empty, after) {
+                if (!list.length) { return empty ? '<span class="pp-stack"><em>' + escapeHtml(empty) + '</em></span>' : ''; }
+                return '<span class="pp-stack" title="' + escapeHtml(list.map(function(p) { return p.Name; }).join(', ')) + '">' + list.slice(0, 4).map(avatar).join('')
+                    + (list.length > 4 || after ? '<em>' + (list.length > 4 ? '+' + (list.length - 4) + ' ' : '') + escapeHtml(after || '') + '</em>' : '') + '</span>';
+            }
+
+            function itemImage(id, width) { return ApiClient.getUrl('Items/' + id + '/Images/Primary', { maxWidth: width, quality: 80 }); }
+
+            function picture(id, width, fallback) {
+                return '<span class="pp-pic">' + escapeHtml(fallback) + (id ? '<img alt="" loading="lazy" data-ph-img="1" src="' + escapeHtml(itemImage(id, width)) + '" />' : '') + '</span>';
+            }
+
+            function countText(album) {
+                var parts = [];
+                if (album.Albums) { parts.push(plural(album.Albums, 'sous-album', 'sous-albums')); }
+                var photos = album.IsRoot ? album.Files : album.Photos;
+                if (album.IsRoot) { parts.push(plural(album.Files, 'fichier', 'fichiers')); }
+                else {
+                    if (photos) { parts.push(plural(photos, 'photo', 'photos')); }
+                    if (album.Videos) { parts.push(plural(album.Videos, 'vidéo', 'vidéos')); }
+                }
+                return parts.join(' · ') || 'Vide';
+            }
+
+            function albumCard(album, withPath) {
+                var own = albumPeople(album), inside = own.length ? [] : insidePeople(album);
+                var path = withPath ? albumChain(album.ParentId).map(function(a) { return a.Name; }).join(' › ') : '';
+                return '<button type="button" class="pp-card" data-ph-open="' + album.Id + '">' + picture(album.CoverId, 480, 'Sans image')
+                    + '<span class="pp-card-text"><strong>' + escapeHtml(album.Name) + '</strong>' + (path ? '<small>dans ' + escapeHtml(path) + '</small>' : '')
+                    + '<small>' + escapeHtml(countText(album)) + '</small>'
+                    + (own.length ? stack(own) : (inside.length ? stack(inside, '', 'à l\'intérieur seulement') : stack([], album.IsRoot ? 'Fichiers hors album' : 'Aucune personne')))
+                    + '</span></button>';
+            }
+
+            function cards(list, withPath) { return '<div class="pp-cards">' + list.map(function(a) { return albumCard(a, withPath); }).join('') + '</div>'; }
+
+            function renderPhotos() {
+                var box = qs('#ppPhotos');
+                if (castKind !== 'photos') { return; }
+                if (albumsState === 'error') { box.innerHTML = '<div class="pp-empty" role="alert">Les albums n\'ont pas pu être lus.<br><button type="button" class="pp-linkbtn" data-ph-retry="1">Réessayer</button></div>'; renderDock(); return; }
+                if (!castLoaded || !photoAlbums) { box.innerHTML = '<div class="pp-empty" role="status">Lecture de la médiathèque…</div>'; renderDock(); return; }
+                if (!photoAlbums.length) { box.innerHTML = '<div class="pp-empty">Aucun album photo. Créez dans Jellyfin une médiathèque « Vidéos et photos personnelles » avec les photos activées, puis analysez-la.</div>'; renderDock(); return; }
+                var focused = document.activeElement && box.contains(document.activeElement) ? document.activeElement.getAttribute('data-ph-focus') : null;
+                box.innerHTML = phAlbum && albumById[phAlbum] ? albumView(albumById[phAlbum]) : topView();
+                if (focused) { var again = box.querySelector('[data-ph-focus="' + focused + '"]'); if (again) { again.focus(); } }
+                renderDock();
+            }
+
+            function topView() {
+                var query = qs('#ppEpSearch').value.trim();
+                var html = '<div class="pp-filter" role="group" aria-label="Filtrer les albums">' + [['all', 'Tous'], ['with', 'Avec des personnes'], ['without', 'Sans personne']].map(function(f) {
+                    return '<button type="button" data-ph-filter="' + f[0] + '" data-ph-focus="f-' + f[0] + '" aria-pressed="' + (phFilter === f[0]) + '">' + f[1] + '</button>';
+                }).join('') + '</div>';
+                var flat = query || phFilter !== 'all';
+                var list = photoAlbums.filter(function(a) {
+                    if (!flat) { return !a.ParentId; }
+                    if (query && !matchesWords(query, a.Name + ' ' + (a.Key && !isSynthetic(a.Key) ? a.Key : ''))) { return false; }
+                    if (phFilter === 'all') { return true; }
+                    return (albumPeople(a).length > 0 || insidePeople(a).length > 0) === (phFilter === 'with');
+                });
+                if (!list.length) { return html + '<div class="pp-empty">Aucun album ne correspond. Changez la recherche ou le filtre.</div>'; }
+                var shown = list.slice(0, phShown);
+                var libraries = [];
+                photoAlbums.forEach(function(a) { if (libraries.indexOf(a.Library) < 0) { libraries.push(a.Library); } });
+                if (libraries.length > 1) {
+                    libraries.forEach(function(name) {
+                        var inIt = shown.filter(function(a) { return a.Library === name; });
+                        if (inIt.length) { html += '<h4>' + escapeHtml(name) + '</h4>' + cards(inIt, flat); }
+                    });
+                } else {
+                    html += cards(shown, flat);
+                }
+                if (list.length > shown.length) { html += '<div><button is="emby-button" type="button" class="raised" data-ph-morealbums="1"><span>Afficher plus d\'albums (' + shown.length + ' sur ' + list.length + ')</span></button></div>'; }
+                return html;
+            }
+
+            function albumView(album) {
+                var chain = albumChain(album.Id);
+                var html = '<nav class="pp-crumb" aria-label="Emplacement"><button type="button" class="pp-linkbtn" data-ph-open="">Albums</button>' + chain.map(function(a, i) {
+                    return '<span aria-hidden="true">›</span>' + (i < chain.length - 1 ? '<button type="button" class="pp-linkbtn" data-ph-open="' + a.Id + '">' + escapeHtml(a.Name) + '</button>' : '<strong>' + escapeHtml(a.Name) + '</strong>');
+                }).join('') + '</nav>';
+                html += '<div class="pp-ph-head"><h3>' + escapeHtml(album.Name) + '</h3><p class="pp-ph-note">' + escapeHtml([album.Library, countText(album), album.Key && !isSynthetic(album.Key) ? '{' + album.Key + '}' : ''].filter(Boolean).join(' · ')) + '</p></div>';
+                html += album.Key ? albumPanel(album) : '<p class="pp-ph-note">La racine d\'une médiathèque ne reçoit pas de personnes : choisissez des fichiers ci-dessous.</p>';
+                var below = childAlbums(album.Id);
+                if (below.length) { html += '<h4>Sous-albums</h4>' + cards(below, false); }
+                if (!album.Files) { return html; }
+                html += '<div class="pp-ph-fileshead"><h4>Photos et vidéos de cet album</h4><span class="pp-ph-note">Cochez des fichiers pour leur ajouter des personnes.</span>'
+                    + (phFiles.list.length ? '<button type="button" class="pp-linkbtn" data-ph-all="1" data-ph-focus="all">Tout sélectionner</button>' : '') + '</div>';
+                html += '<div class="pp-wall">' + phFiles.list.map(function(f, i) {
+                    return '<button type="button" class="pp-file" data-ph-file="' + i + '" data-ph-focus="file-' + i + '" aria-pressed="' + !!phSel[f.Id] + '" aria-label="' + escapeHtml(f.Name) + '">'
+                        + picture(f.HasImage ? f.Id : null, 360, f.IsVideo ? 'Vidéo' : 'Photo') + '<span class="pp-tick" aria-hidden="true"></span>'
+                        + (f.IsVideo ? '<span class="pp-video">vidéo</span>' : '') + stack(filePeople(f)) + '<span class="pp-file-name">' + escapeHtml(f.Name) + '</span></button>';
+                }).join('') + '</div>';
+                if (phFiles.error) { html += '<div class="pp-empty" role="alert">Les fichiers n\'ont pas pu être lus.<br><button type="button" class="pp-linkbtn" data-ph-more="1">Réessayer</button></div>'; }
+                else if (phFiles.loading) { html += '<div class="pp-empty" role="status">Lecture des fichiers…</div>'; }
+                else if (phFiles.list.length < phFiles.total) { html += '<div><button is="emby-button" type="button" class="raised" data-ph-more="1" data-ph-focus="more"><span>Afficher la suite (' + phFiles.list.length + ' sur ' + phFiles.total + ')</span></button></div>'; }
+                return html;
+            }
+
+            // What a file shows: its own people, those its albums give, those of the source
+            function filePeople(file) {
+                return uniquePeople(ownEntries(typedKey('media', file.Key)).map(personOf)
+                    .concat(inheritedFrom(albumChain(phAlbum)).map(function(x) { return personOf(x.entry); }))
+                    .concat((file.Source || []).map(sourcePerson)));
+            }
+
+            // `active`: these are the chips being edited (the selection bar's while files are selected, else the album's)
+            function entryChip(entry, i, active) {
+                var person = personOf(entry);
+                var extra = [entry.Type && entry.Type !== 'Actor' ? jobLabel(entry.Type) : '', entry.Role || ''].filter(Boolean).join(' · ');
+                var on = active && phEdit === i;
+                return '<span class="pp-pchip' + (on ? ' on' : '') + '"><button type="button" data-ph-edit="' + i + '" data-ph-focus="edit-' + i + '" title="Régler le poste et le rôle" aria-expanded="' + on + '">' + avatar(person)
+                    + '<span>' + escapeHtml(person.Name) + (extra ? ' <small>' + escapeHtml(extra) + '</small>' : '') + '</span></button>'
+                    + '<button type="button" class="pp-pchip-x" data-ph-remove="' + i + '" aria-label="Retirer ' + escapeHtml(person.Name) + '">✕</button></span>';
+            }
+
+            function readOnlyChips(inherited, source) {
+                var chip = function(person, why) { return '<span class="pp-pchip ro"><span>' + avatar(person) + '<span>' + escapeHtml(person.Name) + ' <small>' + escapeHtml(why) + '</small></span></span></span>'; };
+                return inherited.map(function(x) { return chip(personOf(x.entry), 'vient de « ' + x.from + ' »'); }).join('')
+                    + (source || []).map(function(p) { return chip(sourcePerson(p), 'vient de la source'); }).join('');
+            }
+
+            function editRow(tk) {
+                var entry = phEdit === null ? null : ownEntries(tk)[phEdit];
+                if (!entry) { return ''; }
+                var name = personOf(entry).Name;
+                return '<div class="pp-editrow"><strong>' + escapeHtml(name) + '</strong>'
+                    + '<input type="text" data-ph-role="1" data-ph-focus="role" value="' + escapeHtml(entry.Role || '') + '" placeholder="Rôle" aria-label="Rôle de ' + escapeHtml(name) + '" />'
+                    + '<select data-ph-type="1" data-ph-focus="type" aria-label="Poste de ' + escapeHtml(name) + '">' + CAST_TYPES.map(function(t) { return '<option value="' + t[0] + '"' + (t[0] === entry.Type ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select>'
+                    + '<button type="button" class="pp-linkbtn" data-ph-edit="' + phEdit + '">Fermer</button></div>';
+            }
+
+            function adder(scope, id) {
+                return '<span class="pp-ph-add"><input type="text" id="' + id + '" data-ph-add="' + scope + '" data-ph-focus="add-' + scope + '" role="combobox" aria-expanded="false" placeholder="' + (people.length ? 'Ajouter une personne…' : 'L\'annuaire est vide') + '" aria-label="Ajouter une personne : tapez un nom" autocomplete="off" /><span class="pp-ac-list" role="listbox" hidden></span></span>';
+            }
+
+            function albumPanel(album) {
+                var tk = typedKey('album', album.Key);
+                var entries = ownEntries(tk), inherited = inheritedFrom(albumChain(album.ParentId));
+                var none = !entries.length && !inherited.length && !(album.Source || []).length;
+                return '<div class="pp-panel"><h4>Personnes de cet album</h4><div class="pp-pchips">' + entries.map(function(c, i) { return entryChip(c, i, !selectedFiles().length); }).join('') + readOnlyChips(inherited, album.Source)
+                    + (none ? '<span class="pp-ph-note">Aucune pour le moment.</span>' : '') + adder('album', 'ppPhAddAlbum') + '</div>'
+                    + (Object.keys(phSel).length ? '' : editRow(tk))
+                    + '<label class="pp-cascade"><input type="checkbox" id="ppPhCascade" data-ph-focus="cascade"' + (cascadeMap[tk] ? ' checked' : '') + ' />'
+                    + '<span>Les personnes de cet album valent aussi pour toutes ses photos, vidéos et sous-albums.</span></label>'
+                    + (isSynthetic(album.Key) ? '<p class="pp-ph-note">Ce dossier n\'a pas d\'identifiant {préfixe-id} : le lien suit son emplacement. S\'il est renommé ou déplacé, il est à refaire.</p>' : '')
+                    + (album.IsLocked ? '<p class="pp-ph-note warn">Album verrouillé dans Jellyfin : les personnes ne lui seront pas appliquées.</p>' : '') + '</div>';
+            }
+
+            // ---- Selection bar ----
+            function selectedFiles() { return Object.keys(phSel).map(function(id) { return phSel[id]; }); }
+            function clearSelection() { phSel = {}; phLast = null; }
+
+            function renderDock() {
+                var dock = qs('#ppPhDock');
+                var files = selectedFiles();
+                var show = files.length > 0 && castKind === 'photos' && !qs('#ppTabEpisodes').hidden;
+                dock.hidden = !show;
+                if (!show) { dock.innerHTML = ''; return; }
+                var focused = document.activeElement && dock.contains(document.activeElement) ? document.activeElement.getAttribute('data-ph-focus') : null;
+                var videos = files.filter(function(f) { return f.IsVideo; }).length;
+                var noun = videos === 0 ? ['photo sélectionnée', 'photos sélectionnées'] : (videos === files.length ? ['vidéo sélectionnée', 'vidéos sélectionnées'] : ['fichier sélectionné', 'fichiers sélectionnés']);
+                var html = '<div class="pp-dock-head"><strong role="status">' + plural(files.length, noun[0], noun[1]) + '</strong><button type="button" class="pp-linkbtn" data-ph-clear="1">Désélectionner</button></div>';
+                if (files.length === 1) {
+                    var f = files[0], tk = typedKey('media', f.Key);
+                    html += '<div class="pp-pchips">' + ownEntries(tk).map(function(c, i) { return entryChip(c, i, true); }).join('') + readOnlyChips(inheritedFrom(albumChain(phAlbum)), f.Source) + '</div>';
+                } else {
+                    var count = {}, order = [];
+                    files.forEach(function(file) {
+                        var seen = {};
+                        ownEntries(typedKey('media', file.Key)).forEach(function(c) {
+                            if (seen[c.PersonId]) { return; }
+                            seen[c.PersonId] = true;
+                            if (!count[c.PersonId]) { count[c.PersonId] = 0; order.push(c.PersonId); }
+                            count[c.PersonId]++;
+                        });
+                    });
+                    html += '<div class="pp-pchips">' + order.map(function(id) {
+                        var person = personOf({ PersonId: id });
+                        return '<span class="pp-pchip"><span>' + avatar(person) + '<span>' + escapeHtml(person.Name) + (count[id] < files.length ? ' <small>' + count[id] + ' sur ' + files.length + '</small>' : '') + '</span></span>'
+                            + '<button type="button" class="pp-pchip-x" data-ph-removeall="' + id + '" aria-label="Retirer ' + escapeHtml(person.Name) + ' de la sélection">✕</button></span>';
+                    }).join('') + '</div>';
+                }
+                html += adder('sel', 'ppPhAddSel');
+                if (files.length === 1) { html += editRow(typedKey('media', files[0].Key)); }
+                if (files.some(function(x) { return x.IsLocked; })) { html += '<span class="pp-ph-note warn">Un fichier verrouillé dans Jellyfin ne recevra pas les personnes.</span>'; }
+                dock.innerHTML = html;
+                if (focused) { var again = dock.querySelector('[data-ph-focus="' + focused + '"]'); if (again) { again.focus(); } }
+            }
+
+            // Tiles are updated in place: rebuilding the wall would reload every thumbnail at each tick
+            function refreshTiles() {
+                Array.prototype.forEach.call(page.querySelectorAll('#ppPhotos [data-ph-file]'), function(tile) {
+                    var f = phFiles.list[parseInt(tile.getAttribute('data-ph-file'), 10)];
+                    if (!f) { return; }
+                    tile.setAttribute('aria-pressed', !!phSel[f.Id]);
+                    var old = tile.querySelector('.pp-stack');
+                    if (old) { old.parentNode.removeChild(old); }
+                    tile.querySelector('.pp-file-name').insertAdjacentHTML('beforebegin', stack(filePeople(f)));
+                });
+            }
+
+            function toggleFile(index, range) {
+                var f = phFiles.list[index];
+                if (!f) { return; }
+                var on = !phSel[f.Id];
+                var from = range && phLast !== null ? Math.min(phLast, index) : index;
+                var to = range && phLast !== null ? Math.max(phLast, index) : index;
+                for (var i = from; i <= to; i++) {
+                    var g = phFiles.list[i];
+                    if (on) { phSel[g.Id] = g; } else { delete phSel[g.Id]; }
+                }
+                phLast = index;
+                var had = phEdit !== null;
+                phEdit = null;
+                if (had) { renderPhotos(); } else { refreshTiles(); renderDock(); }
+            }
+
+            // ---- Adding people ----
+            // The element(s) an adder writes to: the open album, or the selected files
+            function targets(scope) {
+                if (scope === 'album') { return albumById[phAlbum] && albumById[phAlbum].Key ? [typedKey('album', albumById[phAlbum].Key)] : []; }
+                return selectedFiles().map(function(f) { return typedKey('media', f.Key); });
+            }
+
+            function canAdd(scope, personId) {
+                return targets(scope).some(function(tk) { return scope === 'album' ? !!nextFreeJob(episodeCast[tk], personId) : !heldJobs(episodeCast[tk], personId).length; });
+            }
+
+            var phIndex = 0;          // highlighted suggestion of the open list
+
+            function phSuggest(input) {
+                var scope = input.getAttribute('data-ph-add'), box = input.nextElementSibling;
+                var list = people.filter(function(p) { return canAdd(scope, p.Id) && (!input.value.trim() || matchesWords(input.value, p.Name)); })
+                    .sort(function(x, y) { return (x.Name || '').localeCompare(y.Name || ''); }).slice(0, 8);
+                phIndex = Math.min(Math.max(phIndex, 0), Math.max(list.length - 1, 0));
+                box.innerHTML = list.length ? list.map(function(p, i) {
+                    var jobs = scope === 'album' ? heldJobs(episodeCast[targets(scope)[0]], p.Id).map(jobLabel) : [];
+                    return '<button type="button" class="pp-ac-opt' + (i === phIndex ? ' active' : '') + '" role="option" tabindex="-1" data-ph-person="' + p.Id + '" aria-selected="' + (i === phIndex) + '">' + avatar(p)
+                        + '<span class="pp-ac-text"><strong>' + escapeHtml(p.Name || '?') + '</strong>' + (jobs.length ? '<span>déjà : ' + escapeHtml(jobs.join(', ')) + '</span>' : '') + '</span></button>';
+                }).join('') : '<span class="pp-ac-none">' + (!people.length ? 'L\'annuaire est vide : ajoutez des personnes d\'abord.' : (input.value.trim() ? 'Personne de ce nom dans l\'annuaire (ou déjà ajoutée).' : 'Tout l\'annuaire est déjà là.')) + '</span>';
+                box.hidden = false;
+                box._list = list;
+                input.setAttribute('aria-expanded', 'true');
+            }
+
+            function phCloseSuggest(input) {
+                input.nextElementSibling.hidden = true;
+                input.setAttribute('aria-expanded', 'false');
+                phIndex = 0;
+            }
+
+            function phAddPerson(scope, personId) {
+                var changed = targets(scope).filter(function(tk) {
+                    var job = scope === 'album' ? nextFreeJob(episodeCast[tk], personId) : (heldJobs(episodeCast[tk], personId).length ? null : 'Actor');
+                    if (!job) { return false; }
+                    episodeCast[tk] = episodeCast[tk] || [];
+                    episodeCast[tk].push({ PersonId: personId, Role: '', Type: job });
+                    return true;
+                });
+                if (!changed.length) { return; }
+                markEpDirty(changed);
+                renderPhotos();
+                var again = qs(scope === 'album' ? '#ppPhAddAlbum' : '#ppPhAddSel');
+                if (again) { again.focus(); phSuggest(again); }
+            }
+
+            // The element whose entries the chips edit: the one selected file, else the open album
+            function editedKey(inDock) {
+                if (inDock) { var files = selectedFiles(); return files.length === 1 ? typedKey('media', files[0].Key) : null; }
+                return targets('album')[0] || null;
+            }
+
+            function openAlbum(id) {
+                phAlbum = id || null;
+                clearSelection();
+                phEdit = null;
+                if (!phAlbum) { phFilter = 'all'; }
+                qs('#ppEpSearch').value = '';
+                loadFiles(false);
+                renderPhotos();
+                qs('#ppTabEpisodes').scrollIntoView({ block: 'start' });
+            }
+
+            function searchAlbums() {
+                if (phAlbum && !qs('#ppEpSearch').value.trim()) { return; }
+                phAlbum = null;
+                phShown = 120;
+                clearSelection();
+                phEdit = null;
+                renderPhotos();
+            }
+
+            function onPhotoClick(e) {
+                var inDock = !!e.target.closest('#ppPhDock');
+                var t = e.target.closest('[data-ph-person],[data-ph-open],[data-ph-file],[data-ph-edit],[data-ph-remove],[data-ph-removeall],[data-ph-filter],[data-ph-morealbums],[data-ph-more],[data-ph-all],[data-ph-clear],[data-ph-retry]');
+                if (!t) { return; }
+                if (t.hasAttribute('data-ph-person')) {
+                    phAddPerson(t.closest('.pp-ph-add').querySelector('[data-ph-add]').getAttribute('data-ph-add'), t.getAttribute('data-ph-person'));
+                } else if (t.hasAttribute('data-ph-open')) { openAlbum(t.getAttribute('data-ph-open')); }
+                else if (t.hasAttribute('data-ph-file')) { toggleFile(parseInt(t.getAttribute('data-ph-file'), 10), e.shiftKey); }
+                else if (t.hasAttribute('data-ph-edit')) { var i = parseInt(t.getAttribute('data-ph-edit'), 10); phEdit = phEdit === i ? null : i; if (!inDock && Object.keys(phSel).length) { clearSelection(); phEdit = i; } renderPhotos(); }
+                else if (t.hasAttribute('data-ph-remove')) {
+                    var tk = editedKey(inDock);
+                    if (!tk) { return; }
+                    episodeCast[tk].splice(parseInt(t.getAttribute('data-ph-remove'), 10), 1);
+                    phEdit = null;
+                    markEpDirty([tk]);
+                    renderPhotos();
+                } else if (t.hasAttribute('data-ph-removeall')) {
+                    var id = t.getAttribute('data-ph-removeall');
+                    var changed = targets('sel').filter(function(k) { return heldJobs(episodeCast[k], id).length; });
+                    changed.forEach(function(k) { episodeCast[k] = episodeCast[k].filter(function(c) { return c.PersonId !== id; }); });
+                    markEpDirty(changed);
+                    renderPhotos();
+                } else if (t.hasAttribute('data-ph-filter')) { phFilter = t.getAttribute('data-ph-filter'); phShown = 120; renderPhotos(); }
+                else if (t.hasAttribute('data-ph-morealbums')) { phShown += 120; renderPhotos(); }
+                else if (t.hasAttribute('data-ph-more')) { phFiles.error = false; loadFiles(true); renderPhotos(); }
+                else if (t.hasAttribute('data-ph-all')) { phFiles.list.forEach(function(f) { phSel[f.Id] = f; }); phEdit = null; renderPhotos(); }
+                else if (t.hasAttribute('data-ph-clear')) { clearSelection(); phEdit = null; renderPhotos(); }
+                else if (t.hasAttribute('data-ph-retry')) { albumsState = ''; loadAlbums(); renderPhotos(); }
+            }
+
+            function onPhotoInput(e) {
+                if (e.target.hasAttribute('data-ph-add')) { phIndex = 0; phSuggest(e.target); return; }
+                if (!e.target.hasAttribute('data-ph-role')) { return; }
+                var tk = editedKey(!!e.target.closest('#ppPhDock'));
+                if (tk && episodeCast[tk][phEdit]) { episodeCast[tk][phEdit].Role = e.target.value; markEpDirty([tk]); }
+            }
+
+            function onPhotoChange(e) {
+                if (e.target.id === 'ppPhCascade') {
+                    var album = targets('album')[0];
+                    if (e.target.checked) { cascadeMap[album] = true; } else { delete cascadeMap[album]; }
+                    markEpDirty([album]);
+                    renderPhotos();
+                    return;
+                }
+                if (!e.target.hasAttribute('data-ph-type')) { return; }
+                var tk = editedKey(!!e.target.closest('#ppPhDock'));
+                if (tk && episodeCast[tk][phEdit]) { episodeCast[tk][phEdit].Type = e.target.value; markEpDirty([tk]); renderPhotos(); }
+            }
+
+            function onPhotoKey(e) {
+                if (e.target.hasAttribute('data-ph-role') && e.key === 'Enter') { e.preventDefault(); phEdit = null; renderPhotos(); return; }
+                if (!e.target.hasAttribute('data-ph-add')) { return; }
+                var box = e.target.nextElementSibling, list = (!box.hidden && box._list) || [];
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (!box.hidden && list.length) { phIndex = (phIndex + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length; }
+                    phSuggest(e.target);
+                } else if (e.key === 'Escape') { phCloseSuggest(e.target); }
+                else if (e.key === 'Enter') { e.preventDefault(); if (list[phIndex]) { phAddPerson(e.target.getAttribute('data-ph-add'), list[phIndex].Id); } }
+            }
+
+            ['#ppPhotos', '#ppPhDock'].forEach(function(selector) {
+                var box = qs(selector);
+                box.addEventListener('click', onPhotoClick);
+                box.addEventListener('input', onPhotoInput);
+                box.addEventListener('change', onPhotoChange);
+                box.addEventListener('keydown', onPhotoKey);
+                // a press on a suggestion must not take the focus away from the field first
+                box.addEventListener('mousedown', function(e) { if (e.target.closest('.pp-ac-list') || (e.shiftKey && e.target.closest('[data-ph-file]'))) { e.preventDefault(); } });
+                box.addEventListener('focusin', function(e) { if (e.target.hasAttribute('data-ph-add')) { phIndex = 0; phSuggest(e.target); } });
+                box.addEventListener('focusout', function(e) { if (e.target.hasAttribute('data-ph-add')) { phCloseSuggest(e.target); } });
+                // no picture (not generated yet, or none): the word under it stays
+                box.addEventListener('error', function(e) {
+                    if (e.target.tagName !== 'IMG') { return; }
+                    if (e.target.hasAttribute('data-ph-img')) { e.target.parentNode.removeChild(e.target); } else { e.target.parentNode.textContent = '?'; }
+                }, true);
+            });
+            page.addEventListener('click', function(e) {
+                var kind = e.target.closest('[data-pp-kind]');
+                if (kind) { showKind(kind.getAttribute('data-pp-kind')); }
+            });
 
             // ---- Events ----
             qs('#ppSearch').addEventListener('input', renderList);
@@ -1540,11 +2155,23 @@
 
             function pendingCount() { return Object.keys(changedPersons).length + Object.keys(changedKeys).length; }
 
+            // 'photos' (only albums and files changed), 'both', or 'episodes' (a changed person may reach anything)
+            function applyScope() {
+                var keys = Object.keys(changedKeys), photos = keys.filter(isPhotoKey).length;
+                if (!photos) { return 'episodes'; }
+                return photos === keys.length && !Object.keys(changedPersons).length ? 'photos' : 'both';
+            }
+
             function showApplyNotice() {
                 if (!pendingCount()) { qs('#ppApply').hidden = true; return; }
-                qs('#ppApplyText').textContent = 'Enregistré. Les épisodes déjà enrichis gardent l\'ancienne version (noms, photos, distribution) tant qu\'ils ne sont pas mis à jour : appliquez les changements pour ne relancer que les épisodes concernés, sans toucher au reste de la série.';
+                var scope = applyScope();
+                qs('#ppApplyText').textContent = scope === 'photos'
+                    ? 'Enregistré. Les albums et les photos gardent leurs anciennes personnes tant qu\'ils ne sont pas mis à jour : appliquez les changements pour ne mettre à jour que ceux concernés.'
+                    : 'Enregistré. Les épisodes déjà enrichis gardent l\'ancienne version (noms, photos, distribution) tant qu\'ils ne sont pas mis à jour : appliquez les changements pour ne relancer que les épisodes concernés, sans toucher au reste de la série.';
+                qs('#ppApplyBtn span').textContent = scope === 'photos' ? 'Appliquer aux photos' : (scope === 'both' ? 'Appliquer à la médiathèque' : 'Appliquer aux épisodes');
                 qs('#ppApplyBtn').disabled = false;
                 qs('#ppApply').hidden = false;
+                if (castKind === 'photos' && !qs('#ppTabEpisodes').hidden) { qs('#ppApply').scrollIntoView({ block: 'nearest' }); }
             }
 
             qs('#ppApplyLater').addEventListener('click', function() { qs('#ppApply').hidden = true; });
@@ -1552,6 +2179,7 @@
                 if (applying) { return; }
                 applying = true;
                 qs('#ppApplyBtn').disabled = true;
+                var scope = applyScope();
                 ApiClient.ajax({
                     type: 'POST', url: ApiClient.getUrl('CustomMetadata/People/Apply'),
                     data: JSON.stringify((function() {
@@ -1565,7 +2193,9 @@
                     changedPersons = {};
                     changedKeys = {};
                     cascadeWas = JSON.parse(JSON.stringify(cascadeMap));
-                    qs('#ppApplyText').textContent = result.Queued
+                    qs('#ppApplyText').textContent = scope !== 'episodes'
+                        ? (result.Queued ? plural(result.Queued, 'élément', 'éléments') + ' en cours de mise à jour, en arrière-plan.' : 'Aucun élément de la médiathèque n\'est concerné par ces changements.')
+                        : result.Queued
                         ? plural(result.Queued, 'épisode', 'épisodes') + ' en cours de mise à jour par Jellyfin' + (result.Missing ? ' (dont ' + plural(result.Missing, 'manquant', 'manquants') + ')' : '') + '. Quelques instants suffisent, en arrière-plan.'
                         : 'Aucun épisode de la médiathèque n\'est concerné par ces changements.';
                     qs('#ppApplyBtn').hidden = true;
@@ -1626,8 +2256,7 @@
                     showApplyNotice();
                     renderList();
                     renderDetail();
-                    renderEpTree();
-                    renderEpDetail();
+                    renderCastView();
                     Dashboard.hideLoadingMsg();
                 }, function() {
                     Dashboard.hideLoadingMsg();
@@ -1666,7 +2295,8 @@
                     renderDetail();
                     qs('#ppFound').innerHTML = '';
                     epOpen = null;
-                    if (!qs('#ppTabEpisodes').hidden) { loadEpisodesTab(); renderEpDetail(); }
+                    resetPhotos();
+                    if (!qs('#ppTabEpisodes').hidden) { loadEpisodesTab(); renderCastView(); } else { renderDock(); }
                     Dashboard.hideLoadingMsg();
                 }, function() {
                     Dashboard.hideLoadingMsg();
@@ -1702,7 +2332,7 @@
                 }, function() { /* counters are a comfort: the page works without them */ });
             }
 
-            page.addEventListener('pageshow', function() { loadNavStatus(); load(); });
+            page.addEventListener('pageshow', function() { phAlbum = null; phFilter = 'all'; phShown = 120; loadNavStatus(); load(); });
         })();
     </script>
 </div>

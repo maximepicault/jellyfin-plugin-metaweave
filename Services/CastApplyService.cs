@@ -234,19 +234,27 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             return result;
         }
 
-        /// <summary>The albums, photos and videos a changed album or media tag reaches: the tagged element and everything below it</summary>
+        /// <summary>The albums, photos and videos a changed album or media key reaches: the element it names and everything below it</summary>
         private List<BaseItem> AlbumItems(HashSet<string> wanted)
         {
-            var tags = wanted.Where(k => k.StartsWith("album:", StringComparison.Ordinal) || k.StartsWith("media:", StringComparison.Ordinal))
-                .Select(k => "{" + k.Substring(k.IndexOf(':') + 1) + "}").ToList();
-            if (tags.Count == 0)
+            var keys = new HashSet<string>(
+                wanted.Where(k => k.StartsWith("album:", StringComparison.Ordinal) || k.StartsWith("media:", StringComparison.Ordinal)).Select(k => k.Substring(k.IndexOf(':') + 1)),
+                StringComparer.OrdinalIgnoreCase);
+            if (keys.Count == 0)
             {
                 return new List<BaseItem>();
             }
 
-            return _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.PhotoAlbum, BaseItemKind.Folder, BaseItemKind.Photo, BaseItemKind.Video }, Recursive = true })
-                .Where(i => (SourceRefreshService.IsAlbum(i) || SourceRefreshService.IsAlbumMedia(i))
-                    && !string.IsNullOrEmpty(i.Path) && tags.Any(t => i.Path.Contains(t, StringComparison.OrdinalIgnoreCase)))
+            var items = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.PhotoAlbum, BaseItemKind.Folder, BaseItemKind.Photo, BaseItemKind.Video }, Recursive = true })
+                .Where(i => (SourceRefreshService.IsAlbum(i) || SourceRefreshService.IsAlbumMedia(i)) && !string.IsNullOrEmpty(i.Path))
+                .ToList();
+            bool Named(BaseItem item) => AlbumCatalog.ScreenKeys(item).Any(keys.Contains);
+            // Albums named otherwise than by a tag in the path (no identifier, or one typed in Jellyfin): their content by folder
+            var folders = items.Where(i => SourceRefreshService.IsAlbum(i) && Named(i)).Select(i => i.Path.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar).ToList();
+
+            return items.Where(i => keys.Any(k => i.Path.Contains("{" + k + "}", StringComparison.OrdinalIgnoreCase))
+                    || Named(i)
+                    || folders.Any(f => i.Path.StartsWith(f, StringComparison.Ordinal)))
                 .ToList();
         }
 

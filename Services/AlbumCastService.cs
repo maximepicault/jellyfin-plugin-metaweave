@@ -56,9 +56,10 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
 
         /// <summary>
         /// The people of one album, photo or video, each once per job. Complete = false when an API source that had to be asked
-        /// did not answer: the list may then miss people who are still linked.
+        /// did not answer: the list may then miss people who are still linked. <paramref name="fromSource"/> receives the keys of
+        /// those a source links, whether or not the People screen links them too.
         /// </summary>
-        public async Task<(List<CastMember> Members, bool Complete)> ResolveAsync(BaseItem item, CancellationToken cancellationToken)
+        public async Task<(List<CastMember> Members, bool Complete)> ResolveAsync(BaseItem item, CancellationToken cancellationToken, ISet<string> fromSource = null)
         {
             var result = new List<CastMember>();
             var complete = true;
@@ -69,11 +70,21 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 return answer;
             }
 
-            void Add(IEnumerable<CastMember> members)
+            void Add(IEnumerable<CastMember> members, bool source = false)
             {
                 foreach (var member in members ?? Enumerable.Empty<CastMember>())
                 {
-                    if (!string.IsNullOrWhiteSpace(member?.Name) && !result.Any(r => Key(r) == Key(member)))
+                    if (string.IsNullOrWhiteSpace(member?.Name))
+                    {
+                        continue;
+                    }
+
+                    if (source)
+                    {
+                        fromSource?.Add(Key(member));
+                    }
+
+                    if (!result.Any(r => Key(r) == Key(member)))
                     {
                         result.Add(member);
                     }
@@ -90,25 +101,22 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                 {
                     if (own.Source.IsLocal)
                     {
-                        Add(_people.ResolveCast(_local.FindAlbum(own.Source, own.Id)?.Cast));
+                        Add(_people.ResolveCast(_local.FindAlbum(own.Source, own.Id)?.Cast), source: true);
                     }
                     else
                     {
-                        Add((await Ask(own.Source, own.Id))?.Cast);
+                        Add((await Ask(own.Source, own.Id))?.Cast, source: true);
                     }
                 }
 
-                if (ownTag != null)
-                {
-                    Add(_people.ResolveCast(_overlay.Get("album", new[] { ownTag })));
-                }
+                Add(_people.ResolveCast(_overlay.Get("album", AlbumCatalog.ScreenKeys(item))));
             }
             else
             {
                 if (Resolve(TagOf(Path.GetDirectoryName(item.Path))) is { } parent && parent.Source.IsLocal)
                 {
                     var file = Path.GetFileName(item.Path);
-                    Add(_people.ResolveCast(_local.FindAlbum(parent.Source, parent.Id)?.Photos?.FirstOrDefault(p => string.Equals(p.File, file, StringComparison.OrdinalIgnoreCase))?.Cast));
+                    Add(_people.ResolveCast(_local.FindAlbum(parent.Source, parent.Id)?.Photos?.FirstOrDefault(p => string.Equals(p.File, file, StringComparison.OrdinalIgnoreCase))?.Cast), source: true);
                 }
                 else
                 {
@@ -118,43 +126,58 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
                     }
 
                     var match = await _photos.GetPhotoAsync(item.Path, item.ProviderIds, cancellationToken, () => complete = false);
-                    Add(match?.Data.Cast);
+                    Add(match?.Data.Cast, source: true);
                 }
 
-                if (ownTag != null)
-                {
-                    Add(_people.ResolveCast(_overlay.Get("media", new[] { ownTag })));
-                }
+                Add(_people.ResolveCast(_overlay.Get("media", AlbumCatalog.ScreenKeys(item))));
             }
 
             // 2. What the albums above give to their whole content, nearest first
+            var holders = ScreenCascades()
+                ? item.GetParents().Where(p => SourceRefreshService.IsAlbum(p) && !string.IsNullOrEmpty(p.Path)).GroupBy(p => p.Path).ToDictionary(g => g.Key, g => g.First())
+                : null;
             for (var folder = Path.GetDirectoryName(item.Path); !string.IsNullOrEmpty(folder); folder = Path.GetDirectoryName(folder))
             {
                 var tag = TagOf(folder);
-                if (tag == null)
-                {
-                    continue;
-                }
-
-                if (Resolve(tag) is { } above)
+                if (tag != null && Resolve(tag) is { } above)
                 {
                     if (above.Source.IsLocal)
                     {
-                        Add(_people.ResolveCast(_local.FindAlbum(above.Source, above.Id)?.Cast?.Where(c => c.All)));
+                        Add(_people.ResolveCast(_local.FindAlbum(above.Source, above.Id)?.Cast?.Where(c => c.All)), source: true);
                     }
                     else if (above.Source.PhotoInheritAlbumCast)
                     {
-                        Add((await Ask(above.Source, above.Id))?.Cast);
+                        Add((await Ask(above.Source, above.Id))?.Cast, source: true);
                     }
                 }
 
-                Add(_people.ResolveCast(_overlay.GetCascading("album", new[] { tag })));
+                // The People screen may know the folder by another key than its tag: its item, read only when a cascade exists
+                var keys = new List<string>();
+                if (tag != null)
+                {
+                    keys.Add(tag);
+                }
+
+                if (holders != null && holders.TryGetValue(folder, out var holder))
+                {
+                    keys.AddRange(AlbumCatalog.ScreenKeys(holder));
+                }
+
+                Add(_people.ResolveCast(_overlay.GetCascading("album", keys)));
             }
 
             return (result, complete);
         }
 
-        private static string Key(CastMember member) => (member.Name ?? string.Empty).Trim().ToLowerInvariant() + "|" + CastMapper.ToPersonInfo(member).Type;
+        /// <summary>True when the People screen gives the people of at least one album to its whole content</summary>
+        private bool ScreenCascades()
+            => _overlay.Load().Episodes.Any(e => e.Cascade && e.Cast != null && e.Cast.Count > 0 && CastOverlayStore.NormalizeType(e.Type) == "album");
+
+        /// <summary>True when the People screen may link this element although nothing in its path or ids says it is ours</summary>
+        private bool LinkedByScreen(BaseItem item)
+            => ScreenCascades() || _overlay.Get(SourceRefreshService.IsAlbum(item) ? "album" : "media", AlbumCatalog.ScreenKeys(item)).Count > 0;
+
+        internal static string Key(CastMember member) => (member.Name ?? string.Empty).Trim().ToLowerInvariant() + "|" + CastMapper.ToPersonInfo(member).Type;
 
         private static string Key(PersonInfo person) => (person.Name ?? string.Empty).Trim().ToLowerInvariant() + "|" + person.Type;
 
@@ -169,23 +192,26 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             try
             {
                 var known = _store.Get(item.Id);
-                // Nothing tagged on the way down to the item and nothing recorded: not ours
-                if (known == null && !item.Path.Contains('{') && CustomId.Get(item.ProviderIds) == null)
+                // Nothing tagged on the way down to the item, nothing recorded and no link from the People screen: not ours
+                if (known == null && !item.Path.Contains('{') && CustomId.Get(item.ProviderIds) == null && !LinkedByScreen(item))
                 {
                     return;
                 }
 
-                var (members, complete) = await ResolveAsync(item, cancellationToken);
+                var fromSource = new HashSet<string>(StringComparer.Ordinal);
+                var (members, complete) = await ResolveAsync(item, cancellationToken, fromSource);
                 if (!complete && known != null)
                 {
                     // A source that does not answer takes nobody away: the links already known stay until it answers
                     members.AddRange(known.Members.Where(k => !members.Any(m => Key(m) == Key(k))));
+                    fromSource.UnionWith(known.FromSource ?? new List<string>());
                     _logger.LogWarning("👥 [ALBUM CAST] ⚠️ A source did not answer for '{Name}': its known people are kept", item.Name);
                 }
 
                 var record = new AlbumCastRecord
                 {
-                    Members = members.Select((m, i) => new CastMember { Name = m.Name.Trim(), Role = m.Role, Type = CastMapper.ToPersonInfo(m).Type.ToString(), Order = i, Image = Reachable(m.Image) }).ToList()
+                    Members = members.Select((m, i) => new CastMember { Name = m.Name.Trim(), Role = m.Role, Type = CastMapper.ToPersonInfo(m).Type.ToString(), Order = i, Image = Reachable(m.Image) }).ToList(),
+                    FromSource = fromSource.OrderBy(k => k, StringComparer.Ordinal).ToList()
                 };
 
                 if (item.SupportsPeople)

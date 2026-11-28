@@ -55,7 +55,7 @@
 | `TaxonomyStore` (hosted, D012) | — | static `TaxonomyStore.Tags/Genres` called by series/season/episode providers and `MissingEpisodeService` |
 | `TaxonomyService` (hosted) | `ILibraryManager`, `TaxonomyStore` | Taxonomy controller; hooks `ItemAdded/ItemUpdated` |
 | `CastOverlayStore` | — | providers, `CastInheritance`, `CastApplyService`, `MissingEpisodeService` |
-| `CastCatalog`, `CastInheritance`, `CastApplyService` | library, stores | People controller, providers, `MissingEpisodesTask` |
+| `CastCatalog`, `AlbumCatalog`, `CastInheritance`, `CastApplyService` | library, stores | People controller, providers, `MissingEpisodesTask` |
 | `SourceRefreshService` | library, `CustomApiClient`, `SourceResolver`, `IProviderManager`, `DumpStore` | SourceRefresh controller |
 | `EpisodePositionService` | `CustomApiClient`, `SourceResolver` | `CustomEpisodeProvider` (number of an unnumbered real episode, D014) |
 | `VideoDownloadService` (hosted, `BackgroundService`, D015) | `IMediaEncoder` (ffmpeg), library, `ITaskManager` | `MissingEpisodeService` (queues), Downloads controller |
@@ -157,7 +157,7 @@ All under the plugin's `DataFolderPath` unless noted (a temp-folder fallback exi
 | `Preview/{itemId}/Info` (same access) | `PreviewController` → `{ Source, Clip }` | the theme script's « Aperçu » button (episode page, season rows) |
 | `MissingEpisodes`, `/Analyze`, `/Ignore` | `MissingEpisodesController` → `MissingEpisodeService`, task manager | `missing.html`, `config.html` |
 | `Dump/Test`, `Reload`, `Sources`, `Coverage`, `Series`, `Export`, `Image` | `DumpController` → `DumpStore`, `DumpCoverageService` | `config.html`, `missing.html` (Catalogues) |
-| `People`, `Networks/*`, `EpisodeCast`, `Merge`, `Apply`, `Children`, `Library`, `Fetch`, `Photo/{file}` | `PeopleController` → `PeopleStore`, `PersonNetworkStore`, `CastOverlayStore`, `CastCatalog`, `CastApplyService` | `people.html`, `config.html` |
+| `People`, `Networks/*`, `EpisodeCast`, `Merge`, `Apply`, `Children`, `Library`, `Albums`, `Albums/{id}/Files`, `Fetch`, `Photo/{file}` | `PeopleController` → `PeopleStore`, `PersonNetworkStore`, `CastOverlayStore`, `CastCatalog`, `AlbumCatalog`, `CastApplyService` | `people.html`, `config.html` |
 | `AlbumCast/Item/{id}`, `People`, `Items` (any signed-in user, over what that user sees) | `AlbumCastController` → `AlbumCastStore` | theme photo screens |
 | `Taxonomy`, `Names`, `Impact`, `Apply`, `Apply/Status` | `TaxonomyController` → `TaxonomyStore`, `TaxonomyService` | `taxonomy.html`, `config.html` (term suggestions) |
 | `Downloads`, `/Cancel`, `/Retry`, `/Clear` | `DownloadsController` → `VideoDownloadService` | `downloads.html` |
@@ -204,7 +204,7 @@ The tab bar and the in-page confirmation are copied in several pages (no shared 
 | Missing episodes | `missing-number-real.mjs` (D009), `episode-number-real.mjs`, `download-real.mjs`, `download-parallel-real.mjs`, `downloads-real.mjs`, `local-preview-video-real.mjs`, `chapters-real.mjs` |
 | People and cast | `config-people-real.mjs` (`--quick`: cropper), `config-people-episodes-real.mjs` |
 | Dump | `dump-real.mjs` |
-| Photo albums | `albums-real.mjs`, `photos-library-real.mjs` (theme screens), `album-people-real.mjs` (linked people): `<url> <out_dir> <host_media_dir>` |
+| Photo albums | `albums-real.mjs`, `photos-library-real.mjs` (theme screens), `album-people-real.mjs` (linked people), `people-photos-real.mjs` (People screen, « Photos »): `<url> <out_dir> <host_media_dir>` |
 | Taxonomy | `taxonomy-real.mjs`, `taxonomy-shots.mjs` |
 | Shared UI | `diagnostic-real.mjs`, `improvements-real.mjs`, `shoot.mjs` |
 | Harness | `ui-test.sh`, `server.py`, `data.py`, `gen.py`, `chrome-session.mjs` (lock + Chrome cleanup), `quiet.mjs` |

@@ -69,7 +69,7 @@ Set the source's "episode list" endpoint (for example `/sources/{id}/videos`): `
 
 ### Cast
 
-The **Personnes** screen holds the directory (add by identifier from a people source, or enter by hand with a photo) and the **distribution** tab for series, seasons and episodes of API sources, by tag or by a typed identifier. After a change, **"Appliquer aux épisodes"** refreshes only the affected episodes. The "Importer le casting" (import cast) setting must be on.
+The **Personnes** screen holds the directory (add by identifier from a people source, or enter by hand with a photo) and the **distribution** tab: series, seasons and episodes of API sources (by tag or by a typed identifier), and photo albums, photos and videos, chosen from their pictures, several at once, with or without an identifier in their name. After a change, **"Appliquer aux épisodes"** refreshes only the affected episodes. The "Importer le casting" (import cast) setting must be on.
 
 ### Photo albums
 
