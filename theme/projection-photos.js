@@ -151,6 +151,7 @@
             warn('load', error);
             ignored.add(s.hash);
             drop(s);
+            veil();
         });
     }
     function drop(s) {
@@ -167,6 +168,7 @@
         s.host.classList.add('pj-ph-on');
         window.scrollTo(0, 0);
         followBar();
+        veil();
     }
 
     // an album Jellyfin gave no cover: its first photo at any depth, else a frame of its first video
@@ -722,11 +724,30 @@
         }).catch(function (e) { warn('person', e); });
     }
 
+    // ---------- while a screen is on its way ----------
+    // jellyfin-web's own page stays unseen until ours is shown or the address proves not to be a photo one (CSS,
+    // html.pj-ph-wait), or it would show for a moment. Decided before the next paint. Never for longer than VEIL_MAX
+    var VEIL_MAX = 8000, veiled = { hash: '', at: 0 };
+    function coming() {
+        if (!route() || ignored.has(location.hash)) { return false; }
+        var there = Array.prototype.some.call(document.querySelectorAll('.page:not(.hide) .pj-ph'), function (r) {
+            var s = r.parentElement.__pjPh;
+            return !!s && s.root === r && s.hash === location.hash && !r.hidden;
+        });
+        return !there && themed();
+    }
+    function veil() {
+        var wanted = coming();
+        if (!wanted) { veiled.hash = ''; }
+        else if (veiled.hash !== location.hash) { veiled = { hash: location.hash, at: Date.now() }; setTimeout(veil, VEIL_MAX + 50); }
+        document.documentElement.classList.toggle('pj-ph-wait', wanted && Date.now() - veiled.at < VEIL_MAX);
+    }
+
     // ---------- run ----------
     var scheduled = null;
     function run() {
         scheduled = null;
-        try { screens(); personPage(); } finally { followBar(); }
+        try { screens(); personPage(); } finally { followBar(); veil(); }
     }
     function screens() {
         var page = currentPage();
@@ -747,14 +768,16 @@
         document.documentElement.classList.toggle('pj-ph-libon', !!(page && page.__pjPh && page.__pjPh.route.kind === 'library' && page.__pjPh.hash === location.hash));
     }
     function schedule() { if (!scheduled) { scheduled = setTimeout(run, 120); } }
-    window.addEventListener('hashchange', function () { closeViewer(); schedule(); });
-    document.addEventListener('viewshow', function (ev) { if (ev.target && ev.target.classList) { ev.target.__pjPhView = location.hash; } schedule(); }, true);
+    window.addEventListener('hashchange', function () { closeViewer(); veil(); schedule(); });
+    document.addEventListener('viewshow', function (ev) { if (ev.target && ev.target.classList) { ev.target.__pjPhView = location.hash; } veil(); schedule(); }, true);
     new MutationObserver(function (records) {
+        veil();   // at once: this runs before the new content is painted
         // our own additions do not count
         for (var i = 0; i < records.length; i++) {
             var t = records[i].target;
             if (!(t.closest && t.closest('.pj-ph, .pj-ph-viewer'))) { schedule(); return; }
         }
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    veil();
     schedule();
 })();

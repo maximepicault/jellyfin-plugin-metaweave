@@ -37,6 +37,8 @@
     var JOIN = { genres: '+', tags: '+', studios: 'chez', people: 'avec', years: 'en', state: '', letter: 'en' };
     var STATES = { unseen: 'Non vus', resume: 'En cours', seen: 'Vus', miss: 'Manquants' };
     var SORTS = [['serie', 'Par série'], ['name', 'Par nom'], ['date', 'Plus récents'], ['oldest', 'Plus anciens'], ['added', 'Ajoutés récemment'], ['rating', 'Les mieux notés'], ['random', 'Au hasard']];
+    // the other views a user may choose as a library's default one: they stay jellyfin-web's
+    var STOCK_VIEWS = ['suggestions', 'favorites', 'collections', 'genres', 'studios', 'upcoming', 'playlists'];
     // the views of a library that stay jellyfin-web's, with their tab number (experimental layout)
     // a library's views and their `tab=` number, as jellyfin-web's own view menu lists them
     var VIEWS = {
@@ -89,6 +91,16 @@
         if (q.get('IsFavorite')) { return null; }
         return { base: base, type: type && TYPES[type] ? type : '', parentId: q.get('parentId'), library: null };
     }
+    // the view an address of the experimental layout opens: the one it names, else the user's default one for this
+    // library (jellyfin-web's own « landing » setting, kept by the browser). null: a view left to jellyfin-web
+    function addressedType(library, parent) {
+        var main = library === 'tv' ? 'Series' : 'Movie', number = params().get('tab');
+        if (number !== null) { return number === '0' ? main : number === '5' && library === 'tv' ? 'Episode' : null; }
+        var landing = null, c = client();
+        try { landing = c && localStorage.getItem(c.getCurrentUserId() + '-landing-' + parent); } catch (e) { /* no storage */ }
+        if (landing === 'episodes' && library === 'tv') { return 'Episode'; }
+        return STOCK_VIEWS.indexOf(landing) < 0 ? main : null;
+    }
     // ...and the series, episode and film views of a library. Returns the element that holds the screen: the page
     // (experimental layout, the view in the address) or the open tab (classic layout)
     function libraryTarget(page) {
@@ -103,15 +115,7 @@
             // the page being left may still be shown for a moment
             host = page.__pjView && page.__pjView !== location.hash ? null : tab;
         } else if (page.id === (library === 'tv' ? 'tvshowsPage' : 'moviesPage')) {
-            var number = params().get('tab');
-            if (number === null) {
-                // no view in the address: the user's default one, known by what the page shows
-                var first = page.__pjLibraryType || (page.querySelector('.itemsContainer > .card[data-type="' + (library === 'tv' ? 'Series' : 'Movie') + '"]') && page.querySelector('.MuiButtonGroup-root') ? (library === 'tv' ? 'Series' : 'Movie') : null);
-                page.__pjLibraryType = first;
-                type = first;
-            } else {
-                type = number === '0' ? (library === 'tv' ? 'Series' : 'Movie') : number === '5' && library === 'tv' ? 'Episode' : null;
-            }
+            type = addressedType(library, parent);
             host = page;
         }
         return type ? { host: host, route: { base: null, type: type, parentId: parent, library: library, tabbed: !!tab } } : { host: null, route: null };
@@ -282,6 +286,7 @@
         ignored.add(ix.hash);
         if (panel && panel.ix === ix) { closePanel(); }
         drop(ix);
+        veil();
     }
     // names the base filter of the address, restores the filters of a visit already made, then loads
     function start(ix) {
@@ -851,6 +856,23 @@
         }
     }
 
+    // ---------- while a screen is on its way ----------
+    // jellyfin-web draws its own page first: it stays unseen until our screen is in it (CSS, html.pj-ix-wait), or it
+    // would show for a moment. Decided from the address alone, before the next paint. Never for longer than VEIL_MAX
+    var VEIL_MAX = 8000, veiled = { hash: '', at: 0 };
+    function coming() {
+        var m = /^#\/(tv|movies)(\.html)?\?/.exec(location.hash), parent = m && params().get('topParentId');
+        if (ignored.has(location.hash) || !(parent ? addressedType(m[1], parent) : listRoute())) { return false; }
+        var there = Array.prototype.some.call(document.querySelectorAll('.page:not(.hide) .pj-ix'), function (r) { return r.__pjIx.hash === location.hash; });
+        return !there && themed();
+    }
+    function veil() {
+        var wanted = coming();
+        if (!wanted) { veiled.hash = ''; }
+        else if (veiled.hash !== location.hash) { veiled = { hash: location.hash, at: Date.now() }; setTimeout(veil, VEIL_MAX + 50); }
+        document.documentElement.classList.toggle('pj-ix-wait', wanted && Date.now() - veiled.at < VEIL_MAX);
+    }
+
     // ---------- runner: jellyfin-web is a single-page app, so run after every change of view ----------
     var scheduled = null, lastKey = '';
     function shownIndex() {
@@ -875,7 +897,7 @@
     function run() {
         scheduled = null;
         if (!client() || !themed()) { return; }
-        try { views(); } finally { followBar(); }
+        try { views(); } finally { followBar(); veil(); }
     }
     function views() {
         var page = currentPage();
@@ -901,8 +923,8 @@
         lastKey = key;
     }
     function schedule() { if (!scheduled) { scheduled = setTimeout(run, 120); } }
-    window.addEventListener('hashchange', function () { closePanel(); lastKey = ''; schedule(); });
-    document.addEventListener('viewshow', function (ev) { if (ev.target && ev.target.classList) { ev.target.__pjView = location.hash; } schedule(); }, true);
+    window.addEventListener('hashchange', function () { closePanel(); lastKey = ''; veil(); schedule(); });
+    document.addEventListener('viewshow', function (ev) { if (ev.target && ev.target.classList) { ev.target.__pjView = location.hash; } veil(); schedule(); }, true);
     window.addEventListener('resize', function () { var ix = shownIndex(); if (ix) { place(ix); } });
     document.addEventListener('keydown', function (ev) {
         if (ev.key !== '/' || panel || ev.ctrlKey || ev.metaKey || ev.altKey || /INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) { return; }
@@ -912,11 +934,13 @@
         openPanel(ix, 'all', document.activeElement);
     });
     new MutationObserver(function (records) {
+        veil();   // at once: this runs before the new content is painted
         // our own additions do not count
         for (var i = 0; i < records.length; i++) {
             var t = records[i].target;
             if (!(t.closest && t.closest('.pj-ix, .pj-ix-panelbox, .pj-preview'))) { schedule(); return; }
         }
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    veil();
     schedule();
 })();

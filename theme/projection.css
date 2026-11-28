@@ -1981,7 +1981,11 @@ html.pj-ix-locked, html.pj-ix-locked body { overflow: hidden !important; }
 }
 /* Jellyfin 12 gives the library's view menu a second row of the app bar: the screen has its own, the row goes and the
    page moves up */
-html.pj-ix-libon .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-view-menu"]) { display: none !important; }
+html.pj-ix-libon .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-view-menu"]),
+html.pj-ix-wait .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-view-menu"]) { display: none !important; }
+/* while a screen is on its way, jellyfin-web's own page is not shown, not even for a moment (opacity: a child cannot
+   undo it, and the page keeps its layout) */
+html.pj-ix-wait .page:not(.pj-ix-on) > :not(.pj-ix) { opacity: 0 !important; pointer-events: none !important; }
 /* the results kept on screen while the next ones come */
 .pj-ix-busy .pj-ix-list, .pj-ix-pbody.pj-ix-busy { opacity: .55; transition: opacity .2s .15s; }
 
@@ -2023,7 +2027,10 @@ html.pj-ix-libon .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-vi
    ============================================================ */
 :root { --pj-photos: 1; }
 
-html.pj-ph-libon .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-view-menu"]) { display: none !important; }
+html.pj-ph-libon .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-view-menu"]),
+html.pj-ph-wait .MuiAppBar-root .MuiToolbar-root:has([aria-controls="library-view-menu"]) { display: none !important; }
+/* nor while a photo screen is on its way (see section 18) */
+html.pj-ph-wait .page:not(.pj-ph-on) > :not(.pj-ph) { opacity: 0 !important; pointer-events: none !important; }
 .page.pj-ph-on { padding-top: 0 !important; }
 .page.pj-ph-on > :not(.pj-ph) { display: none !important; }
 html.pj-ph-locked, html.pj-ph-locked body { overflow: hidden !important; }
