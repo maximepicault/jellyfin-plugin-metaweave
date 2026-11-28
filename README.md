@@ -116,6 +116,8 @@ Season 01/
     img001.jpg
 ```
 
+**Photo albums of an episode** (« Photos des albums sur les épisodes » in a source’s editor, off by default): an album carrying the same identifier as an episode adds its photos to the button, after the ones above. `Episode {dm-5}.mkv` and a folder `Session {dm-5}` in a photo library are linked; an untagged album or episode can be linked by typing the identifier as its external id in Jellyfin’s metadata editor. Only the photos directly in the album count (no sub-album, no video), only users who may see the album get them, and a typo in an identifier just gives no link, or the wrong one. Leave it off if your videos and albums are numbered apart: the same number would then link unrelated things.
+
 The same photos are offered in **Edit images → Search** (« Photos de l’épisode »), to pick one as the episode image; a scan or a refresh never picks one by itself. With the gallery on, a numbered folder holding photos and no video stays out of the library (otherwise Jellyfin may list it as an empty season; one already created disappears at the next scan). Thumbnails are cached in Jellyfin’s cache folder (`custom-metadata/photo-thumbs`).
 
 If you used the separate « Episode Gallery » plugin, uninstall it: your folders work as they are.

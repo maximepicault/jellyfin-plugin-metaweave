@@ -45,7 +45,7 @@
 | `MetadataCacheService` | `IMemoryCache` | `CustomApiClient` |
 | `LocalSourceStore` | lazy `PeopleStore`, local API URL | `CustomApiClient`, `ResilientHttp`, `CustomImageProvider`, `MissingEpisodeService`, `CastApplyService`, Local/FolderImages/People controllers |
 | `PeopleStore` | `LocalSourceStore` | providers (cast), `CastApplyService`, `MissingEpisodeService`, People controller |
-| `EpisodePhotoService`, `EpisodePhotoThumbnails`, `EpisodePhotoLinks` (+ `EpisodePhotoDownloadStartupFilter`) | library, users, `LocalSourceStore`, app paths | Photos controller, `EpisodePhotoImageProvider` (resolved through `IServiceProvider`) |
+| `EpisodePhotoService`, `EpisodeAlbumPhotos` (the photos of an episode’s albums), `EpisodePhotoThumbnails`, `EpisodePhotoLinks` (+ `EpisodePhotoDownloadStartupFilter`) | library, users, `LocalSourceStore`, app paths | Photos controller, `EpisodePhotoImageProvider` (resolved through `IServiceProvider`) |
 | `PhotoLibraryService` | `CustomApiClient`, `SourceResolver` | album and photo providers (`PhotoList` reads an album's photos) |
 | `AlbumCastStore`, `AlbumCastService` | photo library service, resolver, local / overlay / people stores, library | album, photo and video providers, `CastApplyService`, AlbumCast controller (`photo-albums.md`) |
 | `PersonNetworkStore` (+ hosted `PersonNetworkReadyService`) | — | person link slots, People controller |

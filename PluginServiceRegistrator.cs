@@ -49,6 +49,7 @@ namespace Jellyfin.Plugin.CustomMetadata
             serviceCollection.AddHostedService(sp => sp.GetRequiredService<LibraryIndexService>());
 
             // Episode photo gallery: numbered folders and local "Photo" images, thumbnails, signed links for the image search
+            serviceCollection.AddSingleton<EpisodeAlbumPhotos>();
             serviceCollection.AddSingleton<EpisodePhotoService>();
             serviceCollection.AddSingleton<EpisodePhotoThumbnails>();
             serviceCollection.AddSingleton<EpisodePhotoLinks>();

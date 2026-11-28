@@ -21,10 +21,6 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
     [Authorize]
     public class PhotosController : ControllerBase
     {
-        // claims set by Jellyfin's authentication handler
-        private const string UserIdClaim = "Jellyfin-UserId";
-        private const string IsApiKeyClaim = "Jellyfin-IsApiKey";
-
         private readonly EpisodePhotoService _photos;
         private readonly EpisodePhotoThumbnails _thumbnails;
         private readonly EpisodePhotoLinks _links;
@@ -53,7 +49,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
             return new EpisodePhotoList
             {
                 ItemId = item.Id,
-                Photos = _photos.List(item as Episode).Select(p =>
+                Photos = _photos.List(item as Episode, _photos.ViewerOf(User)).Select(p =>
                 {
                     var (width, height) = p.File != null ? _thumbnails.SizeOf(p.File) : (0, 0);
                     var key = Uri.EscapeDataString(p.Key);
@@ -139,12 +135,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Api
                 : File(script.Data, "text/javascript; charset=utf-8");
         }
 
-        private Guid UserId => Guid.TryParse(User.FindFirst(UserIdClaim)?.Value, out var id) ? id : Guid.Empty;
+        private Guid UserId => EpisodePhotoService.UserIdOf(User);
 
-        private bool IsApiKey => bool.TryParse(User.FindFirst(IsApiKeyClaim)?.Value, out var apiKey) && apiKey;
+        private bool IsApiKey => EpisodePhotoService.IsApiKeyOf(User);
 
         private PhotoFile Find(Guid itemId, string key)
-            => _photos.GetVisibleItem(itemId, UserId, IsApiKey) is Episode episode ? _photos.Find(episode, key)?.File : null;
+            => _photos.GetVisibleItem(itemId, UserId, IsApiKey) is Episode episode ? _photos.Find(episode, key, _photos.ViewerOf(User))?.File : null;
 
         private IActionResult File(PhotoFile source, string path, string contentType, string variant)
         {

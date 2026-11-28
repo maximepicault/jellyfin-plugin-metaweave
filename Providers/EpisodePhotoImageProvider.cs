@@ -51,7 +51,8 @@ namespace Jellyfin.Plugin.CustomMetadata.Providers
 
             // absolute addresses on the host the browser used: the dialog displays them as they are
             var baseUrl = $"{request.Scheme}://{request.Host}{request.PathBase}/";
-            var images = photos.List(episode).Select(p => new RemoteImageInfo
+            // the albums of the episode are in other libraries: only what the person searching may see
+            var images = photos.List(episode, photos.ViewerOf(request.HttpContext.User)).Select(p => new RemoteImageInfo
             {
                 ProviderName = Name,
                 Type = ImageType.Primary,

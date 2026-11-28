@@ -736,6 +736,9 @@
                             </div>
                             <div class="cm-hint">Au moins un. Décocher masque la partie sans effacer ses réglages.</div>
                         </div>
+                        <div class="cm-contents" data-types="api local dump">
+                            <label class="cm-content-choice"><input type="checkbox" id="srcLinkEpisodeAlbums" /><span><strong>Photos des albums sur les épisodes</strong><small>Un album portant le même identifiant qu'un épisode ({préfixe-123} dans le nom du dossier, sinon son identifiant externe) ajoute ses photos au bouton « Photos » de l'épisode. Demande « Galerie photos des épisodes » (onglet Réglages). À laisser décoché si les vidéos et les albums sont numérotés séparément.</small></span></label>
+                        </div>
                         <div class="cm-danger" id="dangerZone">
                             <div><strong>Supprimer cette source</strong><span id="dangerText">Les médias qui portent son tag ne seront plus enrichis. Les métadonnées déjà enregistrées restent.</span></div>
                             <button is="emby-button" type="button" class="raised" id="btnDeleteSource"><span>Supprimer…</span></button>
@@ -2774,6 +2777,7 @@
             function fillAlbumFields(source) {
                 qs('#srcContentVideo').checked = source.ContentVideo !== false;
                 qs('#srcContentAlbums').checked = !!source.ContentAlbums;
+                qs('#srcLinkEpisodeAlbums').checked = !!source.LinkEpisodeAlbums;
                 qs('#srcAlbumEndpoint').value = source.AlbumEndpoint === undefined ? '/albums/{id}' : (source.AlbumEndpoint || '');
                 qs('#srcPhotoEndpoint').value = source.PhotoEndpoint === undefined ? '/photos/{id}' : (source.PhotoEndpoint || '');
                 qs('#srcPhotoList').value = source.PhotoListPath === undefined ? 'photos' : (source.PhotoListPath || '');
@@ -2795,6 +2799,7 @@
                 var choice = isDumpForm() || isPeopleForm();
                 source.ContentVideo = choice ? true : qs('#srcContentVideo').checked;
                 source.ContentAlbums = choice ? false : qs('#srcContentAlbums').checked;
+                source.LinkEpisodeAlbums = isPeopleForm() ? false : qs('#srcLinkEpisodeAlbums').checked;
                 source.AlbumEndpoint = qs('#srcAlbumEndpoint').value.trim() || '/albums/{id}';
                 source.PhotoEndpoint = qs('#srcPhotoEndpoint').value.trim();
                 source.PhotoListPath = qs('#srcPhotoList').value.trim();
@@ -2840,6 +2845,8 @@
                     updateCounts();
                 });
             });
+
+            document.querySelector('#srcLinkEpisodeAlbums').addEventListener('change', updateContentUi);
 
             // A new source starts with the standard paths: an empty field is IGNORED by the plugin,
             // whereas before it stayed empty behind a placeholder that looked like a default value.

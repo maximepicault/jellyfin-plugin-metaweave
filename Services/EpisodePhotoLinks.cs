@@ -60,7 +60,7 @@ namespace Jellyfin.Plugin.CustomMetadata.Services
             }
 
             // the signature proves an authorised user got this link, so no user-scoped lookup here
-            return _library.GetItemById(itemId) is Episode episode ? _photos.Find(episode, photoKey)?.File : null;
+            return _library.GetItemById(itemId) is Episode episode ? _photos.Find(episode, photoKey, _ => true)?.File : null;
         }
 
         /// <summary>The same, from an absolute URL built on <see cref="CreatePath"/></summary>

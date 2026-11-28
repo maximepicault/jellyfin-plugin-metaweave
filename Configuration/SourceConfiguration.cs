@@ -36,6 +36,12 @@ namespace Jellyfin.Plugin.CustomMetadata.Configuration
         /// <summary>Content of an API or local source: photo albums (tagged folders) and their photos. Off by default</summary>
         public bool ContentAlbums { get; set; }
 
+        /// <summary>
+        /// The photo gallery of an episode also shows the photos of the albums carrying the same identifier ({prefix-id}).
+        /// Off by default: an API may number its videos and its albums apart, the same id then meaning unrelated things.
+        /// </summary>
+        public bool LinkEpisodeAlbums { get; set; }
+
         /// <summary>Albums: endpoint of ONE album. {id} = the folder's tag without its prefix</summary>
         public string AlbumEndpoint { get; set; } = "/albums/{id}";
 
