@@ -20,6 +20,13 @@ Why a server search: the screens need counts for every filter, genres and tags t
 
 jellyfin-web draws its own page first, and the screen mounts a moment later (it showed for 40 to 400 ms). `veil()`, in `projection-index.js` and `projection-photos.js`, decides from the address alone whether a screen is coming, and sets `html.pj-ix-wait` / `html.pj-ph-wait`: the CSS (sections 18 and 19) then keeps the page's own content at opacity 0 and removes the app bar's view row. It is called from the `MutationObserver` callback itself, not the debounced run, so it applies before the new content is painted. It ends when the screen is in the page (photos: revealed), when the address is left to jellyfin-web (`ignored`: a list with no video, a folder that is not a photo one, a failed load), and after 8 s at most. A stylesheet without these rules just shows the stock page first, as before. On a full reload nothing is hidden until the theme's stylesheet has arrived (the app bar's view row shows briefly).
 
+## Screens sooner
+
+- Changes of the page are gathered for 120 ms, except while a screen waits (`veil()` on) and jellyfin-web's page of the address is there (`ready()`): the run then happens at once. A list or album page must have said so (`viewshow`).
+- Index: the search starts beside the requests for the header's names (`named`), except for a genre, studio or person list, filtered by that name.
+- Photos: a library proven to hold photos is remembered in `localStorage` (`pj-photo-libraries`), and its screen shows « Chargement… » at once next time; a library with no photo left goes back to jellyfin-web and is forgotten. The proof asks for one photo without a total (`anyPhoto()`), and the video count is asked beside the albums.
+- Timing, median of a click in the app bar on the small test bench with 150 ms added to every API answer (committed scripts → these): screen shown 430-630 → 95-370 ms, first cards 690-1200 → 490-780 ms.
+
 ## The server search
 
 `POST CustomMetadata/Index`, any signed-in user (400 for an API key: no user). Body (`IndexRequest`): `ParentId`, `Filters` (genres, tags, studios, people, years, state, letter), `Type`, `Missing`, `Sort`, `Seed`, then what is wanted: `StartIndex`/`Limit` (a page of ids with their section), `Summary` (counts per type, suggestions, letters), `Facets` + `FacetQuery`/`FacetLimit`, `Play` (`all`/`shuffle`, at most 200 ids).

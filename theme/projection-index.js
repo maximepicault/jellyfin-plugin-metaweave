@@ -152,12 +152,14 @@
 
     // asks for the first page under the current filters. `keep`: as many results as are shown (back on a screen);
     // `quiet`: the screen is only redrawn if something changed
-    function load(ix, keep, quiet) {
+    // `named`: on the first load, the requests for the names the header shows, made beside the search
+    function load(ix, keep, quiet, named) {
         var run = ++ix.run, alive = function () { return run === ix.run && ix.host.__pjIx === ix; };
         var wanted = keep ? Math.min(MAX_PAGE, Math.max(PAGE, keep)) : PAGE;
         ix.growing = false;   // a next page on its way no longer belongs here
         if (!quiet) { ix.busy = true; ix.root.classList.add('pj-ix-busy'); header(ix); ribbon(ix); }
-        return query(ix, { Summary: true, StartIndex: 0, Limit: wanted }).then(function (answer) {
+        return Promise.all([query(ix, { Summary: true, StartIndex: 0, Limit: wanted }), named]).then(function (both) {
+            var answer = both[0];
             if (!alive()) { return null; }
             // a type with nothing left under these filters: show everything (a library keeps its type)
             if (ix.type && !answer.Total && answer.Types[''] && !ix.route.library) { ix.type = ''; return load(ix, keep, quiet); }
@@ -301,7 +303,8 @@
         if (r.parentId) {
             waits.push(item(r.parentId).then(function (it) { ix.scope = it.Name; }).catch(function () { /* unnamed */ }));
         }
-        return Promise.all(waits).then(function () {
+        var named = Promise.all(waits);
+        var search = function () {
             if (ix.host.__pjIx !== ix) { return null; }
             var kept = memory.get(ix.key);
             if (kept) {
@@ -310,11 +313,13 @@
             } else if (r.base) {
                 ix.sel[r.base.k] = new Set([r.base.v]);
             }
-            return load(ix, kept && kept.shown).then(function () {
+            return load(ix, kept && kept.shown, false, named).then(function () {
                 // nothing at all on arrival: not a list of videos
                 if (ix.host.__pjIx === ix && r.base && !kept && ix.answer && !ix.answer.Types[''] && !ix.answer.Missing) { throw new Error('no video in this list'); }
             });
-        });
+        };
+        // a genre, studio or person is filtered by its name, which must come first; nothing else waits for one
+        return r.base && r.base.id ? named.then(search) : search();
     }
     function remember(ix) {
         var sel = {};
@@ -870,11 +875,20 @@
         var wanted = coming();
         if (!wanted) { veiled.hash = ''; }
         else if (veiled.hash !== location.hash) { veiled = { hash: location.hash, at: Date.now() }; setTimeout(veil, VEIL_MAX + 50); }
-        document.documentElement.classList.toggle('pj-ix-wait', wanted && Date.now() - veiled.at < VEIL_MAX);
+        return document.documentElement.classList.toggle('pj-ix-wait', wanted && Date.now() - veiled.at < VEIL_MAX);
+    }
+    // jellyfin-web's page of the address being waited for is there: the screen can be built without delay
+    function ready() {
+        var page = currentPage();
+        if (!page || !client()) { return false; }
+        var library = libraryTarget(page);
+        if (library) { return !!library.host && !(library.host.__pjIx && library.host.__pjIx.hash === location.hash); }
+        // a list page: only once it said it shows this address
+        return page.__pjView === location.hash && !!page.querySelector('.alphaPicker');
     }
 
     // ---------- runner: jellyfin-web is a single-page app, so run after every change of view ----------
-    var scheduled = null, lastKey = '';
+    var scheduled = null, soon = false, lastKey = '';
     function shownIndex() {
         var roots = document.querySelectorAll('.pj-ix');
         for (var i = 0; i < roots.length; i++) { if (roots[i].offsetParent !== null) { return roots[i].__pjIx; } }
@@ -895,7 +909,7 @@
         place(ix);
     }
     function run() {
-        scheduled = null;
+        scheduled = null; soon = false;
         if (!client() || !themed()) { return; }
         try { views(); } finally { followBar(); veil(); }
     }
@@ -922,9 +936,14 @@
         else if (lastKey !== key && ix.loaded && !ix.busy) { load(ix, ix.rows.length, true).catch(function (e) { warn('refresh', e); }); }
         lastKey = key;
     }
-    function schedule() { if (!scheduled) { scheduled = setTimeout(run, 120); } }
+    // changes are gathered for a moment, except when a screen waits for the page that just arrived
+    function schedule(waiting) {
+        if (soon) { return; }
+        if (waiting && ready()) { clearTimeout(scheduled); soon = true; scheduled = setTimeout(run, 0); }
+        else if (!scheduled) { scheduled = setTimeout(run, 120); }
+    }
     window.addEventListener('hashchange', function () { closePanel(); lastKey = ''; veil(); schedule(); });
-    document.addEventListener('viewshow', function (ev) { if (ev.target && ev.target.classList) { ev.target.__pjView = location.hash; } veil(); schedule(); }, true);
+    document.addEventListener('viewshow', function (ev) { if (ev.target && ev.target.classList) { ev.target.__pjView = location.hash; } schedule(veil()); }, true);
     window.addEventListener('resize', function () { var ix = shownIndex(); if (ix) { place(ix); } });
     document.addEventListener('keydown', function (ev) {
         if (ev.key !== '/' || panel || ev.ctrlKey || ev.metaKey || ev.altKey || /INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) { return; }
@@ -934,11 +953,11 @@
         openPanel(ix, 'all', document.activeElement);
     });
     new MutationObserver(function (records) {
-        veil();   // at once: this runs before the new content is painted
+        var waiting = veil();   // at once: this runs before the new content is painted
         // our own additions do not count
         for (var i = 0; i < records.length; i++) {
             var t = records[i].target;
-            if (!(t.closest && t.closest('.pj-ix, .pj-ix-panelbox, .pj-preview'))) { schedule(); return; }
+            if (!(t.closest && t.closest('.pj-ix, .pj-ix-panelbox, .pj-preview'))) { schedule(waiting); return; }
         }
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     veil();

@@ -96,6 +96,18 @@
     }
     function mediaTitle(total, videos) { return !videos ? 'Photos' : (videos >= total ? 'Vidéos' : 'Photos et vidéos'); }
     function howMany(query) { return list(Object.assign({}, query, { IncludeItemTypes: 'Video', Limit: 0, StartIndex: 0 })).then(function (r) { return r.TotalRecordCount; }); }
+    // whether a library holds a photo at all (no total asked for: counting a large library takes much longer)
+    function anyPhoto(parentId) {
+        return get('Items', { ParentId: parentId, Recursive: true, IncludeItemTypes: 'Photo', Limit: 1, EnableTotalRecordCount: false, EnableImages: false }).then(function (r) { return r.Items.length > 0; });
+    }
+    // the libraries already seen to be photo ones, kept by the browser: their screen shows without waiting for that proof
+    var KNOWN = 'pj-photo-libraries';
+    function known() { try { return JSON.parse(localStorage.getItem(KNOWN)) || []; } catch (e) { return []; } }
+    function remember(id, photos) {
+        var ids = known().filter(function (x) { return x !== id; });
+        if (photos) { ids.push(id); }
+        try { localStorage.setItem(KNOWN, JSON.stringify(ids.slice(-50))); } catch (e) { /* no storage */ }
+    }
 
     // ---------- people ----------
     function cast(path, query) { var c = client(); return c.getJSON(c.getUrl('CustomMetadata/AlbumCast/' + path, query || {})); }
@@ -147,6 +159,7 @@
         root.hidden = true;
         root.appendChild(h('p', { 'class': 'pj-ph-note', text: 'Chargement…' }));
         host.appendChild(root);
+        if (r.kind === 'library' && known().indexOf(r.id) >= 0) { reveal(s); }
         (r.kind === 'library' ? library(s) : album(s)).catch(function (error) {
             warn('load', error);
             ignored.add(s.hash);
@@ -241,12 +254,14 @@
         var peopleAsked = cast('People', { parentId: id }).catch(function (e) { warn('people', e); return []; });
         return Promise.all([
             get('Items/' + id),
-            list({ ParentId: id, Recursive: true, IncludeItemTypes: 'Photo', Limit: 1 })
+            anyPhoto(id)
         ]).then(function (answers) {
             if (!alive(s)) { return; }
             var item = answers[0];
             s.homeId = id;
-            if (item.CollectionType !== 'homevideos' || !answers[1].TotalRecordCount) { throw new Error('not a photo library'); }
+            var photos = item.CollectionType === 'homevideos' && answers[1];
+            remember(id, photos);
+            if (!photos) { throw new Error('not a photo library'); }
             reveal(s);
             s.terms = [];
             s.countLine = h('span', { 'class': 'pj-ph-meta' });
@@ -338,10 +353,11 @@
         var turn = s.turn = (s.turn || 0) + 1;
         // a person is a filter of its own: a search or a tag chosen afterwards leaves it
         if (s.person && !s.search && !s.tag && !s.genre) { return personResults(s, turn); }
+        var counting = howMany(query).catch(function (e) { warn('videos', e); return 0; });   // beside the albums
         return list(Object.assign({ IncludeItemTypes: ALBUM_TYPES, Limit: 600 }, query, ORDER[s.sort])).then(function (albums) {
             if (!alive(s) || turn !== s.turn) { return null; }
             var media = mediaWall(s, Object.assign({ IncludeItemTypes: MEDIA_TYPES }, query, ORDER[s.sort]));
-            return Promise.all([howMany(query), media.first]).then(function (counted) {
+            return Promise.all([counting, media.first]).then(function (counted) {
                 if (!alive(s) || turn !== s.turn) { return; }
                 var videos = counted[0];
                 s.countLine.textContent = [albums.TotalRecordCount ? count(albums.TotalRecordCount, 'album', 'albums') : ''].concat(mediaCounts(s.total, videos)).filter(Boolean).join(' · ') || 'Aucun résultat';
@@ -379,8 +395,7 @@
             s.homeId = home && home.Id;
             if (!isAlbum(item) || !home) { throw new Error('not a photo album'); }
             // a library of home videos without any photo keeps jellyfin-web's own screens
-            var photos = item.Type === 'PhotoAlbum' ? Promise.resolve(true)
-                : list({ ParentId: home.Id, Recursive: true, IncludeItemTypes: 'Photo', Limit: 1 }).then(function (r) { return r.TotalRecordCount > 0; });
+            var photos = item.Type === 'PhotoAlbum' ? Promise.resolve(true) : anyPhoto(home.Id);
             return photos.then(function (has) {
             if (!has) { throw new Error('not a photo library'); }
             if (!alive(s)) { return null; }
@@ -740,13 +755,20 @@
         var wanted = coming();
         if (!wanted) { veiled.hash = ''; }
         else if (veiled.hash !== location.hash) { veiled = { hash: location.hash, at: Date.now() }; setTimeout(veil, VEIL_MAX + 50); }
-        document.documentElement.classList.toggle('pj-ph-wait', wanted && Date.now() - veiled.at < VEIL_MAX);
+        return document.documentElement.classList.toggle('pj-ph-wait', wanted && Date.now() - veiled.at < VEIL_MAX);
+    }
+    // jellyfin-web's page of the address being waited for is there, and our screen is not yet in it
+    function ready() {
+        var page = currentPage(), r = route();
+        if (!page || !r || !client() || (page.__pjPh && page.__pjPh.hash === location.hash)) { return false; }
+        // a list page: only once it said it shows this address
+        return r.kind === 'library' ? page.id === 'homevideos' : page.__pjPhView === location.hash && !!page.querySelector('.alphaPicker');
     }
 
     // ---------- run ----------
-    var scheduled = null;
+    var scheduled = null, soon = false;
     function run() {
-        scheduled = null;
+        scheduled = null; soon = false;
         try { screens(); personPage(); } finally { followBar(); veil(); }
     }
     function screens() {
@@ -767,15 +789,20 @@
         var page = currentPage();
         document.documentElement.classList.toggle('pj-ph-libon', !!(page && page.__pjPh && page.__pjPh.route.kind === 'library' && page.__pjPh.hash === location.hash));
     }
-    function schedule() { if (!scheduled) { scheduled = setTimeout(run, 120); } }
+    // changes are gathered for a moment, except when a screen waits for the page that just arrived
+    function schedule(waiting) {
+        if (soon) { return; }
+        if (waiting && ready()) { clearTimeout(scheduled); soon = true; scheduled = setTimeout(run, 0); }
+        else if (!scheduled) { scheduled = setTimeout(run, 120); }
+    }
     window.addEventListener('hashchange', function () { closeViewer(); veil(); schedule(); });
-    document.addEventListener('viewshow', function (ev) { if (ev.target && ev.target.classList) { ev.target.__pjPhView = location.hash; } veil(); schedule(); }, true);
+    document.addEventListener('viewshow', function (ev) { if (ev.target && ev.target.classList) { ev.target.__pjPhView = location.hash; } schedule(veil()); }, true);
     new MutationObserver(function (records) {
-        veil();   // at once: this runs before the new content is painted
+        var waiting = veil();   // at once: this runs before the new content is painted
         // our own additions do not count
         for (var i = 0; i < records.length; i++) {
             var t = records[i].target;
-            if (!(t.closest && t.closest('.pj-ph, .pj-ph-viewer'))) { schedule(); return; }
+            if (!(t.closest && t.closest('.pj-ph, .pj-ph-viewer'))) { schedule(waiting); return; }
         }
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     veil();

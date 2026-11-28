@@ -6,6 +6,7 @@ Version history, newest first. It replaces the many fix notes written during dev
 
 ## Unreleased
 
+- **Projection theme: its screens appear sooner**: they are built as soon as jellyfin-web's page arrives, the series, film and list screens search while the names of their header load, and a photo library already visited in this browser shows at once, with a lighter check.
 - **Fix: Projection theme: jellyfin-web's own page showed for a moment before the theme's screens** (series, film and photo libraries, albums and genre lists): it now stays unseen until the screen is there, and a library opened without a view in its address no longer waits for the stock cards to load.
 - **Fix: Sources tab: a choice of « Actualiser » left unticked looked chosen** (it took the fill of the tag chips, bluer than a ticked one): it is now grey and hollow, and a choice keeps its size either way.
 - **Photo libraries: pictures prepared in advance** (setting « Préparer les images des photothèques », off by default, with the theme script): a nightly task makes the thumbnails and large pictures the theme's photo screens ask for, so that a first visit no longer waits for the server; an option adds the size of screens wider than Full HD. It costs processor time and cache space.
