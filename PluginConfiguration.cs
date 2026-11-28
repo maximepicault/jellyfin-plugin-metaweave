@@ -113,6 +113,16 @@ namespace Jellyfin.Plugin.CustomMetadata
         public bool EnableThemeScript { get; set; } = false;
 
         /// <summary>
+        /// Lets the scheduled task make the photo libraries' thumbnails and screen-sized pictures in advance (with
+        /// <see cref="EnableThemeScript"/>, whose screens ask for those sizes). Off by default: it costs processor time and
+        /// cache space.
+        /// </summary>
+        public bool PrepareLibraryImages { get; set; } = false;
+
+        /// <summary>Prepares the size of screens wider than Full HD too</summary>
+        public bool PrepareWideScreenImages { get; set; } = false;
+
+        /// <summary>
         /// Episode photo gallery: a "Photos" button on an episode's page (web/gallery.js, added by ThemeScriptMiddleware,
         /// with or without the theme) showing the local source's photos and the numbered folder next to the video, also
         /// offered in the image search. Off by default: it adds a script to jellyfin-web.

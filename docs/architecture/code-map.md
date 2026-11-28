@@ -13,7 +13,7 @@
 | `Providers/` | Everything Jellyfin discovers by reflection: metadata/image providers, external id, ignore rule, media source provider, person link providers |
 | `Api/` | REST controllers (`CustomMetadata/...`), plus the HTTP layer: `CustomApiClient`, `ResilientHttp`, `SourceHeaders` |
 | `Services/` | Stores (JSON files), background services, pure helpers (parsers, mappers, converters) |
-| `ScheduledTasks/` | `MissingEpisodesTask` (daily, key `CustomMetadataMissingEpisodes`) |
+| `ScheduledTasks/` | `MissingEpisodesTask` (daily, key `CustomMetadataMissingEpisodes`), `PreviewClipsTask` (episode preview clips), `ImagePreparationTask` (photo libraries' pictures in advance, key `CustomMetadataPrepareImages`) |
 | `tools/ui-test/` | Test bench (Docker Jellyfin 12.4 on 8097, mock API `server.py`, demo data `data.py`/`gen.py`, CDP/Playwright scripts) |
 | `deploy/` | Server-side updater (systemd timer) and its sandbox test |
 | `web/gallery.js` | Episode photo gallery script, embedded in the DLL, added to jellyfin-web’s page by `ThemeScriptMiddleware` when `EnableEpisodePhotos` is on |
@@ -35,6 +35,7 @@
 | `PreviewMediaSourceProvider` | `IMediaSourceProvider` | Makes a virtual episode playable through its preview trailer (`PreviewMapper`) |
 | `PersonNetworkSlot00…` (`PersonNetworkUrlProviders.cs`) | `IExternalUrlProvider` | Fixed pool of link slots on Jellyfin's person page, filled at runtime from `PersonNetworkStore` |
 | `MissingEpisodesTask` | `IScheduledTask` | Runs `MissingEpisodeService.AnalyzeAsync`, then `CastApplyService.SyncUntaggedAsync` (cast of the tag-less children of cascading series/seasons) |
+| `ImagePreparationTask` | `IScheduledTask` | Runs `ImagePreparationService.PrepareAsync` (settings `PrepareLibraryImages`, `EnableThemeScript`); see `photo-albums.md` |
 | Controllers in `Api/*Controller.cs` | `ControllerBase` | §6 |
 
 ### 2.2 Registered in `PluginServiceRegistrator` (all singletons; never `new` them)

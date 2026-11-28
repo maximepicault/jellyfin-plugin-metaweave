@@ -88,6 +88,34 @@ try {
     await idle();
     const lib = (await api('GET', `/UserViews?userId=${login.User.Id}`)).Items.find(v => v.Name === LIBRARY);
 
+    // ---- pictures made in advance: the screens then find them in Jellyfin's cache ----------------------------------
+    const resized = path.join(process.env.CM_UI_WORK || path.join(process.env.HOME, '.cache/cm-ui-test'), 'cache/images/resized-images');
+    const cached = () => new Set(fs.existsSync(resized) ? fs.readdirSync(resized, { recursive: true }).filter(file => /\.\w+$/.test(file)) : []);
+    const prepare = async on => {
+        await api('POST', `/Plugins/${plugin.Id}/Configuration`, { ...config, PrepareLibraryImages: on, PrepareWideScreenImages: false });
+        const task = (await api('GET', '/ScheduledTasks')).find(t => t.Key === 'CustomMetadataPrepareImages');
+        await api('POST', `/ScheduledTasks/Running/${task.Id}`); await idle();
+        return (await api('GET', `/ScheduledTasks/${task.Id}`)).LastExecutionResult?.Status;
+    };
+    let files = cached().size;
+    check('preparation: with the setting off, the task makes nothing', (await prepare(false)) === 'Completed' && cached().size === files, cached().size - files);
+    check('preparation: the task completes and fills the cache', (await prepare(true)) === 'Completed' && cached().size > files, cached().size - files);
+    const made = cached();
+    const get = async (id, kind, tag, box) => (await fetch(`${url}/Items/${id}/Images/${kind}?${box}&quality=90&tag=${tag}`, { headers: { Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' } })).arrayBuffer();
+    const all = (await api('GET', `/Items?userId=${login.User.Id}&ParentId=${lib.Id}&Recursive=true&IncludeItemTypes=PhotoAlbum,Folder,Photo,Video`)).Items;
+    let requests = 0;
+    for (const item of all) {
+        const cover = item.ImageTags?.Primary, back = item.BackdropImageTags?.[0], album = item.Type === 'PhotoAlbum' || item.Type === 'Folder';
+        const wanted = !album ? (cover ? [['Primary', cover, 'maxWidth=1200&maxHeight=360'], ['Primary', cover, 'maxWidth=1920&maxHeight=1080']] : [])
+            : [...(cover ? [['Primary', cover, 'maxWidth=640']] : []), ...(back ? [['Backdrop/0', back, 'maxWidth=640'], ['Backdrop/0', back, 'maxWidth=1920&maxHeight=1080']] : cover ? [['Primary', cover, 'maxWidth=1920&maxHeight=1080']] : [])];
+        for (const [kind, tag, box] of wanted) { await get(item.Id, kind, tag, box); requests++; }
+    }
+    check('preparation: everything the screens ask for is already there', requests > 300 && cached().size === made.size, { requests, added: cached().size - made.size });
+    const one = all.find(item => item.Type === 'Photo');
+    await get(one.Id, 'Primary', one.ImageTags.Primary, 'maxWidth=333');
+    check('preparation: (a size nobody prepared does add a file)', cached().size === made.size + 1, cached().size - made.size);
+    await api('POST', `/Plugins/${plugin.Id}/Configuration`, config);
+
     fs.mkdirSync(out, { recursive: true });
     const browser = await chromium.launch({ channel: 'chrome' });
     try {
@@ -95,6 +123,12 @@ try {
         const errors = [], warnings = [];
         page.on('pageerror', e => errors.push(e.message));
         page.on('console', m => m.text().startsWith('[projection') && warnings.push(m.text()));
+        // the sizes the photo screens ask for, to compare with those the plugin prepares
+        const boxes = new Set();
+        page.on('request', request => {
+            const u = new URL(request.url());
+            if (/\/Images\//.test(u.pathname) && u.searchParams.get('quality') === '90' && /#\/(list|homevideos)/.test(page.url())) { boxes.add(`${u.searchParams.get('maxWidth')}x${u.searchParams.get('maxHeight') || ''}`); }
+        });
         await page.goto(url + '/web/');
         await page.fill('#txtManualName', 'admin'); await page.fill('#txtManualPassword', 'admin'); await page.keyboard.press('Enter');
         await page.waitForTimeout(4000);
@@ -188,7 +222,8 @@ try {
         await favourite.click(); await page.waitForTimeout(800);
 
         // a server slow to make the large picture: the thumbnail holds its place, and the neighbours are asked for after it
-        const large = u => /\/Images\/Primary/.test(u.pathname) && u.searchParams.has('maxHeight');
+        // the large pictures only: the thumbnails are 360 px high
+        const large = u => /\/Images\/Primary/.test(u.pathname) && Number(u.searchParams.get('maxHeight')) > 360;
         const asked = new Set();
         await page.route(large, async route => { asked.add(route.request().url()); await new Promise(r => setTimeout(r, 2500)); await route.continue().catch(() => {}); });
         await page.locator(`${P} .pj-ph-tile`, { hasText: 'Le phare au couchant' }).click();
@@ -203,8 +238,8 @@ try {
         await page.waitForTimeout(500);
         check('viewer: the neighbouring photos are asked for in advance', asked.size >= 2, [...asked].map(u => u.split('/Items/')[1]));
         // leaving a photo before its large picture is there, then coming back to it
-        // leaving a photo before its large picture is there, then coming back to it (a smaller window: sizes never asked yet)
-        await page.keyboard.press('Escape'); await page.setViewportSize({ width: 900, height: 700 }); await page.waitForTimeout(600);
+        // leaving a photo before its large picture is there, then coming back to it (a wider screen: its size was never asked yet)
+        await page.keyboard.press('Escape'); await page.setViewportSize({ width: 2600, height: 1500 }); await page.waitForTimeout(600);
         await page.locator(`${P} .pj-ph-tile`, { hasText: 'Le phare au couchant' }).click();
         const held = await page.waitForSelector('.pj-ph-viewer .pj-ph-stage img.pj-ph-low', { timeout: 2000 }).then(() => true, () => false);
         await page.waitForTimeout(300); await page.keyboard.press('ArrowRight'); await page.waitForTimeout(300); await page.keyboard.press('ArrowLeft');
@@ -267,6 +302,8 @@ try {
         await page.goto(`${url}/web/#/homevideos?topParentId=${lib.Id}&tab=1`); await page.waitForTimeout(3000);
         check('another view: the app bar row is back', await page.locator('[aria-controls="library-view-menu"]').isVisible());
         check('the other views of the library stay jellyfin-web\'s', (await page.$$(`${P}`)).length === 0 && (await page.$$('.page:not(.hide) .card')).length > 0);
+        const unprepared = [...boxes].filter(box => !['640x', '1200x360', '1920x1080', '2560x1440'].includes(box));
+        check('the screens ask only for the sizes the plugin prepares', boxes.size >= 3 && unprepared.length === 0, [...boxes]);
         check('no script error nor warning', errors.length === 0 && warnings.length === 0, [errors, warnings]);
     } finally {
         await browser.close();

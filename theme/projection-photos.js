@@ -67,12 +67,14 @@
         if (tag) { o.tag = tag; }
         return client().getImageUrl(id, o);
     }
-    // The server makes each size from the original file, which takes seconds on a large photo: large pictures are asked in a
-    // few fixed sizes (what it made then serves again) and no larger than the screen shows.
-    var SIZES = [640, 960, 1280, 1440, 1920, 2560];
-    function size(shown, most) {
-        var wanted = shown * Math.min(window.devicePixelRatio || 1, 2);
-        return Math.min(SIZES.filter(function (x) { return x >= wanted; })[0] || 2560, most || 2560);
+    // The server makes each size from the original file, which takes seconds on a large photo. Pictures are therefore asked
+    // in a few fixed boxes: what the server made then serves again, and the plugin can make them in advance. These boxes
+    // must stay those of Services/ImagePreparationService.
+    var CARD = 640, TILE = [1200, 360], SCREEN = [1920, 1080], WIDE_SCREEN = [2560, 1440];
+    // the box of a large picture: the wide one only for a place that clearly shows more than Full HD
+    function screenBox(width, height) {
+        var k = Math.min(window.devicePixelRatio || 1, 2);
+        return width * k > 2000 || height * k > 1150 ? WIDE_SCREEN : SCREEN;
     }
     // priority 'high': ahead of the thumbnails the browser is still waiting for
     function fetchImage(url, priority) { var img = new Image(); img.fetchPriority = priority; img.src = url; return img; }
@@ -179,15 +181,15 @@
     }
     function albumCard(it) {
         var tag = it.ImageTags && it.ImageTags.Primary;
-        var frame = h('span', { 'class': 'pj-ph-frame' }, tag ? h('img', { alt: '', loading: 'lazy', fetchpriority: 'low', src: image(it.Id, 'Primary', tag, 640) }) : icon('photo_library'));
+        var frame = h('span', { 'class': 'pj-ph-frame' }, tag ? h('img', { alt: '', loading: 'lazy', fetchpriority: 'low', src: image(it.Id, 'Primary', tag, CARD) }) : icon('photo_library'));
         if (!tag) {
-            firstPhoto(it.Id).then(function (c) { if (c) { frame.replaceChildren(h('img', { alt: '', loading: 'lazy', fetchpriority: 'low', src: image(c.id, c.type, c.tag, 640) })); } }, function (e) { warn('cover', e); });
+            firstPhoto(it.Id).then(function (c) { if (c) { frame.replaceChildren(h('img', { alt: '', loading: 'lazy', fetchpriority: 'low', src: image(c.id, c.type, c.tag, CARD) })); } }, function (e) { warn('cover', e); });
         }
         var meta = [it.ChildCount != null ? count(it.ChildCount, 'élément', 'éléments') : '', it.ProductionYear ? String(it.ProductionYear) : ''].filter(Boolean).join(' · ');
         return h('a', { 'class': 'pj-ph-card', href: albumHref(it.Id) }, [h('span', { 'class': 'pj-ph-stack' }, frame), h('strong', { text: it.Name }), h('span', { 'class': 'pj-ph-meta', text: meta })]);
     }
     // the wall's thumbnail of a photo or video, also what the viewer shows while the large picture is on its way
-    function thumbnail(it) { return image(it.Id, 'Primary', it.ImageTags && it.ImageTags.Primary, Math.round(360 * Math.max(1, ratioOf(it)))); }
+    function thumbnail(it) { return image(it.Id, 'Primary', it.ImageTags && it.ImageTags.Primary, TILE[0], TILE[1]); }
     function mediaTile(s, it) {
         var tag = it.ImageTags && it.ImageTags.Primary, ratio = ratioOf(it), video = it.Type === 'Video';
         var inside = [tag ? h('img', { alt: '', loading: 'lazy', fetchpriority: 'low', src: thumbnail(it) }) : icon(video ? 'movie' : 'photo'),
@@ -449,8 +451,8 @@
         add('Primary', item.ImageTags && item.ImageTags.Primary);
         return out;
     }
-    // shown under 60 % of the window's height: an upright picture needs no more
-    function headImage(c) { return image(c.id, c.type, c.tag, size(window.innerWidth, 1920), size(window.innerHeight * 0.6, 1920)); }
+    // shown under 60 % of the window's height
+    function headImage(c) { var box = screenBox(window.innerWidth, window.innerHeight * 0.6); return image(c.id, c.type, c.tag, box[0], box[1]); }
     // the picture at the head: the album's backdrop, else its cover, else its first photo or its first sub-album's cover
     function headPicture(s, hero, box, albums) {
         var candidates = ownPictures(s.item), add = function (it, type, tag) { if (tag) { candidates.push({ id: it.Id, type: type, tag: tag }); } };
@@ -467,7 +469,7 @@
                 return;
             }
             // the card's size first (the browser often has it already from the library), then the screen's
-            var full = fetchImage(headImage(c), 'high'), small = fetchImage(image(c.id, c.type, c.tag, 640), 'high'), done = false;
+            var full = fetchImage(headImage(c), 'high'), small = fetchImage(image(c.id, c.type, c.tag, CARD), 'high'), done = false;
             full.alt = small.alt = '';
             var place = function (img) {
                 if (!alive(s)) { return; }
@@ -601,8 +603,8 @@
         }
     }
     function largeImage(v, it) {
-        var box = v.stage.getBoundingClientRect();
-        return image(it.Id, 'Primary', it.ImageTags && it.ImageTags.Primary, size(box.width), size(box.height));
+        var shown = v.stage.getBoundingClientRect(), box = screenBox(shown.width, shown.height);
+        return image(it.Id, 'Primary', it.ImageTags && it.ImageTags.Primary, box[0], box[1]);
     }
     // a picture already asked for, unless it was stopped or refused on the way (complete and empty): that one is asked again
     function asked(v, url) { var img = v.ahead.get(url); return img && !(img.complete && !img.naturalWidth) ? img : null; }
@@ -641,8 +643,8 @@
     }
     // the file itself, as it is (no transcoding): a format the browser cannot read is left to jellyfin-web's player
     function player(v, it) {
-        var c = client(), tag = it.ImageTags && it.ImageTags.Primary, box = v.stage.getBoundingClientRect();
-        var video = h('video', { controls: true, playsinline: true, preload: 'metadata', 'aria-label': it.Name, poster: tag ? image(it.Id, 'Primary', tag, size(box.width), size(box.height)) : null,
+        var c = client(), tag = it.ImageTags && it.ImageTags.Primary;
+        var video = h('video', { controls: true, playsinline: true, preload: 'metadata', 'aria-label': it.Name, poster: tag ? largeImage(v, it) : null,
             src: c.getUrl('Videos/' + it.Id + '/stream', { static: true, mediaSourceId: it.Id, ApiKey: c.accessToken() }) });
         video.addEventListener('ended', function () { if (viewer === v && v.timer) { step(1); } });
         video.addEventListener('error', function () {
