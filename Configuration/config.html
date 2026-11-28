@@ -113,12 +113,15 @@
         #CustomMetadataConfigPage .cm-lane { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--cm-border); border-radius: 8px; }
         #CustomMetadataConfigPage .cm-lane-title { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
         #CustomMetadataConfigPage .cm-lane-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-        /* A choice is a pill: its checkbox covers it, invisible */
-        #CustomMetadataConfigPage .cm-group-head label.cm-pill { position: relative; display: inline-flex; align-items: center; min-height: 34px; padding: 0 14px; border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 99px; font-size: 13px; cursor: pointer; }
-        #CustomMetadataConfigPage .cm-pill input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-        #CustomMetadataConfigPage .cm-pill:has(input:checked) { border-color: var(--cm-accent); background: rgba(0, 164, 220, 0.22); }
-        #CustomMetadataConfigPage .cm-pill:has(input:checked) span::before { content: '✓ '; }
-        #CustomMetadataConfigPage .cm-pill:has(input:focus-visible) { outline: 2px solid var(--cm-accent); outline-offset: 2px; }
+        /* A choice of « Actualiser » is a button: its checkbox covers it, invisible. Chosen = filled in the accent colour with
+           a tick; left out = grey and hollow. The mark keeps its place, so the button keeps its size. */
+        #CustomMetadataConfigPage .cm-group-head label.cm-rf { position: relative; display: inline-flex; align-items: center; min-height: 34px; padding: 0 14px 0 10px; border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 99px; background: transparent; color: rgba(255, 255, 255, 0.6); font-size: 13px; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-group-head label.cm-rf:hover { background: rgba(255, 255, 255, 0.07); }
+        #CustomMetadataConfigPage .cm-group-head label.cm-rf:has(input:checked) { border-color: var(--cm-accent); background: rgba(0, 164, 220, 0.3); color: #fff; }
+        #CustomMetadataConfigPage .cm-rf input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+        #CustomMetadataConfigPage .cm-rf span::before { content: '○'; display: inline-block; width: 18px; margin-right: 4px; text-align: center; }
+        #CustomMetadataConfigPage .cm-rf:has(input:checked) span::before { content: '✓'; }
+        #CustomMetadataConfigPage .cm-rf:has(input:focus-visible) { outline: 2px solid var(--cm-accent); outline-offset: 2px; }
         #CustomMetadataConfigPage .cm-group-status { order: 4; }
         #CustomMetadataConfigPage .cm-libpick label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
         @media (max-width: 600px) {
@@ -1749,7 +1752,7 @@
                     var hasAlbums = g.items.some(function(it) { return it.source.SourceType !== 'People' && it.source.SourceType !== 'Dump' && it.source.ContentAlbums; });
                     if (enriches && g.prefix) {
                         var pill = function(rf, label, aria, title) {
-                            return '<label class="cm-pill"' + (title ? ' title="' + title + '"' : '') + '><input type="checkbox" data-rf="' + rf + '" checked aria-label="' + aria + '" /><span>' + label + '</span></label>';
+                            return '<label class="cm-rf"' + (title ? ' title="' + title + '"' : '') + '><input type="checkbox" data-rf="' + rf + '" checked aria-label="' + aria + '" /><span>' + label + '</span></label>';
                         };
                         var lane = function(title, content) { return '<div class="cm-lane"><span class="cm-lane-title">' + title + '</span><div class="cm-lane-pills">' + content + '</div></div>'; };
                         var lanes = '';

@@ -500,7 +500,14 @@ try {
   await size(1920, 900); await wait(400); await shot('L12-groups-pair-1920');
   await size(412, 900, true); await wait(400); await shot('L12-groups-pair-mobile');
   await size(1440, 900); await wait(300);
-  await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-rf="season"]').click(); true`);
+  const choice = () => ev(`(function(){var l=document.querySelector('.cm-group-head[data-group="dm"] [data-rf="season"]').closest('label'); var s=getComputedStyle(l); var r=l.getBoundingClientRect(); return JSON.stringify({w:Math.round(r.width*10)/10, h:Math.round(r.height*10)/10, bg:s.backgroundColor, color:s.color, mark:getComputedStyle(l.querySelector('span'),'::before').content});})()`).then(JSON.parse);
+  await ev(`document.activeElement && document.activeElement.blur(); true`);
+  const ticked = await choice();
+  await ev(`document.querySelector('.cm-group-head[data-group="dm"] [data-rf="season"]').click(); true`); await wait(200);
+  const unticked = await choice();
+  check('refresh: a choice left out looks off (no fill, grey words, hollow mark)', ticked.bg !== unticked.bg && unticked.bg === 'rgba(0, 0, 0, 0)' && ticked.color !== unticked.color && unticked.mark !== ticked.mark, JSON.stringify([ticked, unticked]));
+  check('refresh: a choice keeps its size, chosen or not', ticked.w === unticked.w && ticked.h === unticked.h, JSON.stringify([ticked, unticked]));
+  await shot('L13-choices-1440');
   await click('.cm-group-head[data-group="dm"] [data-refresh]'); await wait(1800);
   const sent = JSON.parse(await ev(`JSON.stringify(__mock.refresh)`));
   check('refresh: the request carries the prefix, the checked types, images replaced by default', sent.Prefix === 'dm' && JSON.stringify(sent.Types) === JSON.stringify(['series', 'episode']) && sent.ReplaceImages === true, JSON.stringify(sent));
