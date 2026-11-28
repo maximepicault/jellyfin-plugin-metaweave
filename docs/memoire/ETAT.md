@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-28 (D031 photo pictures prepared in advance: committed (dd2523c), pushed and deployed; last deployment recorded: f901323, refresh choices fix)
+Dernière mise à jour : 2026-11-28 (D032 screens shown sooner: committed and deployed, 20bac11; to be tried on the real server)
 
 ## Objectif
 Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -15,7 +15,7 @@ Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (
 - Test results and what was not verified: see each decision.
 
 ## Déployé
-- Last successful deployment: f901323, develop, 2026-11-28
+- Last successful deployment: 20bac11, develop, 2026-11-28
 - e585b7a includes D027 (f265ba3) and 0cd0284 (missing episodes hidden by default on the Index screens): both are on the server since that deployment (Check and Deploy reported successful, backup /var/backups/metaweave/20261128-003546). Plugin loading in the server log not checked.
 - 04bab89 (`perf(theme)`, pictures show sooner; `docs/architecture/photo-albums.md` « Pictures sooner »): gain not measured on the real server; a first visit still waited for the server (follow-up: D031).
 
