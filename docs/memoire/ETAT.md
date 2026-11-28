@@ -1,5 +1,5 @@
 # État du projet
-Dernière mise à jour : 2026-11-28 (D028 photo displays, D029 album videos and D030 people on albums, photos and videos pushed on develop (e756db8, cf3efa4) and deployed; last deployment recorded: e585b7a)
+Dernière mise à jour : 2026-11-28 (D031 photo pictures prepared in advance: developed, in the working tree, not committed; last deployment recorded: 04bab89)
 
 ## Objectif
 Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (`Jellyfin.Plugin.CustomMetadata`, version 0.0.8 alpha) enriching media from user-configured sources (REST API, Local, People, Dump). The `{PREFIX-ID}` tag in a file or folder name selects the source.
@@ -11,25 +11,29 @@ Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (
 - 2026-11-25/26, on develop: theme detail pages (D017: 19f6bfd, audit a33c721, header 164e57b), theme route and script (D018, D019: 17fdd9c, deployed 49b9351; untested: trailer hover preview, real base URL), hover preview (D020: 5bc22c8, 10c9e1d, 0423885; later theme work up to 4e31727), « Salle » viewer (D021: 0267574, header fix 288301d, deployed 71c5b1e), photo gallery (D022: 92c2ed2, deployed 46177c2; real server not verified).
 - 2026-11-27, on develop and deployed: person page (D023: bf4b8fb, 702de1c; not verified: network icons on link chips, TV, Firefox/Safari, real server), « Index » lists (D024: dcf1dbb, b35cfca), server-side Index and library screens (D025: 2b772f5, 7ec9ff7, later header work up to f9f0a21), Jellyfin 12.4 only (D026: e5a0330, c09eac1).
 - 2026-11-27, pushed on develop: photo albums and photos (D027: 7144f4e theme fix, 3fde78a, f265ba3; `docs/architecture/photo-albums.md`).
+- 2026-11-28, on develop and deployed: theme photo screens, editor menu and « Actualiser » blocks (D028), album videos (D029), people on albums, photos and videos (D030): e756db8, cf3efa4; faster pictures (04bab89).
 - Test results and what was not verified: see each decision.
 
 ## Déployé
-- Last successful deployment: e585b7a, develop, 2026-11-28
+- Last successful deployment: 04bab89, develop, 2026-11-28
 - e585b7a includes D027 (f265ba3) and 0cd0284 (missing episodes hidden by default on the Index screens): both are on the server since that deployment (Check and Deploy reported successful, backup /var/backups/metaweave/20261128-003546). Plugin loading in the server log not checked.
+- 04bab89 (`perf(theme)`, pictures show sooner; `docs/architecture/photo-albums.md` « Pictures sooner »): gain not measured on the real server; a first visit still waited for the server (follow-up: D031).
 
 ## En cours
-- D028 (theme photo screens `theme/projection-photos.js` + section 19 of `projection.css`, editor menu, « Actualiser » blocks), D029 (album videos) and D030 (people on albums, photos, videos; `docs/architecture/photo-albums.md` « People »): committed on develop on 2026-11-28 (`e756db8` editor menu and « Actualiser » blocks, `cf3efa4` the rest), pushed and deployed on 2026-11-28.
-- D030's four open defects fixed (2026-11-28: lock, casting off, typed person on a video, source not answering; see its amendment). Reported on a 12.4 bench after the fixes: build 0 warnings, `album-people-real.mjs` 51/0, `albums-real.mjs` 37/0, `photos-library-real.mjs` 43/0; `config-local-ui` 171/0 (before the commit, alone on `e756db8` too); not re-run since (passed before): `config-people-*`, `local-*`, `dump-real`, `diagnostic-real`, `index-real`; `theme-audit.mjs` not re-run (partial before D029: 44 to 52 FAIL, see D028). Not verified: real server and library, large libraries, TV, Firefox/Safari, stock apps, limited user, video formats beyond H.264 MP4 and MPEG-4 AVI.
+- D031 (maintainer: « Oui, développe-la »): in the working tree on develop, NOT committed, not deployed; includes the new untracked files `Services/ImagePreparationService.cs` and `ScheduledTasks/ImagePreparationTask.cs`. Reported on a 12.4 bench: build 0 warnings, `photos-library-real` 52/0, `album-people-real` 51/0, `albums-real` 37/0, `config-local-ui` 171/0.
+- Not re-run since the D030 fixes (passed before): `config-people-*`, `local-*`, `dump-real`, `diagnostic-real`, `index-real`; `theme-audit.mjs` not re-run (partial before D029: 44 to 52 FAIL, see D028).
 - Never commit `theme/previews/` (untracked mockups and screenshots); `.claude/hooks/` is also untracked, its origin was not reported.
 
 ## Prochaines étapes
-- D028/D029/D030: re-run the scripts not run since the D030 fixes (list under « En cours ») and the full `theme-audit.mjs`; push only when the maintainer asks.
+- D031: commit and push only when the maintainer asks; after deployment turn on « Préparer les images des photothèques » (needs « Améliorations du thème Projection »; plus « grands écrans » above 1920×1080), run the task, measure duration, cache size and picture times on the real server.
+- Re-run the scripts listed under « En cours » and the full `theme-audit.mjs`.
 - D027 to D030: check on the real server and library (a source with « Albums photo » ticked, photo screens and people with the theme script on, scan cost on a large photo library).
 - D026: check on the real server and library: plugin loaded and active, screens, previews of missing episodes, chapters.
 - D025: then check screen times, memory use, a user with limited access.
 - D019/D022, remaining for the maintainer: turn on « Améliorations du thème Projection » and « Galerie photos des épisodes » (Settings tab), reload with Ctrl+F5, uninstall the old « Episode Gallery » plugin.
 
 ## Pièges découverts
+- Jellyfin's « Clean Cache Directory » deletes old cached images (12.4 bench: 40 days old removed, 25 kept), and prepared pictures only serve if size, quality and format match the browser's request (D031).
 - Photos (D027): Jellyfin's EXIF reader rewrites a photo's fields at each of its runs, so a user « search missing metadata » overwrites a typed value on an unlocked photo (only the item lock keeps it); a library scan alone does not apply a source change (targeted refresh needed).
 - Jellyfin 12: `BaseItem.ExtraIds` is gone, extras are linked by `OwnerId` only (`Services/PreviewMapper.cs` queries `OwnerIds` + `ExtraTypes`); deleting an item removes its extras from the database (D026).
 - Jellyfin 12: legacy authentication is off by default (`X-Emby-Token`, `X-Emby-Authorization`, `api_key` get 401): use `Authorization: MediaBrowser Token="…"` or `ApiKey` in the URL. It compiles and only fails at run time (D026).
@@ -53,6 +57,8 @@ Jellyfin 12.4 (only, D026; 10.11.6 up to 0.0.8) metadata/image provider plugin (
 - Cast changes and renames do not reach already-enriched episodes by themselves: "Analyser" and "Appliquer aux épisodes" (background task, not QueueRefresh) propagate them (D007).
 
 ## Questions ouvertes
+- D031, assistant's choices not confirmed by the maintainer (list in the decision). The size and time figures in the setting's hint and the README are estimates, not measured on real photos [supposé]. Not verified: real server and library, 1440p/4K screen, Safari/Firefox, very large libraries.
+- D028 to D030, not verified: real server and library, large libraries, TV, Firefox/Safari, stock apps, limited user, video formats beyond H.264 MP4 and MPEG-4 AVI.
 - D027, assistant's choices not confirmed by the maintainer: albums off by default, album-tag inheritance off, photo found by file name or own tag. Not built: dump sources for albums, local data over an API album, album description above the photo grid in the stock web client (shown by the D028 theme page).
 - D030, assistant's choices not confirmed by the maintainer (list in the decision and its amendment). Known limits as built: while a source does not answer, a removed link stays shown on the items that depend on it; records of deleted items are not purged.
 - D028 and D029, assistant's choices not confirmed by the maintainer (lists in the decisions; D029: no transcoding, resume or « seen » state in the viewer, no image from the source on videos, same endpoint and mappings as photos, video-only libraries stay stock). Source cards unchanged: the mockup's content chips are not built.
